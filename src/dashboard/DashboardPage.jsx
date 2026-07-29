@@ -1,39 +1,27 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import { tokenHelper } from "../shared/api";
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../shared/contexts/AuthContext";
 
 function DashboardPage() {
-  function handleLogout() {
-    tokenHelper.clear();
-    window.location.href = "/";
-  }
+  const { isAuthenticated, role, getDashboardPath } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/auth/login", { replace: true });
+    } else {
+      navigate(getDashboardPath(role), { replace: true });
+    }
+  }, [isAuthenticated, role, getDashboardPath, navigate]);
 
   return (
-    <div className="min-h-screen bg-[#F4F4F5] flex flex-col items-center justify-center font-sans">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-12 py-14 text-center max-w-sm w-full">
-        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-5">
-          <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-          </svg>
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-sm text-gray-500 mb-8">
-          You're logged in. The full dashboard is coming soon.
-        </p>
-        <div className="flex flex-col gap-3">
-          <Link
-            to="/"
-            className="block text-sm font-medium text-purple-600 hover:text-purple-700 transition-colors"
-          >
-            ← Back to Home
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-          >
-            Sign out
-          </button>
-        </div>
+    <div className="min-h-screen bg-[#F4F4F5] flex items-center justify-center font-sans">
+      <div className="flex flex-col items-center justify-center">
+        <svg className="w-8 h-8 animate-spin text-purple-600 mb-3" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+        <p className="text-sm text-gray-500 font-medium">Loading workspace…</p>
       </div>
     </div>
   );

@@ -5,9 +5,9 @@ import { authAPI, tokenHelper } from "../../shared/api";
 /**
  * GoogleButton — renders the official Google Sign-In button
  * and sends the real ID Token (JWT) to the POST /auth/google endpoint.
- * @param {{ onSuccess?: (user) => void, onError?: (msg) => void }} props
+ * @param {{ onSuccess?: (user) => void, onError?: (msg) => void, onMultiOrg?: (selectionToken, orgs) => void }} props
  */
-function GoogleButton({ onSuccess, onError }) {
+function GoogleButton({ onSuccess, onError, onMultiOrg }) {
   const [loading, setLoading] = useState(false);
 
   async function handleSuccess(credentialResponse) {
@@ -20,9 +20,18 @@ function GoogleButton({ onSuccess, onError }) {
     try {
       // Exchange the real Google ID Token (credential) for our app's JWT
       const res = await authAPI.googleAuth({ idToken: credentialResponse.credential });
-      const { accessToken, refreshToken } = res.data.user;
+
+      // Multi-org: user belongs to multiple organizations
+      if (res.requires_org_selection && res.selection_token) {
+        onMultiOrg?.(res.selection_token, res.organizations || []);
+        return;
+      }
+
+      // Single org or guest
+      const user = res.data?.user || res.user || res;
+      const { accessToken, refreshToken } = user;
       tokenHelper.save(accessToken, refreshToken);
-      onSuccess?.(res.data.user);
+      onSuccess?.(user);
     } catch (err) {
       onError?.(err.message || "Google sign-in failed on server. Please try again.");
     } finally {

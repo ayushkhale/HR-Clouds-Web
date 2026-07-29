@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { HiArrowLeft, HiEye, HiEyeOff, HiCheckCircle } from "react-icons/hi";
 import OtpInput from "../components/OtpInput";
 import { authAPI, tokenHelper } from "../../shared/api";
+import { useAuth } from "../../shared/contexts/AuthContext";
 
 const OTP_TIMER_SECONDS = 60; // 1 minute
 
@@ -48,6 +49,7 @@ function OtpPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state;
+  const { login, getDashboardPath } = useAuth();
 
   // Guard: if no state was passed, redirect back to register
   useEffect(() => {
@@ -123,9 +125,11 @@ function OtpPage() {
           password,
           requestId,
         });
-        const { accessToken, refreshToken } = res.data.user;
+        const user = res.data?.user || res.user || res;
+        const { accessToken, refreshToken } = user;
         tokenHelper.save(accessToken, refreshToken);
-        navigate("/dashboard");
+        login(user);
+        navigate(getDashboardPath(user.role));
 
       } else if (isForgotPassword) {
         await authAPI.verifyForgotPasswordOtp({

@@ -115,7 +115,6 @@ function AuthLayout() {
 
         {/* Footer */}
         <div className="mt-auto pt-10 text-center text-[11px] text-gray-400">
-          Copyright · HR Vista Soft Solutions LLP &nbsp;·&nbsp;{" "}
           <a href="#" className="text-purple-600 hover:underline">Terms & Conditions</a>
           &nbsp;|&nbsp;
           <a href="#" className="text-purple-600 hover:underline">Privacy Policy</a>

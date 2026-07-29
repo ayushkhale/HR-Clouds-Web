@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { HiEye, HiEyeOff } from "react-icons/hi";
 import { authAPI, tokenHelper } from "../../shared/api";
+import { useAuth } from "../../shared/contexts/AuthContext";
 import GoogleButton from "../components/GoogleButton";
 
 function LoginPage() {
@@ -12,6 +13,11 @@ function LoginPage() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { login, startOrgSelection, getDashboardPath } = useAuth();
+
+  // Check for a redirect URL (e.g. from invitation flow)
+  const redirectUrl = searchParams.get("redirect");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -19,9 +25,26 @@ function LoginPage() {
     setLoading(true);
     try {
       const res = await authAPI.login({ identifier, password });
-      const { accessToken, refreshToken } = res.data.user;
+
+      // Case 1: Multi-org — user belongs to multiple organizations
+      if (res.requires_org_selection && res.selection_token) {
+        startOrgSelection(res.selection_token, res.organizations || []);
+        navigate("/auth/select-org");
+        return;
+      }
+
+      // Case 2: Single org or guest — direct login
+      const user = res.data?.user || res.user || res;
+      const { accessToken, refreshToken } = user;
       tokenHelper.save(accessToken, refreshToken);
-      navigate("/dashboard");
+      login(user);
+
+      // Route to redirect URL or role-based dashboard
+      if (redirectUrl) {
+        navigate(redirectUrl);
+      } else {
+        navigate(getDashboardPath(user.role));
+      }
     } catch (err) {
       setError(err.message || "Invalid credentials. Please try again.");
     } finally {
@@ -35,7 +58,18 @@ function LoginPage() {
       <p className="text-sm text-gray-500 mb-7">Sign in to your HR Clouds account</p>
 
       <GoogleButton
-        onSuccess={() => navigate("/dashboard")}
+        onSuccess={(user) => {
+          login(user);
+          if (redirectUrl) {
+            navigate(redirectUrl);
+          } else {
+            navigate(getDashboardPath(user.role));
+          }
+        }}
+        onMultiOrg={(selToken, orgs) => {
+          startOrgSelection(selToken, orgs);
+          navigate("/auth/select-org");
+        }}
         onError={(msg) => setError(msg)}
       />
 
