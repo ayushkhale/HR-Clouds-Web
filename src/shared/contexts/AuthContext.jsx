@@ -30,12 +30,12 @@ export function AuthContextProvider({ children }) {
       const decoded = decodeJWT(token);
       if (decoded) {
         setIsAuthenticated(true);
-        setRole(decoded.role || null);
-        setOrgId(decoded.orgId || null);
+        setRole((decoded.role || "").toLowerCase() || null);
+        setOrgId(decoded.orgId || decoded.org_id || null);
         setUser({
           id: decoded.id || decoded.sub,
-          role: decoded.role,
-          orgId: decoded.orgId,
+          role: (decoded.role || "").toLowerCase(),
+          orgId: decoded.orgId || decoded.org_id,
         });
       }
     }
@@ -49,20 +49,66 @@ export function AuthContextProvider({ children }) {
     }
   }, []);
 
-  // Full login — saves tokens, updates role
-  const login = useCallback((userData) => {
-    const { accessToken, refreshToken } = userData;
-    tokenHelper.save(accessToken, refreshToken);
-    const decoded = decodeJWT(accessToken);
-
-    setUser(userData);
-    setRole(userData.role || decoded?.role || null);
-    setOrgId(decoded?.orgId || null);
-    setIsAuthenticated(true);
-
-    // Clear any leftover org-selection state
-    clearSelectionState();
+  // Clear temporary org-selection state
+  const clearSelectionState = useCallback(() => {
+    setSelectionToken(null);
+    setOrganizations([]);
+    localStorage.removeItem("hrclouds_selection_token");
+    localStorage.removeItem("hrclouds_organizations");
   }, []);
+
+  // Helper: extract tokens and user info from any API response structure
+  const extractAuthData = useCallback((res) => {
+    if (!res) return null;
+    const data = res.data || res;
+    let userObj = data.user || res.user || (typeof data === "object" && !data.requires_org_selection ? data : {});
+
+    const accessToken =
+      userObj?.accessToken ||
+      userObj?.access_token ||
+      data?.accessToken ||
+      data?.access_token ||
+      res?.accessToken ||
+      res?.access_token ||
+      data?.token ||
+      res?.token;
+
+    const refreshToken =
+      userObj?.refreshToken ||
+      userObj?.refresh_token ||
+      data?.refreshToken ||
+      data?.refresh_token ||
+      res?.refreshToken ||
+      res?.refresh_token;
+
+    const decoded = accessToken ? decodeJWT(accessToken) : null;
+    const role = (userObj?.role || decoded?.role || "").toLowerCase();
+    const orgId = userObj?.orgId || userObj?.org_id || decoded?.orgId || decoded?.org_id || null;
+
+    const fullUser = {
+      ...userObj,
+      accessToken,
+      refreshToken,
+      role,
+      orgId,
+    };
+
+    return { accessToken, refreshToken, user: fullUser, role, orgId };
+  }, []);
+
+  // Full login — saves tokens, updates role
+  const login = useCallback((res) => {
+    const authData = extractAuthData(res);
+    if (authData?.accessToken) {
+      tokenHelper.save(authData.accessToken, authData.refreshToken);
+      setUser(authData.user);
+      setRole(authData.role);
+      setOrgId(authData.orgId);
+      setIsAuthenticated(true);
+    }
+    clearSelectionState();
+    return authData;
+  }, [extractAuthData, clearSelectionState]);
 
   // Multi-org: store selection token & orgs temporarily
   const startOrgSelection = useCallback((token, orgs) => {
@@ -70,14 +116,6 @@ export function AuthContextProvider({ children }) {
     setOrganizations(orgs);
     localStorage.setItem("hrclouds_selection_token", token);
     localStorage.setItem("hrclouds_organizations", JSON.stringify(orgs));
-  }, []);
-
-  // Clear temporary org-selection state
-  const clearSelectionState = useCallback(() => {
-    setSelectionToken(null);
-    setOrganizations([]);
-    localStorage.removeItem("hrclouds_selection_token");
-    localStorage.removeItem("hrclouds_organizations");
   }, []);
 
   // Logout — clear everything
@@ -91,21 +129,22 @@ export function AuthContextProvider({ children }) {
   }, [clearSelectionState]);
 
   // After org switch/selection — replace tokens & update role
-  const updateTokens = useCallback((userData) => {
-    const { accessToken, refreshToken } = userData;
-    tokenHelper.save(accessToken, refreshToken);
-    const decoded = decodeJWT(accessToken);
-
-    setUser(userData);
-    setRole(userData.role || decoded?.role || null);
-    setOrgId(decoded?.orgId || null);
-    setIsAuthenticated(true);
+  const updateTokens = useCallback((res) => {
+    const authData = extractAuthData(res);
+    if (authData?.accessToken) {
+      tokenHelper.save(authData.accessToken, authData.refreshToken);
+      setUser(authData.user);
+      setRole(authData.role);
+      setOrgId(authData.orgId);
+      setIsAuthenticated(true);
+    }
     clearSelectionState();
-  }, [clearSelectionState]);
+    return authData;
+  }, [extractAuthData, clearSelectionState]);
 
   // Get the role-based dashboard path
   const getDashboardPath = useCallback((overrideRole) => {
-    const r = overrideRole || role;
+    const r = (overrideRole || role || "").toLowerCase();
     switch (r) {
       case "hr":       return "/dashboard/hr";
       case "employee": return "/dashboard/employee";

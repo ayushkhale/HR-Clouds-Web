@@ -1,227 +1,153 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
-import DashboardSidebar from "../shared/components/DashboardSidebar";
-import DashboardTopBar from "../shared/components/DashboardTopBar";
-import { HiOfficeBuilding, HiMail, HiArrowRight, HiCheck, HiOutlineSparkles } from "react-icons/hi";
+import hrcloudsLogo from "../assets/logo2.png";
+import { HiOfficeBuilding, HiMail, HiArrowRight, HiCheck, HiOutlineSparkles, HiLogout } from "react-icons/hi";
 
 function GuestDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/auth/login", { replace: true });
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans">
-      {/* Left Sidebar */}
-      <DashboardSidebar role="guest" />
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans">
+      {/* Top Navigation Header */}
+      <header className="border-b border-gray-100 px-6 sm:px-12 py-4 bg-white shadow-sm">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <Link to="/">
+            <img src={hrcloudsLogo} alt="HR Clouds" className="h-9 w-auto object-contain" />
+          </Link>
 
-      {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Header Bar */}
-        <DashboardTopBar title="Dashboard" />
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-gray-500 font-medium hidden sm:inline-block">
+              {user?.identifier || user?.email || "Guest User"}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer bg-gray-100 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-red-200"
+            >
+              <HiLogout className="w-3.5 h-3.5" /> Log Out
+            </button>
+          </div>
+        </div>
+      </header>
 
-        {/* Main Dashboard Body */}
-        <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          
-          {/* 4 Purple Metric Stat Cards matching the UI reference image */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Stat 1 */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md shadow-purple-200/50 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-purple-100 mb-1">Account Status</p>
-                <p className="text-2xl font-extrabold">Active</p>
-                <p className="text-[10px] text-purple-200 mt-1 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Ready to onboard
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border-2 border-white/30 flex items-center justify-center font-bold text-xs bg-white/10">
-                100%
-              </div>
-            </div>
-
-            {/* Stat 2 */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md shadow-purple-200/50 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-purple-100 mb-1">Workspace Count</p>
-                <p className="text-2xl font-extrabold">0 Orgs</p>
-                <p className="text-[10px] text-purple-200 mt-1">
-                  +0% Increase
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border-2 border-white/30 flex items-center justify-center font-bold text-xs bg-white/10">
-                0%
-              </div>
-            </div>
-
-            {/* Stat 3 */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md shadow-purple-200/50 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-purple-100 mb-1">Invitations Received</p>
-                <p className="text-2xl font-extrabold">0 Pending</p>
-                <p className="text-[10px] text-purple-200 mt-1">
-                  Check spam folder
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border-2 border-white/30 flex items-center justify-center font-bold text-xs bg-white/10">
-                0/0
-              </div>
-            </div>
-
-            {/* Stat 4 */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md shadow-purple-200/50 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-purple-100 mb-1">Profile Email</p>
-                <p className="text-sm font-bold truncate max-w-[110px]">{user?.identifier || "Guest"}</p>
-                <p className="text-[10px] text-purple-200 mt-1">
-                  Verified profile
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border-2 border-white/30 flex items-center justify-center font-bold text-xs bg-white/10">
-                +74%
-              </div>
-            </div>
-
+      {/* Main Content Area */}
+      <main className="flex-grow flex items-center justify-center px-6 py-12">
+        <div className="max-w-4xl w-full mx-auto">
+          {/* Header Title Section */}
+          <div className="text-center mb-10">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-purple-700 text-xs font-semibold mb-3">
+              <HiOutlineSparkles className="w-3.5 h-3.5 text-purple-600" />
+              Onboarding • Step 2 of 2
+            </span>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-2">
+              Setup Your Workspace
+            </h1>
+            <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
+              How would you like to get started with HR Clouds? Choose one of the options below.
+            </p>
           </div>
 
-          {/* Middle Layout: Setup Workspace Action Card vs Invite Card */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+          {/* 2 Main Onboarding Option Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
             
-            {/* Left Main Action (2 Columns) */}
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-7 shadow-sm flex flex-col justify-between">
+            {/* Option A: Register / Create Organization */}
+            <div className="bg-white rounded-2xl border-2 border-purple-200 hover:border-purple-500 p-8 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all pointer-events-none" />
+
               <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-purple-600" />
-                    <h2 className="text-lg font-bold text-slate-800">Setup Company Workspace</h2>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-200">
+                    <HiOfficeBuilding className="w-6 h-6" />
                   </div>
-                  <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full border border-purple-100 flex items-center gap-1">
-                    <HiOutlineSparkles /> Admin Portal
+                  <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-[11px] font-bold rounded-full border border-purple-200">
+                    For HR & Owners
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-500 leading-relaxed mb-6">
-                  Are you an HR administrator or business owner? Create a new workspace for your company, configure check-in policies, run compliance payrolls, and invite your team.
+                <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-700 transition-colors">
+                  Register Organization
+                </h2>
+                <p className="text-xs text-gray-500 leading-relaxed mb-6">
+                  Create a brand new workspace for your company. Configure payroll, manage employee attendance, and set up your HR portal.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-                    <HiCheck className="w-4 h-4 text-purple-600 mb-2" />
-                    <p className="text-xs font-bold text-slate-800">14-Day Trial</p>
-                    <p className="text-[10px] text-slate-400">Full access on plans</p>
+                <div className="space-y-2 mb-8 bg-slate-50 border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
+                    <HiCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                    <span>Free Plan & 14-day trial options</span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-                    <HiCheck className="w-4 h-4 text-purple-600 mb-2" />
-                    <p className="text-xs font-bold text-slate-800">Automated Payroll</p>
-                    <p className="text-[10px] text-slate-400">India tax compliance</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
+                    <HiCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                    <span>Automated Statutory Payroll (India)</span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-                    <HiCheck className="w-4 h-4 text-purple-600 mb-2" />
-                    <p className="text-xs font-bold text-slate-800">Attendance Log</p>
-                    <p className="text-[10px] text-slate-400">Geo & biometric rules</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
+                    <HiCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                    <span>Biometric & Geo Attendance</span>
                   </div>
                 </div>
               </div>
 
               <Link
                 to="/register-organization"
-                className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold text-sm rounded-xl transition-all shadow-sm shadow-purple-200 flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-purple-200 flex items-center justify-center gap-2 cursor-pointer"
               >
-                Register New Workspace
+                Create New Organization
                 <HiArrowRight className="w-4 h-4" />
               </Link>
             </div>
 
-            {/* Right Card: Waiting for Invite (1 Column) */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-7 shadow-sm flex flex-col justify-between">
+            {/* Option B: Wait for Invitation Code */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 hover:border-purple-300 p-8 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group">
               <div>
-                <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <HiMail className="text-purple-600" />
-                  Team Invitation
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center group-hover:bg-purple-100 group-hover:text-purple-600 transition-colors">
+                    <HiMail className="w-6 h-6" />
+                  </div>
+                  <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-full border border-gray-200">
+                    For Team Members
+                  </span>
+                </div>
+
+                <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-700 transition-colors">
+                  Join Existing Organization
                 </h2>
-                <p className="text-xs text-slate-500 leading-relaxed mb-6">
-                  Joined an existing company? Search your email inbox for an invitation link sent by your manager or HR.
+                <p className="text-xs text-gray-500 leading-relaxed mb-6">
+                  Are you an employee? If your HR or manager invited you, check your inbox for an invitation link to accept your role.
                 </p>
 
-                <div className="bg-purple-50/50 border border-purple-100 rounded-xl p-4 text-xs text-slate-600 leading-relaxed mb-6">
-                  <p className="font-semibold text-slate-800 mb-1">Your registered email:</p>
-                  <p className="font-mono text-purple-700 bg-white px-2.5 py-1 rounded border border-purple-100 text-center font-bold">
-                    {user?.identifier || "user@example.com"}
+                <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-4 text-xs text-gray-600 leading-relaxed mb-8">
+                  <p className="font-semibold text-gray-800 mb-1">Your registered email address:</p>
+                  <p className="font-mono text-purple-700 bg-white px-3 py-1.5 rounded border border-purple-200 text-center font-bold text-xs truncate">
+                    {user?.identifier || user?.email || "user@company.com"}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-2 text-center">
+                    Ask your HR admin to invite this email.
                   </p>
                 </div>
               </div>
 
               <a
                 href="mailto:support@hrclouds.in"
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-xl text-center transition-colors block"
+                className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-sm rounded-xl text-center transition-colors block"
               >
-                Contact Support
+                Need Help? Contact Support
               </a>
             </div>
 
           </div>
+        </div>
+      </main>
 
-          {/* Bottom Layout: Activity Feed & Upcoming Meetings matching reference image */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Activity Feed */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-slate-800 text-sm">Activity Feed</h3>
-                <span className="text-[10px] text-slate-400 font-semibold">Live status</span>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 font-bold text-xs flex items-center justify-center">
-                      HR
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Account Registration</p>
-                      <p className="text-[10px] text-slate-400">Created profile account</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-lg">
-                    Completed
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 font-bold text-xs flex items-center justify-center">
-                      WO
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Workspace Selection</p>
-                      <p className="text-[10px] text-slate-400">Pending workspace selection</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg">
-                    Pending
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Support / Quick Links */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-slate-800 text-sm">Need Help?</h3>
-                <span className="text-[10px] text-slate-400 font-semibold">24/7 Support</span>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-xl">
-                <p className="text-xs font-bold text-slate-800 mb-1">HR Clouds Knowledge Base</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-                  Read documentation on how to configure shifts, tax rules, and payroll processing.
-                </p>
-                <Link to="/" className="text-xs font-bold text-purple-600 hover:underline">
-                  Visit Documentation →
-                </Link>
-              </div>
-            </div>
-
-          </div>
-
-        </main>
-      </div>
+      {/* Footer */}
+      <footer className="py-6 text-center text-xs text-gray-400 border-t border-gray-100 bg-white">
+        © {new Date().getFullYear()} HR Clouds. All rights reserved.
+      </footer>
     </div>
   );
 }

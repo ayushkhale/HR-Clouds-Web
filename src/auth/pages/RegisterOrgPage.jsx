@@ -116,10 +116,8 @@ function RegisterOrgPage() {
       });
 
       // Free plan instant activation
-      if (res.data?.accessToken || res.data?.status === "active") {
-        const { accessToken, refreshToken, role } = res.data;
-        tokenHelper.save(accessToken, refreshToken);
-        login({ accessToken, refreshToken, role });
+      if (res.data?.accessToken || res.data?.user?.accessToken || res.data?.status === "active") {
+        login(res);
         setSuccess(true);
         setTimeout(() => navigate(getDashboardPath("hr"), { replace: true }), 1500);
         return;
@@ -160,9 +158,7 @@ function RegisterOrgPage() {
             org_id: orgId,
           });
 
-          const { accessToken, refreshToken, role } = verifyRes.data;
-          tokenHelper.save(accessToken, refreshToken);
-          login({ accessToken, refreshToken, role });
+          login(verifyRes);
           setSuccess(true);
           setTimeout(() => navigate(getDashboardPath("hr"), { replace: true }), 1500);
         } catch (err) {

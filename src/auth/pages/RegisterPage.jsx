@@ -16,10 +16,11 @@ function RegisterPage() {
     setLoading(true);
     try {
       const res = await authAPI.initiateSignup({ identifier });
+      const reqId = res.data?.requestId || res.requestId;
       navigate("/auth/otp", {
         state: {
           identifier,
-          requestId: res.requestId,
+          requestId: reqId,
           context: "registration",
         },
       });

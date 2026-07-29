@@ -22,16 +22,18 @@ function GoogleButton({ onSuccess, onError, onMultiOrg }) {
       const res = await authAPI.googleAuth({ idToken: credentialResponse.credential });
 
       // Multi-org: user belongs to multiple organizations
-      if (res.requires_org_selection && res.selection_token) {
-        onMultiOrg?.(res.selection_token, res.organizations || []);
+      const isMultiOrg = res.data?.requires_org_selection || res.requires_org_selection;
+      const selToken = res.data?.selection_token || res.selection_token;
+      const orgsList = res.data?.organizations || res.organizations || [];
+
+      if (isMultiOrg && selToken) {
+        onMultiOrg?.(selToken, orgsList);
         return;
       }
 
       // Single org or guest
-      const user = res.data?.user || res.user || res;
-      const { accessToken, refreshToken } = user;
-      tokenHelper.save(accessToken, refreshToken);
-      onSuccess?.(user);
+      const authData = login(res);
+      onSuccess?.(authData?.user || res);
     } catch (err) {
       onError?.(err.message || "Google sign-in failed on server. Please try again.");
     } finally {

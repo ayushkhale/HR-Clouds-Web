@@ -76,14 +76,22 @@ async function requestWithToken(endpoint, customToken, options = {}) {
 
 export const tokenHelper = {
   save(accessToken, refreshToken) {
-    localStorage.setItem("hrclouds_token", accessToken);
-    if (refreshToken) localStorage.setItem("hrclouds_refresh_token", refreshToken);
+    if (accessToken && accessToken !== "undefined" && accessToken !== "null") {
+      localStorage.setItem("hrclouds_token", accessToken);
+    }
+    if (refreshToken && refreshToken !== "undefined" && refreshToken !== "null") {
+      localStorage.setItem("hrclouds_refresh_token", refreshToken);
+    }
   },
   get() {
-    return localStorage.getItem("hrclouds_token");
+    const token = localStorage.getItem("hrclouds_token");
+    if (!token || token === "undefined" || token === "null") return null;
+    return token;
   },
   getRefresh() {
-    return localStorage.getItem("hrclouds_refresh_token");
+    const token = localStorage.getItem("hrclouds_refresh_token");
+    if (!token || token === "undefined" || token === "null") return null;
+    return token;
   },
   clear() {
     localStorage.removeItem("hrclouds_token");

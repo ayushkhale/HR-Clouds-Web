@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { HiArrowLeft, HiLockClosed } from "react-icons/hi";
 import { authAPI } from "../../shared/api";
 
 function ForgotPasswordPage() {
-  const [identifier, setIdentifier] = useState("");
+  const location = useLocation();
+  const [identifier, setIdentifier] = useState(location.state?.identifier || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -16,10 +17,11 @@ function ForgotPasswordPage() {
     setLoading(true);
     try {
       const res = await authAPI.forgotPassword({ identifier });
+      const reqId = res.data?.requestId || res.requestId;
       navigate("/auth/otp", {
         state: {
           identifier,
-          requestId: res.requestId,
+          requestId: reqId,
           context: "forgot_password",
         },
       });

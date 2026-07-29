@@ -91,7 +91,8 @@ function OtpPage() {
     setError("");
     try {
       const res = await authAPI.resendOtp({ identifier, context, requestId });
-      setRequestId(res.requestId);
+      const newReqId = res.data?.requestId || res.requestId;
+      setRequestId(newReqId);
       setTimer(OTP_TIMER_SECONDS);
       setOtp("");
     } catch (err) {
@@ -125,11 +126,9 @@ function OtpPage() {
           password,
           requestId,
         });
-        const user = res.data?.user || res.user || res;
-        const { accessToken, refreshToken } = user;
-        tokenHelper.save(accessToken, refreshToken);
-        login(user);
-        navigate(getDashboardPath(user.role));
+        const authData = login(res);
+        const targetRole = authData?.role || authData?.user?.role;
+        navigate(getDashboardPath(targetRole));
 
       } else if (isForgotPassword) {
         await authAPI.verifyForgotPasswordOtp({

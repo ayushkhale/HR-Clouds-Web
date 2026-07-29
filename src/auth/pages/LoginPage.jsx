@@ -27,23 +27,25 @@ function LoginPage() {
       const res = await authAPI.login({ identifier, password });
 
       // Case 1: Multi-org — user belongs to multiple organizations
-      if (res.requires_org_selection && res.selection_token) {
-        startOrgSelection(res.selection_token, res.organizations || []);
+      const isMultiOrg = res.data?.requires_org_selection || res.requires_org_selection;
+      const selToken = res.data?.selection_token || res.selection_token;
+      const orgsList = res.data?.organizations || res.organizations || [];
+
+      if (isMultiOrg && selToken) {
+        startOrgSelection(selToken, orgsList);
         navigate("/auth/select-org");
         return;
       }
 
       // Case 2: Single org or guest — direct login
-      const user = res.data?.user || res.user || res;
-      const { accessToken, refreshToken } = user;
-      tokenHelper.save(accessToken, refreshToken);
-      login(user);
+      const authData = login(res);
+      const targetRole = authData?.role || authData?.user?.role;
 
       // Route to redirect URL or role-based dashboard
       if (redirectUrl) {
         navigate(redirectUrl);
       } else {
-        navigate(getDashboardPath(user.role));
+        navigate(getDashboardPath(targetRole));
       }
     } catch (err) {
       setError(err.message || "Invalid credentials. Please try again.");
@@ -100,7 +102,7 @@ function LoginPage() {
             <label className="text-sm font-semibold text-gray-700">
               Password <span className="text-red-400">*</span>
             </label>
-            <Link to="/auth/forgot-password" className="text-xs text-purple-600 hover:text-purple-700 font-medium">
+            <Link to="/auth/forgot-password" state={{ identifier }} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
               Forgot password?
             </Link>
           </div>

@@ -50,29 +50,22 @@ function DashboardSidebar({ role = "guest" }) {
       ];
     }
 
+    if (role === "hr") {
+      return [
+        {
+          title: "MANAGEMENT",
+          items: [
+            { label: "Team", path: "/dashboard/hr", icon: HiUserGroup, active: true },
+          ],
+        },
+      ];
+    }
+
     return [
       {
         title: "MENU",
         items: [
           { label: "Dashboard", path: `/dashboard/${role}`, icon: HiTemplate, active: location.pathname.includes(`/dashboard/${role}`) },
-          { label: "Messages", path: "#", icon: HiChatAlt2 },
-          { label: "Calendar", path: "#", icon: HiCalendar },
-        ],
-      },
-      {
-        title: "MANAGEMENT",
-        items: [
-          { label: "Employees", path: "#", icon: HiUserGroup },
-          { label: "Attendance", path: "#", icon: HiClock },
-          { label: "Payroll", path: "#", icon: HiCurrencyRupee },
-        ],
-      },
-      {
-        title: "ORGANIZATION",
-        items: [
-          { label: "Structure", path: "#", icon: HiOfficeBuilding },
-          { label: "Reports", path: "#", icon: HiChartBar },
-          { label: "Settings", path: "#", icon: HiCog },
         ],
       },
     ];

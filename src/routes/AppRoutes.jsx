@@ -50,7 +50,9 @@ function AppRoutes() {
         <Route path="select-org" element={<SelectOrgPage />} />
       </Route>
 
-      {/* ─── ORGANIZATION REGISTRATION (standalone layout) ─── */}
+      {/* ─── ONBOARDING & SETUP WORKSPACE (Step 2) ─── */}
+      <Route path="/onboarding" element={<GuestDashboard />} />
+      <Route path="/setup-organization" element={<GuestDashboard />} />
       <Route path="/register-organization" element={<RegisterOrgPage />} />
 
       {/* ─── INVITATION ACCEPTANCE (standalone layout) ─── */}

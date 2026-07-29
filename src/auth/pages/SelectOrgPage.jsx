@@ -11,12 +11,12 @@ function SelectOrgPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState("");
 
-  // If no selection token exists, redirect to login
+  // If no selection token exists, redirect to login (only when not actively submitting)
   useEffect(() => {
-    if (!selectionToken || !organizations?.length) {
+    if (!loading && !selectedId && (!selectionToken || !organizations?.length)) {
       navigate("/auth/login", { replace: true });
     }
-  }, [selectionToken, organizations, navigate]);
+  }, [selectionToken, organizations, loading, selectedId, navigate]);
 
   async function handleSelect(orgId) {
     setError("");
@@ -25,13 +25,12 @@ function SelectOrgPage() {
 
     try {
       const res = await authAPI.selectOrganization({ org_id: orgId }, selectionToken);
-      const user = res.data?.user || res.user || res;
-      updateTokens(user);
-      navigate(getDashboardPath(user.role), { replace: true });
+      const authData = updateTokens(res);
+      const targetRole = authData?.role || authData?.user?.role;
+      navigate(getDashboardPath(targetRole), { replace: true });
     } catch (err) {
       setError(err.message || "Failed to select organization. Please try again.");
       setSelectedId(null);
-    } finally {
       setLoading(false);
     }
   }
