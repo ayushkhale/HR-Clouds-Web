@@ -1,6 +1,6 @@
 import React from "react";
-import DashboardSidebar from "../shared/components/DashboardSidebar";
-import DashboardTopBar from "../shared/components/DashboardTopBar";
+import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { HiUserGroup, HiClipboardList, HiChartBar, HiCollection } from "react-icons/hi";
 
 function ManagerDashboard() {

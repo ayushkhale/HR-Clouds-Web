@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { organizationAPI } from "../shared/api";
-import { useAuth } from "../shared/contexts/AuthContext";
-import DashboardSidebar from "../shared/components/DashboardSidebar";
-import DashboardTopBar from "../shared/components/DashboardTopBar";
+import { organizationAPI } from "../../../shared/api";
+import { useAuth } from "../../../shared/contexts/AuthContext";
+import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiUserGroup,
   HiPlus,
@@ -39,17 +39,24 @@ function HRDashboard() {
     setInviteResult({ type: "", message: "" });
 
     try {
-      await organizationAPI.inviteUser({
+      const payload = {
         email,
         role,
         name,
         full_name: name,
-        city,
-        contact,
-        phone_number: contact,
-        emp_id: empId,
-        employee_id: empId,
-      });
+      };
+
+      if (city) payload.city = city;
+      if (contact) {
+        payload.contact = contact;
+        payload.phone_number = contact;
+      }
+      if (empId) {
+        payload.emp_id = empId;
+        payload.employee_id = empId;
+      }
+
+      await organizationAPI.inviteUser(payload);
 
       setInviteResult({
         type: "success",

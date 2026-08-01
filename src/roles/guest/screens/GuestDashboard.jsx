@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../shared/contexts/AuthContext";
-import hrcloudsLogo from "../assets/logo2.png";
+import { useAuth } from "../../../shared/contexts/AuthContext";
+import hrcloudsLogo from "../../../assets/logo2.png";
 import { HiOfficeBuilding, HiMail, HiArrowRight, HiCheck, HiOutlineSparkles, HiLogout } from "react-icons/hi";
 
 function GuestDashboard() {

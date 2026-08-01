@@ -23,11 +23,11 @@ import RegisterOrgPage from "../auth/pages/RegisterOrgPage";
 import InvitationAcceptPage from "../auth/pages/InvitationAcceptPage";
 
 // Dashboards
-import DashboardPage from "../dashboard/DashboardPage";
-import GuestDashboard from "../dashboard/GuestDashboard";
-import HRDashboard from "../dashboard/HRDashboard";
-import EmployeeDashboard from "../dashboard/EmployeeDashboard";
-import ManagerDashboard from "../dashboard/ManagerDashboard";
+import DashboardPage from "../roles/DashboardPage";
+import GuestDashboard from "../roles/guest/screens/GuestDashboard";
+import HRDashboard from "../roles/hr/screens/HRDashboard";
+import EmployeeDashboard from "../roles/employee/screens/EmployeeDashboard";
+import ManagerDashboard from "../roles/manager/screens/ManagerDashboard";
 
 function AppRoutes() {
   return (
