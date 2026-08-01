@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { tokenHelper } from "../api";
@@ -10,12 +10,13 @@ import {
   HiCalendar,
   HiUserGroup,
   HiClock,
-  HiCurrencyRupee,
-  HiChartBar,
-  HiCog,
   HiLogout,
   HiOfficeBuilding,
   HiMail,
+  HiClipboardList,
+  HiCollection,
+  HiChevronDown,
+  HiChevronRight,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -35,13 +36,15 @@ function DashboardSidebar({ role = "guest" }) {
       return [
         {
           title: "MENU",
+          icon: HiTemplate,
           items: [
-            { label: "Dashboard", path: "/dashboard/guest", icon: HiTemplate, active: true },
-            { label: "Register Org", path: "/register-organization", icon: HiOfficeBuilding },
+            { label: "Dashboard", path: "/dashboard/guest", icon: HiTemplate, active: location.pathname === "/dashboard/guest" },
+            { label: "Register Org", path: "/register-organization", icon: HiOfficeBuilding, active: location.pathname === "/register-organization" },
           ],
         },
         {
           title: "HELP & SUPPORT",
+          icon: HiChatAlt2,
           items: [
             { label: "Check Invites", path: "/dashboard/guest", icon: HiMail },
             { label: "Support", path: "mailto:support@hrclouds.in", icon: HiChatAlt2, external: true },
@@ -53,9 +56,21 @@ function DashboardSidebar({ role = "guest" }) {
     if (role === "hr") {
       return [
         {
-          title: "MANAGEMENT",
+          title: "OVERVIEW",
+          icon: HiTemplate,
           items: [
-            { label: "Team", path: "/dashboard/hr", icon: HiUserGroup, active: true },
+            { label: "Dashboard", path: "/dashboard/hr", icon: HiTemplate, active: location.pathname === "/dashboard/hr" },
+          ],
+        },
+        {
+          title: "ATTENDANCE",
+          icon: HiClock,
+          items: [
+            { label: "Policies", path: "/dashboard/hr/attendance/policies", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/attendance/policies" },
+            { label: "Shifts", path: "/dashboard/hr/attendance/shifts", icon: HiClock, active: location.pathname === "/dashboard/hr/attendance/shifts" },
+            { label: "Roster", path: "/dashboard/hr/attendance/roster", icon: HiCollection, active: location.pathname === "/dashboard/hr/attendance/roster" },
+            { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
+            { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", icon: HiTemplate, active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
           ],
         },
       ];
@@ -64,6 +79,7 @@ function DashboardSidebar({ role = "guest" }) {
     return [
       {
         title: "MENU",
+        icon: HiTemplate,
         items: [
           { label: "Dashboard", path: `/dashboard/${role}`, icon: HiTemplate, active: location.pathname.includes(`/dashboard/${role}`) },
         ],
@@ -72,6 +88,31 @@ function DashboardSidebar({ role = "guest" }) {
   };
 
   const navSections = getNavSections();
+
+  // Track open/closed state of accordion dropdown sections
+  const [openSections, setOpenSections] = useState({
+    MANAGEMENT: true,
+    ATTENDANCE: true,
+    MENU: true,
+    "HELP & SUPPORT": true,
+  });
+
+  // Auto-expand section if its route is currently active
+  useEffect(() => {
+    navSections.forEach((section) => {
+      const hasActiveItem = section.items.some((item) => item.active);
+      if (hasActiveItem) {
+        setOpenSections((prev) => ({ ...prev, [section.title]: true }));
+      }
+    });
+  }, [location.pathname]);
+
+  const toggleSection = (title) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between min-h-screen sticky top-0 h-screen overflow-y-auto flex-shrink-0 z-30 font-sans">
@@ -91,48 +132,121 @@ function DashboardSidebar({ role = "guest" }) {
         )}
 
         {/* Navigation Section */}
-        <div className="px-4 py-6 space-y-6">
-          {navSections.map((section) => (
-            <div key={section.title}>
-              <p className="px-3 text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2">
-                {section.title}
-              </p>
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = item.active;
+        <div className="px-4 py-6 space-y-2">
+          {navSections.map((section) => {
+            const isSingle = section.items.length === 1;
 
-                  if (item.external) {
-                    return (
-                      <a
-                        key={item.label}
-                        href={item.path}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-purple-600 hover:bg-purple-50/50 transition-all"
-                      >
-                        <Icon className="w-4 h-4" />
-                        {item.label}
-                      </a>
-                    );
-                  }
+            // Single item section — render directly as a link (no dropdown arrow!)
+            if (isSingle) {
+              const item = section.items[0];
+              const Icon = item.icon || section.icon;
+              const isActive = item.active;
 
-                  return (
-                    <Link
-                      key={item.label}
-                      to={item.path}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        isActive
-                          ? "bg-purple-600 text-white shadow-md shadow-purple-200"
-                          : "text-slate-500 hover:text-purple-600 hover:bg-purple-50/50"
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400 group-hover:text-purple-600"}`} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
+              if (item.external) {
+                return (
+                  <a
+                    key={section.title}
+                    href={item.path}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-500 hover:text-purple-600 hover:bg-purple-50/50 transition-all"
+                  >
+                    <Icon className="w-4 h-4 text-slate-400" />
+                    {item.label}
+                  </a>
+                );
+              }
+
+              return (
+                <Link
+                  key={section.title}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                    isActive
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-200"
+                      : "text-slate-600 hover:text-purple-600 hover:bg-purple-50/50"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
+                  {item.label}
+                </Link>
+              );
+            }
+
+            // Multi-item section — render as a collapsible dropdown accordion
+            const isOpen = openSections[section.title] !== false;
+            const hasActiveChild = section.items.some((item) => item.active);
+            const SectionIcon = section.icon;
+
+            return (
+              <div key={section.title} className="rounded-xl overflow-hidden pt-1">
+                {/* Section Dropdown Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.title)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all ${
+                    hasActiveChild
+                      ? "bg-purple-50/70 text-purple-700 font-semibold"
+                      : "hover:bg-slate-50 text-slate-600 font-medium"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {SectionIcon && (
+                      <SectionIcon
+                        className={`w-4 h-4 ${
+                          hasActiveChild ? "text-purple-600" : "text-slate-400"
+                        }`}
+                      />
+                    )}
+                    <span className="text-[11px] tracking-wider uppercase font-medium">
+                      {section.title}
+                    </span>
+                  </div>
+                  {isOpen ? (
+                    <HiChevronDown className={`w-4 h-4 transition-transform ${hasActiveChild ? "text-purple-600" : "text-slate-400"}`} />
+                  ) : (
+                    <HiChevronRight className="w-4 h-4 text-slate-400" />
+                  )}
+                </button>
+
+                {/* Sub-items (Dropdown body) */}
+                {isOpen && (
+                  <div className="pl-3 pr-1 py-1 space-y-1 mt-1 border-l-2 border-slate-100 ml-3">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = item.active;
+
+                      if (item.external) {
+                        return (
+                          <a
+                            key={item.label}
+                            href={item.path}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-purple-600 hover:bg-purple-50/50 transition-all"
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                            {item.label}
+                          </a>
+                        );
+                      }
+
+                      return (
+                        <Link
+                          key={item.label}
+                          to={item.path}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                            isActive
+                              ? "bg-purple-600 text-white shadow-md shadow-purple-200"
+                              : "text-slate-500 hover:text-purple-600 hover:bg-purple-50/50"
+                          }`}
+                        >
+                          <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-slate-400"}`} />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

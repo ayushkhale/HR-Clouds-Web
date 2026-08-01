@@ -18,6 +18,7 @@ export function AuthContextProvider({ children }) {
   const [role, setRole] = useState(null);
   const [orgId, setOrgId] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // true until token hydration completes
 
   // Multi-org selection state (temporary, used between login and org selection)
   const [selectionToken, setSelectionToken] = useState(null);
@@ -47,6 +48,8 @@ export function AuthContextProvider({ children }) {
     if (storedOrgs) {
       try { setOrganizations(JSON.parse(storedOrgs)); } catch { /* ignore */ }
     }
+
+    setIsLoading(false); // hydration done
   }, []);
 
   // Clear temporary org-selection state
@@ -161,6 +164,7 @@ export function AuthContextProvider({ children }) {
         role,
         orgId,
         isAuthenticated,
+        isLoading,
         selectionToken,
         organizations,
         login,
