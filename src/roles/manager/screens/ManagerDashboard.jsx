@@ -1,7 +1,7 @@
 import React from "react";
 import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { HiUserGroup, HiClipboardList, HiChartBar, HiCollection } from "react-icons/hi";
+import { HiUserGroup, HiClipboardList, HiChartBar } from "react-icons/hi";
 
 function ManagerDashboard() {
   return (
@@ -44,7 +44,7 @@ function ManagerDashboard() {
                 <p className="text-[10px] text-purple-200 mt-1">Today</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <HiCollection className="w-5 h-5" />
+                <HiUserGroup className="w-5 h-5" />
               </div>
             </div>
 

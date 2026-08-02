@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
@@ -11,6 +10,7 @@ import {
   HiExclamationCircle,
   HiPencil,
   HiBadgeCheck,
+  HiInformationCircle,
 } from "react-icons/hi";
 
 /* ─── Toast ─────────────────────────────────────────────────────────────── */
@@ -35,6 +35,21 @@ function Toast({ toast, onClose }) {
         <HiX className="w-4 h-4" />
       </button>
     </div>
+  );
+}
+
+/* ─── Toggle ─────────────────────────────────────────────────────────────── */
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${checked ? "bg-purple-600" : "bg-slate-300"}`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`}
+      />
+    </button>
   );
 }
 
@@ -80,30 +95,30 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-[78vw] max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div className="flex items-center justify-between px-10 py-6 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">
+            <h2 className="text-lg font-bold text-slate-800">
               {isEdit ? "Edit Policy" : "Create Attendance Policy"}
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-sm text-slate-400 mt-0.5">
               Define rules for how attendance is calculated.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+            className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition"
           >
             <HiX className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+        <form onSubmit={handleSubmit} className="px-10 py-8 space-y-7">
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-5 py-3">
               <HiExclamationCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
@@ -111,7 +126,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
 
           {/* Policy Name */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
               Policy Name <span className="text-red-400">*</span>
             </label>
             <input
@@ -119,45 +134,41 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="e.g. Standard Office Policy 2026"
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+              className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
             />
           </div>
 
-          {/* Grace & Late row */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Row 1: Grace + Late + Half Day + Full Day */}
+          <div className="grid grid-cols-4 gap-5">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Clock-in Grace Period (mins)
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Minutes Before Marking Late
               </label>
               <input
                 type="number"
                 min={0}
                 value={form.grace_minutes}
                 onChange={(e) => set("grace_minutes", parseInt(e.target.value) || 0)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
               />
-              <p className="text-[10px] text-slate-400 mt-1">After shift start before marking Late</p>
+              <p className="text-[10px] text-slate-400 mt-1.5">Employee won't be marked late within this window</p>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Late Mark Threshold (mins)
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Mark as Late After (mins)
               </label>
               <input
                 type="number"
                 min={0}
                 value={form.late_threshold_minutes}
                 onChange={(e) => set("late_threshold_minutes", parseInt(e.target.value) || 0)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
               />
-              <p className="text-[10px] text-slate-400 mt-1">Minutes late before it becomes a Half Day</p>
+              <p className="text-[10px] text-slate-400 mt-1.5">Beyond this, it counts as a Half Day</p>
             </div>
-          </div>
-
-          {/* Half Day / Full Day row */}
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Minimum Hours for Half Day
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Hours for Half Day
               </label>
               <input
                 type="number"
@@ -165,12 +176,13 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
                 min={0}
                 value={form.half_day_min_hours}
                 onChange={(e) => set("half_day_min_hours", parseFloat(e.target.value) || 0)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
               />
+              <p className="text-[10px] text-slate-400 mt-1.5">Min hours needed to count as Half Day</p>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Minimum Hours for Full Day
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Hours for Full Day
               </label>
               <input
                 type="number"
@@ -178,121 +190,95 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
                 min={0}
                 value={form.full_day_min_hours}
                 onChange={(e) => set("full_day_min_hours", parseFloat(e.target.value) || 0)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
               />
+              <p className="text-[10px] text-slate-400 mt-1.5">Min hours needed to count as Full Day</p>
             </div>
           </div>
 
-          {/* Overtime */}
-          <div className="bg-slate-50 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-700">Enable Overtime Tracking</p>
-                <p className="text-[10px] text-slate-400">Track and approve overtime hours</p>
+          {/* Row 2: Overtime + Regularisation side by side */}
+          <div className="grid grid-cols-2 gap-6">
+            {/* Overtime */}
+            <div className="bg-slate-50 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Track Extra Hours (Overtime)</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Record when employees work beyond their shift time</p>
+                </div>
+                <Toggle checked={form.overtime_enabled} onChange={(v) => set("overtime_enabled", v)} />
               </div>
-              <button
-                type="button"
-                onClick={() => set("overtime_enabled", !form.overtime_enabled)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${
-                  form.overtime_enabled ? "bg-purple-600" : "bg-slate-300"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    form.overtime_enabled ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+              {form.overtime_enabled && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Count Overtime After (mins)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.overtime_min_minutes}
+                    onChange={(e) => set("overtime_min_minutes", parseInt(e.target.value) || 30)}
+                    className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1.5">Extra minutes below this won't be counted</p>
+                </div>
+              )}
             </div>
-            {form.overtime_enabled && (
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Minimum Overtime (mins)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.overtime_min_minutes}
-                  onChange={(e) => set("overtime_min_minutes", parseInt(e.target.value) || 30)}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Overtime below this is ignored</p>
-              </div>
-            )}
-          </div>
 
-          {/* Regularisation */}
-          <div className="bg-slate-50 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-700">Allow Employees to Regularise Attendance</p>
-                <p className="text-[10px] text-slate-400">Employees can correct missed/wrong punches</p>
+            {/* Regularisation */}
+            <div className="bg-slate-50 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Let Employees Fix Their Attendance</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Allow staff to correct a missed check-in or wrong punch</p>
+                </div>
+                <Toggle checked={form.regularization_allowed} onChange={(v) => set("regularization_allowed", v)} />
               </div>
-              <button
-                type="button"
-                onClick={() => set("regularization_allowed", !form.regularization_allowed)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${
-                  form.regularization_allowed ? "bg-purple-600" : "bg-slate-300"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    form.regularization_allowed ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+              {form.regularization_allowed && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Fix Attendance Up To (days ago)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.regularization_window_days}
+                    onChange={(e) => set("regularization_window_days", parseInt(e.target.value) || 7)}
+                    className="w-full px-5 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1.5">How many past days an employee can go back and correct</p>
+                </div>
+              )}
             </div>
-            {form.regularization_allowed && (
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Regularisation Window (days)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.regularization_window_days}
-                  onChange={(e) => set("regularization_window_days", parseInt(e.target.value) || 7)}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">How many past days employees can correct</p>
-              </div>
-            )}
           </div>
 
           {/* Default Policy */}
-          <div className="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
+          <div className="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-xl px-6 py-4">
             <div>
-              <p className="text-xs font-semibold text-slate-700">Set as Organisation Default Policy</p>
-              <p className="text-[10px] text-slate-400">Applies to all employees without a specific policy</p>
+              <p className="text-sm font-semibold text-slate-700">Use as Default Policy</p>
+              <p className="text-xs text-slate-400 mt-0.5">All employees will follow this unless assigned a different policy</p>
             </div>
-            <button
-              type="button"
-              onClick={() => set("is_default", !form.is_default)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${
-                form.is_default ? "bg-purple-600" : "bg-slate-300"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                  form.is_default ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
+            <Toggle checked={form.is_default} onChange={(v) => set("is_default", v)} />
           </div>
+          {form.is_default && !editPolicy?.is_default && (
+            <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
+              <HiInformationCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>The existing default policy will automatically lose its default status when you save.</span>
+            </div>
+          )}
 
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex items-center gap-4 pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition"
+              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition"
             >
               {loading ? "Saving…" : isEdit ? "Update Policy" : "Create Policy"}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+              className="px-8 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
             >
               Cancel
             </button>
@@ -307,7 +293,8 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
 export default function AttendancePoliciesPage() {
   const [policies, setPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null); // null | "create" | policy object
+  const [modal, setModal] = useState(null); // null | "create" | policy object (full details)
+  const [editLoading, setEditLoading] = useState(false); // loading full policy details before opening modal
   const [toast, setToast] = useState(null);
   const [deactivating, setDeactivating] = useState(null);
 
@@ -329,6 +316,19 @@ export default function AttendancePoliciesPage() {
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
+  // Fetch full policy details before opening edit modal
+  async function handleEditClick(policy) {
+    setEditLoading(policy.id);
+    try {
+      const res = await attendanceAPI.getPolicy(policy.id);
+      setModal(res.data || policy);
+    } catch {
+      showToast("Failed to load policy details.", "error");
+    } finally {
+      setEditLoading(null);
+    }
+  }
+
   async function handleDeactivate(policy) {
     if (!window.confirm(`Deactivate "${policy.name}"? Historical records will not be affected.`)) return;
     setDeactivating(policy.id);
@@ -337,7 +337,12 @@ export default function AttendancePoliciesPage() {
       showToast("Policy deactivated.");
       loadPolicies();
     } catch (err) {
-      showToast(err.message || "Failed to deactivate.", "error");
+      // 400 = trying to deactivate the default policy
+      if (err.status === 400) {
+        showToast("Cannot deactivate the default policy. Please set another policy as default first.", "error");
+      } else {
+        showToast(err.message || "Failed to deactivate.", "error");
+      }
     } finally {
       setDeactivating(null);
     }
@@ -350,7 +355,7 @@ export default function AttendancePoliciesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
       <DashboardSidebar role="hr" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardTopBar title="Attendance" />
@@ -415,7 +420,7 @@ export default function AttendancePoliciesPage() {
                   {policies.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold text-slate-800">{p.name}</span>
                           {p.is_default && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
@@ -444,11 +449,16 @@ export default function AttendancePoliciesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2 justify-end">
                           <button
-                            onClick={() => setModal(p)}
-                            className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition"
+                            onClick={() => handleEditClick(p)}
+                            disabled={editLoading === p.id}
+                            className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50"
                             title="Edit policy"
                           >
-                            <HiPencil className="w-4 h-4" />
+                            {editLoading === p.id ? (
+                              <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <HiPencil className="w-4 h-4" />
+                            )}
                           </button>
                           {p.is_active && (
                             <button

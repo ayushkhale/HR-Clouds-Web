@@ -14,9 +14,9 @@ import {
   HiOfficeBuilding,
   HiMail,
   HiClipboardList,
-  HiCollection,
   HiChevronDown,
   HiChevronRight,
+  HiViewGrid,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -59,7 +59,8 @@ function DashboardSidebar({ role = "guest" }) {
           title: "OVERVIEW",
           icon: HiTemplate,
           items: [
-            { label: "Dashboard", path: "/dashboard/hr", icon: HiTemplate, active: location.pathname === "/dashboard/hr" },
+            { label: "Dashboard", path: "/dashboard/hr", icon: HiViewGrid, active: location.pathname === "/dashboard/hr" },
+            { label: "Employees", path: "/dashboard/hr/employees", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/employees" },
           ],
         },
         {
@@ -68,7 +69,7 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             { label: "Policies", path: "/dashboard/hr/attendance/policies", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/attendance/policies" },
             { label: "Shifts", path: "/dashboard/hr/attendance/shifts", icon: HiClock, active: location.pathname === "/dashboard/hr/attendance/shifts" },
-            { label: "Roster", path: "/dashboard/hr/attendance/roster", icon: HiCollection, active: location.pathname === "/dashboard/hr/attendance/roster" },
+            { label: "Roster", path: "/dashboard/hr/attendance/roster", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/roster" },
             { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
             { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", icon: HiTemplate, active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
           ],
@@ -89,15 +90,11 @@ function DashboardSidebar({ role = "guest" }) {
 
   const navSections = getNavSections();
 
-  // Track open/closed state of accordion dropdown sections
   const [openSections, setOpenSections] = useState({
-    MANAGEMENT: true,
     ATTENDANCE: true,
-    MENU: true,
-    "HELP & SUPPORT": true,
+    OVERVIEW: true,
   });
 
-  // Auto-expand section if its route is currently active
   useEffect(() => {
     navSections.forEach((section) => {
       const hasActiveItem = section.items.some((item) => item.active);
@@ -118,7 +115,7 @@ function DashboardSidebar({ role = "guest" }) {
     <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between min-h-screen sticky top-0 h-screen overflow-y-auto flex-shrink-0 z-30 font-sans">
       {/* Top Branding Logo */}
       <div>
-        <div className="px-6 py-6 border-b border-slate-50 flex items-center justify-between">
+        <div className="px-6 py-6 flex items-center justify-between">
           <Link to="/">
             <img src={hrcloudsLogo} alt="HR Clouds" className="h-9 w-auto object-contain" />
           </Link>
@@ -126,118 +123,75 @@ function DashboardSidebar({ role = "guest" }) {
 
         {/* Multi-Org Switcher dropdown inside sidebar if orgs exist */}
         {organizations && organizations.length > 1 && (
-          <div className="px-5 py-3 border-b border-slate-50">
+          <div className="px-5 py-3 border-b border-slate-100">
             <OrgSwitcher organizations={organizations} currentOrgId={orgId} />
           </div>
         )}
 
         {/* Navigation Section */}
-        <div className="px-4 py-6 space-y-2">
+        <div className="px-4 py-4 space-y-4">
           {navSections.map((section) => {
             const isSingle = section.items.length === 1;
 
-            // Single item section — render directly as a link (no dropdown arrow!)
+            // Single item section — render directly as a link
             if (isSingle) {
               const item = section.items[0];
               const Icon = item.icon || section.icon;
               const isActive = item.active;
 
-              if (item.external) {
-                return (
-                  <a
-                    key={section.title}
-                    href={item.path}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-500 hover:text-purple-600 hover:bg-purple-50/50 transition-all"
-                  >
-                    <Icon className="w-4 h-4 text-slate-400" />
-                    {item.label}
-                  </a>
-                );
-              }
-
               return (
                 <Link
                   key={section.title}
                   to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                     isActive
-                      ? "bg-purple-600 text-white shadow-md shadow-purple-200"
-                      : "text-slate-600 hover:text-purple-600 hover:bg-purple-50/50"
+                      ? "bg-[#F3E8FF] text-[#7E22CE] shadow-2xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-purple-700"
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
                   {item.label}
                 </Link>
               );
             }
 
-            // Multi-item section — render as a collapsible dropdown accordion
+            // Multi-item section — render with collapsible header
             const isOpen = openSections[section.title] !== false;
-            const hasActiveChild = section.items.some((item) => item.active);
-            const SectionIcon = section.icon;
 
             return (
-              <div key={section.title} className="rounded-xl overflow-hidden pt-1">
-                {/* Section Dropdown Header */}
+              <div key={section.title} className="space-y-1">
+                {/* Section Header */}
                 <button
                   type="button"
                   onClick={() => toggleSection(section.title)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all ${
-                    hasActiveChild
-                      ? "bg-purple-50/70 text-purple-700 font-semibold"
-                      : "hover:bg-slate-50 text-slate-600 font-medium"
-                  }`}
+                  className="w-full flex items-center justify-between px-4 py-2 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
                 >
-                  <div className="flex items-center gap-2.5">
-                    {SectionIcon && (
-                      <SectionIcon
-                        className={`w-4 h-4 ${
-                          hasActiveChild ? "text-purple-600" : "text-slate-400"
-                        }`}
-                      />
-                    )}
-                    <span className="text-[11px] tracking-wider uppercase font-medium">
-                      {section.title}
-                    </span>
-                  </div>
+                  <span>{section.title}</span>
                   {isOpen ? (
-                    <HiChevronDown className={`w-4 h-4 transition-transform ${hasActiveChild ? "text-purple-600" : "text-slate-400"}`} />
+                    <HiChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   ) : (
-                    <HiChevronRight className="w-4 h-4 text-slate-400" />
+                    <HiChevronRight className="w-3.5 h-3.5 text-slate-400" />
                   )}
                 </button>
 
-                {/* Sub-items (Dropdown body) */}
+                {/* Sub-items list */}
                 {isOpen && (
-                  <div className="pl-3 pr-1 py-1 space-y-1 mt-1 border-l-2 border-slate-100 ml-3">
+                  <div className="space-y-1 pl-2">
                     {section.items.map((item) => {
                       const Icon = item.icon;
                       const isActive = item.active;
-
-                      if (item.external) {
-                        return (
-                          <a
-                            key={item.label}
-                            href={item.path}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-purple-600 hover:bg-purple-50/50 transition-all"
-                          >
-                            <Icon className="w-3.5 h-3.5" />
-                            {item.label}
-                          </a>
-                        );
-                      }
 
                       return (
                         <Link
                           key={item.label}
                           to={item.path}
-                          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${
                             isActive
-                              ? "bg-purple-600 text-white shadow-md shadow-purple-200"
-                              : "text-slate-500 hover:text-purple-600 hover:bg-purple-50/50"
+                              ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                           }`}
                         >
-                          <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-slate-400"}`} />
+                          <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
                           {item.label}
                         </Link>
                       );
@@ -250,26 +204,24 @@ function DashboardSidebar({ role = "guest" }) {
         </div>
       </div>
 
-      {/* Sidebar Footer User Info */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-              {(user?.identifier || "U").charAt(0).toUpperCase()}
-            </div>
-            <div className="truncate">
-              <p className="text-xs font-bold text-slate-800 truncate">{user?.identifier || "User"}</p>
-              <p className="text-[10px] text-slate-400 capitalize">{role}</p>
-            </div>
+      {/* Sidebar Footer User Profile */}
+      <div className="p-5 border-t border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-3 overflow-hidden">
+          <div className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+            {(user?.identifier || "U").charAt(0).toUpperCase()}
           </div>
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50 cursor-pointer"
-          >
-            <HiLogout className="w-4 h-4" />
-          </button>
+          <div className="truncate leading-tight">
+            <p className="text-xs font-bold text-slate-900 truncate">{user?.identifier?.split("@")[0] || "User"}</p>
+            <p className="text-[11px] text-slate-400 font-medium capitalize mt-0.5">{role || "Hr"}</p>
+          </div>
         </div>
+        <button
+          onClick={handleLogout}
+          title="Sign out"
+          className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-xl hover:bg-slate-100 cursor-pointer flex-shrink-0"
+        >
+          <HiLogout className="w-4 h-4" />
+        </button>
       </div>
     </aside>
   );

@@ -27,6 +27,7 @@ import InvitationAcceptPage from "../auth/pages/InvitationAcceptPage";
 import DashboardPage from "../roles/DashboardPage";
 import GuestDashboard from "../roles/guest/screens/GuestDashboard";
 import HRDashboard from "../roles/hr/screens/HRDashboard";
+import EmployeesPage from "../roles/hr/screens/EmployeesPage";
 import EmployeeDashboard from "../roles/employee/screens/EmployeeDashboard";
 import ManagerDashboard from "../roles/manager/screens/ManagerDashboard";
 
@@ -93,6 +94,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/dashboard/guest" element={<ProtectedRoute><GuestDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/hr" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/policies" element={<ProtectedRoute><AttendancePoliciesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/shifts" element={<ProtectedRoute><AttendanceShiftsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/roster" element={<ProtectedRoute><AttendanceRosterPage /></ProtectedRoute>} />

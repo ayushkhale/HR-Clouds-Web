@@ -1,0 +1,117 @@
+{
+  "tabs": [
+    { "id": "welcome", "label": "Welcome & Overview" },
+    { "id": "conduct", "label": "Code of Conduct" },
+    { "id": "it_security", "label": "IT & Security Policy" },
+    { "id": "leave", "label": "Leave Policy" },
+    { "id": "attendance", "label": "Attendance & Timing" }
+  ],
+  "content": {
+    "welcome": {
+      "hr": {
+        "title": "Welcome HR Administrator!",
+        "subtitle": "Admin Guidelines & Operational Compliance Procedures.",
+        "paragraphs": [
+          "This document center serves as the official compliance blueprint for your company. As HR, you are responsible for maintaining these policies, inviting team members, configuring attendance policies, and ensuring overall organizational health."
+        ]
+      },
+      "manager": {
+        "title": "Welcome Manager!",
+        "subtitle": "Managerial Directives & Team Leadership Guidelines.",
+        "paragraphs": [
+          "As a manager, your role is to guide your team, ensure optimal project coverage, and maintain alignment with company standards while fostering a supportive environment."
+        ]
+      },
+      "employee": {
+        "title": "Welcome to the Team!",
+        "subtitle": "Here you can find all the details you need to know about our company guidelines.",
+        "paragraphs": [
+          "Starting a new job can be overwhelming, so we have put together this portal to make your onboarding journey as smooth as possible. Here, you will find everything you need to know about how we work, what we value, and how you can succeed with us."
+        ]
+      }
+    },
+    "conduct": {
+      "hr": {
+        "title": "HR Code of Conduct & Compliance Enforcement",
+        "paragraphs": [
+          "As HR, you ensure fair application of workplace rules, manage grievances, and maintain a harassment-free environment across all departments."
+        ]
+      },
+      "manager": {
+        "title": "Managerial Leadership Code & Conduct",
+        "paragraphs": [
+          "Managers are expected to model ethical behavior, foster inclusive team communication, and resolve minor team conflicts with empathy and fairness."
+        ]
+      },
+      "employee": {
+        "title": "Employee Code of Conduct",
+        "paragraphs": [
+          "We are committed to creating a safe, inclusive, and respectful environment for everyone. Treat all colleagues and partners with dignity and professionalism."
+        ]
+      }
+    },
+    "it_security": {
+      "hr": {
+        "title": "IT & Security Governance",
+        "paragraphs": [
+          "Oversee credential provisioning, access revocations upon offboarding, and data privacy compliance across the organization."
+        ]
+      },
+      "manager": {
+        "title": "Team IT Security Guidelines",
+        "paragraphs": [
+          "Ensure your direct reports adhere to data security, hardware safety, and proper password management protocols."
+        ]
+      },
+      "employee": {
+        "title": "Employee IT & Data Security",
+        "paragraphs": [
+          "Keep your work credentials confidential, lock your screen when away, and use only approved software for company tasks."
+        ]
+      }
+    },
+    "leave": {
+      "hr": {
+        "title": "Leave Administration & Policy Setup",
+        "paragraphs": [
+          "Configure leave quotas, annual rollover caps, carry-forward limits, and holiday lists for all employees."
+        ]
+      },
+      "manager": {
+        "title": "Team Leave Approvals & Resource Planning",
+        "paragraphs": [
+          "Review direct report leave applications, balance workload distribution during team absences, and prevent overlap."
+        ]
+      },
+      "employee": {
+        "title": "Employee Leave Guidelines",
+        "paragraphs": [
+          "Plan your leaves in advance, notify your manager for unexpected absences, and keep track of your balance on your dashboard."
+        ]
+      }
+    },
+    "attendance": {
+      "hr": {
+        "intro": "As an HR Administrator, you oversee company-wide attendance governance, rule enforcement, penalty configurations, and regularization oversight.",
+        "duties": [
+          "Policy Maintenance: Create and update shift templates, weekly offs, and holiday calendars for different locations.",
+          "Audit & Override: Review organization-wide regularization logs and resolve employee attendance discrepancies prior to payroll lock."
+        ]
+      },
+      "manager": {
+        "intro": "As a Manager / Team Lead, you are responsible for monitoring team punctuality, ensuring shift coverage, and reviewing your direct reports' regularization requests.",
+        "duties": [
+          "Regularization Approvals: Review and approve attendance correction requests from direct reports in a timely manner.",
+          "Roster Alignment: Ensure shift schedules align with operational deliverables and team availability."
+        ]
+      },
+      "employee": {
+        "intro": "We value your time and believe in a flexible yet responsible work environment. To keep things running smoothly, we have some simple attendance guidelines.",
+        "duties": [
+          "Clocking In & Out: Always remember to log your time using the web portal or mobile app when you start and end your day.",
+          "Forgot to Punch?: If you miss a punch, just raise a regularization request within a few days so your manager can approve it."
+        ]
+      }
+    }
+  }
+}

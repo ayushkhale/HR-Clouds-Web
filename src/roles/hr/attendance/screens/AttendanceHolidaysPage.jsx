@@ -4,7 +4,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle,
-  HiExclamationCircle, HiTrash,
+  HiExclamationCircle, HiTrash, HiPencil,
 } from "react-icons/hi";
 
 const HOLIDAY_TYPES = [
@@ -39,9 +39,15 @@ function Toast({ toast, onClose }) {
   );
 }
 
-/* ─── Modal ──────────────────────────────────────────────────────────────── */
-function HolidayModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: "", date: "", type: "public" });
+/* ─── Holiday Modal (Create / Edit) ──────────────────────────────────────── */
+function HolidayModal({ editHoliday, onClose, onSaved }) {
+  const isEdit = !!editHoliday;
+  const [form, setForm] = useState({
+    name: editHoliday?.name || "",
+    // For edit, date comes as "YYYY-MM-DD" from API. For create, start blank.
+    date: editHoliday?.date || "",
+    type: editHoliday?.type || "public",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,11 +56,25 @@ function HolidayModal({ onClose, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.name.trim() || !form.date) { setError("Please provide both holiday name and date."); return; }
-    const year = parseInt(form.date.split("-")[0], 10);
     setLoading(true); setError("");
     try {
-      await attendanceAPI.createHoliday({ name: form.name, date: form.date, type: form.type, year });
-      onSaved("Holiday added successfully.");
+      if (isEdit) {
+        // Send only changed fields; date as ISO string
+        await attendanceAPI.updateHoliday(editHoliday.id, {
+          name: form.name,
+          date: new Date(form.date + "T00:00:00").toISOString(),
+          type: form.type,
+        });
+        onSaved("Holiday updated successfully.");
+      } else {
+        // Create: send name, date as ISO string, type — no extra year field
+        await attendanceAPI.createHoliday({
+          name: form.name,
+          date: new Date(form.date + "T00:00:00").toISOString(),
+          type: form.type,
+        });
+        onSaved("Holiday added successfully.");
+      }
     } catch (err) {
       if (err.status === 409) {
         setError("A holiday already exists on this date.");
@@ -68,11 +88,13 @@ function HolidayModal({ onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Add Holiday</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Add a new date to your organisation's holiday calendar.</p>
+            <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit Holiday" : "Add Holiday"}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isEdit ? "Update this holiday's details." : "Add a day off to your company's holiday list."}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
             <HiX className="w-5 h-5" />
@@ -96,7 +118,7 @@ function HolidayModal({ onClose, onSaved }) {
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Holiday Type</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Type of Holiday</label>
             <div className="grid grid-cols-3 gap-2">
               {HOLIDAY_TYPES.map((t) => (
                 <button key={t.value} type="button" onClick={() => set("type", t.value)}
@@ -111,7 +133,7 @@ function HolidayModal({ onClose, onSaved }) {
           <div className="flex items-center gap-3 pt-1">
             <button type="submit" disabled={loading}
               className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {loading ? "Adding…" : "Add Holiday"}
+              {loading ? "Saving…" : isEdit ? "Update Holiday" : "Add Holiday"}
             </button>
             <button type="button" onClick={onClose}
               className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
@@ -129,7 +151,7 @@ export default function AttendanceHolidaysPage() {
   const [holidays, setHolidays] = useState([]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [modal, setModal] = useState(null); // null | "create" | holiday object
   const [toast, setToast] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
@@ -166,10 +188,16 @@ export default function AttendanceHolidaysPage() {
     }
   }
 
+  function onSaved(msg) {
+    setModal(null);
+    showToast(msg);
+    load(year);
+  }
+
   const yearOptions = [year - 1, year, year + 1];
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
       <DashboardSidebar role="hr" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardTopBar title="Attendance" />
@@ -197,7 +225,7 @@ export default function AttendanceHolidaysPage() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => setShowModal(true)}
+              <button onClick={() => setModal("create")}
                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
                 <HiPlus className="w-4 h-4" /> Add Holiday
               </button>
@@ -218,7 +246,7 @@ export default function AttendanceHolidaysPage() {
                 </div>
                 <p className="text-sm font-semibold text-slate-600">No holidays for {year}</p>
                 <p className="text-xs text-slate-400">Add holidays so the attendance engine knows non-working days.</p>
-                <button onClick={() => setShowModal(true)}
+                <button onClick={() => setModal("create")}
                   className="mt-2 flex items-center gap-2 bg-purple-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl">
                   <HiPlus className="w-4 h-4" /> Add Holiday
                 </button>
@@ -246,10 +274,16 @@ export default function AttendanceHolidaysPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleDelete(h)} disabled={deleting === h.id}
-                          className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50">
-                          <HiTrash className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => setModal(h)}
+                            className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit holiday">
+                            <HiPencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete(h)} disabled={deleting === h.id}
+                            className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50">
+                            <HiTrash className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -259,10 +293,12 @@ export default function AttendanceHolidaysPage() {
           </div>
         </main>
       </div>
-      {showModal && (
+
+      {modal && (
         <HolidayModal
-          onClose={() => setShowModal(false)}
-          onSaved={(msg) => { setShowModal(false); showToast(msg); load(year); }}
+          editHoliday={modal === "create" ? null : modal}
+          onClose={() => setModal(null)}
+          onSaved={onSaved}
         />
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />
