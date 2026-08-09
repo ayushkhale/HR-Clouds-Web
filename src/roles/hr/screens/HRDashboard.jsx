@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
@@ -11,23 +12,128 @@ import {
   HiCalendar,
   HiTemplate,
   HiSparkles,
+  HiPlus,
+  HiMinus,
+  HiSearch,
+  HiChevronDown,
+  HiChevronLeft,
+  HiChevronRight,
+  HiCheckCircle,
+  HiExclamationCircle,
+  HiChartBar
 } from "react-icons/hi";
+import { attendanceAPI } from "../../../shared/api";
+import Skeleton from "../../../shared/components/Skeleton";
+import AttendanceDirectory from "../components/AttendanceDirectory";
+import { DICTIONARY } from "../../../shared/config/dictionary";
 
 function HRDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Keep dummy invitations state to prevent breaking the metrics cards
   const [invitations] = useState([]);
 
-  // Quick action toolbar items
-  const quickActions = [
-    { label: "Policies", icon: HiClipboardList, path: "/dashboard/hr/attendance/policies" },
-    { label: "Shifts", icon: HiClock, path: "/dashboard/hr/attendance/shifts" },
-    { label: "Roster", icon: HiUserGroup, path: "/dashboard/hr/attendance/roster" },
-    { label: "Holidays", icon: HiCalendar, path: "/dashboard/hr/attendance/holidays" },
-    { label: "Weekly Offs", icon: HiTemplate, path: "/dashboard/hr/attendance/weekly-offs" },
-  ];
+  // Phase 7 Dynamic Data
+  const [liveDashboard, setLiveDashboard] = useState(null);
+  const [dashboardGraphData, setDashboardGraphData] = useState(null);
+  const [workModeData, setWorkModeData] = useState(null);
+  const [defaultersData, setDefaultersData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [chartDate, setChartDate] = useState(new Date());
+  const [defaulterTab, setDefaulterTab] = useState('most_absent');
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    fetchGraphData(chartDate.getMonth() + 1, chartDate.getFullYear());
+  }, [chartDate]);
+
+  const fetchInitialData = async () => {
+    try {
+      const today = new Date().toISOString();
+      const now = new Date();
+      
+      const [liveRes, workModeRes, defaultersRes] = await Promise.all([
+        attendanceAPI.getLiveDashboard(),
+        attendanceAPI.getWorkModeDistribution(today),
+        attendanceAPI.getTopDefaulters(now.getMonth() + 1, now.getFullYear())
+      ]);
+
+      if (liveRes.success) setLiveDashboard(liveRes.data);
+      if (workModeRes.success) setWorkModeData(workModeRes.data);
+      if (defaultersRes.success) setDefaultersData(defaultersRes.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchGraphData = async (month, year) => {
+    try {
+      setGraphLoading(true);
+      const graphRes = await attendanceAPI.getDashboardGraphData(month, year);
+      if (graphRes.success) setDashboardGraphData(graphRes.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGraphLoading(false);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    setChartDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() - 1);
+      return newDate;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setChartDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() + 1);
+      return newDate;
+    });
+  };
+
+  // Helper to ensure the bar chart has at least 15 days on the X-axis
+  const getPaddedChartData = (dailyData) => {
+    if (!dailyData || dailyData.length === 0) return [];
+    const data = [...dailyData];
+    if (data.length < 15) {
+      let lastDate = new Date(data[data.length - 1].date);
+      for (let i = data.length; i < 15; i++) {
+        lastDate.setDate(lastDate.getDate() + 1);
+        data.push({
+          date: lastDate.toISOString().split('T')[0],
+          present_count: 0,
+          absent_count: 0,
+          late_count: 0
+        });
+      }
+    }
+    return data;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
+        <DashboardSidebar role="hr" />
+        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+          <DashboardTopBar title="HR Dashboard" />
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+            <Skeleton type="dashboard" />
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
@@ -36,20 +142,20 @@ function HRDashboard() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="HR Dashboard" />
 
-        <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
-          {/* Hero Banner */}
-          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xs">
+        <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
+          {/* Hero Banner (Preserved as requested) */}
+          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
             {/* Subtle background radial pattern rings */}
             <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
             <div className="absolute right-12 top-12 w-64 h-64 border border-white/20 rounded-full opacity-20 pointer-events-none" />
             <div className="absolute right-24 top-24 w-40 h-40 border border-white/20 rounded-full opacity-20 pointer-events-none" />
 
-            <div className="relative z-10 max-w-2xl space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tracking-wide border border-white/20 backdrop-blur-xs">
-                <HiSparkles className="w-3.5 h-3.5 text-purple-200" />
+            <div className="relative z-10 max-w-2xl space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20 backdrop-blur-xs">
+                <HiSparkles className="w-3 h-3 text-purple-200" />
                 HR COMMAND CENTER
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                 Welcome back, {user?.identifier || "HR Administrator"}
               </h1>
               <p className="text-xs sm:text-sm text-purple-100/90 font-normal">
@@ -64,88 +170,141 @@ function HRDashboard() {
             />
           </div>
 
-          {/* SaaS Operational Metrics Cards Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1 */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-2xs hover:shadow-md transition-all duration-200 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                <HiUserGroup className="w-6 h-6" />
+          {/* Top Analytics Section */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            
+            {/* Stats Grid (Now on the Right) */}
+            <div className="bg-white rounded-3xl p-8 shadow-xs border border-slate-100 grid grid-cols-2 order-2 xl:order-2">
+              {/* Stat 1 */}
+              <div className="border-b border-r border-slate-100 pb-8 pr-8">
+                <div className="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-4 bg-slate-50">
+                  <HiUserGroup className="w-5 h-5" />
+                </div>
+                <div className="flex items-end gap-3 mb-1">
+                  <span className="text-4xl font-bold tracking-tight text-slate-800">{liveDashboard?.total_employees || 0}</span>
+                </div>
+                <div className="text-sm font-semibold text-slate-500 mt-2">Total Org Personnel</div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">TOTAL PERSONNEL</p>
-                <p className="text-2xl font-bold text-slate-900 mt-0.5">{1 + invitations.length}</p>
-                <p className="text-[11px] text-slate-400 font-medium mt-0.5">1 Active • {invitations.length} Pending</p>
+
+              {/* Stat 2 */}
+              <div className="border-b border-slate-100 pb-8 pl-8">
+                <div className="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-4 bg-slate-50">
+                  <HiCheckCircle className="w-5 h-5" />
+                </div>
+                <div className="flex items-end gap-3 mb-1">
+                  <span className="text-4xl font-bold tracking-tight text-slate-800">{liveDashboard?.counts?.present || 0}</span>
+                  <span className="bg-purple-50 text-purple-600 text-xs font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
+                    {DICTIONARY.STATUS.PRESENT}
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-500 mt-2">Today's Presence</div>
+              </div>
+
+              {/* Stat 3 */}
+              <div className="border-r border-slate-100 pt-8 pr-8">
+                <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 mb-4 bg-slate-50">
+                  <HiExclamationCircle className="w-4 h-4" />
+                </div>
+                <div className="flex items-end gap-3 mb-1">
+                  <span className="text-3xl font-bold tracking-tight text-slate-800">{liveDashboard?.counts?.absent || 0}</span>
+                  <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
+                    {DICTIONARY.STATUS.ABSENT}
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-500 mt-2">Absent Today</div>
+              </div>
+
+              {/* Stat 4 */}
+              <div className="pt-8 pl-8">
+                <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 mb-4 bg-slate-50">
+                  <HiClock className="w-4 h-4" />
+                </div>
+                <div className="flex items-end gap-3 mb-1">
+                  <span className="text-3xl font-bold tracking-tight text-slate-800">{liveDashboard?.counts?.late || 0}</span>
+                  <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
+                    {DICTIONARY.STATUS.LATE}
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-500 mt-2">Late Arrivals</div>
               </div>
             </div>
 
-            {/* Card 2 */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-2xs hover:shadow-md transition-all duration-200 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                <HiMail className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PENDING INVITES</p>
-                <p className="text-2xl font-bold text-slate-900 mt-0.5">{invitations.length}</p>
-                <p className="text-[11px] text-slate-400 font-medium mt-0.5">Awaiting user response</p>
-              </div>
-            </div>
-
-            {/* Card 3 */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-2xs hover:shadow-md transition-all duration-200 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                <HiClipboardList className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ATTENDANCE RULES</p>
-                <p className="text-2xl font-bold text-slate-900 mt-0.5">Active</p>
-                <p className="text-[11px] font-bold text-purple-600 hover:underline cursor-pointer mt-0.5" onClick={() => navigate("/dashboard/hr/attendance/policies")}>
-                  Configure Policies →
-                </p>
-              </div>
-            </div>
-
-            {/* Card 4 */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-2xs hover:shadow-md transition-all duration-200 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                <HiClock className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">WORK SHIFTS</p>
-                <p className="text-2xl font-bold text-slate-900 mt-0.5">Configured</p>
-                <p className="text-[11px] font-bold text-purple-600 hover:underline cursor-pointer mt-0.5" onClick={() => navigate("/dashboard/hr/attendance/shifts")}>
-                  Manage Shifts →
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Attendance Shortcuts Bar */}
-          <div className="space-y-2.5">
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              ATTENDANCE
-            </h2>
-            <div className="flex items-center gap-3 flex-wrap">
-              {quickActions.map((action) => {
-                const IconComp = action.icon;
-                const isActive = location.pathname === action.path;
-
-                return (
-                  <button
-                    key={action.label}
-                    onClick={() => navigate(action.path)}
-                    className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                      isActive
-                        ? "bg-[#F3E8FF] text-[#7E22CE] border-[#E9D5FF]"
-                        : "bg-white text-slate-700 border-slate-200/80 hover:bg-slate-50"
-                    }`}
-                  >
-                    <IconComp className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-[#6D28D9]"}`} />
-                    {action.label}
+            {/* Chart (Now on the Left) */}
+            <div className="bg-white rounded-3xl p-8 shadow-xs border border-slate-100 flex flex-col justify-between order-1 xl:order-1">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
+                  <div className="flex items-center gap-4 mt-2">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                      <span className="w-2 h-2 rounded-full bg-purple-700"></span> {DICTIONARY.STATUS.PRESENT}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span> {DICTIONARY.STATUS.LATE}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                      <span className="w-2 h-2 rounded-full bg-purple-300"></span> {DICTIONARY.STATUS.ABSENT}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
+                  <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                    <HiChevronLeft className="w-4 h-4" />
                   </button>
-                );
-              })}
+                  <span className="w-20 text-center select-none">
+                    {chartDate.toLocaleString('default', { month: 'short', year: 'numeric' })}
+                  </span>
+                  <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                    <HiChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative w-full h-56 mt-auto">
+                {graphLoading ? (
+                  <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
+                ) : (!dashboardGraphData?.daily || dashboardGraphData.daily.length === 0) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                    <HiChartBar className="w-8 h-8 mb-2 opacity-50" />
+                    <p className="text-sm font-semibold">No data present</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getPaddedChartData(dashboardGraphData?.daily)} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="date" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                        tickFormatter={(val) => new Date(val).getDate()}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                      />
+                      <Bar dataKey="present_count" name={DICTIONARY.STATUS.PRESENT} stackId="a" fill="#6D28D9" barSize={12} radius={[0, 0, 2, 2]} />
+                      <Bar dataKey="late_count" name={DICTIONARY.STATUS.LATE} stackId="a" fill="#8B5CF6" barSize={12} />
+                      <Bar dataKey="absent_count" name={DICTIONARY.STATUS.ABSENT} stackId="a" fill="#C4B5FD" barSize={12} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Bottom Layout Container (Attendance Directory) */}
+          <div className="mt-8">
+            <AttendanceDirectory />
+          </div>
+
+
           
         </main>
       </div>

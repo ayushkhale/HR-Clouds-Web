@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI } from "../../../../shared/api";
 import {
   HiClock,
@@ -542,13 +543,11 @@ export default function AttendanceShiftsPage() {
               </button>
             </div>
 
+            {loading ? (
+              <Skeleton type="table" rows={4} />
+            ) : (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              {loading ? (
-                <div className="p-16 flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs text-slate-400">Loading shifts…</p>
-                </div>
-              ) : shifts.length === 0 ? (
+              {shifts.length === 0 ? (
                 <div className="p-16 flex flex-col items-center gap-3 text-center">
                   <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
                     <HiClock className="w-7 h-7 text-slate-400" />
@@ -607,6 +606,7 @@ export default function AttendanceShiftsPage() {
                 </table>
               )}
             </div>
+            )}
           </div>
 
           {/* ── Rotation Patterns Section ── */}
@@ -628,13 +628,11 @@ export default function AttendanceShiftsPage() {
               </button>
             </div>
 
+            {loading ? (
+              <Skeleton type="table" rows={3} />
+            ) : (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              {loading ? (
-                <div className="p-12 flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs text-slate-400">Loading rotations…</p>
-                </div>
-              ) : rotations.length === 0 ? (
+              {rotations.length === 0 ? (
                 <div className="p-12 flex flex-col items-center gap-3 text-center">
                   <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
                     <HiRefresh className="w-7 h-7 text-slate-400" />
@@ -677,6 +675,7 @@ export default function AttendanceShiftsPage() {
                 </table>
               )}
             </div>
+            )}
           </div>
 
         </main>

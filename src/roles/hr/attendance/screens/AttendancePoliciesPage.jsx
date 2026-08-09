@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI } from "../../../../shared/api";
 import {
   HiClipboardList,
@@ -384,13 +385,11 @@ export default function AttendancePoliciesPage() {
           </div>
 
           {/* Policies Table */}
+          {loading ? (
+            <Skeleton type="table" rows={4} />
+          ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            {loading ? (
-              <div className="p-16 flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                <p className="text-xs text-slate-400">Loading policies…</p>
-              </div>
-            ) : policies.length === 0 ? (
+            {policies.length === 0 ? (
               <div className="p-16 flex flex-col items-center gap-3 text-center">
                 <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
                   <HiClipboardList className="w-7 h-7 text-slate-400" />
@@ -477,6 +476,7 @@ export default function AttendancePoliciesPage() {
               </table>
             )}
           </div>
+          )}
         </main>
       </div>
 

@@ -345,6 +345,14 @@ export const organizationAPI = {
     const query = new URLSearchParams(params).toString();
     return request(`/organizations/employees${query ? `?${query}` : ""}`);
   },
+
+  /**
+   * Get organization departments
+   * GET /organizations/departments
+   */
+  getDepartments() {
+    return request("/organizations/departments");
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -354,19 +362,19 @@ export const organizationAPI = {
 export const hrmsAPI = {
   getEmployees(params = {}) {
     const query = new URLSearchParams(params).toString();
-    return request(`/hrms/employees${query ? `?${query}` : ""}`);
+    return request(`/hr/employees${query ? `?${query}` : ""}`);
   },
   getEmployee(id) {
-    return request(`/hrms/employees/${id}`);
+    return request(`/hr/employees/${id}`);
   },
   createEmployee(payload) {
-    return request("/hrms/employees", { method: "POST", body: JSON.stringify(payload) });
+    return request("/hr/employees", { method: "POST", body: JSON.stringify(payload) });
   },
   updateEmployee(id, payload) {
-    return request(`/hrms/employees/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+    return request(`/hr/employees/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   },
   deleteEmployee(id) {
-    return request(`/hrms/employees/${id}`, { method: "DELETE" });
+    return request(`/hr/employees/${id}`, { method: "DELETE" });
   },
 };
 
@@ -406,6 +414,13 @@ export const attendanceAPI = {
   submitRegularization: (payload) => request("/attendance/regularization", { method: "POST", body: JSON.stringify(payload) }),
   getMyRegularizations: () => request("/attendance/regularizations"),
   getMyShift: () => request("/attendance/shift"),
+
+  // ── Phase 7 Employee APIs ──────────────────────────────────────
+  getDailyLog: (date) => request(`/attendance/daily-log${date ? `?date=${date}` : ""}`),
+  getGraphData: (month, year) => request(`/attendance/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getWeeklyCalendar: (date) => request(`/attendance/weekly-calendar${date ? `?date=${date}` : ""}`),
+  getTrends: (months) => request(`/attendance/trends${months ? `?months=${months}` : ""}`),
+
 
   // ── HR — Policies ────────────────────────────────────────────────
   getPolicies: () => request("/attendance/hr/policies"),
@@ -465,6 +480,92 @@ export const attendanceAPI = {
   },
   approveRegularization: (id) => request(`/attendance/hr/regularizations/${id}/approve`, { method: "POST" }),
   rejectRegularization: (id, payload) => request(`/attendance/hr/regularizations/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // ── Manager — Approvals & Inbox ──────────────────────────────────
+  getManagerTeamToday: () => request("/attendance/manager/team/today"),
+  getManagerTeamHistory: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/manager/team/history${query ? `?${query}` : ""}`);
+  },
+  getManagerAnomalies: () => request("/attendance/manager/team/anomalies"),
+  resolveManagerAnomaly: (id, payload) => request(`/attendance/manager/anomalies/${id}/resolve`, { method: "POST", body: JSON.stringify(payload) }),
+  
+  getManagerPendingRegularizations: () => request("/attendance/manager/regularizations/pending"),
+  approveManagerRegularization: (id, payload) => request(`/attendance/manager/regularizations/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
+  rejectManagerRegularization: (id, payload) => request(`/attendance/manager/regularizations/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  
+  getManagerPendingOvertime: () => request("/attendance/manager/overtime/pending"),
+  approveManagerOvertime: (id, payload) => request(`/attendance/manager/overtime/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
+  rejectManagerOvertime: (id, payload) => request(`/attendance/manager/overtime/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // ── Phase 7 Manager APIs ───────────────────────────────────────
+  getTeamSummary: (date) => request(`/attendance/manager/team/summary${date ? `?date=${date}` : ""}`),
+  getTeamMemberHistory: (userId, month, year) => request(`/attendance/manager/team/member/${userId}/history${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getTeamMemberSummary: (userId, month, year) => request(`/attendance/manager/team/member/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getTeamGraphData: (month, year) => request(`/attendance/manager/team/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
+
+  // ── Phase 7 HR APIs ────────────────────────────────────────────
+  getAllEmployeesAttendance: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/employees/attendance${query ? `?${query}` : ""}`);
+  },
+  getIndividualEmployeeAttendanceDetail: (userId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/employees/${userId}/attendance${query ? `?${query}` : ""}`);
+  },
+  getIndividualEmployeeMonthlySummary: (userId, month, year) => request(`/attendance/hr/employees/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getAllManagersAttendance: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/managers/attendance${query ? `?${query}` : ""}`);
+  },
+  getIndividualManagerAttendanceDetail: (userId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/managers/${userId}/attendance${query ? `?${query}` : ""}`);
+  },
+  getIndividualManagerMonthlySummary: (userId, month, year) => request(`/attendance/hr/managers/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getLiveDashboard: () => request("/attendance/hr/dashboard/live"),
+  getDashboardGraphData: (month, year) => request(`/attendance/hr/dashboard/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getDepartmentSummary: (date) => request(`/attendance/hr/dashboard/department-summary${date ? `?date=${date}` : ""}`),
+  getTopDefaulters: (month, year) => request(`/attendance/hr/dashboard/top-defaulters${month && year ? `?month=${month}&year=${year}` : ""}`),
+  getWorkModeDistribution: (date) => request(`/attendance/hr/dashboard/work-mode-distribution${date ? `?date=${date}` : ""}`),
+
+  // ── Phase 5 — HR Locations (Geofencing) ───────────────────────────
+  getLocations: () => request("/attendance/hr/locations"),
+  createLocation: (payload) => request("/attendance/hr/locations", { method: "POST", body: JSON.stringify(payload) }),
+  updateLocation: (id, payload) => request(`/attendance/hr/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteLocation: (id) => request(`/attendance/hr/locations/${id}`, { method: "DELETE" }),
+
+  // ── Phase 5 — HR Comp Offs ────────────────────────────────────────
+  getCompOffs: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/comp-offs${query ? `?${query}` : ""}`);
+  },
+  approveCompOff: (id) => request(`/attendance/hr/comp-offs/${id}/approve`, { method: "POST" }),
+  rejectCompOff: (id, payload) => request(`/attendance/hr/comp-offs/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // ── Phase 5 — Manager Comp Offs ───────────────────────────────────
+  getManagerCompOffs: () => request("/attendance/manager/comp-offs/pending"),
+  approveManagerCompOff: (id) => request(`/attendance/manager/comp-offs/${id}/approve`, { method: "POST" }),
+  rejectManagerCompOff: (id, payload) => request(`/attendance/manager/comp-offs/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // ── Phase 6 — HR Lock Periods ─────────────────────────────────────
+  getLockPeriods: () => request("/attendance/hr/locks"),
+  createLockPeriod: (payload) => request("/attendance/hr/locks", { method: "POST", body: JSON.stringify(payload) }),
+  deleteLockPeriod: (id) => request(`/attendance/hr/locks/${id}`, { method: "DELETE" }),
+
+  // ── Phase 6 — HR Reports & Analytics ──────────────────────────────
+  getDailyReport: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/reports/daily${query ? `?${query}` : ""}`);
+  },
+  getMonthlyReport: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/reports/monthly${query ? `?${query}` : ""}`);
+  },
+  getEmployeeReport: (userId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/reports/employee/${userId}${query ? `?${query}` : ""}`);
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

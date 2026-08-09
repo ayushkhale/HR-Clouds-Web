@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { HiX, HiDocumentText, HiOutlineFolder, HiCheckCircle, HiExclamation, HiChevronLeft, HiChevronRight } from "react-icons/hi";
+import { HiX, HiDocumentText, HiOutlineFolder, HiCheckCircle, HiExclamation, HiChevronLeft, HiChevronRight, HiSearch } from "react-icons/hi";
 import { attendanceAPI } from "../api";
 import docsData from "../data/docs.json";
 
@@ -17,9 +17,10 @@ function PolicyDocumentModal({ onClose }) {
     currentRole = "manager";
   }
 
-  const [activeTab, setActiveTab] = useState("welcome");
+  const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(false);
   const [attendancePolicies, setAttendancePolicies] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (activeTab === "attendance") {
@@ -43,6 +44,20 @@ function PolicyDocumentModal({ onClose }) {
     ...tab,
     icon: tab.id === "attendance" ? HiDocumentText : HiOutlineFolder
   }));
+
+  const filteredTabs = tabs.filter(tab => {
+    if (!searchQuery) return true;
+    const lowerQuery = searchQuery.toLowerCase();
+    if (tab.label.toLowerCase().includes(lowerQuery)) return true;
+    
+    const content = docsData.content[tab.id]?.[currentRole];
+    if (content) {
+      if (content.intro?.toLowerCase().includes(lowerQuery)) return true;
+      if (content.paragraphs?.some(p => p.toLowerCase().includes(lowerQuery))) return true;
+      if (content.duties?.some(d => d.toLowerCase().includes(lowerQuery))) return true;
+    }
+    return false;
+  });
 
   const currentIndex = tabs.findIndex((t) => t.id === activeTab);
   const prevTab = currentIndex > 0 ? tabs[currentIndex - 1] : null;
@@ -88,11 +103,26 @@ function PolicyDocumentModal({ onClose }) {
         <div className="flex flex-1 overflow-hidden">
           {/* Narrow Sidebar */}
           <div className="w-48 sm:w-52 border-r border-slate-100 bg-slate-50/50 flex flex-col shrink-0 overflow-y-auto">
-            <div className="p-3 sm:p-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Folders
+            <div className="p-3">
+              <div className="relative">
+                <HiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search docs..." 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-400"
+                />
+              </div>
+            </div>
+            <div className="px-3 pb-2 pt-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Tabs
             </div>
             <div className="px-2 space-y-1 pb-4">
-              {tabs.map((tab) => {
+              {filteredTabs.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-slate-400 text-center">No results found</div>
+              ) : (
+                filteredTabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 return (
@@ -109,7 +139,7 @@ function PolicyDocumentModal({ onClose }) {
                     <span className="truncate">{tab.label}</span>
                   </button>
                 );
-              })}
+              }))}
             </div>
           </div>
 
@@ -202,11 +232,6 @@ function PolicyDocumentModal({ onClose }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {activeContent.title && (
-                      <p className="text-base font-semibold text-slate-800">
-                        {activeContent.title}
-                      </p>
-                    )}
                     {activeContent.paragraphs?.map((p, i) => (
                       <p key={i}>{p}</p>
                     ))}

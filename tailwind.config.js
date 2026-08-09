@@ -60,7 +60,7 @@ export default {
       },
     },
     fontFamily: {
-      sans: ["Poppins", "sans-serif"],
+      sans: ["Manrope", "sans-serif"],
     },
   },
   plugins: [],

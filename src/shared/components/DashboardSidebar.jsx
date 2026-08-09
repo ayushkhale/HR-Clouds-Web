@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
+
+import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
-import hrcloudsLogo from "../../assets/logo2.png";
 import {
   HiTemplate,
   HiChatAlt2,
@@ -17,6 +18,13 @@ import {
   HiChevronDown,
   HiChevronRight,
   HiViewGrid,
+  HiQuestionMarkCircle,
+  HiCog,
+  HiSun,
+  HiMoon,
+  HiLocationMarker,
+  HiLockClosed,
+  HiDocumentReport
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -60,31 +68,69 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiTemplate,
           items: [
             { label: "Dashboard", path: "/dashboard/hr", icon: HiViewGrid, active: location.pathname === "/dashboard/hr" },
-            { label: "Employees", path: "/dashboard/hr/employees", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/employees" },
+            { label: DICTIONARY.NAV.EMPLOYEES, path: "/dashboard/hr/employees", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/employees" },
           ],
         },
         {
           title: "ATTENDANCE",
           icon: HiClock,
           items: [
+            { label: DICTIONARY.NAV.DIRECTORY, path: "/dashboard/hr/attendance/directory", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/directory" },
             { label: "Policies", path: "/dashboard/hr/attendance/policies", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/attendance/policies" },
             { label: "Shifts", path: "/dashboard/hr/attendance/shifts", icon: HiClock, active: location.pathname === "/dashboard/hr/attendance/shifts" },
             { label: "Roster", path: "/dashboard/hr/attendance/roster", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/roster" },
-            { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
-            { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", icon: HiTemplate, active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
+            { label: "Locations", path: "/dashboard/hr/attendance/locations", icon: HiLocationMarker, active: location.pathname === "/dashboard/hr/attendance/locations" },
+            { label: "Lock Periods", path: "/dashboard/hr/attendance/lock-periods", icon: HiLockClosed, active: location.pathname === "/dashboard/hr/attendance/lock-periods" },
+            { label: DICTIONARY.NAV.REPORTS, path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
           ],
         },
+        {
+          title: "TIME OFF & LEAVES",
+          icon: HiCalendar,
+          items: [
+            { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
+            { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", icon: HiTemplate, active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
+            { label: "Comp Offs", path: "/dashboard/hr/attendance/comp-offs", icon: HiClock, active: location.pathname === "/dashboard/hr/attendance/comp-offs" },
+          ],
+        },
+
       ];
     }
 
     return [
       {
-        title: "MENU",
+        title: "OVERVIEW",
         icon: HiTemplate,
         items: [
-          { label: "Dashboard", path: `/dashboard/${role}`, icon: HiTemplate, active: location.pathname.includes(`/dashboard/${role}`) },
+          { label: "Dashboard", path: `/dashboard/${role}`, icon: HiViewGrid, active: location.pathname === `/dashboard/${role}` },
         ],
       },
+      ...(role === "employee" ? [{
+        title: "ATTENDANCE",
+        icon: HiClock,
+        items: [
+          { label: "Regularizations", path: `/dashboard/${role}/attendance/regularizations`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/regularizations` },
+        ],
+      }] : []),
+      ...(role === "manager" ? [{
+        title: "REQUESTS",
+        icon: HiClipboardList,
+        items: [
+          { label: "Regularization Requests", path: "/dashboard/manager/requests/regularizations", icon: HiClock, active: location.pathname === "/dashboard/manager/requests/regularizations" },
+          { label: "OverTime Requests", path: "/dashboard/manager/requests/overtime", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/overtime" },
+          { label: "Anomalies", path: "/dashboard/manager/team/anomalies", icon: HiChatAlt2, active: location.pathname === "/dashboard/manager/team/anomalies" },
+          { label: "Comp Off Requests", path: "/dashboard/manager/requests/comp-offs", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/comp-offs" },
+        ],
+      },
+      {
+        title: "TEAM",
+        icon: HiUserGroup,
+        forceDropdown: true,
+        items: [
+          { label: "Status", path: "/dashboard/manager/team/today", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/today" },
+          { label: "History", path: "/dashboard/manager/team/history", icon: HiCalendar, active: location.pathname === "/dashboard/manager/team/history" },
+        ],
+      }] : [])
     ];
   };
 
@@ -115,9 +161,9 @@ function DashboardSidebar({ role = "guest" }) {
     <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between min-h-screen sticky top-0 h-screen overflow-y-auto flex-shrink-0 z-30 font-sans">
       {/* Top Branding Logo */}
       <div>
-        <div className="px-6 py-6 flex items-center justify-between">
+        <div className="px-6 py-8 flex items-center justify-center">
           <Link to="/">
-            <img src={hrcloudsLogo} alt="HR Clouds" className="h-9 w-auto object-contain" />
+            <img src="/logocolored.png" alt="HR Clouds" className="h-12 w-auto object-contain" />
           </Link>
         </div>
 
@@ -131,7 +177,7 @@ function DashboardSidebar({ role = "guest" }) {
         {/* Navigation Section */}
         <div className="px-4 py-4 space-y-4">
           {navSections.map((section) => {
-            const isSingle = section.items.length === 1;
+            const isSingle = section.items.length === 1 && !section.forceDropdown;
 
             // Single item section — render directly as a link
             if (isSingle) {
@@ -143,11 +189,10 @@ function DashboardSidebar({ role = "guest" }) {
                 <Link
                   key={section.title}
                   to={item.path}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
-                    isActive
+                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${isActive
                       ? "bg-[#F3E8FF] text-[#7E22CE] shadow-2xs"
                       : "text-slate-600 hover:bg-slate-50 hover:text-purple-700"
-                  }`}
+                    }`}
                 >
                   <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
                   {item.label}
@@ -185,11 +230,10 @@ function DashboardSidebar({ role = "guest" }) {
                         <Link
                           key={item.label}
                           to={item.path}
-                          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                            isActive
+                          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
                               ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
                           <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
                           {item.label}
@@ -204,23 +248,17 @@ function DashboardSidebar({ role = "guest" }) {
         </div>
       </div>
 
-      {/* Sidebar Footer User Profile */}
-      <div className="p-5 border-t border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-            {(user?.identifier || "U").charAt(0).toUpperCase()}
+      <div className="mt-auto px-4 pb-4 space-y-2">
+        <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
+          <div className="flex items-center gap-3">
+            <HiQuestionMarkCircle className="w-5 h-5 text-slate-400" />
+            <span>Help Center</span>
           </div>
-          <div className="truncate leading-tight">
-            <p className="text-xs font-bold text-slate-900 truncate">{user?.identifier?.split("@")[0] || "User"}</p>
-            <p className="text-[11px] text-slate-400 font-medium capitalize mt-0.5">{role || "Hr"}</p>
-          </div>
-        </div>
-        <button
-          onClick={handleLogout}
-          title="Sign out"
-          className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-xl hover:bg-slate-100 cursor-pointer flex-shrink-0"
-        >
-          <HiLogout className="w-4 h-4" />
+          <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">8</span>
+        </button>
+        <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
+          <HiCog className="w-5 h-5 text-slate-400" />
+          <span>Setting</span>
         </button>
       </div>
     </aside>
