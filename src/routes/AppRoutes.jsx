@@ -30,6 +30,7 @@ import GuestDashboard from "../roles/guest/screens/GuestDashboard";
 import HRDashboard from "../roles/hr/screens/HRDashboard";
 import EmployeesPage from "../roles/hr/screens/EmployeesPage";
 import EmployeeProfilePage from "../roles/hr/screens/EmployeeProfilePage";
+import DepartmentsPage from "../roles/hr/screens/DepartmentsPage";
 import EmployeeDashboard from "../roles/employee/screens/EmployeeDashboard";
 import AttendanceRegularizationsPage from "../roles/employee/screens/AttendanceRegularizationsPage";
 import ManagerDashboard from "../roles/manager/screens/ManagerDashboard";
@@ -55,6 +56,11 @@ import AttendanceReportsPage from "../roles/hr/attendance/screens/AttendanceRepo
 
 // Manager — Phase 5
 import ManagerCompOffsPage from "../roles/manager/screens/ManagerCompOffsPage";
+
+function CatchAll() {
+  const { isAuthenticated } = useAuth();
+  return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
+}
 
 /* ─── Protected Route ────────────────────────────────────────────────────────
    Waits for auth hydration before deciding to render or redirect.
@@ -110,6 +116,7 @@ function AppRoutes() {
       <Route path="/dashboard/hr" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/hr/employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/employees/:userId" element={<ProtectedRoute><EmployeeProfilePage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/departments" element={<ProtectedRoute><DepartmentsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/directory" element={<ProtectedRoute><HRAttendancePage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/policies" element={<ProtectedRoute><AttendancePoliciesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/shifts" element={<ProtectedRoute><AttendanceShiftsPage /></ProtectedRoute>} />
@@ -132,7 +139,7 @@ function AppRoutes() {
       <Route path="/dashboard/manager/team/anomalies" element={<ProtectedRoute><ManagerAnomaliesPage /></ProtectedRoute>} />
 
       {/* ─── CATCH-ALL ─── */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<CatchAll />} />
     </Routes>
   );
 }

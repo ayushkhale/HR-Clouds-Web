@@ -32,8 +32,7 @@ function GoogleButton({ onSuccess, onError, onMultiOrg }) {
       }
 
       // Single org or guest
-      const authData = login(res);
-      onSuccess?.(authData?.user || res);
+      onSuccess?.(res);
     } catch (err) {
       onError?.(err.message || "Google sign-in failed on server. Please try again.");
     } finally {

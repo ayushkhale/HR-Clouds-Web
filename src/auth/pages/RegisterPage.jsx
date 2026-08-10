@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authAPI, tokenHelper } from "../../shared/api";
+import { useAuth } from "../../shared/contexts/AuthContext";
 import GoogleButton from "../components/GoogleButton";
 
 function RegisterPage() {
@@ -9,6 +10,7 @@ function RegisterPage() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const { login, startOrgSelection, getDashboardPath } = useAuth();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -39,7 +41,16 @@ function RegisterPage() {
       </p>
 
       <GoogleButton
-        onSuccess={() => navigate("/dashboard")}
+        onSuccess={(res) => {
+          console.log("Google Signup/Login Success:", res);
+          const authData = login(res);
+          const targetRole = authData?.role || authData?.user?.role;
+          navigate(getDashboardPath(targetRole));
+        }}
+        onMultiOrg={(selToken, orgs) => {
+          startOrgSelection(selToken, orgs);
+          navigate("/auth/select-org");
+        }}
         onError={(msg) => setError(msg)}
       />
 

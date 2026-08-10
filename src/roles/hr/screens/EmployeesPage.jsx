@@ -18,27 +18,32 @@ function EmployeesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Invite form state
-  const [name, setName] = useState("");
+  // Required
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("employee");
+  
+  // Optional Profile
+  const [name, setName] = useState("");
+  const [empId, setEmpId] = useState("");
+  const [contact, setContact] = useState("");
+  const [bloodGroup, setBloodGroup] = useState("");
+
+  // Optional Organization
   const [workLocation, setWorkLocation] = useState("");
   const [department, setDepartment] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [contact, setContact] = useState("");
-  const [empId, setEmpId] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [aadhaarNumber, setAadhaarNumber] = useState("");
-  const [gender, setGender] = useState("");
   const [reportingManager, setReportingManager] = useState("");
-  const [status, setStatus] = useState("");
-  const [dateOfJoining, setDateOfJoining] = useState("");
-  const [referredBy, setReferredBy] = useState("");
-  const [allowEmployeeToFill, setAllowEmployeeToFill] = useState(false);
-  const [probationPeriodDays, setProbationPeriodDays] = useState("");
-  const [emergencyContactName, setEmergencyContactName] = useState("");
-  const [emergencyContactNumber, setEmergencyContactNumber] = useState("");
-  const [fatherName, setFatherName] = useState("");
-  const [spouseName, setSpouseName] = useState("");
+  const [jobStatus, setJobStatus] = useState("");
+  const [employmentType, setEmploymentType] = useState("");
+  const [workMode, setWorkMode] = useState("");
+
+  // Optional Compliance/Address
+  const [panNumber, setPanNumber] = useState("");
+  const [uanNumber, setUanNumber] = useState("");
+  const [currentAddress, setCurrentAddress] = useState("");
+  const [permanentAddress, setPermanentAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
 
   const [managers, setManagers] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -59,6 +64,26 @@ function EmployeesPage() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
+  // Debounced pincode fetch for City and State
+  useEffect(() => {
+    if (pincode && pincode.length === 6) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+          const data = await res.json();
+          if (data && data[0] && data[0].Status === "Success") {
+            const postOffice = data[0].PostOffice[0];
+            setCity(postOffice.District);
+            setState(postOffice.State);
+          }
+        } catch (error) {
+          console.error("Failed to fetch pincode details:", error);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [pincode]);
+
   useEffect(() => {
     fetchEmployees();
   }, []);
@@ -73,7 +98,7 @@ function EmployeesPage() {
       
       if (res.success && res.data) {
         setEmployees(res.data);
-        setManagers(res.data.filter(emp => emp.role === 'manager'));
+        setManagers(res.data.filter(emp => emp.role === 'manager' || emp.role === 'hr'));
       }
       if (locRes.success && locRes.data) {
         setLocations(locRes.data);
@@ -118,27 +143,27 @@ function EmployeesPage() {
     setInviteResult({ type: "", message: "" });
 
     try {
-      const payload = { 
-        email, role, name, full_name: name,
-        date_of_birth: dateOfBirth,
-        aadhaar_number: aadhaarNumber,
-        gender,
-        reporting_manager: reportingManager,
-        status,
-        date_of_joining: dateOfJoining,
-        referred_by: referredBy,
-        allow_employee_to_fill: allowEmployeeToFill,
-        probation_period_days: probationPeriodDays,
-        emergency_contact_name: emergencyContactName,
-        emergency_contact_number: emergencyContactNumber,
-        father_name: fatherName,
-        spouse_name: spouseName
-      };
+      const payload = { email, role };
+
+      if (name) payload.name = name;
+      if (empId) payload.emp_id = empId;
+      if (contact) payload.contact = contact;
+      if (bloodGroup) payload.blood_group = bloodGroup;
+
       if (workLocation) payload.location_id = workLocation;
       if (department) payload.department_id = department;
-      if (designation) payload.designation = designation;
-      if (contact) { payload.contact = contact; payload.phone_number = contact; }
-      if (empId) { payload.emp_id = empId; payload.employee_id = empId; }
+      if (reportingManager) payload.reporting_person = reportingManager;
+      if (jobStatus) payload.job_status = jobStatus;
+      if (employmentType) payload.employment_type = employmentType;
+      if (workMode) payload.work_mode = workMode;
+
+      if (panNumber) payload.pan_number = panNumber;
+      if (uanNumber) payload.uan_number = uanNumber;
+      if (currentAddress) payload.current_address = currentAddress;
+      if (permanentAddress) payload.permanent_address = permanentAddress;
+      if (city) payload.city = city;
+      if (state) payload.state = state;
+      if (pincode) payload.pincode = pincode;
 
       await organizationAPI.inviteUser(payload);
 
@@ -162,11 +187,12 @@ function EmployeesPage() {
         ...prev,
       ]);
 
-      setName(""); setEmail(""); setCity(""); setContact(""); setEmpId("");
-      setDateOfBirth(""); setAadhaarNumber(""); setGender(""); setReportingManager("");
-      setStatus(""); setDateOfJoining(""); setReferredBy(""); setAllowEmployeeToFill(false);
-      setProbationPeriodDays(""); setEmergencyContactName(""); setEmergencyContactNumber("");
-      setFatherName(""); setSpouseName("");
+      setName(""); setEmail(""); setRole("employee"); setEmpId(""); setContact(""); 
+      setBloodGroup("");
+      setWorkLocation(""); setDepartment(""); setReportingManager("");
+      setJobStatus(""); setEmploymentType(""); setWorkMode("");
+      setPanNumber(""); setUanNumber(""); setCurrentAddress("");
+      setPermanentAddress(""); setCity(""); setState(""); setPincode("");
 
       setTimeout(() => {
         setInviteResult({ type: "", message: "" });
@@ -207,15 +233,34 @@ function EmployeesPage() {
     })),
   ];
 
-  const filteredMembers = allTeamMembers.filter((m) => {
-    const matchesSearch =
-      (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.email || "").toLowerCase().includes(searchQuery.toLowerCase());
+  const rolePriority = {
+    'hr': 1,
+    'manager': 2,
+    'employee': 3
+  };
 
-    if (filterTab === "active") return matchesSearch && m.status === "Active";
-    if (filterTab === "pending") return matchesSearch && m.status === "Pending";
-    return matchesSearch;
-  });
+  const filteredMembers = allTeamMembers
+    .filter((m) => {
+      const matchesSearch =
+        (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.email || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (filterTab === "active") return matchesSearch && m.status === "Active";
+      if (filterTab === "pending") return matchesSearch && m.status === "Pending";
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      const priorityA = rolePriority[a.role?.toLowerCase()] || 4;
+      const priorityB = rolePriority[b.role?.toLowerCase()] || 4;
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      const nameA = (a.name || "").toLowerCase();
+      const nameB = (b.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
 
   return (
     <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
@@ -335,7 +380,7 @@ function EmployeesPage() {
                           )}
                         </div>
                         <h3 className="text-[17px] font-bold text-slate-900 leading-tight group-hover:text-purple-700 transition-colors px-2 truncate w-full">{member.name}</h3>
-                        <p className="text-xs font-semibold text-slate-400 mt-1 capitalize">
+                        <p className="text-xs font-semibold text-slate-400 mt-1 uppercase">
                           {member.role || "—"}
                         </p>
                       </div>
@@ -349,9 +394,9 @@ function EmployeesPage() {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-4xl w-full p-7 relative my-8">
-            <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-6xl w-full flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                   <HiUserGroup className="w-5 h-5" />
@@ -363,143 +408,163 @@ function EmployeesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleInvite} className="space-y-4">
-              <div className="flex items-center gap-2 mb-4 bg-purple-50/50 p-3 rounded-xl border border-purple-100">
-                <input 
-                  type="checkbox" 
-                  id="allowEmployeeToFill" 
-                  checked={allowEmployeeToFill} 
-                  onChange={(e) => setAllowEmployeeToFill(e.target.checked)} 
-                  className="w-4 h-4 text-purple-600 rounded cursor-pointer" 
-                />
-                <label htmlFor="allowEmployeeToFill" className="text-sm font-semibold text-purple-900 cursor-pointer select-none">
-                  Allow the employee to fill in their information
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee No</label>
-                  <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="Auto-generated if empty" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-red-400">*</span></label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email Address <span className="text-red-400">*</span></label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Mobile Number</label>
-                  <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-red-400">*</span></label>
-                  <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                    <option value="employee">Employee</option>
-                    <option value="manager">Manager</option>
-                    <option value="hr">HR Admin</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Date Of Birth</label>
-                  <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Aadhaar Number</label>
-                  <input type="text" value={aadhaarNumber} onChange={(e) => setAadhaarNumber(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender</label>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                    <option value="">---Select---</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Others">Others</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Reporting Manager</label>
-                  <select value={reportingManager} onChange={(e) => setReportingManager(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                    <option value="">---Select Manager---</option>
-                    {managers.map(m => (
-                      <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Status</label>
-                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                    <option value="">---Select---</option>
-                    <option value="Confirmed">Confirmed</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Probation">Probation</option>
-                    <option value="Trainee">Trainee</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Date Of Joining</label>
-                  <input type="date" value={dateOfJoining} onChange={(e) => setDateOfJoining(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Referred By <span className="text-slate-400 font-normal lowercase">(optional)</span></label>
-                  <input type="text" value={referredBy} onChange={(e) => setReferredBy(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Probation Period (Days)</label>
-                  <input type="number" value={probationPeriodDays} onChange={(e) => setProbationPeriodDays(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Work Location</label>
-                  <select value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                    <option value="">---Select Location---</option>
-                    {locations.map(loc => (
-                      <option key={loc.id || loc._id} value={loc.id || loc._id}>{loc.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department</label>
-                  <select value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                    <option value="">---Select Department---</option>
-                    {departments.map(dep => (
-                      <option key={dep.id || dep._id} value={dep.id || dep._id}>{dep.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Designation</label>
-                  <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Software Engineer" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Emergency Contact Name</label>
-                  <input type="text" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Emergency Contact Number</label>
-                  <input type="text" value={emergencyContactNumber} onChange={(e) => setEmergencyContactNumber(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Father's Name</label>
-                  <input type="text" value={fatherName} onChange={(e) => setFatherName(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Spouse Name</label>
-                  <input type="text" value={spouseName} onChange={(e) => setSpouseName(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+            <form onSubmit={handleInvite} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+              
+              {/* Section 1: Required Fields */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">1. Required Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email Address <span className="text-red-400">*</span></label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-red-400">*</span></label>
+                    <select value={role} onChange={(e) => setRole(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="employee">Employee</option>
+                      <option value="manager">Manager</option>
+                      <option value="hr">HR Admin</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              {inviteResult.message && (
-                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-                  {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
-                  {inviteResult.message}
+              {/* Section 2: Profile Fields */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">2. Profile Details</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-red-400">*</span></label>
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
+                    <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Primary Contact <span className="text-red-400">*</span></label>
+                    <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Blood Group</label>
+                    <input type="text" value={bloodGroup} onChange={(e) => setBloodGroup(e.target.value)} placeholder="e.g. O+" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
                 </div>
-              )}
+              </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">Cancel</button>
-                <button type="submit" disabled={inviteLoading} className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-60 cursor-pointer">
+              {/* Section 3: Organization / Work */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">3. Organization & Work</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Location</label>
+                    <select value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="">---Select Location---</option>
+                      {locations.map(loc => <option key={loc.id || loc._id} value={loc.id || loc._id}>{loc.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department <span className="text-red-400">*</span></label>
+                    <select value={department} onChange={(e) => setDepartment(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="">---Select Department---</option>
+                      {departments.map(dep => <option key={dep.id || dep._id} value={dep.id || dep._id}>{dep.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Reporting Person <span className="text-red-400">*</span></label>
+                    <select value={reportingManager} onChange={(e) => setReportingManager(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="">---Select Manager---</option>
+                      {managers.map(m => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.full_name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Status <span className="text-red-400">*</span></label>
+                    <select value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="">---Select---</option>
+                      <option value="probation">Probation</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="notice_period">Notice Period</option>
+                      <option value="terminated">Terminated</option>
+                      <option value="trainee">Trainee</option>
+                      <option value="contract">Contract</option>
+                      <option value="temporary">Temporary</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employment Type <span className="text-red-400">*</span></label>
+                    <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="">---Select---</option>
+                      <option value="full_time">Full Time</option>
+                      <option value="part_time">Part Time</option>
+                      <option value="contract">Contract</option>
+                      <option value="intern">Intern</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Work Mode <span className="text-red-400">*</span></label>
+                    <select value={workMode} onChange={(e) => setWorkMode(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                      <option value="">---Select---</option>
+                      <option value="on-site">On-Site</option>
+                      <option value="remote">Remote</option>
+                      <option value="hybrid">Hybrid</option>
+                      <option value="field">Field</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Compliance & Address */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">4. Compliance & Address</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">PAN Number</label>
+                    <input type="text" value={panNumber} onChange={(e) => setPanNumber(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all uppercase" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">UAN Number</label>
+                    <input type="text" value={uanNumber} onChange={(e) => setUanNumber(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Pincode</label>
+                    <input type="text" value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} maxLength={6} placeholder="6-digit pincode" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div className="hidden lg:block lg:col-span-1"></div>
+                  
+                  <div className="col-span-full">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Current Address</label>
+                    <input type="text" value={currentAddress} onChange={(e) => setCurrentAddress(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div className="col-span-full">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Permanent Address <span className="text-red-400">*</span></label>
+                    <input type="text" value={permanentAddress} onChange={(e) => setPermanentAddress(e.target.value)} required className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">City</label>
+                    <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">State</label>
+                    <input type="text" value={state} onChange={(e) => setState(e.target.value)} className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                  </div>
+                  <div className="hidden lg:block lg:col-span-2"></div>
+                </div>
+              </div>
+              
+              {/* Close the scrollable body div */}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0 bg-slate-50/50 rounded-b-2xl">
+                {inviteResult.message && (
+                  <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                    {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                    {inviteResult.message}
+                  </div>
+                )}
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">Cancel</button>
+                <button type="submit" disabled={inviteLoading} className="px-6 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-60 cursor-pointer">
                   {inviteLoading ? "Sending..." : <><HiPaperAirplane className="w-3.5 h-3.5" />Send Invitation</>}
                 </button>
               </div>

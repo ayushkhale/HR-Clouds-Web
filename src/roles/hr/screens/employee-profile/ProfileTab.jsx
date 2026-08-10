@@ -69,7 +69,7 @@ export default function ProfileTab({ employee }) {
         <InfoRow icon={HiCalendar} label="Date of Joining" value={formatDate(employee.date_of_joining)} />
         <InfoRow icon={HiShieldCheck} label="Employment Status" value={employee.status} />
         <InfoRow icon={HiCalendar} label="Probation Period" value={employee.probation_period_days ? `${employee.probation_period_days} days` : null} />
-        <InfoRow icon={HiUserGroup} label="Reporting Manager" value={employee.reporting_manager_name || employee.reporting_manager} />
+        <InfoRow icon={HiUserGroup} label="Reporting Manager" value={employee.reporting_person_name || employee.reporting_person || employee.reporting_manager_name || employee.reporting_manager} />
         <InfoRow icon={HiUser} label="Referred By" value={employee.referred_by} />
       </Section>
 

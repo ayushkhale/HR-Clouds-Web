@@ -346,8 +346,21 @@ export const organizationAPI = {
     return request(`/organizations/employees${query ? `?${query}` : ""}`);
   },
 
-  getDepartments() {
-    return request("/organizations/departments");
+  getDepartments(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/organizations/departments${query ? `?${query}` : ""}`);
+  },
+  createDepartment(payload) {
+    return request("/organizations/departments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateDepartment(id, payload) {
+    return request(`/organizations/departments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
 
   /**
@@ -357,6 +370,12 @@ export const organizationAPI = {
   getLocations(params = {}) {
     const query = new URLSearchParams(params).toString();
     return request(`/organizations/locations${query ? `?${query}` : ""}`);
+  },
+  createLocation(payload) {
+    return request("/organizations/locations", { method: "POST", body: JSON.stringify(payload) });
+  },
+  updateLocation(id, payload) {
+    return request(`/organizations/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   },
 
   /**
@@ -568,10 +587,9 @@ export const attendanceAPI = {
   getWorkModeDistribution: (date) => request(`/attendance/hr/dashboard/work-mode-distribution${date ? `?date=${date}` : ""}`),
 
   // ── Phase 5 — HR Locations (Geofencing) ───────────────────────────
-  getLocations: () => request("/attendance/hr/locations"),
-  createLocation: (payload) => request("/attendance/hr/locations", { method: "POST", body: JSON.stringify(payload) }),
-  updateLocation: (id, payload) => request(`/attendance/hr/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deleteLocation: (id) => request(`/attendance/hr/locations/${id}`, { method: "DELETE" }),
+  getLocations: (params) => organizationAPI.getLocations(params),
+  createLocation: (payload) => organizationAPI.createLocation(payload),
+  updateLocation: (id, payload) => organizationAPI.updateLocation(id, payload),
 
   // ── Phase 5 — HR Comp Offs ────────────────────────────────────────
   getCompOffs: (params = {}) => {

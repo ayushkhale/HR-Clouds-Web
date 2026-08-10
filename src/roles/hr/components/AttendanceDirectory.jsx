@@ -80,7 +80,7 @@ function AttendanceDirectory() {
   };
 
   const handleRowClick = (userId) => {
-    navigate(`/hr/attendance/${userId}?type=${activeTab}`);
+    navigate(`/dashboard/hr/employees/${userId}?tab=attendance`);
   };
 
   return (
@@ -90,7 +90,7 @@ function AttendanceDirectory() {
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-800">{DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY}</h1>
           <p className="text-sm font-medium text-slate-500 mt-1">
-            View and manage attendance records for the organization.
+            {DICTIONARY.DESCRIPTIONS.ATTENDANCE_DIRECTORY}
           </p>
         </div>
       </div>

@@ -9,7 +9,7 @@ function AttendanceLocationsPage() {
   const [locations, setLocations] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
-  const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", radius_meters: 100 });
+  const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -31,10 +31,10 @@ function AttendanceLocationsPage() {
   const openModal = (loc = null) => {
     if (loc) {
       setEditingLocation(loc);
-      setForm({ name: loc.name, address: loc.address || "", latitude: String(loc.latitude), longitude: String(loc.longitude), radius_meters: loc.radius_meters || 100 });
+      setForm({ name: loc.name, address: loc.address || "", latitude: String(loc.latitude), longitude: String(loc.longitude), geofence_radius_meters: loc.geofence_radius_meters || 100, city: loc.city || "", state: loc.state || "", country: loc.country || "", pincode: loc.pincode || "" });
     } else {
       setEditingLocation(null);
-      setForm({ name: "", address: "", latitude: "", longitude: "", radius_meters: 100 });
+      setForm({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
     }
     setShowModal(true);
   };
@@ -66,12 +66,30 @@ function AttendanceLocationsPage() {
       }).addTo(map);
 
       const marker = window.L.marker([lat, lng], { draggable: true }).addTo(map);
-      const circle = window.L.circle([lat, lng], { radius: form.radius_meters, color: "#7E22CE", fillColor: "#9333ea", fillOpacity: 0.15, weight: 2 }).addTo(map);
+      const circle = window.L.circle([lat, lng], { radius: form.geofence_radius_meters, color: "#7E22CE", fillColor: "#9333ea", fillOpacity: 0.15, weight: 2 }).addTo(map);
 
-      marker.on("dragend", (e) => {
+      marker.on("dragend", async (e) => {
         const pos = e.target.getLatLng();
         setForm(prev => ({ ...prev, latitude: pos.lat.toFixed(6), longitude: pos.lng.toFixed(6) }));
         circle.setLatLng(pos);
+        
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}&addressdetails=1`);
+          const data = await res.json();
+          if (data && data.address) {
+            setForm(prev => ({
+              ...prev,
+              address: data.display_name,
+              city: data.address.city || data.address.town || data.address.village || "",
+              state: data.address.state || "",
+              country: data.address.country || "",
+              pincode: data.address.postcode || ""
+            }));
+            setSearchQuery(data.display_name);
+          }
+        } catch (err) {
+          console.error("Reverse geocoding failed", err);
+        }
       });
 
       mapInstanceRef.current = map;
@@ -97,8 +115,8 @@ function AttendanceLocationsPage() {
 
   // Update circle radius when slider changes
   useEffect(() => {
-    if (circleRef.current) circleRef.current.setRadius(form.radius_meters);
-  }, [form.radius_meters]);
+    if (circleRef.current) circleRef.current.setRadius(form.geofence_radius_meters);
+  }, [form.geofence_radius_meters]);
 
   // Update marker and circle when lat/lng inputs change
   useEffect(() => {
@@ -127,7 +145,7 @@ function AttendanceLocationsPage() {
     setIsSearching(true);
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&addressdetails=1`);
         const data = await res.json();
         if (data && data.length > 0) {
           setSuggestions(data.slice(0, 5)); // show top 5
@@ -151,7 +169,11 @@ function AttendanceLocationsPage() {
       ...prev,
       latitude: parseFloat(item.lat).toFixed(6),
       longitude: parseFloat(item.lon).toFixed(6),
-      address: item.display_name
+      address: item.display_name,
+      city: item.address?.city || item.address?.town || item.address?.village || "",
+      state: item.address?.state || "",
+      country: item.address?.country || "",
+      pincode: item.address?.postcode || ""
     }));
     setSearchQuery(item.display_name);
     setShowSuggestions(false);
@@ -165,11 +187,15 @@ function AttendanceLocationsPage() {
 
   const handleSave = async () => {
     const payload = {
-      name: form.name,
-      address: form.address,
+      name: form.name?.toUpperCase(),
+      address: form.address?.toUpperCase(),
       latitude: parseFloat(form.latitude),
       longitude: parseFloat(form.longitude),
-      radius_meters: parseInt(form.radius_meters),
+      geofence_radius_meters: parseInt(form.geofence_radius_meters),
+      city: form.city?.toUpperCase(),
+      state: form.state?.toUpperCase(),
+      country: form.country?.toUpperCase(),
+      pincode: form.pincode,
     };
     try {
       if (editingLocation) {
@@ -192,14 +218,6 @@ function AttendanceLocationsPage() {
     } catch (err) { console.error(err); }
   };
 
-  const handleDelete = async (loc) => {
-    if (!confirm(`Delete location "${loc.name}"? This action cannot be undone.`)) return;
-    try {
-      await attendanceAPI.deleteLocation(loc.id);
-      fetchLocations();
-    } catch (err) { console.error(err); }
-  };
-
   return (
     <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
       <DashboardSidebar role="hr" />
@@ -216,45 +234,73 @@ function AttendanceLocationsPage() {
             </button>
           </div>
 
-          {/* Table */}
-          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
-            <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-xs">
-                  <tr>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4">Address</th>
-                    <th className="px-6 py-4">Coordinates</th>
-                    <th className="px-6 py-4">Radius</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {locations.length === 0 ? (
-                    <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No locations configured yet. Add your first office location.</td></tr>
-                  ) : locations.map((loc) => (
-                    <tr key={loc.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-primary-800 flex items-center gap-2">
-                        <HiLocationMarker className="w-4 h-4 text-purple-500" /> {loc.name}
-                      </td>
-                      <td className="px-6 py-4 text-slate-500 max-w-[200px] truncate">{loc.address || "--"}</td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-500">{loc.latitude}, {loc.longitude}</td>
-                      <td className="px-6 py-4 font-medium">{loc.radius_meters}m</td>
-                      <td className="px-6 py-4">
-                        <button onClick={() => handleToggleActive(loc)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}>
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        <button onClick={() => openModal(loc)} className="text-slate-400 hover:text-purple-600 transition-colors"><HiPencil className="w-4 h-4 inline" /></button>
-                        <button onClick={() => handleDelete(loc)} className="text-slate-400 hover:text-rose-500 transition-colors"><HiTrash className="w-4 h-4 inline" /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+            {locations.length === 0 ? (
+              <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+                No locations configured yet. Add your first office location.
+              </div>
+            ) : locations.map((loc) => (
+              <div key={loc.id} className="bg-white rounded-[20px] border border-slate-100 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group flex flex-col overflow-hidden relative shadow-sm">
+                
+                {/* Header Area */}
+                <div className="p-6 pb-4 border-b border-slate-50 relative">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full ${loc.is_active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      {loc.is_active ? 'Active' : 'Inactive'}
+                    </div>
+                    
+                    <button onClick={() => openModal(loc)} className="text-slate-400 hover:text-purple-600 transition-colors p-1.5 rounded-lg hover:bg-purple-50">
+                      <HiPencil className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                      <HiLocationMarker className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-[17px] font-bold text-slate-900 leading-tight group-hover:text-purple-700 transition-colors line-clamp-1">{loc.name}</h3>
+                  </div>
+                </div>
+
+                {/* Body Area */}
+                <div className="p-6 pt-4 flex-1 flex flex-col gap-4">
+                  
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Address</p>
+                    <p className="text-xs font-medium text-slate-700 leading-relaxed line-clamp-2">
+                      {loc.address || "--"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mt-auto">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
+                      <p className="text-xs font-semibold text-slate-700 truncate">{loc.city ? `${loc.city}, ${loc.state}` : '--'}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
+                      <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
+                        {loc.geofence_radius_meters} meters
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Footer Area for Status Toggle */}
+                <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between shrink-0">
+                  <span className="text-xs font-bold text-slate-600">Location Status</span>
+                  <button onClick={() => handleToggleActive(loc)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
+                  </button>
+                </div>
+
+              </div>
+            ))}
           </div>
         </main>
       </div>
@@ -326,17 +372,39 @@ function AttendanceLocationsPage() {
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Address</label>
                   <textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="123 Business Park" rows="3" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs resize-none" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Latitude *</label>
-                  <input type="text" value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })} placeholder="28.6139" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Latitude *</label>
+                    <input type="text" value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })} placeholder="28.6139" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Longitude *</label>
+                    <input type="text" value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })} placeholder="77.2090" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">City</label>
+                    <input type="text" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="New Delhi" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">State</label>
+                    <input type="text" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="Delhi" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Country</label>
+                    <input type="text" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} placeholder="India" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Pincode</label>
+                    <input type="text" value={form.pincode} onChange={e => setForm({ ...form, pincode: e.target.value })} placeholder="110001" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Longitude *</label>
-                  <input type="text" value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })} placeholder="77.2090" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.radius_meters}m</span></label>
-                  <input type="range" min="25" max="1000" step="25" value={form.radius_meters} onChange={e => setForm({ ...form, radius_meters: parseInt(e.target.value) })} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 shadow-inner" />
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.geofence_radius_meters}m</span></label>
+                  <input type="range" min="25" max="1000" step="25" value={form.geofence_radius_meters} onChange={e => setForm({ ...form, geofence_radius_meters: parseInt(e.target.value) })} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 shadow-inner" />
                   <div className="flex justify-between text-[10px] text-slate-400 mt-1.5"><span>25m</span><span>500m</span><span>1000m</span></div>
                 </div>
               </div>

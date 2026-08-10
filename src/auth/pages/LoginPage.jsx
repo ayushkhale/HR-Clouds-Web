@@ -60,12 +60,14 @@ function LoginPage() {
       <p className="text-sm text-gray-500 mb-7">Sign in to your HR Clouds account</p>
 
       <GoogleButton
-        onSuccess={(user) => {
-          login(user);
+        onSuccess={(res) => {
+          console.log("Google Signup/Login Success:", res);
+          const authData = login(res);
+          const targetRole = authData?.role || authData?.user?.role;
           if (redirectUrl) {
             navigate(redirectUrl);
           } else {
-            navigate(getDashboardPath(user.role));
+            navigate(getDashboardPath(targetRole));
           }
         }}
         onMultiOrg={(selToken, orgs) => {

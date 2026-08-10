@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
 import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
@@ -25,7 +25,11 @@ import Avatar, { genConfig } from 'react-nice-avatar';
 export default function EmployeeProfilePage() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialTab = queryParams.get("tab") || "overview";
+  
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);

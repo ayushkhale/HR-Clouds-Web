@@ -70,5 +70,8 @@ export const DICTIONARY = {
     TOP_DEFAULTERS: "Top Defaulters",
     WORK_MODE: "Work Mode",
     TEAM_PERFORMANCE: "Team Performance"
+  },
+  DESCRIPTIONS: {
+    ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization."
   }
 };
