@@ -46,12 +46,39 @@ export default function OverviewTab({ userId, employeeRole }) {
     }).finally(() => setLoading(false));
   }, [userId, month, year, employeeRole]);
 
-  const chartData = history.map(r => ({
+  const baseData = history.map(r => ({
     date: r.date,
     present: r.status === "present" ? 1 : 0,
     absent: r.status === "absent" ? 1 : 0,
     late: r.status === "late" ? 1 : 0,
-  })).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-15);
+  })).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let chartData = [...baseData];
+  
+  // Pad forward to ensure at least 15 days are shown (matches HRDashboard logic)
+  if (chartData.length > 0 && chartData.length < 15) {
+    let lastDate = new Date(chartData[chartData.length - 1].date);
+    for (let i = chartData.length; i < 15; i++) {
+      lastDate.setDate(lastDate.getDate() + 1);
+      chartData.push({
+        date: lastDate.toISOString().split("T")[0],
+        present: 0,
+        absent: 0,
+        late: 0,
+      });
+    }
+  } else if (chartData.length === 0) {
+    // If absolutely no data, generate first 15 days of the selected month
+    for (let i = 1; i <= 15; i++) {
+      const d = new Date(year, month - 1, i);
+      chartData.push({
+        date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        present: 0,
+        absent: 0,
+        late: 0,
+      });
+    }
+  }
 
   const todayStr = now.toISOString().split("T")[0];
   const todayRecord = history.find(r => r.date === todayStr);

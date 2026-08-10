@@ -346,12 +346,50 @@ export const organizationAPI = {
     return request(`/organizations/employees${query ? `?${query}` : ""}`);
   },
 
-  /**
-   * Get organization departments
-   * GET /organizations/departments
-   */
   getDepartments() {
     return request("/organizations/departments");
+  },
+
+  /**
+   * Get organization locations
+   * GET /organizations/locations
+   */
+  getLocations(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/organizations/locations${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Get deep, eager-loaded profile data for a specific employee
+   * GET /organizations/employees/:id
+   * @param {string} id - The global user_id
+   */
+  getEmployee(id) {
+    return request(`/organizations/employees/${id}`);
+  },
+
+  /**
+   * Deactivates an employee's access to the specific organization
+   * PATCH /organizations/employees/:id/status
+   * @param {string} id - The global user_id
+   * @param {{ is_active: boolean }} payload
+   */
+  updateEmployeeStatus(id, payload) {
+    return request(`/organizations/employees/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Permanently severs an employee's access (soft-delete)
+   * DELETE /organizations/employees/:id
+   * @param {string} id - The global user_id
+   */
+  deleteEmployee(id) {
+    return request(`/organizations/employees/${id}`, {
+      method: "DELETE",
+    });
   },
 };
 

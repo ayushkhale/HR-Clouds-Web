@@ -10,11 +10,7 @@ import {
   HiMail, HiPhone, HiPaperAirplane, HiCheckCircle
 } from "react-icons/hi";
 
-function getRandomAvatar(name) {
-  const sum = (name || "").split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const index = (sum % 35) + 1;
-  return `https://cdn.jsdelivr.net/gh/alohe/avatars/png/memo_${index}.png`;
-}
+import Avatar, { genConfig } from 'react-nice-avatar';
 
 function EmployeesPage() {
   const { user } = useAuth();
@@ -27,6 +23,7 @@ function EmployeesPage() {
   const [role, setRole] = useState("employee");
   const [workLocation, setWorkLocation] = useState("");
   const [department, setDepartment] = useState("");
+  const [designation, setDesignation] = useState("");
   const [contact, setContact] = useState("");
   const [empId, setEmpId] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -70,7 +67,7 @@ function EmployeesPage() {
     try {
       const [res, locRes, depRes] = await Promise.all([
         organizationAPI.getEmployees({ purpose: "shift_assignment" }),
-        attendanceAPI.getLocations().catch(() => ({ success: false, data: [] })),
+        organizationAPI.getLocations().catch(() => ({ success: false, data: [] })),
         organizationAPI.getDepartments().catch(() => ({ success: false, data: [] }))
       ]);
       
@@ -137,8 +134,9 @@ function EmployeesPage() {
         father_name: fatherName,
         spouse_name: spouseName
       };
-      if (workLocation) payload.work_location = workLocation;
-      if (department) payload.department = department;
+      if (workLocation) payload.location_id = workLocation;
+      if (department) payload.department_id = department;
+      if (designation) payload.designation = designation;
       if (contact) { payload.contact = contact; payload.phone_number = contact; }
       if (empId) { payload.emp_id = empId; payload.employee_id = empId; }
 
@@ -321,12 +319,16 @@ function EmployeesPage() {
                       {/* Profile Section */}
                       <div className="flex flex-col items-center text-center mb-6">
                         <div className="relative mb-4">
-                          <div className="w-20 h-20 rounded-full shadow-sm overflow-hidden bg-slate-50 shrink-0 ring-2 ring-purple-100">
-                            <img 
-                              src={member.avatar || getRandomAvatar(member.name)} 
-                              alt={member.name} 
-                              className="w-full h-full object-cover"
-                            />
+                          <div className="w-20 h-20 rounded-full shadow-sm overflow-hidden bg-slate-50 shrink-0 ring-2 ring-purple-100 flex items-center justify-center">
+                            {member.avatar ? (
+                              <img 
+                                src={member.avatar} 
+                                alt={member.name} 
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Avatar className="w-full h-full" {...genConfig(member.email || member.name || String(member.id))} />
+                            )}
                           </div>
                           {member.status === "Active" && (
                             <div className="absolute bottom-0.5 right-0.5 w-4.5 h-4.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
@@ -465,6 +467,10 @@ function EmployeesPage() {
                       <option key={dep.id || dep._id} value={dep.id || dep._id}>{dep.name}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Designation</label>
+                  <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Software Engineer" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Emergency Contact Name</label>

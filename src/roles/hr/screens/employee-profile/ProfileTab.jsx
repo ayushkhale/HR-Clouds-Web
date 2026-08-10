@@ -52,7 +52,7 @@ export default function ProfileTab({ employee }) {
         <InfoRow icon={HiUser} label="Full Name" value={employee.name || employee.full_name} />
         <InfoRow icon={HiMail} label="Email" value={employee.email} />
         <InfoRow icon={HiPhone} label="Phone Number" value={employee.contact || employee.phone_number} />
-        <InfoRow icon={HiLocationMarker} label="City" value={employee.city || employee.work_location} />
+        <InfoRow icon={HiLocationMarker} label="City" value={employee.city} />
         <InfoRow icon={HiCalendar} label="Date of Birth" value={formatDate(employee.date_of_birth)} />
         <InfoRow icon={HiUser} label="Gender" value={employee.gender} />
         <InfoRow icon={HiIdentification} label="Aadhaar Number" value={employee.aadhaar_number} />
@@ -63,7 +63,9 @@ export default function ProfileTab({ employee }) {
       <Section title="Employment Details">
         <InfoRow icon={HiIdentification} label="Employee ID" value={employee.employee_code || employee.emp_id} />
         <InfoRow icon={HiBriefcase} label="Role" value={employee.role} />
+        <InfoRow icon={HiBriefcase} label="Designation" value={employee.designation} />
         <InfoRow icon={HiOfficeBuilding} label="Department" value={employee.department} />
+        <InfoRow icon={HiOfficeBuilding} label="Work Location" value={employee.work_location} />
         <InfoRow icon={HiCalendar} label="Date of Joining" value={formatDate(employee.date_of_joining)} />
         <InfoRow icon={HiShieldCheck} label="Employment Status" value={employee.status} />
         <InfoRow icon={HiCalendar} label="Probation Period" value={employee.probation_period_days ? `${employee.probation_period_days} days` : null} />
