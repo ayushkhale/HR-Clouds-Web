@@ -5,6 +5,8 @@
 
 const BASE_URL = "https://development.hrclouds.in/api/v1"
 
+// const BASE_URL = "http://192.168.29.131:4500/api/v1"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Core fetch wrapper — handles headers, JSON, and error responses centrally
 // ─────────────────────────────────────────────────────────────────────────────
@@ -546,11 +548,11 @@ export const attendanceAPI = {
   },
   getManagerAnomalies: () => request("/attendance/manager/team/anomalies"),
   resolveManagerAnomaly: (id, payload) => request(`/attendance/manager/anomalies/${id}/resolve`, { method: "POST", body: JSON.stringify(payload) }),
-  
+
   getManagerPendingRegularizations: () => request("/attendance/manager/regularizations/pending"),
   approveManagerRegularization: (id, payload) => request(`/attendance/manager/regularizations/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
   rejectManagerRegularization: (id, payload) => request(`/attendance/manager/regularizations/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
-  
+
   getManagerPendingOvertime: () => request("/attendance/manager/overtime/pending"),
   approveManagerOvertime: (id, payload) => request(`/attendance/manager/overtime/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
   rejectManagerOvertime: (id, payload) => request(`/attendance/manager/overtime/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),

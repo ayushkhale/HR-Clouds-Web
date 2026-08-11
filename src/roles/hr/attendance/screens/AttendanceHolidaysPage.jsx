@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { attendanceAPI } from "../../../../shared/api";
+import { attendanceAPI, organizationAPI } from "../../../../shared/api";
+import MultiSelectDropdown from "../../../../shared/components/MultiSelectDropdown";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle,
   HiExclamationCircle, HiTrash, HiPencil,
@@ -45,12 +46,38 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
   const isEdit = !!editHoliday;
   const [form, setForm] = useState({
     name: editHoliday?.name || "",
-    // For edit, date comes as "YYYY-MM-DD" from API. For create, start blank.
     date: editHoliday?.date || "",
     type: editHoliday?.type || "public",
+    target_locations: editHoliday?.target_locations || [],
+    target_departments: editHoliday?.target_departments || [],
+    target_employment_types: editHoliday?.target_employment_types || [],
+    target_job_statuses: editHoliday?.target_job_statuses || [],
+    included_users: editHoliday?.included_users || [],
+    excluded_users: editHoliday?.excluded_users || [],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [locations, setLocations] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+
+  useEffect(() => {
+    async function loadTargetingData() {
+      try {
+        const [locRes, depRes, empRes] = await Promise.all([
+          organizationAPI.getLocations().catch(() => ({ data: [] })),
+          organizationAPI.getDepartments().catch(() => ({ data: [] })),
+          organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ data: [] }))
+        ]);
+        setLocations((locRes.data || []).filter(x => x.is_active !== false));
+        setDepartments((depRes.data || []).filter(x => x.is_active !== false));
+        setEmployees((empRes.data || []).filter(x => x.is_active !== false && x.status !== "Inactive"));
+      } catch (err) {
+        console.error("Failed to load targeting data", err);
+      }
+    }
+    loadTargetingData();
+  }, []);
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
@@ -59,21 +86,26 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
     if (!form.name.trim() || !form.date) { setError("Please provide both holiday name and date."); return; }
     setLoading(true); setError("");
     try {
+      const payload = {
+        name: form.name,
+        type: form.type,
+        target_locations: form.target_locations,
+        target_departments: form.target_departments,
+        target_employment_types: form.target_employment_types,
+        target_job_statuses: form.target_job_statuses,
+        included_users: form.included_users,
+        excluded_users: form.excluded_users,
+      };
+      // Only include date if we are creating or if we want to update it
+      if (!isEdit || form.date) {
+        payload.date = new Date(form.date + "T00:00:00").toISOString();
+      }
+
       if (isEdit) {
-        // Send only changed fields; date as ISO string
-        await attendanceAPI.updateHoliday(editHoliday.id, {
-          name: form.name,
-          date: new Date(form.date + "T00:00:00").toISOString(),
-          type: form.type,
-        });
+        await attendanceAPI.updateHoliday(editHoliday.id, payload);
         onSaved("Holiday updated successfully.");
       } else {
-        // Create: send name, date as ISO string, type — no extra year field
-        await attendanceAPI.createHoliday({
-          name: form.name,
-          date: new Date(form.date + "T00:00:00").toISOString(),
-          type: form.type,
-        });
+        await attendanceAPI.createHoliday(payload);
         onSaved("Holiday added successfully.");
       }
     } catch (err) {
@@ -88,8 +120,8 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit Holiday" : "Add Holiday"}</h2>
@@ -107,29 +139,86 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
               <HiExclamationCircle className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           )}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Holiday Name <span className="text-red-400">*</span></label>
-            <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)}
-              placeholder="e.g. Diwali"
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Date <span className="text-red-400">*</span></label>
-            <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Holiday Name <span className="text-red-400">*</span></label>
+              <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)}
+                placeholder="e.g. Diwali"
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Date <span className="text-red-400">*</span></label>
+              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
+            </div>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Type of Holiday</label>
             <div className="grid grid-cols-3 gap-2">
               {HOLIDAY_TYPES.map((t) => (
                 <button key={t.value} type="button" onClick={() => set("type", t.value)}
-                  className={`py-2.5 px-3 rounded-xl border-2 text-xs font-semibold text-center transition ${
-                    form.type === t.value ? "border-purple-500 bg-purple-50 text-purple-700" : "border-slate-200 text-slate-600 hover:border-slate-300"
+                  className={`py-2 px-3 rounded-xl border-2 text-xs font-semibold text-center transition ${
+                    form.type === t.value ? "border-purple-500 bg-purple-50 text-purple-700" : "border-slate-200 text-slate-600 hover:border-slate-300 bg-white"
                   }`}>
                   {t.label}
                 </button>
               ))}
             </div>
+          </div>
+          
+          <hr className="border-slate-100 my-4" />
+          <h3 className="text-sm font-bold text-slate-800">Targeting Rules</h3>
+          <p className="text-xs text-slate-500 mb-4">Leave empty to apply to the entire organization.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MultiSelectDropdown
+              label="Applicable Locations"
+              placeholder="All Locations"
+              options={locations.map(l => ({ value: l.id, label: l.name }))}
+              value={form.target_locations}
+              onChange={v => set("target_locations", v)}
+            />
+            <MultiSelectDropdown
+              label="Applicable Departments"
+              placeholder="All Departments"
+              options={departments.map(d => ({ value: d.id || d._id, label: d.name }))}
+              value={form.target_departments}
+              onChange={v => set("target_departments", v)}
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MultiSelectDropdown
+              label="Employment Types"
+              placeholder="All Types"
+              options={[{value:"Full-time", label:"Full-time"}, {value:"Part-time", label:"Part-time"}, {value:"Contract", label:"Contract"}]}
+              value={form.target_employment_types}
+              onChange={v => set("target_employment_types", v)}
+            />
+            <MultiSelectDropdown
+              label="Job Statuses"
+              placeholder="All Statuses"
+              options={[{value:"Active", label:"Active"}, {value:"Probation", label:"Probation"}, {value:"Notice Period", label:"Notice Period"}]}
+              value={form.target_job_statuses}
+              onChange={v => set("target_job_statuses", v)}
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MultiSelectDropdown
+              label="Force Include Employees"
+              placeholder="None"
+              options={employees.map(e => ({ value: e.user_id || e.id, label: e.name || e.full_name, subtitle: e.employee_code, avatarIdentifier: e.email || e.name }))}
+              value={form.included_users}
+              onChange={v => set("included_users", v)}
+            />
+            <MultiSelectDropdown
+              label="Force Exclude Employees"
+              placeholder="None"
+              options={employees.map(e => ({ value: e.user_id || e.id, label: e.name || e.full_name, subtitle: e.employee_code, avatarIdentifier: e.email || e.name }))}
+              value={form.excluded_users}
+              onChange={v => set("excluded_users", v)}
+            />
           </div>
           <div className="flex items-center gap-3 pt-1">
             <button type="submit" disabled={loading}
@@ -258,6 +347,7 @@ export default function AttendanceHolidaysPage() {
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Day</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Targeting</th>
                     <th className="px-6 py-4" />
                   </tr>
                 </thead>
@@ -271,6 +361,16 @@ export default function AttendanceHolidaysPage() {
                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${typeColor(h.type)}`}>
                           {typeLabel(h.type)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const targetingCount = (h.target_locations?.length || 0) + (h.target_departments?.length || 0) + (h.target_employment_types?.length || 0) + (h.target_job_statuses?.length || 0) + (h.included_users?.length || 0) + (h.excluded_users?.length || 0);
+                          return targetingCount === 0 ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Global</span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-100 cursor-help" title={`Targeted to ${targetingCount} rule(s)`}>Targeted</span>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

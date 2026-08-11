@@ -3,6 +3,7 @@ import { BrowserRouter as Router } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ModalContextProvider } from "./shared/contexts/ModalContext";
 import { AuthContextProvider } from "./shared/contexts/AuthContext";
+import { SidebarProvider } from "./shared/contexts/SidebarContext";
 import AppRoutes from "./routes/AppRoutes";
 
 function App() {
@@ -11,7 +12,9 @@ function App() {
       <AuthContextProvider>
         <ModalContextProvider>
           <Router>
-            <AppRoutes />
+            <SidebarProvider>
+              <AppRoutes />
+            </SidebarProvider>
           </Router>
         </ModalContextProvider>
       </AuthContextProvider>

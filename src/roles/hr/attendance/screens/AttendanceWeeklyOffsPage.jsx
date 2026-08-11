@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { attendanceAPI } from "../../../../shared/api";
+import { attendanceAPI, organizationAPI } from "../../../../shared/api";
+import MultiSelectDropdown from "../../../../shared/components/MultiSelectDropdown";
 import {
   HiTemplate, HiPlus, HiX, HiCheckCircle,
   HiExclamationCircle, HiTrash, HiPencil,
@@ -36,35 +37,85 @@ function Toast({ toast, onClose }) {
 }
 
 /* ─── Create Modal ───────────────────────────────────────────────────────── */
-function WeeklyOffModal({ shifts, onClose, onSaved }) {
-  const [scope, setScope] = useState("global"); // "global" | "shift"
-  const [selectedDays, setSelectedDays] = useState([]);
-  const [selectedShift, setSelectedShift] = useState("");
-  const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split("T")[0]);
+function WeeklyOffModal({ shifts, onClose, onSaved, editRule }) {
+  const isEdit = !!editRule;
+  const [form, setForm] = useState({
+    name: editRule?.name || "",
+    priority: editRule?.priority ?? 0,
+    effective_from: editRule?.effective_from ? editRule.effective_from.split('T')[0] : "",
+    days_of_week: editRule?.days_of_week || (editRule?.day_of_week !== undefined ? [editRule.day_of_week] : []),
+    target_locations: editRule?.target_locations || [],
+    target_departments: editRule?.target_departments || [],
+    target_shifts: editRule?.target_shifts || (editRule?.shift_id ? [editRule.shift_id] : []),
+    target_employment_types: editRule?.target_employment_types || [],
+    target_job_statuses: editRule?.target_job_statuses || [],
+    included_users: editRule?.included_users || [],
+    excluded_users: editRule?.excluded_users || [],
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [locations, setLocations] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+
+  useEffect(() => {
+    async function loadTargetingData() {
+      try {
+        const [locRes, depRes, empRes] = await Promise.all([
+          organizationAPI.getLocations().catch(() => ({ data: [] })),
+          organizationAPI.getDepartments().catch(() => ({ data: [] })),
+          organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ data: [] }))
+        ]);
+        setLocations((locRes.data || []).filter(x => x.is_active !== false));
+        setDepartments((depRes.data || []).filter(x => x.is_active !== false));
+        setEmployees((empRes.data || []).filter(x => x.is_active !== false && x.status !== "Inactive"));
+      } catch (err) {
+        console.error("Failed to load targeting data", err);
+      }
+    }
+    loadTargetingData();
+  }, []);
+
+  function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   function toggleDay(val) {
-    setSelectedDays((prev) =>
-      prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val]
-    );
+    setForm((prev) => ({
+      ...prev,
+      days_of_week: prev.days_of_week.includes(val) 
+        ? prev.days_of_week.filter((d) => d !== val) 
+        : [...prev.days_of_week, val]
+    }));
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (selectedDays.length === 0) { setError("Please select at least one day."); return; }
-    if (scope === "shift" && !selectedShift) { setError("Please select a shift."); return; }
+    if (!form.name.trim()) { setError("Please provide a rule name."); return; }
+    if (form.days_of_week.length === 0) { setError("Please select at least one day."); return; }
+    
     setLoading(true); setError("");
     try {
-      for (const day of selectedDays) {
-        const payload = {
-          day_of_week: day,
-          effective_from: new Date(effectiveFrom).toISOString(),
-        };
-        if (scope === "shift") payload.shift_id = selectedShift;
+      const payload = {
+        name: form.name,
+        days_of_week: form.days_of_week,
+        priority: parseInt(form.priority, 10),
+        effective_from: form.effective_from,
+        target_locations: form.target_locations,
+        target_departments: form.target_departments,
+        target_shifts: form.target_shifts,
+        target_employment_types: form.target_employment_types,
+        target_job_statuses: form.target_job_statuses,
+        included_users: form.included_users,
+        excluded_users: form.excluded_users,
+      };
+
+      if (isEdit) {
+        await attendanceAPI.updateWeeklyOff(editRule.id, payload);
+        onSaved("Weekly off rule updated successfully.");
+      } else {
         await attendanceAPI.createWeeklyOff(payload);
+        onSaved("Weekly off rule saved successfully.");
       }
-      onSaved(`Weekly off rule${selectedDays.length > 1 ? "s" : ""} saved successfully.`);
     } catch (err) {
       setError(err.message || "Something went wrong.");
     } finally {
@@ -73,12 +124,12 @@ function WeeklyOffModal({ shifts, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Add Day Off Rule</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Choose which days are non-working for your whole company or a specific shift.</p>
+            <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit Weekly Off Rule" : "Add Weekly Off Rule"}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Define weekend days for your company or specific groups.</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
             <HiX className="w-5 h-5" />
@@ -92,45 +143,30 @@ function WeeklyOffModal({ shifts, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Scope */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Who does this apply to?</label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { value: "global", label: "Everyone", desc: "All employees company-wide" },
-                { value: "shift", label: "One Shift Only", desc: "Override for a specific shift" },
-              ].map((s) => (
-                <button key={s.value} type="button" onClick={() => setScope(s.value)}
-                  className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition ${
-                    scope === s.value ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-slate-300"
-                  }`}>
-                  <span className={`text-xs font-bold ${scope === s.value ? "text-purple-700" : "text-slate-700"}`}>{s.label}</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5">{s.desc}</span>
-                </button>
-              ))}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rule Name <span className="text-red-400">*</span></label>
+              <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)}
+                placeholder="e.g. Global Sunday"
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Priority (0 = Lowest) <span className="text-red-400">*</span></label>
+              <input type="number" min="0" value={form.priority} onChange={(e) => set("priority", e.target.value)}
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective From <span className="text-red-400">*</span></label>
+              <input type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)}
+                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
             </div>
           </div>
 
-          {/* Shift Selector */}
-          {scope === "shift" && (
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Select Shift</label>
-              <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white">
-                <option value="">Select a shift…</option>
-                {shifts.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.type})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Day Chips */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Days Off</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Days Off <span className="text-red-400">*</span></label>
             <div className="flex gap-2 flex-wrap">
               {DAYS.map((d) => {
-                const active = selectedDays.includes(d.value);
+                const active = form.days_of_week.includes(d.value);
                 return (
                   <button key={d.value} type="button" onClick={() => toggleDay(d.value)}
                     className={`px-3.5 py-2 rounded-xl text-xs font-bold border-2 transition ${
@@ -143,25 +179,72 @@ function WeeklyOffModal({ shifts, onClose, onSaved }) {
                 );
               })}
             </div>
-            {selectedDays.length > 0 && (
+            {form.days_of_week.length > 0 && (
               <p className="text-[10px] text-slate-400 mt-2">
-                Selected: {selectedDays.map((v) => DAYS.find((d) => d.value === v)?.full).join(", ")}
+                Selected: {form.days_of_week.map((v) => DAYS.find((d) => d.value === v)?.full).join(", ")}
               </p>
             )}
           </div>
-
-          {/* Effective From */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Starting From</label>
-            <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)}
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
-            <p className="text-[10px] text-slate-400 mt-1">These days will be treated as non-working from this date onwards.</p>
+          
+          <hr className="border-slate-100 my-4" />
+          <h3 className="text-sm font-bold text-slate-800">Targeting Rules</h3>
+          <p className="text-xs text-slate-500 mb-4">Leave empty to apply to the entire organization.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MultiSelectDropdown
+              label="Applicable Shifts"
+              placeholder="All Shifts"
+              options={shifts.map(s => ({ value: s.id, label: s.name }))}
+              value={form.target_shifts}
+              onChange={v => set("target_shifts", v)}
+            />
+            <MultiSelectDropdown
+              label="Applicable Departments"
+              placeholder="All Departments"
+              options={departments.map(d => ({ value: d.id || d._id, label: d.name }))}
+              value={form.target_departments}
+              onChange={v => set("target_departments", v)}
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MultiSelectDropdown
+              label="Applicable Locations"
+              placeholder="All Locations"
+              options={locations.map(l => ({ value: l.id, label: l.name }))}
+              value={form.target_locations}
+              onChange={v => set("target_locations", v)}
+            />
+            <MultiSelectDropdown
+              label="Job Statuses"
+              placeholder="All Statuses"
+              options={[{value:"Active", label:"Active"}, {value:"Probation", label:"Probation"}, {value:"Notice Period", label:"Notice Period"}]}
+              value={form.target_job_statuses}
+              onChange={v => set("target_job_statuses", v)}
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MultiSelectDropdown
+              label="Employment Types"
+              placeholder="All Types"
+              options={[{value:"Full-time", label:"Full-time"}, {value:"Part-time", label:"Part-time"}, {value:"Contract", label:"Contract"}]}
+              value={form.target_employment_types}
+              onChange={v => set("target_employment_types", v)}
+            />
+            <MultiSelectDropdown
+              label="Force Include Employees"
+              placeholder="None"
+              options={employees.map(e => ({ value: e.user_id || e.id, label: e.name || e.full_name, subtitle: e.employee_code, avatarIdentifier: e.email || e.name }))}
+              value={form.included_users}
+              onChange={v => set("included_users", v)}
+            />
           </div>
 
           <div className="flex items-center gap-3 pt-1">
             <button type="submit" disabled={loading}
               className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {loading ? "Saving…" : "Save Rules"}
+              {loading ? "Saving…" : isEdit ? "Update Rule" : "Save Rule"}
             </button>
             <button type="button" onClick={onClose}
               className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
@@ -174,78 +257,6 @@ function WeeklyOffModal({ shifts, onClose, onSaved }) {
   );
 }
 
-/* ─── Edit Modal ─────────────────────────────────────────────────────────── */
-function EditWeeklyOffModal({ rule, shifts, onClose, onSaved }) {
-  const [dayOfWeek, setDayOfWeek] = useState(rule.day_of_week);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true); setError("");
-    try {
-      await attendanceAPI.updateWeeklyOff(rule.id, { day_of_week: dayOfWeek });
-      onSaved("Weekly off rule updated.");
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Find shift name for this rule
-  const shiftObj = shifts.find((s) => s.id === rule.shift_id);
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-800">Edit Weekly Off Rule</h2>
-            {rule.shift_id && (
-              <p className="text-xs text-slate-400 mt-0.5">Applies to: {shiftObj?.name || rule.shift_id}</p>
-            )}
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
-            <HiX className="w-5 h-5" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 flex-shrink-0" /> {error}
-            </div>
-          )}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Off Day</label>
-            <div className="flex gap-2 flex-wrap">
-              {DAYS.map((d) => (
-                <button key={d.value} type="button" onClick={() => setDayOfWeek(d.value)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border-2 transition ${
-                    dayOfWeek === d.value
-                      ? "bg-purple-600 text-white border-purple-600"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-purple-300"
-                  }`}>
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-3 pt-1">
-            <button type="submit" disabled={loading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {loading ? "Saving…" : "Update Rule"}
-            </button>
-            <button type="button" onClick={onClose}
-              className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 /* ─── Main Page ──────────────────────────────────────────────────────────── */
 export default function AttendanceWeeklyOffsPage() {
@@ -297,21 +308,25 @@ export default function AttendanceWeeklyOffsPage() {
     return shifts.find((s) => s.id === shiftId)?.name || null;
   }
 
-  // Split rules into global and shift-specific
-  const globalRules = rules.filter((r) => !r.shift_id);
-  const shiftSpecificRules = rules.filter((r) => !!r.shift_id);
+  // Split rules into global and exceptions
+  const globalRules = rules.filter((r) => r.priority === 0);
+  const exceptionRules = rules.filter((r) => r.priority > 0);
 
   function RuleRow({ r }) {
+    const daysStr = (r.days_of_week || []).map(dayName).join(", ");
+    const targetingCount = (r.target_locations?.length || 0) + (r.target_departments?.length || 0) + (r.target_shifts?.length || 0) + (r.target_employment_types?.length || 0) + (r.target_job_statuses?.length || 0) + (r.included_users?.length || 0) + (r.excluded_users?.length || 0);
+
     return (
       <tr className="hover:bg-slate-50/50 transition-colors">
-        <td className="px-6 py-4 text-sm font-semibold text-slate-800">{dayName(r.day_of_week)}</td>
-        <td className="px-6 py-4 text-xs text-slate-500">
-          {r.shift_id ? (shiftName(r.shift_id) || r.shift_id.slice(0, 8) + "…") : "—"}
-        </td>
-        <td className="px-6 py-4 text-xs text-slate-600">
-          {r.effective_from
-            ? new Date(r.effective_from).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-            : "—"}
+        <td className="px-6 py-4 text-sm font-semibold text-slate-800">{r.name}</td>
+        <td className="px-6 py-4 text-xs font-semibold text-slate-600">{daysStr}</td>
+        <td className="px-6 py-4 text-xs text-slate-500">{r.priority}</td>
+        <td className="px-6 py-4">
+          {targetingCount === 0 ? (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Global</span>
+          ) : (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-100 cursor-help" title={`Targeted to ${targetingCount} rule(s)`}>Targeted</span>
+          )}
         </td>
         <td className="px-6 py-4">
           <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${r.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
@@ -352,9 +367,10 @@ export default function AttendanceWeeklyOffsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Off Day</th>
-                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Shift</th>
-                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Effective From</th>
+                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rule Name</th>
+                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Days Off</th>
+                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priority</th>
+                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Targeting</th>
                 <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3" />
               </tr>
@@ -416,13 +432,13 @@ export default function AttendanceWeeklyOffsPage() {
                 emptyMsg="No company-wide weekend rules configured."
               />
 
-              {/* Shift-Specific Exceptions */}
+              {/* Exceptions (Priority > 0) */}
               <RulesTable
-                title="Shift-Specific Exceptions"
-                badge={`${shiftSpecificRules.length} rule${shiftSpecificRules.length !== 1 ? "s" : ""}`}
+                title="Exception Rules"
+                badge={`${exceptionRules.length} rule${exceptionRules.length !== 1 ? "s" : ""}`}
                 badgeColor="bg-violet-100 text-violet-700"
-                rows={shiftSpecificRules}
-                emptyMsg="No shift-specific exceptions configured."
+                rows={exceptionRules}
+                emptyMsg="No targeted exceptions configured."
               />
             </>
           )}
@@ -438,9 +454,9 @@ export default function AttendanceWeeklyOffsPage() {
       )}
 
       {editRule && (
-        <EditWeeklyOffModal
-          rule={editRule}
-          shifts={shifts}
+        <WeeklyOffModal
+          editRule={editRule}
+          shifts={shifts.filter((s) => s.is_active)}
           onClose={() => setEditRule(null)}
           onSaved={(msg) => { setEditRule(null); showToast(msg); load(); }}
         />

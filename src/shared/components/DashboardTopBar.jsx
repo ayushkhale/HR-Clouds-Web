@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
-import { HiSearch, HiBell, HiQuestionMarkCircle, HiChevronDown, HiDocumentText, HiLogout } from "react-icons/hi";
+import { useSidebar } from "../contexts/SidebarContext";
+import { HiSearch, HiBell, HiQuestionMarkCircle, HiChevronDown, HiDocumentText, HiLogout, HiMenuAlt2 } from "react-icons/hi";
 import PolicyDocumentModal from "./PolicyDocumentModal";
 
 function DashboardTopBar({ title = "HR Dashboard" }) {
@@ -11,6 +12,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const { toggleSidebar } = useSidebar();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -46,10 +48,19 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
   const currentOrg = organizations.find(o => o.org_id === orgId) || { name: "Current Workspace", role };
 
   return (
-    <header className="bg-white px-8 py-5 flex flex-col md:flex-row items-center justify-between sticky top-0 z-20 font-sans gap-4 md:gap-0">
+    <header className="bg-white px-4 md:px-8 py-4 md:py-5 flex items-center justify-between sticky top-0 z-20 font-sans gap-4 md:gap-6 lg:gap-0 border-b lg:border-none border-slate-100 shadow-sm lg:shadow-none">
       
-      {/* Left: Search Bar */}
-      <div className="w-full md:w-80 relative flex items-center bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm focus-within:bg-white focus-within:border-purple-400 transition-all">
+      {/* Left: Hamburger & Search Bar */}
+      <div className="flex items-center gap-3 w-full lg:w-80 flex-1 lg:flex-none">
+        {/* Mobile Hamburger Menu */}
+        <button 
+          onClick={toggleSidebar}
+          className="lg:hidden p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors shrink-0"
+        >
+          <HiMenuAlt2 className="w-5 h-5" />
+        </button>
+
+        <div className="w-full relative flex items-center bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm focus-within:bg-white focus-within:border-purple-400 transition-all">
         <HiSearch className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
         <input
           type="text"
@@ -59,6 +70,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
         <kbd className="hidden sm:inline-flex items-center gap-1 bg-white border border-slate-200 text-slate-500 font-bold text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 shadow-sm">
           ⌘F
         </kbd>
+      </div>
       </div>
 
       {/* Middle: Navigation Links */}
@@ -81,7 +93,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
       </nav>
 
       {/* Right controls: Notifications + Profile */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4 shrink-0">
         {/* Icons */}
         <div className="flex items-center gap-3">
           <button className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer">

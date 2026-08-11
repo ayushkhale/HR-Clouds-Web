@@ -142,7 +142,7 @@ function HRDashboard() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="HR Dashboard" />
 
-        <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
+        <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
           {/* Hero Banner (Preserved as requested) */}
           <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
             {/* Subtle background radial pattern rings */}
@@ -174,58 +174,58 @@ function HRDashboard() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             
             {/* Stats Grid (Now on the Right) */}
-            <div className="bg-white rounded-3xl p-8 shadow-xs border border-slate-100 grid grid-cols-2 order-2 xl:order-2">
+            <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100 grid grid-cols-2 order-2 xl:order-2 gap-y-6 sm:gap-y-0">
               {/* Stat 1 */}
-              <div className="border-b border-r border-slate-100 pb-8 pr-8">
-                <div className="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-4 bg-slate-50">
-                  <HiUserGroup className="w-5 h-5" />
+              <div className="sm:border-b border-r border-slate-100 sm:pb-8 pr-4 sm:pr-8">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-3 sm:mb-4 bg-slate-50">
+                  <HiUserGroup className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="flex items-end gap-3 mb-1">
-                  <span className="text-4xl font-bold tracking-tight text-slate-800">{liveDashboard?.total_employees || 0}</span>
+                  <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-800">{liveDashboard?.total_employees || 0}</span>
                 </div>
-                <div className="text-sm font-semibold text-slate-500 mt-2">Total Org Personnel</div>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Total Org Personnel</div>
               </div>
 
               {/* Stat 2 */}
-              <div className="border-b border-slate-100 pb-8 pl-8">
-                <div className="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-4 bg-slate-50">
-                  <HiCheckCircle className="w-5 h-5" />
+              <div className="sm:border-b border-slate-100 sm:pb-8 pl-4 sm:pl-8">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-3 sm:mb-4 bg-slate-50">
+                  <HiCheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div className="flex items-end gap-3 mb-1">
-                  <span className="text-4xl font-bold tracking-tight text-slate-800">{liveDashboard?.counts?.present || 0}</span>
-                  <span className="bg-purple-50 text-purple-600 text-xs font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
+                <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                  <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.counts?.present || 0}</span>
+                  <span className="bg-purple-50 text-purple-600 text-[9px] sm:text-xs font-bold px-2 py-0.5 rounded-full flex items-center w-max mb-1 sm:mb-1.5">
                     {DICTIONARY.STATUS.PRESENT}
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-slate-500 mt-2">Today's Presence</div>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Today's Presence</div>
               </div>
 
               {/* Stat 3 */}
-              <div className="border-r border-slate-100 pt-8 pr-8">
-                <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 mb-4 bg-slate-50">
-                  <HiExclamationCircle className="w-4 h-4" />
+              <div className="border-r border-t sm:border-t-0 border-slate-100 pt-6 sm:pt-8 pr-4 sm:pr-8">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 mb-3 sm:mb-4 bg-slate-50">
+                  <HiExclamationCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <div className="flex items-end gap-3 mb-1">
-                  <span className="text-3xl font-bold tracking-tight text-slate-800">{liveDashboard?.counts?.absent || 0}</span>
-                  <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
+                <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                  <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.counts?.absent || 0}</span>
+                  <span className="bg-purple-50 text-purple-600 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center w-max mb-1 sm:mb-1">
                     {DICTIONARY.STATUS.ABSENT}
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-slate-500 mt-2">Absent Today</div>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Absent Today</div>
               </div>
 
               {/* Stat 4 */}
-              <div className="pt-8 pl-8">
-                <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 mb-4 bg-slate-50">
-                  <HiClock className="w-4 h-4" />
+              <div className="border-t sm:border-t-0 border-slate-100 pt-6 sm:pt-8 pl-4 sm:pl-8">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 mb-3 sm:mb-4 bg-slate-50">
+                  <HiClock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <div className="flex items-end gap-3 mb-1">
-                  <span className="text-3xl font-bold tracking-tight text-slate-800">{liveDashboard?.counts?.late || 0}</span>
-                  <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
+                <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                  <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.counts?.late || 0}</span>
+                  <span className="bg-purple-50 text-purple-600 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center w-max mb-1 sm:mb-1">
                     {DICTIONARY.STATUS.LATE}
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-slate-500 mt-2">Late Arrivals</div>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Late Arrivals</div>
               </div>
             </div>
 

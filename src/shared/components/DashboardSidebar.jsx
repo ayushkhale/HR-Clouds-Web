@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useSidebar } from "../contexts/SidebarContext";
 import { tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import {
@@ -24,13 +25,15 @@ import {
   HiMoon,
   HiLocationMarker,
   HiLockClosed,
-  HiDocumentReport
+  HiDocumentReport,
+  HiX
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
+  const { isMobileSidebarOpen, closeSidebar } = useSidebar();
 
   function handleLogout() {
     tokenHelper.clear();
@@ -159,14 +162,30 @@ function DashboardSidebar({ role = "guest" }) {
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between min-h-screen sticky top-0 h-screen overflow-y-auto flex-shrink-0 z-30 font-sans">
-      {/* Top Branding Logo */}
-      <div>
-        <div className="px-6 py-8 flex items-center justify-center">
-          <Link to="/">
-            <img src="/logocolored.png" alt="HR Clouds" className="h-12 w-auto object-contain" />
-          </Link>
-        </div>
+    <>
+      {/* Mobile Backdrop */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+          onClick={closeSidebar}
+        />
+      )}
+
+      {/* Sidebar Container */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-screen overflow-y-auto transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 font-sans ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+        {/* Top Branding Logo */}
+        <div>
+          <div className="px-6 py-8 flex items-center justify-between lg:justify-center">
+            <Link to="/">
+              <img src="/logocolored.png" alt="HR Clouds" className="h-12 w-auto object-contain" />
+            </Link>
+            <button 
+              onClick={closeSidebar}
+              className="lg:hidden p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+            >
+              <HiX className="w-5 h-5" />
+            </button>
+          </div>
 
         {/* Multi-Org Switcher dropdown inside sidebar if orgs exist */}
         {organizations && organizations.length > 1 && (
@@ -263,6 +282,7 @@ function DashboardSidebar({ role = "guest" }) {
         </button>
       </div>
     </aside>
+    </>
   );
 }
 

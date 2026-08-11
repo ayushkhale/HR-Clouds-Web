@@ -223,7 +223,7 @@ function AttendanceLocationsPage() {
       <DashboardSidebar role="hr" />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="Attendance Locations" />
-        <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div>
               <h1 className="text-xl font-bold text-slate-800">Office Locations</h1>
@@ -241,14 +241,25 @@ function AttendanceLocationsPage() {
                 <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
                 No locations configured yet. Add your first office location.
               </div>
-            ) : locations.map((loc) => (
-              <div key={loc.id} className="bg-white rounded-[20px] border border-slate-100 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group flex flex-col overflow-hidden relative shadow-sm">
+            ) : [...locations].sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1)).map((loc) => (
+              <div 
+                key={loc.id} 
+                className={`rounded-[20px] transition-all duration-300 group flex flex-col overflow-hidden relative ${
+                  loc.is_active
+                  ? 'bg-white border border-slate-100 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 shadow-sm'
+                  : 'bg-slate-50/50 border-2 border-dashed border-slate-300 hover:border-slate-400 opacity-90 hover:opacity-100 hover:-translate-y-1 shadow-inner'
+                }`}
+              >
                 
                 {/* Header Area */}
                 <div className="p-6 pb-4 border-b border-slate-50 relative">
                   <div className="flex justify-between items-start mb-4">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full ${loc.is_active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${
+                      loc.is_active 
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                      : 'bg-rose-50 text-rose-600 border-rose-100'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       {loc.is_active ? 'Active' : 'Inactive'}
                     </div>
                     
@@ -258,10 +269,16 @@ function AttendanceLocationsPage() {
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      loc.is_active ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-400'
+                    }`}>
                       <HiLocationMarker className="w-5 h-5" />
                     </div>
-                    <h3 className="text-[17px] font-bold text-slate-900 leading-tight group-hover:text-purple-700 transition-colors line-clamp-1">{loc.name}</h3>
+                    <h3 className={`text-[17px] font-bold leading-tight transition-colors line-clamp-1 ${
+                      loc.is_active ? 'text-slate-900 group-hover:text-purple-700' : 'text-slate-700'
+                    }`}>
+                      {loc.name}
+                    </h3>
                   </div>
                 </div>
 
@@ -308,7 +325,7 @@ function AttendanceLocationsPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex justify-between items-center p-6 border-b border-slate-100 shrink-0">
               <h2 className="text-xl font-bold text-slate-800">{editingLocation ? "Edit Location" : "Add New Location"}</h2>
@@ -319,7 +336,7 @@ function AttendanceLocationsPage() {
             <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto">
               
               {/* Left Side: Map Preview */}
-              <div className="flex-1 p-6 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-100 min-h-[400px]">
+              <div className="flex-1 p-4 sm:p-6 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-100 min-h-[250px] sm:min-h-[400px]">
                 <label className="block text-sm font-bold text-slate-800 mb-3">Map Preview <span className="text-slate-400 font-normal">(search or drag pin to set location)</span></label>
                 <div className="flex gap-2 mb-4 shrink-0 relative">
                   <div className="relative flex-1">
@@ -359,11 +376,11 @@ function AttendanceLocationsPage() {
                     {isSearching ? "Searching..." : "Search"}
                   </button>
                 </div>
-                <div ref={mapRef} className="w-full flex-1 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative z-0 min-h-[350px]" />
+                <div ref={mapRef} className="w-full flex-1 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative z-0 min-h-[200px] sm:min-h-[350px]" />
               </div>
 
               {/* Right Side: Input Fields */}
-              <div className="w-full lg:w-[400px] p-6 flex flex-col gap-5 shrink-0 bg-slate-50/50">
+              <div className="w-full lg:w-[400px] p-4 sm:p-6 flex flex-col gap-5 shrink-0 bg-slate-50/50">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Location Name *</label>
                   <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Head Office" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
