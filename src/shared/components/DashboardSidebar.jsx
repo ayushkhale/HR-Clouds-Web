@@ -34,6 +34,16 @@ function DashboardSidebar({ role = "guest" }) {
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar } = useSidebar();
+  
+  const [openSubMenus, setOpenSubMenus] = useState({
+    shifts: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
+    attendanceSettings: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
+    offDays: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
+  });
+
+  const toggleSubMenu = (key) => {
+    setOpenSubMenus(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   function handleLogout() {
     tokenHelper.clear();
@@ -67,35 +77,59 @@ function DashboardSidebar({ role = "guest" }) {
     if (role === "hr") {
       return [
         {
-          title: "OVERVIEW",
+          title: "ORGANIZATION OVERVIEW",
           icon: HiTemplate,
           items: [
             { label: "Dashboard", path: "/dashboard/hr", icon: HiViewGrid, active: location.pathname === "/dashboard/hr" },
             { label: DICTIONARY.NAV.EMPLOYEES, path: "/dashboard/hr/employees", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/employees" },
             { label: "Departments", path: "/dashboard/hr/departments", icon: HiOfficeBuilding, active: location.pathname === "/dashboard/hr/departments" },
+            { label: "Office Locations", path: "/dashboard/hr/attendance/locations", icon: HiLocationMarker, active: location.pathname === "/dashboard/hr/attendance/locations" },
           ],
         },
         {
-          title: "ATTENDANCE",
+          title: "ATTENDANCE & TIME",
           icon: HiClock,
           items: [
-            { label: DICTIONARY.NAV.DIRECTORY, path: "/dashboard/hr/attendance/directory", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/directory" },
-            { label: "Policies", path: "/dashboard/hr/attendance/policies", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/attendance/policies" },
-            { label: "Shifts", path: "/dashboard/hr/attendance/shifts", icon: HiClock, active: location.pathname === "/dashboard/hr/attendance/shifts" },
-            { label: "Roster", path: "/dashboard/hr/attendance/roster", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/roster" },
-            { label: "Locations", path: "/dashboard/hr/attendance/locations", icon: HiLocationMarker, active: location.pathname === "/dashboard/hr/attendance/locations" },
-            { label: "Lock Periods", path: "/dashboard/hr/attendance/lock-periods", icon: HiLockClosed, active: location.pathname === "/dashboard/hr/attendance/lock-periods" },
-            { label: DICTIONARY.NAV.REPORTS, path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
+            { label: "Live Attendance", path: "/dashboard/hr/attendance/directory", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/directory" },
+            { 
+              label: "Shift Management", icon: HiClock, key: "shifts",
+              active: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
+              subItems: [
+                { label: "Work Shifts", path: "/dashboard/hr/attendance/shifts", active: location.pathname === "/dashboard/hr/attendance/shifts" },
+                { label: "Assign Shifts", path: "/dashboard/hr/attendance/roster", active: location.pathname === "/dashboard/hr/attendance/roster" }
+              ]
+            },
+            { 
+              label: "Attendance Settings", icon: HiCog, key: "attendanceSettings",
+              active: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
+              subItems: [
+                { label: "Attendance Policies", path: "/dashboard/hr/attendance/policies", active: location.pathname === "/dashboard/hr/attendance/policies" },
+                { label: "Lock Attendance", path: "/dashboard/hr/attendance/lock-periods", active: location.pathname === "/dashboard/hr/attendance/lock-periods" }
+              ]
+            }
           ],
         },
         {
-          title: "TIME OFF & LEAVES",
+          title: "LEAVES & HOLIDAYS",
           icon: HiCalendar,
           items: [
             { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
-            { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", icon: HiTemplate, active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
-            { label: "Comp Offs", path: "/dashboard/hr/attendance/comp-offs", icon: HiClock, active: location.pathname === "/dashboard/hr/attendance/comp-offs" },
+            { 
+              label: "Off Days", icon: HiTemplate, key: "offDays",
+              active: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
+              subItems: [
+                { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
+                { label: "Comp Offs", path: "/dashboard/hr/attendance/comp-offs", active: location.pathname === "/dashboard/hr/attendance/comp-offs" }
+              ]
+            }
           ],
+        },
+        {
+          title: "ANALYTICS",
+          icon: HiDocumentReport,
+          items: [
+            { label: "Reports", path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
+          ]
         },
 
       ];
@@ -141,8 +175,8 @@ function DashboardSidebar({ role = "guest" }) {
   const navSections = getNavSections();
 
   const [openSections, setOpenSections] = useState({
-    ATTENDANCE: true,
-    OVERVIEW: true,
+    "ATTENDANCE & TIME": true,
+    "ORGANIZATION OVERVIEW": true,
   });
 
   useEffect(() => {
@@ -172,7 +206,7 @@ function DashboardSidebar({ role = "guest" }) {
       )}
 
       {/* Sidebar Container */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-screen overflow-y-auto transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 font-sans ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 lg:z-10 w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-screen overflow-y-auto transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 font-sans ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Top Branding Logo */}
         <div>
           <div className="px-6 py-8 flex items-center justify-between lg:justify-center">
@@ -246,10 +280,49 @@ function DashboardSidebar({ role = "guest" }) {
                       const Icon = item.icon;
                       const isActive = item.active;
 
+                      if (item.subItems) {
+                        const isSubOpen = openSubMenus[item.key];
+                        return (
+                          <div key={item.key} className="space-y-1">
+                            <button
+                              onClick={() => toggleSubMenu(item.key)}
+                              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                                  ? "bg-[#F3E8FF]/60 text-[#7E22CE] font-bold"
+                                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                                {item.label}
+                              </div>
+                              <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${isSubOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isSubOpen && (
+                              <div className="pl-9 space-y-1 mt-1 border-l-2 border-slate-100 ml-4">
+                                {item.subItems.map((sub) => (
+                                  <Link
+                                    key={sub.path}
+                                    to={sub.path}
+                                    onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
+                                    className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${sub.active
+                                        ? "text-[#7E22CE] bg-[#F3E8FF]/40"
+                                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                                      }`}
+                                  >
+                                    {sub.label}
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
                       return (
                         <Link
                           key={item.label}
                           to={item.path}
+                          onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
                           className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
                               ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"

@@ -15,7 +15,8 @@ export const DICTIONARY = {
     OFFICE: "Office",
     REMOTE: "Remote",
     HYBRID: "Hybrid",
-    OVERTIME: "Overtime"
+    OVERTIME: "Overtime",
+    NOT_MARKED: "Not Marked"
   },
   STATUS_CONFIG: {
     present: {
@@ -62,6 +63,11 @@ export const DICTIONARY = {
       label: "Overtime",
       icon: HiClock,
       className: "bg-orange-50 text-orange-700 border border-orange-200 shadow-xs"
+    },
+    not_marked: {
+      label: "Not Marked",
+      icon: HiExclamationCircle,
+      className: "bg-slate-50 text-slate-500 border border-slate-200 shadow-xs"
     }
   },
   HEADERS: {

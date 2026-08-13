@@ -105,8 +105,8 @@ function ManagerDashboard() {
         lastDate.setDate(lastDate.getDate() + 1);
         data.push({
           date: lastDate.toISOString().split('T')[0],
-          present_count: 0,
-          absent_count: 0,
+          final_present_count: 0,
+          final_absent_count: 0,
           late_count: 0
         });
       }
@@ -202,14 +202,14 @@ function ManagerDashboard() {
                     <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Present</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-800">{teamSummary?.counts?.present || 0}</span>
+                  <span className="text-sm font-bold text-slate-800">{teamSummary?.final_present_count || 0}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-slate-200"></span>
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Absent/Leave</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-800">{(teamSummary?.counts?.absent || 0) + (teamSummary?.counts?.on_leave || 0)}</span>
+                  <span className="text-sm font-bold text-slate-800">{teamSummary?.final_absent_count || 0}</span>
                 </div>
               </div>
             </div>
@@ -238,7 +238,7 @@ function ManagerDashboard() {
                   <HiClock className="w-5 h-5" />
                 </div>
                 <div className="flex items-end gap-3 mb-1">
-                  <span className="text-4xl font-bold tracking-tight text-slate-800">{teamSummary?.counts?.present || 0}</span>
+                  <span className="text-4xl font-bold tracking-tight text-slate-800">{teamSummary?.final_present_count || 0}</span>
                   <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 flex items-center">
                     <svg className="w-2.5 h-2.5 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                     Present
@@ -264,7 +264,7 @@ function ManagerDashboard() {
                   <HiClipboardList className="w-4 h-4" />
                 </div>
                 <div className="flex items-end gap-3 mb-1">
-                  <span className="text-3xl font-bold tracking-tight text-slate-800">{teamSummary?.counts?.absent || 0}</span>
+                  <span className="text-3xl font-bold tracking-tight text-slate-800">{teamSummary?.final_absent_count || 0}</span>
                 </div>
                 <div className="text-sm font-semibold text-slate-500 mt-2">Absent Today</div>
               </div>
@@ -319,7 +319,7 @@ function ManagerDashboard() {
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                       labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                     />
-                    <Bar dataKey="present_count" name="Present" stackId="a" fill="#6D28D9" barSize={16} radius={[0, 0, 2, 2]} />
+                    <Bar dataKey="final_present_count" name="Present" stackId="a" fill="#6D28D9" barSize={16} radius={[0, 0, 2, 2]} />
                     <Bar dataKey="late_count" name="Late/Leave" stackId="a" fill="#A78BFA" barSize={16} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

@@ -98,7 +98,7 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
       };
       // Only include date if we are creating or if we want to update it
       if (!isEdit || form.date) {
-        payload.date = new Date(form.date + "T00:00:00").toISOString();
+        payload.date = new Date(form.date + "T00:00:00Z").toISOString();
       }
 
       if (isEdit) {

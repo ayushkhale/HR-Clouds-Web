@@ -31,6 +31,7 @@ export default function EmployeeProfilePage() {
   
   const [activeTab, setActiveTab] = useState(initialTab);
   const [employee, setEmployee] = useState(null);
+  const [managerName, setManagerName] = useState("");
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -58,6 +59,18 @@ export default function EmployeeProfilePage() {
         
         if (profileRes?.data) {
           setEmployee(profileRes.data);
+          
+          if (profileRes.data.reporting_person) {
+            try {
+              const mgrRes = await organizationAPI.getEmployee(profileRes.data.reporting_person);
+              if (mgrRes?.data) {
+                setManagerName(mgrRes.data.name || `${mgrRes.data.first_name || ''} ${mgrRes.data.last_name || ''}`.trim());
+              }
+            } catch (err) {
+              console.error("Failed to fetch reporting manager details:", err);
+            }
+          }
+
           setLoading(false);
           return;
         }
@@ -69,6 +82,10 @@ export default function EmployeeProfilePage() {
           if (orgRes?.success && orgRes?.data) {
             const found = orgRes.data.find(e => String(e.user_id || e.id) === String(userId));
             setEmployee(found || null);
+            if (found && found.reporting_person) {
+              const mgr = orgRes.data.find(e => String(e.user_id || e.id) === String(found.reporting_person));
+              if (mgr) setManagerName(mgr.name || `${mgr.first_name || ''} ${mgr.last_name || ''}`.trim());
+            }
           }
         } catch {
           setEmployee(null);
@@ -221,9 +238,47 @@ export default function EmployeeProfilePage() {
               {/* Details Sections */}
               {!loading && employee && (
                 <div className="px-6 pb-8 space-y-6 flex-1">
-                  {/* Employee Details */}
+                  {/* Organization & Role */}
                   <div>
-                    <h3 className="text-xs font-bold text-slate-900 mb-3 px-2">Employee Details</h3>
+                    <h3 className="text-xs font-bold text-slate-900 mb-3 px-2">Organization</h3>
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Department</span>
+                        <span className="font-medium text-slate-900">{employee.department || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Designation</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.designation}>{employee.designation || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Emp Type</span>
+                        <span className="font-medium text-slate-900 capitalize">{(employee.employment_type || "").replace('_', ' ') || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Work Mode</span>
+                        <span className="font-medium text-slate-900 capitalize">{employee.work_mode || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Location</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.work_location}>{employee.work_location || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Role</span>
+                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded capitalize">{employee.role || employeeRole || "—"}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Manager</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={managerName || employee.reporting_person}>{managerName || employee.reporting_person || "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100" />
+
+                  {/* Contact & Personal */}
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 mb-3 px-2">Contact & Personal</h3>
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Phone</span>
@@ -231,24 +286,19 @@ export default function EmployeeProfilePage() {
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Email</span>
-                        <span className="font-medium text-slate-900 truncate max-w-[150px]">{employee.email || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={employee.email}>{employee.email || "—"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
-                        <span className="text-slate-500">Date of Birth</span>
-                        <span className="font-medium text-slate-900">{employee.date_of_birth || "—"}</span>
+                        <span className="text-slate-500">Blood Group</span>
+                        <span className="font-medium text-slate-900">{employee.blood_group || "—"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
-                        <span className="text-slate-500">Title</span>
-                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded capitalize">{employee.role || employeeRole || "—"}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm px-2">
-                        <span className="text-slate-500">Hire date</span>
-                        <span className="font-medium text-slate-900">{employee.date_of_joining || "—"}</span>
+                        <span className="text-slate-500">PAN Number</span>
+                        <span className="font-medium text-slate-900 uppercase">{employee.pan_number || "—"}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Divider */}
                   <div className="border-t border-slate-100" />
 
                   {/* Address Details */}
@@ -256,12 +306,12 @@ export default function EmployeeProfilePage() {
                     <h3 className="text-xs font-bold text-slate-900 mb-3 px-2">Address</h3>
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-start text-sm px-2 gap-4">
-                        <span className="text-slate-500 shrink-0">City State</span>
-                        <span className="font-medium text-slate-900 text-right">{employee.city || "—"}</span>
+                        <span className="text-slate-500 shrink-0">Current</span>
+                        <span className="font-medium text-slate-900 text-right">{employee.current_address || "—"}</span>
                       </div>
                       <div className="flex justify-between items-start text-sm px-2 gap-4">
-                        <span className="text-slate-500 shrink-0">Status</span>
-                        <span className="font-medium text-slate-900 text-right">{employee.status || "—"}</span>
+                        <span className="text-slate-500 shrink-0">State / Pin</span>
+                        <span className="font-medium text-slate-900 text-right">{[employee.state, employee.pincode].filter(Boolean).join(', ') || "—"}</span>
                       </div>
                     </div>
                   </div>

@@ -112,8 +112,8 @@ function HRDashboard() {
         lastDate.setDate(lastDate.getDate() + 1);
         data.push({
           date: lastDate.toISOString().split('T')[0],
-          present_count: 0,
-          absent_count: 0,
+          final_present_count: 0,
+          final_absent_count: 0,
           late_count: 0
         });
       }
@@ -192,7 +192,7 @@ function HRDashboard() {
                   <HiCheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
-                  <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.counts?.present || 0}</span>
+                  <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.final_present_count || 0}</span>
                   <span className="bg-purple-50 text-purple-600 text-[9px] sm:text-xs font-bold px-2 py-0.5 rounded-full flex items-center w-max mb-1 sm:mb-1.5">
                     {DICTIONARY.STATUS.PRESENT}
                   </span>
@@ -206,7 +206,7 @@ function HRDashboard() {
                   <HiExclamationCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
-                  <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.counts?.absent || 0}</span>
+                  <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{liveDashboard?.final_absent_count || 0}</span>
                   <span className="bg-purple-50 text-purple-600 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center w-max mb-1 sm:mb-1">
                     {DICTIONARY.STATUS.ABSENT}
                   </span>
@@ -289,9 +289,9 @@ function HRDashboard() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                       />
-                      <Bar dataKey="present_count" name={DICTIONARY.STATUS.PRESENT} stackId="a" fill="#6D28D9" barSize={12} radius={[0, 0, 2, 2]} />
-                      <Bar dataKey="late_count" name={DICTIONARY.STATUS.LATE} stackId="a" fill="#8B5CF6" barSize={12} />
-                      <Bar dataKey="absent_count" name={DICTIONARY.STATUS.ABSENT} stackId="a" fill="#C4B5FD" barSize={12} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} stackId="a" fill="#6D28D9" barSize={12} radius={[0, 0, 2, 2]} />
+                      <Bar dataKey="late_count" name={DICTIONARY.STATUS.LATE} stackId="a" fill="#A78BFA" barSize={12} radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} stackId="a" fill="#C4B5FD" barSize={12} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
