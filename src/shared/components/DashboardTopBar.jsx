@@ -4,11 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
 import { useSidebar } from "../contexts/SidebarContext";
 import { HiSearch, HiBell, HiQuestionMarkCircle, HiChevronDown, HiDocumentText, HiLogout, HiMenuAlt2 } from "react-icons/hi";
-import PolicyDocumentModal from "./PolicyDocumentModal";
 
 function DashboardTopBar({ title = "HR Dashboard" }) {
   const { user, role, orgId, logout, updateTokens, getDashboardPath } = useAuth();
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -75,29 +73,18 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
 
       {/* Middle: Navigation Links */}
       <nav className="hidden lg:flex items-center gap-8">
-        <button 
-          onClick={() => setShowPolicyModal(true)}
-          className="text-xs font-bold text-slate-600 hover:text-purple-600 transition-colors cursor-pointer"
-        >
-          Documents
-        </button>
-        <button className="text-xs font-bold text-slate-600 hover:text-purple-600 transition-colors cursor-pointer">
-          News
-        </button>
-        <button className="text-xs font-bold text-slate-600 hover:text-purple-600 transition-colors cursor-pointer">
-          Payslip
-        </button>
-        <button className="text-xs font-bold text-slate-600 hover:text-purple-600 transition-colors cursor-pointer">
-          Report
-        </button>
       </nav>
 
       {/* Right controls: Notifications + Profile */}
       <div className="flex items-center gap-2 md:gap-4 shrink-0">
         {/* Icons */}
         <div className="flex items-center gap-3">
-          <button className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          <button 
+            onClick={() => navigate("/dashboard/documents")}
+            className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer"
+            title="Documents"
+          >
+            <HiDocumentText className="w-5 h-5" />
           </button>
           <button className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer">
             <HiBell className="w-5 h-5" />
@@ -158,7 +145,6 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
                 className="w-full h-full object-cover bg-purple-100"
               />
             </div>
-            <HiChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors hidden sm:block" />
           </div>
 
           {showUserDropdown && (
@@ -182,8 +168,6 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
           )}
         </div>
       </div>
-
-      {showPolicyModal && <PolicyDocumentModal onClose={() => setShowPolicyModal(false)} />}
     </header>
   );
 }

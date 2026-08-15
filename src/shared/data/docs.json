@@ -1,134 +1,140 @@
 {
   "tabs": [
-    { "id": "overview", "label": "Overview" },
-    { "id": "attendance", "label": "Attendance" },
-    { "id": "time_off", "label": "Time Off & Leaves" },
-    { "id": "requests", "label": "Requests" },
-    { "id": "payroll", "label": "Payroll" },
-    { "id": "reports", "label": "Reports" }
+    { "id": "overview", "label": "Overview & Getting Started" },
+    { "id": "attendance", "label": "Attendance & Time Tracking" },
+    { "id": "time_off", "label": "Leaves & Holidays" },
+    { "id": "requests", "label": "Approvals & Regularizations" },
+    { "id": "payroll", "label": "Payroll & Lock Periods" },
+    { "id": "reports", "label": "Reports & Analytics" }
   ],
   "content": {
     "overview": {
       "hr": {
         "paragraphs": [
-          "Think of the Dashboard as your daily control center. When you first log in, you will instantly see exactly how many people are working, who is absent, and if there are any urgent issues that need your attention.",
-          "The 'Employees' page is your company directory. This is where you can invite new people to join the software, update their roles, and manage their personal details."
+          "Welcome to HR Clouds. The Overview section is your command center for managing the organization's workforce. From the Dashboard, you have a bird's-eye view of today's attendance, including who is active, on leave, or absent.",
+          "The 'Employees' directory is where you manage user access. You can send invitations to new hires, deactivate ex-employees, and maintain detailed profiles containing emergency contacts, addresses, and organizational designations.",
+          "Additionally, the 'Departments' page allows you to structure the company's hierarchy, ensuring that employees are correctly grouped under their respective managers for approval workflows."
         ]
       },
       "manager": {
         "paragraphs": [
-          "Think of the Dashboard as your daily control center for your team. When you log in, you will instantly see exactly who on your team is online, who is on leave, and if anyone is running late.",
-          "It's designed to give you a complete picture of your team's availability in just a few seconds, so you know exactly what resources you have for the day."
+          "Welcome to your Manager Dashboard. This interface is designed to help you monitor your direct reports and manage their daily activities seamlessly.",
+          "When you log in, you will instantly see your Team Overview—identifying exactly who is working, who is running late, and who is on leave today.",
+          "Your primary responsibility in this portal is to ensure your team's attendance is accurate by promptly addressing their requests and anomalies."
         ]
       },
       "employee": {
         "paragraphs": [
-          "Welcome to your HR Portal! The Dashboard is the very first screen you see. This is where you start and end your workday.",
-          "You will use the big Clock-In and Clock-Out buttons here to log your daily working hours. You can also quickly see how many leaves you have left and if you have any pending requests."
+          "Welcome to your Employee Self-Service Portal! The Dashboard is the very first screen you see and serves as your daily starting point.",
+          "Here, you can log your working hours using the large Clock-In and Clock-Out buttons. The dashboard also displays your upcoming shift timings, your current leave balances, and alerts you to any pending requests that require your attention.",
+          "Ensure your profile information is up to date, as it is used by HR for payroll and official communications."
         ]
       }
     },
     "attendance": {
       "hr": {
-        "intro": "The Attendance module is where you set the global rules for how time is tracked across the company.",
+        "intro": "The Attendance module is the core of HR Clouds, where you define the global time-tracking rules that govern how employee hours are calculated.",
         "duties": [
-          "Policies: This is where you define how late someone can be before they get a 'late mark', or when they are automatically marked as 'half-day'.",
-          "Shifts: Here you create the actual working hours (like 9 AM to 5 PM) and assign them to employees.",
-          "Locations (Geofencing): You can draw circles on a map around your offices or job sites. Employees will only be allowed to click 'Clock In' if their phone's GPS proves they are physically inside that circle!"
+          "Policies: Define strict rules for late arrivals and early exits. Configure automatic half-day deductions if employees exceed their allowed grace periods.",
+          "Shifts & Roster: Create working shifts (e.g., General Shift, Night Shift) and assign them to employees via the Roster. This tells the system what time an employee is expected to be present.",
+          "Locations & Geofencing: Define approved office locations. By enabling Geofencing, you can enforce that employees must be physically present within a specific radius of the office to successfully clock in.",
+          "Weekly Offs: Configure the standard weekend structures (e.g., 5-day or 6-day work weeks) so the system accurately tracks non-working days."
         ]
       },
       "manager": {
-        "intro": "The Attendance module is where you monitor if your team is following the company's time-tracking rules.",
+        "intro": "The Attendance module allows you to monitor if your team is adhering to their assigned shifts and the company's time-tracking policies.",
         "duties": [
-          "Team Tracking: You can see detailed, day-by-day logs of exactly what time each person on your team clocked in and out.",
-          "Compliance: You can easily spot if someone is consistently arriving late or leaving early, helping you manage your team's performance."
+          "Daily Monitoring: Review detailed punch-in and punch-out logs for every team member to ensure they are completing their required hours.",
+          "Anomaly Detection: The system will automatically flag anomalies (such as missing a clock-out punch or arriving extremely late). You are responsible for reviewing these flags and discussing them with your team."
         ]
       },
       "employee": {
-        "intro": "The Attendance module tracks your daily working hours. It is important to follow these rules to ensure you are paid correctly.",
+        "intro": "The Attendance module tracks your daily working hours, which directly impacts your payroll. It is critical to log your time accurately.",
         "duties": [
-          "Geofencing: Your company might require you to be physically at the office to clock in. If so, make sure you are inside the office building before clicking 'Clock In' on your phone.",
-          "Shifts: Try your best to adhere to your assigned shift timings (like 9 AM to 5 PM). If you arrive too late, the system might automatically give you a 'late mark' or deduct a half-day!"
+          "Clocking In/Out: Always remember to clock in when you start your day and clock out when you finish. Missing a punch will result in an anomaly flag on your record.",
+          "Geofencing Compliance: If your company strictly requires office attendance, your mobile device's GPS must verify that you are within the designated office perimeter before the system accepts your punch.",
+          "Shift Adherence: Stick to your assigned shift timings. Arriving after the designated grace period will automatically mark you as 'Late' and may result in salary deductions."
         ]
       }
     },
     "time_off": {
       "hr": {
         "paragraphs": [
-          "Holidays & Weekends: This is where you configure the company's official public holidays and default weekends.",
-          "Comp Offs: Sometimes employees have to work on a weekend or a holiday. When they do, they can request a 'Compensatory Off' (Comp Off). Once you approve it, the system gives them a free leave balance that they can use to take a paid day off in the future!"
+          "The Time Off module manages all non-working days. Under 'Holidays', you can publish the company's annual holiday calendar, which automatically marks all employees as off on those dates.",
+          "The 'Comp Off' (Compensatory Off) feature handles scenarios where employees are required to work on a weekend or a public holiday. When approved, the system credits their account with a compensatory leave balance that they can redeem in the future."
         ]
       },
       "manager": {
         "paragraphs": [
-          "Comp Off Requests: If someone on your team works on a weekend or a holiday, they might request a 'Comp Off' (Compensatory Off).",
-          "It is your job to review these requests. If they genuinely worked that day, you should approve it. This grants them a free leave balance to take a paid day off later as a reward for their extra work."
+          "As a manager, you are responsible for reviewing 'Comp Off' requests. If you ask a team member to work on a Saturday or a holiday to meet a deadline, they will file a request.",
+          "It is your job to verify their effort and approve the request, which subsequently grants them a paid leave balance to use at a later date."
         ]
       },
       "employee": {
         "paragraphs": [
-          "Comp Offs: Have you ever been asked to work on a Saturday or a public holiday? The system tracks that extra effort!",
-          "If you work on a non-working day, you can request a 'Comp Off'. Once your manager approves it, you earn a free leave balance that you can use to take a paid day off later."
+          "This module helps you keep track of your time off. You can easily view the company's official public holiday calendar to plan your vacations.",
+          "If you are ever required to work on a designated holiday or a weekend, you can request a 'Comp Off'. Once your manager approves the request, you will earn a compensatory leave day to use in the future."
         ]
       }
     },
     "requests": {
       "hr": {
         "paragraphs": [
-          "Anomalies happen when something goes wrong with time tracking—like an employee forgetting to clock out, or their internet disconnecting.",
-          "Normally, Managers are the ones who fix these issues for their teams. However, as HR, you have the ultimate 'override' power. If a manager is on leave, you can step in and forcefully fix any employee's attendance record here."
+          "The Requests module handles corrections to attendance data. Employees will submit 'Regularization' requests when they miss a punch or face technical issues.",
+          "Normally, direct managers handle these approvals. However, as an HR Administrator, you hold ultimate override privileges. If a manager is unavailable or an organizational correction is needed, you can step in to approve or reject any pending request across the company."
         ]
       },
       "manager": {
         "paragraphs": [
-          "Mistakes happen. Your team members might forget to clock out, or their internet might drop. When this happens, the system flags their record as an 'Anomaly'.",
-          "To fix it, the employee will submit a 'Regularization' request to you, explaining what happened (e.g., 'I forgot to clock out, I left at 6 PM'). You can review their explanation and click Approve to fix their attendance log."
+          "Mistakes happen. Your team members might forget to clock out, or their mobile internet might drop. When this occurs, their daily record is flagged as an 'Anomaly'.",
+          "Employees will submit 'Regularization' requests explaining the issue (e.g., 'Forgot to clock out, left at 6:30 PM'). You must review these requests and approve them to rectify their attendance logs.",
+          "You will also review 'Overtime' requests if employees work beyond their standard shift hours."
         ]
       },
       "employee": {
         "paragraphs": [
-          "Mistakes happen! Did you forget to click 'Clock Out' yesterday? Did your internet die right when you were trying to clock in?",
-          "When this happens, the system flags your day with an error. Don't panic! Simply go to the 'Regularizations' tab and submit a request to your manager explaining what happened. Once they approve it, your record will be perfectly fixed."
+          "Mistakes happen! Did you forget to click 'Clock Out' yesterday? Did your internet disconnect while trying to clock in?",
+          "When this happens, the system flags your day with an error. To fix it, navigate to the 'Regularizations' tab and submit a request to your manager explaining the situation. Once they approve it, your record will be corrected."
         ]
       }
     },
     "payroll": {
       "hr": {
         "paragraphs": [
-          "Lock Periods are the most critical step before running Payroll. A Lock Period completely freezes historical data.",
-          "For example, if you are running payroll for July, you will 'Lock' the month of July. Once locked, absolutely no one (not even managers) can approve late requests or change attendance records for July. This guarantees that the data you use to pay people will never unexpectedly change."
+          "Lock Periods are the most critical administrative step before processing payroll. A Lock Period completely freezes all historical attendance and request data for a specified date range.",
+          "For example, when preparing July's payroll, you will 'Lock' the entire month of July. Once locked, absolutely no one (including managers and admins) can approve late requests, modify shifts, or alter attendance records for that period. This guarantees absolute data integrity for your payroll calculations."
         ]
       },
       "manager": {
         "paragraphs": [
-          "At the end of every month, HR will 'Lock' the attendance data so they can process salaries.",
-          "Once a period is locked, the data is frozen forever. This means you will no longer be able to approve any pending regularization requests from your team for those past dates. Make sure you clear your pending requests before HR locks the month!"
+          "At the end of every month, the HR department will 'Lock' the attendance data to process salaries.",
+          "Once a period is locked, the data is frozen permanently. This means you will instantly lose the ability to approve any pending regularization or overtime requests for those dates. It is imperative that you clear your approval queue before HR initiates the monthly lock."
         ]
       },
       "employee": {
         "paragraphs": [
-          "At the end of every month, HR freezes all attendance data so they can calculate salaries. This is called a 'Lock Period'.",
-          "Once a month is locked, you cannot submit any requests to fix missed punches for those past dates. Always ensure you fix your attendance errors quickly before the month ends!"
+          "At the end of every month, HR freezes all attendance data to securely calculate salaries. This action is known as a 'Lock Period'.",
+          "Once a month is locked, you can no longer submit any requests to fix missed punches or claim overtime for those past dates. Always ensure you resolve your attendance anomalies promptly before the month ends!"
         ]
       }
     },
     "reports": {
       "hr": {
         "paragraphs": [
-          "This is where you extract data to run payroll. You can generate a 'Monthly Report' that gives you a clean spreadsheet showing exactly how many days each person was present, how many days they were absent, and how many overtime hours they worked.",
-          "You can also generate 'Detailed Employee Reports' if you need to investigate a specific person's day-by-day punch history."
+          "The Reports module is your data extraction hub. You can generate comprehensive 'Monthly Attendance Reports' that provide a clean spreadsheet indicating exact present days, absent days, half-days, and overtime hours for every employee.",
+          "These exports are explicitly formatted to be ingested by your payroll software. You can also generate highly granular 'Detailed Employee Reports' if you need to perform an audit on a specific individual's historical punch data."
         ]
       },
       "manager": {
         "paragraphs": [
-          "While HR handles the actual payroll, you can use the Reports module to track your team's long-term performance.",
-          "You can generate reports to see who is consistently putting in extra hours, or who is frequently arriving late, helping you manage your team better."
+          "While HR handles official payroll processing, you can leverage the Reports module to track your team's long-term performance and reliability.",
+          "Generate customized reports to identify trends, such as team members who are consistently putting in extra hours, or those who are frequently arriving late, empowering you to manage your team proactively."
         ]
       },
       "employee": {
         "paragraphs": [
-          "We believe in complete transparency. You can use the Reports module to view your own historical attendance logs at any time.",
-          "If you ever want to verify that your paycheck matches the hours you actually worked, you can generate a report here to see your exact records."
+          "We believe in complete transparency. You can use the Reports module to view your personal historical attendance logs at any time.",
+          "If you ever need to verify that your paycheck accurately reflects the hours you worked, you can instantly generate a report to review your exact punch-in and punch-out records."
         ]
       }
     }

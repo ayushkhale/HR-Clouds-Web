@@ -195,9 +195,9 @@ export default function EmployeeProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6 items-stretch">
+          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6 items-start">
             {/* ── LEFT: Employee Card ── */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
+            <div className="xl:sticky xl:top-24 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col xl:max-h-[calc(100vh-8rem)]">
               
               <div className="p-6 sm:p-8 flex flex-col items-center text-center">
                 {/* Avatar */}
@@ -237,7 +237,7 @@ export default function EmployeeProfilePage() {
 
               {/* Details Sections */}
               {!loading && employee && (
-                <div className="px-6 pb-8 space-y-6 flex-1">
+                <div className="px-6 pb-8 space-y-6 flex-1 overflow-y-auto no-scrollbar">
                   {/* Organization & Role */}
                   <div>
                     <h3 className="text-xs font-bold text-slate-900 mb-3 px-2">Organization</h3>

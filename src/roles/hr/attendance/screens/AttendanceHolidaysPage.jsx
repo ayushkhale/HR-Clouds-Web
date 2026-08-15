@@ -6,8 +6,12 @@ import { attendanceAPI, organizationAPI } from "../../../../shared/api";
 import MultiSelectDropdown from "../../../../shared/components/MultiSelectDropdown";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle,
-  HiExclamationCircle, HiTrash, HiPencil,
+  HiExclamationCircle, HiTrash, HiPencil, HiChevronDown, HiSparkles,
 } from "react-icons/hi";
+import {
+  FaFlag, FaSun, FaPalette, FaTree, FaChampagneGlasses,
+  FaMoon, FaCross, FaWrench, FaCrown, FaOm, FaHandsPraying
+} from "react-icons/fa6";
 
 const HOLIDAY_TYPES = [
   { value: "public", label: "National Holiday", color: "bg-rose-50 text-rose-700" },
@@ -26,6 +30,72 @@ function dayOfWeek(dateStr) {
 }
 function fmtDate(dateStr) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function getHolidayIconInfo(name) {
+  const n = (name || "").toLowerCase();
+  const purpleTheme = "text-[#6D28D9] bg-purple-50 group-hover:bg-purple-100 transition-colors";
+  if (n.includes("independence") || n.includes("republic")) return { Icon: FaFlag, color: purpleTheme };
+  if (n.includes("diwali")) return { Icon: FaSun, color: purpleTheme };
+  if (n.includes("holi")) return { Icon: FaPalette, color: purpleTheme };
+  if (n.includes("christmas")) return { Icon: FaTree, color: purpleTheme };
+  if (n.includes("new year")) return { Icon: FaChampagneGlasses, color: purpleTheme };
+  if (n.includes("gandhi")) return { Icon: FaHandsPraying, color: purpleTheme };
+  if (n.includes("eid")) return { Icon: FaMoon, color: purpleTheme };
+  if (n.includes("dussehra")) return { Icon: FaCrown, color: purpleTheme };
+  if (n.includes("good friday")) return { Icon: FaCross, color: purpleTheme };
+  if (n.includes("shivratri")) return { Icon: FaOm, color: purpleTheme };
+  if (n.includes("guru nanak")) return { Icon: FaSun, color: purpleTheme };
+  if (n.includes("labour") || n.includes("may day")) return { Icon: FaWrench, color: purpleTheme };
+  return { Icon: HiCalendar, color: purpleTheme };
+}
+
+function getPresetNationalHolidays(y) {
+  const fixed = [
+    { name: "New Year's Day", date: `${y}-01-01`, type: "public" },
+    { name: "Republic Day", date: `${y}-01-26`, type: "public" },
+    { name: "May Day / Labour Day", date: `${y}-05-01`, type: "public" },
+    { name: "Independence Day", date: `${y}-08-15`, type: "public" },
+    { name: "Gandhi Jayanti", date: `${y}-10-02`, type: "public" },
+    { name: "Christmas Day", date: `${y}-12-25`, type: "public" },
+  ];
+
+  const variableByYear = {
+    2025: [
+      { name: "Holi", date: "2025-03-14", type: "public" },
+      { name: "Eid ul-Fitr", date: "2025-03-31", type: "public" },
+      { name: "Good Friday", date: "2025-04-18", type: "public" },
+      { name: "Dussehra", date: "2025-10-02", type: "public" },
+      { name: "Diwali", date: "2025-10-20", type: "public" },
+      { name: "Guru Nanak Jayanti", date: "2025-11-05", type: "public" },
+    ],
+    2026: [
+      { name: "Maha Shivratri", date: "2026-02-15", type: "public" },
+      { name: "Holi", date: "2026-03-04", type: "public" },
+      { name: "Eid ul-Fitr", date: "2026-03-20", type: "public" },
+      { name: "Good Friday", date: "2026-04-03", type: "public" },
+      { name: "Dussehra", date: "2026-10-20", type: "public" },
+      { name: "Diwali", date: "2026-11-08", type: "public" },
+      { name: "Guru Nanak Jayanti", date: "2026-11-24", type: "public" },
+    ],
+    2027: [
+      { name: "Holi", date: "2027-03-22", type: "public" },
+      { name: "Eid ul-Fitr", date: "2027-03-10", type: "public" },
+      { name: "Good Friday", date: "2027-03-26", type: "public" },
+      { name: "Dussehra", date: "2027-10-09", type: "public" },
+      { name: "Diwali", date: "2027-10-29", type: "public" },
+    ],
+  };
+
+  const dynamicList = variableByYear[y] || [];
+  const combined = [...fixed];
+  for (const item of dynamicList) {
+    if (!combined.some((c) => c.date === item.date || c.name.toLowerCase() === item.name.toLowerCase())) {
+      combined.push(item);
+    }
+  }
+
+  return combined.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
 /* ─── Toast ─────────────────────────────────────────────────────────────── */
@@ -244,6 +314,71 @@ export default function AttendanceHolidaysPage() {
   const [modal, setModal] = useState(null); // null | "create" | holiday object
   const [toast, setToast] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [isNationalOpen, setIsNationalOpen] = useState(false);
+  const [importingHoliday, setImportingHoliday] = useState(null);
+
+  const presetList = getPresetNationalHolidays(year);
+
+  function isHolidayAdded(preset) {
+    return holidays.some((h) => {
+      const hDate = h.date ? h.date.split("T")[0] : "";
+      return hDate === preset.date || h.name.toLowerCase() === preset.name.toLowerCase();
+    });
+  }
+
+  async function handleAddPresetHoliday(preset) {
+    setImportingHoliday(preset.name);
+    try {
+      const payload = {
+        name: preset.name,
+        type: preset.type || "public",
+        date: new Date(preset.date + "T00:00:00Z").toISOString(),
+      };
+      await attendanceAPI.createHoliday(payload);
+      showToast(`Added "${preset.name}" to holiday calendar.`);
+      load(year);
+    } catch (err) {
+      if (err.status === 409) {
+        showToast(`Holiday "${preset.name}" already exists on this date.`, "error");
+      } else {
+        showToast(err.message || `Failed to add ${preset.name}`, "error");
+      }
+    } finally {
+      setImportingHoliday(null);
+    }
+  }
+
+  async function handleAddAllPresets() {
+    const existingDates = new Set(holidays.map((h) => (h.date ? h.date.split("T")[0] : "")));
+    const existingNames = new Set(holidays.map((h) => h.name.toLowerCase()));
+
+    const toAdd = presetList.filter(
+      (p) => !existingDates.has(p.date) && !existingNames.has(p.name.toLowerCase())
+    );
+
+    if (toAdd.length === 0) {
+      showToast("All national holidays are already added for this year!");
+      return;
+    }
+
+    setImportingHoliday("ALL");
+    let addedCount = 0;
+    for (const preset of toAdd) {
+      try {
+        await attendanceAPI.createHoliday({
+          name: preset.name,
+          type: preset.type || "public",
+          date: new Date(preset.date + "T00:00:00Z").toISOString(),
+        });
+        addedCount++;
+      } catch {
+        // Ignore conflicts
+      }
+    }
+    setImportingHoliday(null);
+    showToast(`Added ${addedCount} national holiday(s) to calendar.`);
+    load(year);
+  }
 
   function showToast(msg, type = "success") {
     setToast({ message: msg, type });
@@ -316,10 +451,118 @@ export default function AttendanceHolidaysPage() {
                 ))}
               </div>
               <button onClick={() => setModal("create")}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition cursor-pointer">
                 <HiPlus className="w-4 h-4" /> Add Holiday
               </button>
             </div>
+          </div>
+
+          {/* Collapsible National Holidays Catalog */}
+          <div className="mb-6 border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setIsNationalOpen(!isNationalOpen)}
+              className="w-full px-6 py-4 flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 transition-colors cursor-pointer text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                  <HiSparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    National & Gazetted Holidays Catalog ({year})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Quickly view and import standard public holidays (15 Aug, Republic Day, Diwali, Christmas, etc.)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">
+                  {presetList.filter(p => isHolidayAdded(p)).length} / {presetList.length} Added
+                </span>
+                <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${isNationalOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+
+            {isNationalOpen && (
+              <div className="p-6 border-t border-slate-100 space-y-4 bg-white">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">Standard National Calendar</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">Select individual holidays or import all standard national holidays at once.</p>
+                  </div>
+                  <button
+                    onClick={handleAddAllPresets}
+                    disabled={importingHoliday === "ALL"}
+                    className="px-4 py-2 bg-[#6D28D9] hover:bg-purple-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <HiSparkles className="w-3.5 h-3.5" />
+                    {importingHoliday === "ALL" ? "Adding All..." : "Add All National Holidays"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+                  {presetList.map((preset) => {
+                    const added = isHolidayAdded(preset);
+                    const isLoadingThis = importingHoliday === preset.name;
+                    const { Icon: HolidayIcon, color } = getHolidayIconInfo(preset.name);
+                    return (
+                      <div
+                        key={preset.name + preset.date}
+                        className={`group rounded-2xl border transition-all flex flex-col justify-between p-4 bg-white shadow-2xs hover:shadow-xs hover:-translate-y-0.5 ${
+                          added
+                            ? "border-slate-200 bg-slate-50/40 opacity-85"
+                            : "border-slate-200/90 hover:border-purple-300"
+                        }`}
+                      >
+                        {/* Top Header Row */}
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className={`w-9 h-9 rounded-xl ${color} flex items-center justify-center shrink-0 transition-transform group-hover:scale-105`}>
+                              <HolidayIcon className="w-4 h-4" />
+                            </div>
+                            {added ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200">
+                                <HiCheckCircle className="w-3 h-3 text-emerald-500" /> Added
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                {typeLabel(preset.type)}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Info */}
+                          <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-700 transition-colors line-clamp-1 mt-3" title={preset.name}>
+                            {preset.name}
+                          </h4>
+                          <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                            {fmtDate(preset.date)} <span className="text-slate-400 font-normal">• {dayOfWeek(preset.date)}</span>
+                          </p>
+                        </div>
+
+                        {/* Action Button */}
+                        {!added ? (
+                          <button
+                            onClick={() => handleAddPresetHoliday(preset)}
+                            disabled={isLoadingThis || importingHoliday === "ALL"}
+                            className="w-full mt-3 py-1.5 px-3 bg-slate-50 hover:bg-purple-600 text-slate-700 hover:text-white border border-slate-200 hover:border-purple-600 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-60 cursor-pointer shrink-0"
+                          >
+                            <HiPlus className="w-3.5 h-3.5" />
+                            {isLoadingThis ? "Adding..." : "Add to Calendar"}
+                          </button>
+                        ) : (
+                          <div className="w-full mt-3 py-1.5 px-3 bg-slate-100/70 text-slate-400 text-[11px] font-semibold rounded-xl text-center shrink-0">
+                            In Calendar
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Table */}

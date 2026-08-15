@@ -504,8 +504,8 @@ function EmployeesPage() {
                   <div className="p-5 border-t border-slate-100">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID <span className="text-red-400">*</span></label>
-                        <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} required autoFocus className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
+                        <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="e.g. EMP001 (Optional)" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-red-400">*</span></label>

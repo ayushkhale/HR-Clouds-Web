@@ -57,6 +57,9 @@ import AttendanceReportsPage from "../roles/hr/attendance/screens/AttendanceRepo
 // Manager — Phase 5
 import ManagerCompOffsPage from "../roles/manager/screens/ManagerCompOffsPage";
 
+// Shared Screens
+import DocumentsPage from "../shared/screens/DocumentsPage";
+
 function CatchAll() {
   const { isAuthenticated } = useAuth();
   return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
@@ -137,6 +140,9 @@ function AppRoutes() {
       <Route path="/dashboard/manager/team/today" element={<ProtectedRoute><ManagerTeamPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/history" element={<ProtectedRoute><ManagerTeamHistoryPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/anomalies" element={<ProtectedRoute><ManagerAnomaliesPage /></ProtectedRoute>} />
+
+      {/* ─── SHARED DASHBOARD PAGES ─── */}
+      <Route path="/dashboard/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
 
       {/* ─── CATCH-ALL ─── */}
       <Route path="*" element={<CatchAll />} />
