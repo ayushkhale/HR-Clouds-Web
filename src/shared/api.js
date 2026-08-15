@@ -577,6 +577,10 @@ export const attendanceAPI = {
     const query = new URLSearchParams(params).toString();
     return request(`/attendance/hr/managers/attendance${query ? `?${query}` : ""}`);
   },
+  getAllHRsAttendance: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/hr/hrs/attendance${query ? `?${query}` : ""}`);
+  },
   getIndividualManagerAttendanceDetail: (userId, params = {}) => {
     const query = new URLSearchParams(params).toString();
     return request(`/attendance/hr/managers/${userId}/attendance${query ? `?${query}` : ""}`);

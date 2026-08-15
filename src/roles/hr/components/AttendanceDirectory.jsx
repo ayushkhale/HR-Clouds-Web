@@ -48,8 +48,10 @@ function AttendanceDirectory() {
       let res;
       if (activeTab === "employees") {
         res = await attendanceAPI.getAllEmployeesAttendance(params);
-      } else {
+      } else if (activeTab === "managers") {
         res = await attendanceAPI.getAllManagersAttendance(params);
+      } else if (activeTab === "hr") {
+        res = await attendanceAPI.getAllHRsAttendance(params);
       }
 
       if (res && res.success) {
@@ -113,6 +115,14 @@ function AttendanceDirectory() {
             }`}
           >
             <HiBriefcase className="w-4 h-4" /> Managers
+          </button>
+          <button
+            onClick={() => { setActiveTab("hr"); setPage(1); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+              activeTab === "hr" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <HiUsers className="w-4 h-4" /> HR
           </button>
         </div>
 

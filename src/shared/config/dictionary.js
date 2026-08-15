@@ -3,7 +3,7 @@ import { HiCheckCircle, HiExclamationCircle, HiClock } from "react-icons/hi";
 export const DICTIONARY = {
   NAV: {
     DIRECTORY: "Directory",
-    EMPLOYEES: "Employees",
+    EMPLOYEES: "Team",
     REPORTS: "Reports"
   },
   STATUS: {

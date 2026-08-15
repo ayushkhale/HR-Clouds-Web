@@ -27,6 +27,38 @@ import Skeleton from "../../../shared/components/Skeleton";
 import AttendanceDirectory from "../components/AttendanceDirectory";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 
+const CustomCapsuleBar = (props) => {
+  const { x, y, width, height, fill } = props;
+  
+  if (!width || !height || height <= 0 || Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(width) || Number.isNaN(height)) {
+    return null;
+  }
+  
+  const dashHeight = 24; // Increased height of each dash to make them longer
+  const gap = 4; // Gap between dashes
+  const dashes = [];
+  const radius = width / 2;
+  
+  let currentY = y + height;
+  
+  while (currentY - gap - dashHeight >= y) {
+    currentY -= gap + dashHeight;
+    dashes.push(
+      <rect key={currentY} x={x} y={currentY} width={width} height={dashHeight} fill={fill} rx={radius} ry={radius} />
+    );
+  }
+  
+  // Remainder part
+  const remainder = currentY - y;
+  if (remainder > gap) {
+    dashes.push(
+      <rect key={y} x={x} y={y} width={width} height={remainder - gap} fill={fill} rx={radius} ry={radius} />
+    );
+  }
+  
+  return <g>{dashes}</g>;
+};
+
 function HRDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -236,13 +268,13 @@ function HRDashboard() {
                   <h3 className="text-lg font-bold text-slate-800">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
                   <div className="flex items-center gap-4 mt-2">
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                      <span className="w-2 h-2 rounded-full bg-purple-700"></span> {DICTIONARY.STATUS.PRESENT}
+                      <span className="w-2 h-2 rounded-full bg-[#8B5CF6]"></span> {DICTIONARY.STATUS.PRESENT}
                     </span>
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                      <span className="w-2 h-2 rounded-full bg-purple-500"></span> {DICTIONARY.STATUS.LATE}
+                      <span className="w-2 h-2 rounded-full bg-[#A78BFA]"></span> {DICTIONARY.STATUS.LATE}
                     </span>
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                      <span className="w-2 h-2 rounded-full bg-purple-300"></span> {DICTIONARY.STATUS.ABSENT}
+                      <span className="w-2 h-2 rounded-full bg-[#DDD6FE]"></span> {DICTIONARY.STATUS.ABSENT}
                     </span>
                   </div>
                 </div>
@@ -289,9 +321,9 @@ function HRDashboard() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                       />
-                      <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} stackId="a" fill="#6D28D9" barSize={12} radius={[0, 0, 2, 2]} />
-                      <Bar dataKey="late_count" name={DICTIONARY.STATUS.LATE} stackId="a" fill="#A78BFA" barSize={12} radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} stackId="a" fill="#C4B5FD" barSize={12} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} stackId="a" fill="#8B5CF6" barSize={8} shape={CustomCapsuleBar} />
+                      <Bar dataKey="late_count" name={DICTIONARY.STATUS.LATE} stackId="a" fill="#A78BFA" barSize={8} shape={CustomCapsuleBar} />
+                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} stackId="a" fill="#DDD6FE" barSize={8} shape={CustomCapsuleBar} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
