@@ -58,11 +58,22 @@ function AttendanceDirectory() {
         setRecords(res.data?.records || []);
         setTotalPages(res.data?.pagination?.total_pages || 1);
         setTotalRecords(res.data?.pagination?.total || 0);
+      } else {
+        // If success is false, ensure we show nothing
+        setRecords([]);
+        setTotalPages(1);
+        setTotalRecords(0);
       }
     } catch (err) {
       console.error(err);
+      // If the API request completely fails (e.g. 404, 500), clear the table
+      setRecords([]);
+      setTotalPages(1);
+      setTotalRecords(0);
     } finally {
       setLoading(false);
+
+      
     }
   };
 
@@ -149,6 +160,7 @@ function AttendanceDirectory() {
               <tr>
                 <th className="px-6 py-4 text-xs uppercase tracking-wide">Employee ID</th>
                 <th className="px-6 py-4 text-xs uppercase tracking-wide">Employee</th>
+                <th className="px-6 py-4 text-xs uppercase tracking-wide">Role</th>
                 <th className="px-6 py-4 text-xs uppercase tracking-wide">Department</th>
                 <th className="px-6 py-4 text-xs uppercase tracking-wide">Status</th>
                 <th className="px-6 py-4 text-xs uppercase tracking-wide">Clock In</th>
@@ -159,7 +171,7 @@ function AttendanceDirectory() {
             <tbody className="divide-y divide-slate-50">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-slate-400 font-medium">
+                  <td colSpan="8" className="px-6 py-12 text-center text-slate-400 font-medium">
                     No attendance records found for your search.
                   </td>
                 </tr>
@@ -177,6 +189,11 @@ function AttendanceDirectory() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="font-bold text-slate-800 text-sm">{record.name}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700">
+                        {record.role || "—"}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <p className="font-semibold text-slate-700 text-sm">{record.department || "—"}</p>

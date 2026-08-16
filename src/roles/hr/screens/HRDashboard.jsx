@@ -34,29 +34,24 @@ const CustomCapsuleBar = (props) => {
     return null;
   }
   
-  const dashHeight = 24; // Increased height of each dash to make them longer
-  const gap = 4; // Gap between dashes
-  const dashes = [];
+  const gap = 4;
   const radius = width / 2;
   
-  let currentY = y + height;
+  // Draw exactly one capsule per data segment (one for Present, one for Late, one for Absent).
+  // Subtract the gap from the height to create separation between stacked segments.
+  const actualHeight = Math.max(height - gap, Math.min(height, 4));
   
-  while (currentY - gap - dashHeight >= y) {
-    currentY -= gap + dashHeight;
-    dashes.push(
-      <rect key={currentY} x={x} y={currentY} width={width} height={dashHeight} fill={fill} rx={radius} ry={radius} />
-    );
-  }
-  
-  // Remainder part
-  const remainder = currentY - y;
-  if (remainder > gap) {
-    dashes.push(
-      <rect key={y} x={x} y={y} width={width} height={remainder - gap} fill={fill} rx={radius} ry={radius} />
-    );
-  }
-  
-  return <g>{dashes}</g>;
+  return (
+    <rect 
+      x={x} 
+      y={y + (height - actualHeight) / 2} 
+      width={width} 
+      height={actualHeight} 
+      fill={fill} 
+      rx={radius} 
+      ry={radius} 
+    />
+  );
 };
 
 function HRDashboard() {

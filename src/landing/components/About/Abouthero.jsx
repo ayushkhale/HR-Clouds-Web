@@ -51,7 +51,7 @@ const Abouthero = () => {
               <img
                 src={aboutillsu3d}
                 alt="HR Clouds 3D Work Illustration"
-                className="relative z-10 w-full max-w-[28rem] h-auto object-contain hover:scale-105 transition-transform duration-500 drop-shadow-2xl"
+                className="relative z-10 w-full max-w-[28rem] h-auto object-contain hover:scale-105 transition-transform duration-500 drop-shadow-2xl outline-none focus:outline-none ring-0 transform-gpu"
               />
             </div>
           </AnimateOnScroll>
