@@ -586,6 +586,13 @@ export const attendanceAPI = {
     return request(`/attendance/hr/managers/${userId}/attendance${query ? `?${query}` : ""}`);
   },
   getIndividualManagerMonthlySummary: (userId, month, year) => request(`/attendance/hr/managers/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
+
+  // ── API 7.10.1 — HR Daily Log Drilldown ───────────────────────────────────
+  // Returns granular sessions, breaks, anomalies for a specific employee/date.
+  getEmployeeDailyLog: (userId, date) => request(`/attendance/hr/employees/${userId}/daily-log${date ? `?date=${date}` : ""}`),
+  getManagerDailyLog: (userId, date) => request(`/attendance/hr/managers/${userId}/daily-log${date ? `?date=${date}` : ""}`),
+  getHRDailyLog: (userId, date) => request(`/attendance/hr/hrs/${userId}/daily-log${date ? `?date=${date}` : ""}`),
+
   getLiveDashboard: () => request("/attendance/hr/dashboard/live"),
   getDashboardGraphData: (month, year) => request(`/attendance/hr/dashboard/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
   getDepartmentSummary: (date) => request(`/attendance/hr/dashboard/department-summary${date ? `?date=${date}` : ""}`),

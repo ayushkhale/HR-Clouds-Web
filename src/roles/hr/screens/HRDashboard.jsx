@@ -129,17 +129,24 @@ function HRDashboard() {
     });
   };
 
-  // Helper to ensure the bar chart has at least 15 days on the X-axis
+  // Helper to ensure the bar chart has at least 15 days on the X-axis.
+  // Also derives `on_time_count` = present - late (late is a subset of present,
+  // so stacking them would double-count. We show 3 mutually-exclusive categories).
   const getPaddedChartData = (dailyData) => {
     if (!dailyData || dailyData.length === 0) return [];
-    const data = [...dailyData];
+    const normalize = (d) => ({
+      ...d,
+      // Clamp to 0 in case of data oddities
+      on_time_count: Math.max(0, (d.final_present_count || 0) - (d.late_count || 0)),
+    });
+    const data = dailyData.map(normalize);
     if (data.length < 15) {
       let lastDate = new Date(data[data.length - 1].date);
       for (let i = data.length; i < 15; i++) {
         lastDate.setDate(lastDate.getDate() + 1);
         data.push({
           date: lastDate.toISOString().split('T')[0],
-          final_present_count: 0,
+          on_time_count: 0,
           final_absent_count: 0,
           late_count: 0
         });
@@ -263,10 +270,10 @@ function HRDashboard() {
                   <h3 className="text-lg font-bold text-slate-800">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
                   <div className="flex items-center gap-4 mt-2">
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                      <span className="w-2 h-2 rounded-full bg-[#8B5CF6]"></span> {DICTIONARY.STATUS.PRESENT}
+                      <span className="w-2 h-2 rounded-full bg-[#8B5CF6]"></span> On Time
                     </span>
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                      <span className="w-2 h-2 rounded-full bg-[#A78BFA]"></span> {DICTIONARY.STATUS.LATE}
+                      <span className="w-2 h-2 rounded-full bg-[#F59E0B]"></span> Late
                     </span>
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                       <span className="w-2 h-2 rounded-full bg-[#DDD6FE]"></span> {DICTIONARY.STATUS.ABSENT}
@@ -316,9 +323,9 @@ function HRDashboard() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                       />
-                      <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} stackId="a" fill="#8B5CF6" barSize={8} shape={CustomCapsuleBar} />
-                      <Bar dataKey="late_count" name={DICTIONARY.STATUS.LATE} stackId="a" fill="#A78BFA" barSize={8} shape={CustomCapsuleBar} />
-                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} stackId="a" fill="#DDD6FE" barSize={8} shape={CustomCapsuleBar} />
+                      <Bar dataKey="on_time_count" name="On Time" fill="#8B5CF6" barSize={6} radius={[3,3,0,0]} />
+                      <Bar dataKey="late_count" name="Late" fill="#F59E0B" barSize={6} radius={[3,3,0,0]} />
+                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill="#DDD6FE" barSize={6} radius={[3,3,0,0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}

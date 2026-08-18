@@ -50,40 +50,49 @@ function getHolidayIconInfo(name) {
   return { Icon: HiCalendar, color: purpleTheme };
 }
 
-function getPresetNationalHolidays(y) {
+function getPresetHolidays(y) {
+  // Only the 3 constitutionally gazetted National Holidays of India
   const fixed = [
-    { name: "New Year's Day", date: `${y}-01-01`, type: "public" },
     { name: "Republic Day", date: `${y}-01-26`, type: "public" },
-    { name: "May Day / Labour Day", date: `${y}-05-01`, type: "public" },
     { name: "Independence Day", date: `${y}-08-15`, type: "public" },
     { name: "Gandhi Jayanti", date: `${y}-10-02`, type: "public" },
-    { name: "Christmas Day", date: `${y}-12-25`, type: "public" },
   ];
 
+  // All other holidays are optional / restricted — dates vary by year
   const variableByYear = {
     2025: [
-      { name: "Holi", date: "2025-03-14", type: "public" },
-      { name: "Eid ul-Fitr", date: "2025-03-31", type: "public" },
-      { name: "Good Friday", date: "2025-04-18", type: "public" },
-      { name: "Dussehra", date: "2025-10-02", type: "public" },
-      { name: "Diwali", date: "2025-10-20", type: "public" },
-      { name: "Guru Nanak Jayanti", date: "2025-11-05", type: "public" },
+      { name: "New Year's Day", date: "2025-01-01", type: "optional" },
+      { name: "Maha Shivratri", date: "2025-02-26", type: "optional" },
+      { name: "Holi", date: "2025-03-14", type: "optional" },
+      { name: "Eid ul-Fitr", date: "2025-03-31", type: "optional" },
+      { name: "Good Friday", date: "2025-04-18", type: "optional" },
+      { name: "May Day / Labour Day", date: "2025-05-01", type: "optional" },
+      { name: "Dussehra", date: "2025-10-02", type: "optional" },
+      { name: "Diwali", date: "2025-10-20", type: "optional" },
+      { name: "Guru Nanak Jayanti", date: "2025-11-05", type: "optional" },
+      { name: "Christmas Day", date: "2025-12-25", type: "optional" },
     ],
     2026: [
-      { name: "Maha Shivratri", date: "2026-02-15", type: "public" },
-      { name: "Holi", date: "2026-03-04", type: "public" },
-      { name: "Eid ul-Fitr", date: "2026-03-20", type: "public" },
-      { name: "Good Friday", date: "2026-04-03", type: "public" },
-      { name: "Dussehra", date: "2026-10-20", type: "public" },
-      { name: "Diwali", date: "2026-11-08", type: "public" },
-      { name: "Guru Nanak Jayanti", date: "2026-11-24", type: "public" },
+      { name: "New Year's Day", date: "2026-01-01", type: "optional" },
+      { name: "Maha Shivratri", date: "2026-02-15", type: "optional" },
+      { name: "Holi", date: "2026-03-04", type: "optional" },
+      { name: "Eid ul-Fitr", date: "2026-03-20", type: "optional" },
+      { name: "Good Friday", date: "2026-04-03", type: "optional" },
+      { name: "May Day / Labour Day", date: "2026-05-01", type: "optional" },
+      { name: "Dussehra", date: "2026-10-20", type: "optional" },
+      { name: "Diwali", date: "2026-11-08", type: "optional" },
+      { name: "Guru Nanak Jayanti", date: "2026-11-24", type: "optional" },
+      { name: "Christmas Day", date: "2026-12-25", type: "optional" },
     ],
     2027: [
-      { name: "Holi", date: "2027-03-22", type: "public" },
-      { name: "Eid ul-Fitr", date: "2027-03-10", type: "public" },
-      { name: "Good Friday", date: "2027-03-26", type: "public" },
-      { name: "Dussehra", date: "2027-10-09", type: "public" },
-      { name: "Diwali", date: "2027-10-29", type: "public" },
+      { name: "New Year's Day", date: "2027-01-01", type: "optional" },
+      { name: "Holi", date: "2027-03-22", type: "optional" },
+      { name: "Eid ul-Fitr", date: "2027-03-10", type: "optional" },
+      { name: "Good Friday", date: "2027-03-26", type: "optional" },
+      { name: "May Day / Labour Day", date: "2027-05-01", type: "optional" },
+      { name: "Dussehra", date: "2027-10-09", type: "optional" },
+      { name: "Diwali", date: "2027-10-29", type: "optional" },
+      { name: "Christmas Day", date: "2027-12-25", type: "optional" },
     ],
   };
 
@@ -315,9 +324,10 @@ export default function AttendanceHolidaysPage() {
   const [toast, setToast] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [isNationalOpen, setIsNationalOpen] = useState(false);
+  const [isTableOpen, setIsTableOpen] = useState(true);
   const [importingHoliday, setImportingHoliday] = useState(null);
 
-  const presetList = getPresetNationalHolidays(year);
+  const presetList = getPresetHolidays(year);
 
   function isHolidayAdded(preset) {
     return holidays.some((h) => {
@@ -470,10 +480,10 @@ export default function AttendanceHolidaysPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">
-                    National & Gazetted Holidays Catalog ({year})
+                    Common Holidays Catalog ({year})
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Quickly view and import standard public holidays (15 Aug, Republic Day, Diwali, Christmas, etc.)
+                    Quickly view and import public holidays (26 Jan, 15 Aug, 2 Oct) and optional holidays (Diwali, Holi, Eid, etc.)
                   </p>
                 </div>
               </div>
@@ -498,7 +508,7 @@ export default function AttendanceHolidaysPage() {
                     className="px-4 py-2 bg-[#6D28D9] hover:bg-purple-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
                   >
                     <HiSparkles className="w-3.5 h-3.5" />
-                    {importingHoliday === "ALL" ? "Adding All..." : "Add All National Holidays"}
+                    {importingHoliday === "ALL" ? "Adding All..." : "Add All to Calendar"}
                   </button>
                 </div>
 
@@ -566,11 +576,31 @@ export default function AttendanceHolidaysPage() {
           </div>
 
           {/* Table */}
-          {loading ? (
-            <Skeleton type="table" rows={6} />
-          ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            {holidays.length === 0 ? (
+            {/* Collapsible Header */}
+            <button
+              type="button"
+              onClick={() => setIsTableOpen(o => !o)}
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50/60 transition-colors text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                  <HiCalendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Holiday List ({year})</h3>
+                  <p className="text-xs text-slate-400">{holidays.length} holiday{holidays.length !== 1 ? 's' : ''} added</p>
+                </div>
+              </div>
+              <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isTableOpen ? "rotate-180" : ""}`} />
+            </button>
+
+          {isTableOpen && (
+          <div className="border-t border-slate-100">
+          {loading ? (
+            <div className="p-6"><Skeleton type="table" rows={6} /></div>
+          ) : (
+            holidays.length === 0 ? (
               <div className="p-16 flex flex-col items-center gap-3 text-center">
                 <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
                   <HiCalendar className="w-7 h-7 text-slate-400" />
@@ -631,9 +661,11 @@ export default function AttendanceHolidaysPage() {
                   ))}
                 </tbody>
               </table>
-            )}
+            )
+          )}
           </div>
           )}
+          </div>
         </main>
       </div>
 

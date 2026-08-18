@@ -11,26 +11,9 @@ This document is the definitive technical reference for Phase 7 Attendance APIs.
 2. **Graph-First Design:** Phase 7 APIs are designed to feed charts and dashboards, not just data tables. The `graph-data` endpoints return arrays indexed by date with pre-computed metrics — plug directly into Chart.js, Recharts, or ApexCharts.
 3. **Progressive Disclosure:** The UI should follow a drill-down pattern: Dashboard (overview) → List (filterable) → Detail (individual). Each step has its own API.
 4. **Color Consistency Across All Views:** Use the same color for the same status everywhere in the app so users build visual muscle memory:
-
-| Status | Color | Hex | Icon |
-|--------|-------|-----|------|
-| `present` | Green | `#22C55E` | ✅ |
-| `absent` | Red | `#EF4444` | ❌ |
-| `half_day` | Yellow/Amber | `#F59E0B` | 🌓 |
-| `late` | Orange | `#F97316` | ⏰ |
-| `on_leave` | Blue | `#3B82F6` | 📋 |
-| `holiday` | Purple | `#8B5CF6` | 🎉 |
-| `weekly_off` | Gray | `#9CA3AF` | 📅 |
-| `not_marked` | Dark Gray | `#6B7280` | ❓ |
-| `in_progress` | Teal/Cyan | `#06B6D4` | 🔄 |
-
 ---
 
 ## 👤 Section A: Employee APIs (Self-Only Data)
-
-----
-
-----
 
 **Base Path:** `/api/v1/attendance`
 **Authorization:** Requires `Authorization: Bearer <token>` in the header for all endpoints.
@@ -395,9 +378,12 @@ The existing `/team/today` returns raw records without aggregation. A manager wi
       "on_leave": 1,
       "not_marked": 0,
       "holiday": 0,
-      "weekly_off": 0
+      "weekly_off": 0,
+      "in_progress": 0
     },
     "attendance_percentage": 85.0,
+    "final_present_count": 8,
+    "final_absent_count": 1,
     "members": [
       {
         "user_id": "uuid-001",
@@ -600,10 +586,13 @@ Daily aggregated attendance for the entire team across a month. Pre-computed on 
         "absent_count": 1,
         "late_count": 2,
         "half_day_count": 1,
+        "in_progress_count": 0,
         "on_leave_count": 0,
         "avg_effective_hours": 8.1,
         "total_overtime_minutes": 45,
-        "attendance_percentage": 85.0
+        "attendance_percentage": 85.0,
+        "final_present_count": 9,
+        "final_absent_count": 1
       }
     ]
   }
@@ -724,6 +713,27 @@ Paginated attendance history for a specific employee. Accessed when HR clicks a 
 * **Record List/Timeline:** Same as Manager API 7.6 styling.
 * **Print Button:** 🖨️ Print-friendly layout with org logo for employee files.
 
+> [!TIP]
+> **Data Enhancement:** This API natively resolves `month` and `year` query parameters to fetch the full month if `from`/`to` aren't provided. Additionally, every record row now includes `early_exit_minutes`, `breaks`, and `sessions` inline. The UI can display a ☕ icon or an expandable accordion on rows with nested breaks/sessions.
+
+---
+
+### API 7.10.1: Get Individual Employee Daily Log
+
+**Endpoint:** `GET /api/v1/attendance/hr/employees/:userId/daily-log`
+*(Also available as `/hr/managers/:userId/daily-log` and `/hr/hrs/:userId/daily-log`)*
+
+**What This API Does & Why:**
+Fetches the granular breakdown of a specific historical date for an employee. When HR needs to audit missing hours or un-ended breaks on a specific day, this provides the raw timeline. It dynamically calculates virtual statuses (e.g., "holiday", "weekly_off") if the employee didn't punch in, avoiding blunt "not_marked" errors.
+
+**Query Parameters:** `?date=YYYY-MM-DD` (Optional, defaults to today)
+
+**Response:** Same structure as Employee API 7.1.
+
+**How Frontend Should Style & Use This Data:**
+* **Drilldown Modal:** When HR clicks a row in the history table (API 7.10) or a cell in a monthly calendar view, pop open a large modal using this API.
+* **Timeline View:** Render the same `sessions` and `breaks` timeline graph described in API 7.1 so HR sees exactly what the employee sees.
+
 ---
 
 ### API 7.11: Get Individual Employee Monthly Summary
@@ -806,17 +816,20 @@ This is the **first thing HR sees**. No existing endpoint provides this. Existin
     "date": "2026-08-07",
     "total_employees": 203,
     "counts": {
-      "present": 145,
+      "present": 140,
       "absent": 23,
       "half_day": 5,
       "late": 12,
       "on_leave": 8,
       "not_marked": 15,
       "holiday": 0,
-      "weekly_off": 7
+      "weekly_off": 7,
+      "in_progress": 5
     },
     "attendance_percentage": 73.89,
-    "on_time_percentage": 91.72
+    "on_time_percentage": 91.72,
+    "final_present_count": 150,
+    "final_absent_count": 38
   }
 }
 ```
@@ -877,12 +890,15 @@ HR dashboards universally need trend charts: "Is attendance improving?", "Worst 
         "absent_count": 0,
         "late_count": 0,
         "half_day_count": 0,
+        "in_progress_count": 0,
         "on_leave_count": 0,
         "weekly_off_count": 203,
         "holiday_count": 0,
         "avg_effective_hours": 0,
         "total_overtime_minutes": 0,
-        "attendance_percentage": 0
+        "attendance_percentage": 0,
+        "final_present_count": 0,
+        "final_absent_count": 0
       },
       {
         "date": "2026-08-03",
@@ -892,12 +908,15 @@ HR dashboards universally need trend charts: "Is attendance improving?", "Worst 
         "absent_count": 18,
         "late_count": 8,
         "half_day_count": 3,
+        "in_progress_count": 2,
         "on_leave_count": 5,
         "weekly_off_count": 0,
         "holiday_count": 0,
         "avg_effective_hours": 8.1,
         "total_overtime_minutes": 180,
-        "attendance_percentage": 89.6
+        "attendance_percentage": 89.6,
+        "final_present_count": 170,
+        "final_absent_count": 18
       }
     ]
   }
@@ -950,8 +969,11 @@ HR needs department comparison: "Engineering 95% vs Operations 72% — investiga
         "absent": 3,
         "late": 4,
         "half_day": 1,
+        "in_progress": 0,
         "on_leave": 3,
-        "attendance_percentage": 86.67
+        "attendance_percentage": 86.67,
+        "final_present_count": 39,
+        "final_absent_count": 3
       },
       {
         "department": "Marketing",
@@ -960,8 +982,11 @@ HR needs department comparison: "Engineering 95% vs Operations 72% — investiga
         "absent": 1,
         "late": 1,
         "half_day": 0,
+        "in_progress": 0,
         "on_leave": 1,
-        "attendance_percentage": 90.0
+        "attendance_percentage": 90.0,
+        "final_present_count": 18,
+        "final_absent_count": 1
       },
       {
         "department": "Operations",
@@ -970,8 +995,11 @@ HR needs department comparison: "Engineering 95% vs Operations 72% — investiga
         "absent": 8,
         "late": 5,
         "half_day": 2,
+        "in_progress": 0,
         "on_leave": 3,
-        "attendance_percentage": 68.57
+        "attendance_percentage": 68.57,
+        "final_present_count": 24,
+        "final_absent_count": 8
       }
     ]
   }

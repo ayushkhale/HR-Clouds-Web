@@ -61,7 +61,7 @@ function EmployeesPage() {
   const [inviteResult, setInviteResult] = useState({ type: "", message: "" });
   const [invitations, setInvitations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterTab, setFilterTab] = useState("all");
+
   const [openDropdownId, setOpenDropdownId] = useState(null); // Track which member's options menu is open
 
   // Collapsible modal sections state (false = expanded/open, true = collapsed/closed)
@@ -323,8 +323,6 @@ function EmployeesPage() {
         (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         (m.email || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-      if (filterTab === "active") return matchesSearch && m.status === "Active";
-      if (filterTab === "pending") return matchesSearch && m.status === "Pending";
       return matchesSearch;
     })
     .sort((a, b) => {
@@ -380,32 +378,7 @@ function EmployeesPage() {
                   />
                 </div>
 
-                <div className="flex items-center bg-slate-50 p-1 rounded-xl text-xs font-bold border border-slate-100">
-                  <button
-                    onClick={() => setFilterTab("all")}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                      filterTab === "all" ? "bg-purple-100 text-purple-700" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setFilterTab("active")}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                      filterTab === "active" ? "bg-purple-100 text-purple-700" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    Active
-                  </button>
-                  <button
-                    onClick={() => setFilterTab("pending")}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                      filterTab === "pending" ? "bg-purple-100 text-purple-700" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    Pending
-                  </button>
-                </div>
+
               </div>
             </div>
 
