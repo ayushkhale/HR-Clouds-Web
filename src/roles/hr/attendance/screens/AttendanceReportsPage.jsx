@@ -138,7 +138,8 @@ function AttendanceReportsPage() {
 
   const filteredEmployees = employees.filter(e => {
     const nameStr = (e.name || "").toLowerCase();
-    const codeStr = (e.employee_code || "").toLowerCase();
+    const empCode = e.employee_code || e.employee_profile?.employee_code || e.manager_profile?.employee_code || e.hr_profile?.employee_code || "";
+    const codeStr = empCode.toLowerCase();
     const query = empSearch.toLowerCase();
     return nameStr.includes(query) || codeStr.includes(query);
   });
@@ -149,25 +150,20 @@ function AttendanceReportsPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="Attendance Reports" />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          {/* Hero */}
-          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xs">
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-            <div className="relative z-10 max-w-2xl space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tracking-wide border border-white/20 backdrop-blur-xs">
-                <HiSparkles className="w-3.5 h-3.5 text-purple-200" /> ANALYTICS
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Attendance Reports</h1>
-              <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Generate daily, monthly, or employee-level attendance reports for payroll and compliance.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
+              <p className="text-sm text-slate-500 mt-1">Generate daily, monthly, or employee-level attendance reports for payroll and compliance.</p>
             </div>
           </div>
 
           {/* Tab Bar */}
-          <div className="flex gap-2 bg-white rounded-xl p-1.5 shadow-sm border border-slate-100 w-fit">
+          <div className="flex gap-2 bg-white rounded-2xl p-1.5 shadow-2xs border border-slate-100 w-fit">
             {TABS.map(tab => {
               const Icon = tab.icon;
               return (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab.key ? "bg-purple-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === tab.key ? "bg-[#6D28D9] text-white shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
                   <Icon className="w-4 h-4" /> {tab.label}
                 </button>
               );
@@ -177,7 +173,7 @@ function AttendanceReportsPage() {
           {/* ────── DAILY TAB ────── */}
           {activeTab === "daily" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xs border border-slate-100">
                 <div className="flex flex-col sm:flex-row items-end gap-4 mb-2">
                   <div className="flex-1 w-full">
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Date</label>
@@ -196,7 +192,7 @@ function AttendanceReportsPage() {
               </div>
 
               {dailyData.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+                <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xs border border-slate-100">
                   <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-xs">
@@ -243,7 +239,7 @@ function AttendanceReportsPage() {
           {/* ────── MONTHLY TAB ────── */}
           {activeTab === "monthly" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xs border border-slate-100">
                 <div className="flex flex-col sm:flex-row items-end gap-4 mb-2">
                   <div className="flex-1 w-full flex gap-3">
                     <div className="w-1/2">
@@ -289,7 +285,7 @@ function AttendanceReportsPage() {
               </div>
 
               {monthlyData?.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+                <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xs border border-slate-100">
                   {/* KPI Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-center">
@@ -348,65 +344,93 @@ function AttendanceReportsPage() {
           {/* ────── EMPLOYEE TAB ────── */}
           {activeTab === "employee" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Employee</label>
-                    <div className="relative mb-2">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xs border border-slate-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  
+                  {/* Left: Employee Selection */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider">Select Employee</label>
+                    <div className="relative">
                       <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input type="text" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)}
-                        placeholder="Search employee…"
-                        className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+                      <input 
+                        type="text" 
+                        value={empSearch} 
+                        onChange={(e) => setEmpSearch(e.target.value)}
+                        placeholder="Search employee by name..."
+                        className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all bg-slate-50/50" 
+                      />
                     </div>
-                    <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-50 bg-white">
+                    
+                    <div className="max-h-44 overflow-y-auto border border-slate-150 rounded-xl divide-y divide-slate-50 bg-white shadow-inner">
                       {filteredEmployees.length === 0 ? (
-                        <p className="px-4 py-3 text-xs text-slate-400">
-                          {employees.length === 0 ? "No employees found." : "No results."}
+                        <p className="px-4 py-4 text-xs text-slate-400 italic text-center">
+                          {employees.length === 0 ? "No employees found." : "No matching employees."}
                         </p>
                       ) : (
                         filteredEmployees.map((e) => {
                           const id = e.id || e.user_id;
                           const name = e.name || "Unknown";
-                          const email = e.employee_code ? `Code: ${e.employee_code}` : (e.role ? e.role.toUpperCase() : "");
+                          const empCode = e.employee_code || e.employee_profile?.employee_code || e.manager_profile?.employee_code || e.hr_profile?.employee_code || "";
+                          const detailText = empCode ? `Code: ${empCode}` : (e.role ? e.role.toUpperCase() : "");
                           const isSelected = selectedEmpId === id;
                           return (
                             <button key={id} type="button" onClick={() => setSelectedEmpId(id)}
-                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition ${isSelected ? "bg-purple-50" : "hover:bg-slate-50"}`}>
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? "bg-purple-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition cursor-pointer ${isSelected ? "bg-purple-50/60" : "hover:bg-slate-50"}`}>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? "bg-[#6D28D9] text-white" : "bg-slate-100 text-slate-600"}`}>
                                 {name.charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className={`text-xs font-semibold truncate ${isSelected ? "text-purple-700" : "text-slate-800"}`}>{name}</p>
-                                {email && <p className="text-[10px] text-slate-400 truncate">{email}</p>}
+                                <p className={`text-xs font-bold truncate ${isSelected ? "text-[#6D28D9]" : "text-slate-800"}`}>{name}</p>
+                                {detailText && <p className="text-[10px] text-slate-450 truncate font-semibold mt-0.5">{detailText}</p>}
                               </div>
-                              {isSelected && <HiCheckCircle className="w-4 h-4 text-purple-500 ml-auto flex-shrink-0" />}
+                              {isSelected && <HiCheckCircle className="w-4 h-4 text-purple-600 ml-auto flex-shrink-0" />}
                             </button>
                           );
                         })
                       )}
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Start</label>
-                    <input type="date" value={empStartDate} onChange={e => setEmpStartDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
-                  </div>
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">End</label>
-                      <input type="date" value={empEndDate} onChange={e => setEmpEndDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
+
+                  {/* Right: Date Range & Generate */}
+                  <div className="space-y-4">
+                    <label className="block text-xs font-bold text-slate-650 uppercase tracking-wider">Report Parameters</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1.5">Start Date</label>
+                        <input 
+                          type="date" 
+                          value={empStartDate} 
+                          onChange={e => setEmpStartDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-slate-50/50" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1.5">End Date</label>
+                        <input 
+                          type="date" 
+                          value={empEndDate} 
+                          onChange={e => setEmpEndDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-slate-50/50" 
+                        />
+                      </div>
                     </div>
-                    <button onClick={fetchEmployee} disabled={!selectedEmpId}
-                      className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-sm rounded-lg transition-colors">
-                      Generate
-                    </button>
+
+                    <div className="pt-2">
+                      <button 
+                        onClick={fetchEmployee} 
+                        disabled={!selectedEmpId}
+                        className="w-full py-2.5 bg-[#6D28D9] hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl transition-all shadow-sm shadow-purple-100 cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        Generate Employee Report
+                      </button>
+                    </div>
                   </div>
+
                 </div>
               </div>
 
               {empData && (
-                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+                <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xs border border-slate-100">
                   {/* Summary Cards */}
                   {empData.summary && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">

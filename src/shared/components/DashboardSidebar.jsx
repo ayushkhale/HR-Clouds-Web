@@ -34,7 +34,7 @@ function DashboardSidebar({ role = "guest" }) {
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar } = useSidebar();
-  
+
   const [openSubMenus, setOpenSubMenus] = useState({
     shifts: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
     attendanceSettings: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
@@ -91,7 +91,7 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiClock,
           items: [
             { label: "Live Attendance", path: "/dashboard/hr/attendance/directory", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/directory" },
-            { 
+            {
               label: "Shift Management", icon: HiClock, key: "shifts",
               active: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
               subItems: [
@@ -99,7 +99,7 @@ function DashboardSidebar({ role = "guest" }) {
                 { label: "Assign Shifts", path: "/dashboard/hr/attendance/roster", active: location.pathname === "/dashboard/hr/attendance/roster" }
               ]
             },
-            { 
+            {
               label: "Attendance Settings", icon: HiCog, key: "attendanceSettings",
               active: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
               subItems: [
@@ -114,7 +114,7 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiCalendar,
           items: [
             { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
-            { 
+            {
               label: "Off Days", icon: HiTemplate, key: "offDays",
               active: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
               subItems: [
@@ -199,7 +199,7 @@ function DashboardSidebar({ role = "guest" }) {
     <>
       {/* Mobile Backdrop */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity"
           onClick={closeSidebar}
         />
@@ -213,7 +213,7 @@ function DashboardSidebar({ role = "guest" }) {
             <Link to="/">
               <img src="/logocolored.png" alt="HR Clouds" className="h-12 w-auto object-contain" />
             </Link>
-            <button 
+            <button
               onClick={closeSidebar}
               className="lg:hidden p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
             >
@@ -221,140 +221,140 @@ function DashboardSidebar({ role = "guest" }) {
             </button>
           </div>
 
-        {/* Multi-Org Switcher dropdown inside sidebar if orgs exist */}
-        {organizations && organizations.length > 1 && (
-          <div className="px-5 py-3 border-b border-slate-100">
-            <OrgSwitcher organizations={organizations} currentOrgId={orgId} />
-          </div>
-        )}
+          {/* Multi-Org Switcher dropdown inside sidebar if orgs exist */}
+          {organizations && organizations.length > 1 && (
+            <div className="px-5 py-3 border-b border-slate-100">
+              <OrgSwitcher organizations={organizations} currentOrgId={orgId} />
+            </div>
+          )}
 
-        {/* Navigation Section */}
-        <div className="px-4 py-4 space-y-4">
-          {navSections.map((section) => {
-            const isSingle = section.items.length === 1 && !section.forceDropdown;
+          {/* Navigation Section */}
+          <div className="px-4 py-4 space-y-4">
+            {navSections.map((section) => {
+              const isSingle = section.items.length === 1 && !section.forceDropdown;
 
-            // Single item section — render directly as a link
-            if (isSingle) {
-              const item = section.items[0];
-              const Icon = item.icon || section.icon;
-              const isActive = item.active;
+              // Single item section — render directly as a link
+              if (isSingle) {
+                const item = section.items[0];
+                const Icon = item.icon || section.icon;
+                const isActive = item.active;
 
-              return (
-                <Link
-                  key={section.title}
-                  to={item.path}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${isActive
+                return (
+                  <Link
+                    key={section.title}
+                    to={item.path}
+                    className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${isActive
                       ? "bg-[#F3E8FF] text-[#7E22CE] shadow-2xs"
                       : "text-slate-600 hover:bg-slate-50 hover:text-purple-700"
-                    }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                  {item.label}
-                </Link>
-              );
-            }
+                      }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                    {item.label}
+                  </Link>
+                );
+              }
 
-            // Multi-item section — render with collapsible header
-            const isOpen = openSections[section.title] !== false;
+              // Multi-item section — render with collapsible header
+              const isOpen = openSections[section.title] !== false;
 
-            return (
-              <div key={section.title} className="space-y-1">
-                {/* Section Header */}
-                <button
-                  type="button"
-                  onClick={() => toggleSection(section.title)}
-                  className="w-full flex items-center justify-between px-4 py-2 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
-                >
-                  <span>{section.title}</span>
-                  {isOpen ? (
-                    <HiChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                  ) : (
-                    <HiChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                  )}
-                </button>
+              return (
+                <div key={section.title} className="space-y-1">
+                  {/* Section Header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.title)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
+                  >
+                    <span>{section.title}</span>
+                    {isOpen ? (
+                      <HiChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    ) : (
+                      <HiChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                  </button>
 
-                {/* Sub-items list */}
-                {isOpen && (
-                  <div className="space-y-1 pl-2">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = item.active;
+                  {/* Sub-items list */}
+                  {isOpen && (
+                    <div className="space-y-1 pl-2">
+                      {section.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = item.active;
 
-                      if (item.subItems) {
-                        const isSubOpen = openSubMenus[item.key];
-                        return (
-                          <div key={item.key} className="space-y-1">
-                            <button
-                              onClick={() => toggleSubMenu(item.key)}
-                              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                        if (item.subItems) {
+                          const isSubOpen = openSubMenus[item.key];
+                          return (
+                            <div key={item.key} className="space-y-1">
+                              <button
+                                onClick={() => toggleSubMenu(item.key)}
+                                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
                                   ? "bg-[#F3E8FF]/60 text-[#7E22CE] font-bold"
                                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                                }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                                {item.label}
-                              </div>
-                              <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${isSubOpen ? 'rotate-180' : ''}`} />
-                            </button>
-                            {isSubOpen && (
-                              <div className="pl-9 space-y-1 mt-1 border-l-2 border-slate-100 ml-4">
-                                {item.subItems.map((sub) => (
-                                  <Link
-                                    key={sub.path}
-                                    to={sub.path}
-                                    onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                                    className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${sub.active
+                                  }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                                  {item.label}
+                                </div>
+                                <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${isSubOpen ? 'rotate-180' : ''}`} />
+                              </button>
+                              {isSubOpen && (
+                                <div className="pl-9 space-y-1 mt-1 border-l-2 border-slate-100 ml-4">
+                                  {item.subItems.map((sub) => (
+                                    <Link
+                                      key={sub.path}
+                                      to={sub.path}
+                                      onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
+                                      className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${sub.active
                                         ? "text-[#7E22CE] bg-[#F3E8FF]/40"
                                         : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                      }`}
-                                  >
-                                    {sub.label}
-                                  </Link>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
+                                        }`}
+                                    >
+                                      {sub.label}
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
 
-                      return (
-                        <Link
-                          key={item.label}
-                          to={item.path}
-                          onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                        return (
+                          <Link
+                            key={item.label}
+                            to={item.path}
+                            onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
                               ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                            }`}
-                        >
-                          <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-auto px-4 pb-4 space-y-2">
-        <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
-          <div className="flex items-center gap-3">
-            <HiQuestionMarkCircle className="w-5 h-5 text-slate-400" />
-            <span>Help Center</span>
+                              }`}
+                          >
+                            <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">8</span>
-        </button>
-        <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
-          <HiCog className="w-5 h-5 text-slate-400" />
-          <span>Setting</span>
-        </button>
-      </div>
-    </aside>
+        </div>
+
+        <div className="mt-auto px-4 pb-4 space-y-2">
+          <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
+            <div className="flex items-center gap-3">
+              <HiQuestionMarkCircle className="w-5 h-5 text-slate-400" />
+              <span>Help Center</span>
+            </div>
+            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">8</span>
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
+            <HiCog className="w-5 h-5 text-slate-400" />
+            <span>Setting</span>
+          </button>
+        </div>
+      </aside>
     </>
   );
 }

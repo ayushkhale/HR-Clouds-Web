@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
@@ -12,6 +12,18 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
   const [isSwitching, setIsSwitching] = useState(false);
   const { toggleSidebar } = useSidebar();
   const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleLogout = () => {
     tokenHelper.clear();
@@ -61,6 +73,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
         <div className="w-full relative flex items-center bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm focus-within:bg-white focus-within:border-purple-400 transition-all">
         <HiSearch className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
         <input
+          ref={searchInputRef}
           type="text"
           placeholder="Search anything..."
           className="w-full bg-transparent text-slate-800 placeholder-slate-400 outline-none text-xs font-medium"

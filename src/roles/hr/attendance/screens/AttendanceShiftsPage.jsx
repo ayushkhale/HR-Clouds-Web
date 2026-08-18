@@ -527,14 +527,9 @@ export default function AttendanceShiftsPage() {
           {/* ── Shift Templates Section ── */}
           <div>
             <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <HiClock className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-slate-800">Shift Templates</h1>
-                  <p className="text-xs text-slate-400 mt-0.5">Define working hours and shift types for your teams.</p>
-                </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Shift Templates</h1>
+                <p className="text-sm text-slate-500 mt-1">Define working hours and shift types for your teams.</p>
               </div>
               <button onClick={() => { setEditShift(null); setShowShiftModal(true); }}
                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
@@ -612,14 +607,9 @@ export default function AttendanceShiftsPage() {
           {/* ── Rotation Patterns Section ── */}
           <div>
             <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <HiRefresh className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">Rotation Patterns</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Employees on rotating shifts cycle through different shift timings automatically.</p>
-                </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Rotation Patterns</h2>
+                <p className="text-sm text-slate-500 mt-1">Employees on rotating shifts cycle through different shift timings automatically.</p>
               </div>
               <button onClick={() => setShowRotationModal(true)}
                 className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">

@@ -92,40 +92,33 @@ function AttendanceCompOffsPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="Compensatory Offs" />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          {/* Hero */}
-          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xs">
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-            <div className="relative z-10 max-w-2xl space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tracking-wide border border-white/20 backdrop-blur-xs">
-                <HiSparkles className="w-3.5 h-3.5 text-purple-200" /> COMP OFFS
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Compensatory Offs</h1>
+              <p className="text-sm text-slate-500 mt-1">Review, approve, or reject compensatory off requests earned by employees working on holidays or weekly offs.</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
+            {/* Tabs */}
+            <div className="flex flex-wrap gap-2">
+              {STATUS_TABS.map(tab => (
+                <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSelected([]); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${activeTab === tab.key ? "bg-[#6D28D9] text-white border-[#6D28D9]" : "bg-white text-slate-600 border-slate-200 hover:border-purple-300"}`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Bulk Actions */}
+            {activeTab === "earned" && selected.length > 0 && (
+              <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-xl px-5 py-3">
+                <span className="text-sm font-semibold text-purple-700">{selected.length} selected</span>
+                <button onClick={handleBulkApprove} className="ml-auto px-4 py-2 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                  <HiCheckCircle className="w-4 h-4" /> Approve Selected
+                </button>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Compensatory Offs</h1>
-              <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Review, approve, or reject compensatory off requests earned by employees working on holidays or weekly offs.</p>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-2">
-            {STATUS_TABS.map(tab => (
-              <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSelected([]); }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${activeTab === tab.key ? "bg-purple-600 text-white border-purple-600" : "bg-white text-slate-600 border-slate-200 hover:border-purple-300"}`}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Bulk Actions */}
-          {activeTab === "earned" && selected.length > 0 && (
-            <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-xl px-5 py-3">
-              <span className="text-sm font-semibold text-purple-700">{selected.length} selected</span>
-              <button onClick={handleBulkApprove} className="ml-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors">
-                <HiCheckCircle className="w-4 h-4" /> Approve Selected
-              </button>
-            </div>
-          )}
-
-          {/* Table */}
-          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+            )}
             <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50">
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-xs">

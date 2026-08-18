@@ -11,6 +11,7 @@ function AttendanceLocationsPage() {
   const [editingLocation, setEditingLocation] = useState(null);
   const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
   const [searchQuery, setSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -218,106 +219,130 @@ function AttendanceLocationsPage() {
     } catch (err) { console.error(err); }
   };
 
+  const filteredLocations = locations.filter(loc =>
+    (loc.name || "").toLowerCase().includes(localSearchQuery.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
       <DashboardSidebar role="hr" />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="Attendance Locations" />
-        <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Office Locations</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Office Locations</h1>
               <p className="text-sm text-slate-500 mt-1">Define geographical perimeters where employees can clock in.</p>
             </div>
-            <button onClick={() => openModal()} className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shrink-0">
+            <button
+              onClick={() => openModal()}
+              className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
+            >
               <HiPlus className="w-4 h-4" /> Add Location
             </button>
           </div>
 
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-            {locations.length === 0 ? (
-              <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                No locations configured yet. Add your first office location.
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-72">
+                <HiSearch className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={localSearchQuery}
+                  onChange={(e) => setLocalSearchQuery(e.target.value)}
+                  placeholder="Search location..."
+                  className="w-full bg-slate-50/70 border border-slate-200/80 rounded-full pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all"
+                />
               </div>
-            ) : [...locations].sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1)).map((loc) => (
-              <div 
-                key={loc.id} 
-                className={`rounded-[20px] transition-all duration-300 group flex flex-col overflow-hidden relative ${
-                  loc.is_active
-                  ? 'bg-white border border-slate-100 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 shadow-sm'
-                  : 'bg-slate-50/50 border-2 border-dashed border-slate-300 hover:border-slate-400 opacity-90 hover:opacity-100 hover:-translate-y-1 shadow-inner'
-                }`}
-              >
-                
-                {/* Header Area */}
-                <div className="p-6 pb-4 border-b border-slate-50 relative">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${
-                      loc.is_active 
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                      : 'bg-rose-50 text-rose-600 border-rose-100'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                      {loc.is_active ? 'Active' : 'Inactive'}
-                    </div>
+            </div>
+
+            {/* Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+              {filteredLocations.length === 0 ? (
+                <div className="col-span-full py-16 text-center text-slate-400 font-medium">
+                  <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+                  No locations found.
+                </div>
+              ) : (
+                filteredLocations.map((loc) => (
+                  <div 
+                    key={loc.id} 
+                    className={`rounded-[20px] transition-all duration-300 group flex flex-col overflow-hidden relative ${
+                      loc.is_active
+                      ? 'bg-white border border-slate-100 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 shadow-sm'
+                      : 'bg-slate-50/50 border border-dashed border-slate-300 hover:border-slate-400 opacity-90 hover:opacity-100 hover:-translate-y-1 shadow-inner'
+                    }`}
+                  >
                     
-                    <button onClick={() => openModal(loc)} className="text-slate-400 hover:text-purple-600 transition-colors p-1.5 rounded-lg hover:bg-purple-50">
-                      <HiPencil className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      loc.is_active ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-400'
-                    }`}>
-                      <HiLocationMarker className="w-5 h-5" />
+                    {/* Header Area */}
+                    <div className="p-6 pb-4 border-b border-slate-50 relative">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${
+                          loc.is_active 
+                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                          : 'bg-rose-50 text-rose-600 border-rose-100'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                          {loc.is_active ? 'Active' : 'Inactive'}
+                        </div>
+                        
+                        <button onClick={() => openModal(loc)} className="text-slate-400 hover:text-purple-600 transition-colors p-1.5 rounded-lg hover:bg-purple-50">
+                          <HiPencil className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          loc.is_active ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          <HiLocationMarker className="w-5 h-5" />
+                        </div>
+                        <h3 className={`text-[17px] font-bold leading-tight transition-colors line-clamp-1 ${
+                          loc.is_active ? 'text-slate-900 group-hover:text-purple-700' : 'text-slate-700'
+                        }`}>
+                          {loc.name}
+                        </h3>
+                      </div>
                     </div>
-                    <h3 className={`text-[17px] font-bold leading-tight transition-colors line-clamp-1 ${
-                      loc.is_active ? 'text-slate-900 group-hover:text-purple-700' : 'text-slate-700'
-                    }`}>
-                      {loc.name}
-                    </h3>
-                  </div>
-                </div>
 
-                {/* Body Area */}
-                <div className="p-6 pt-4 flex-1 flex flex-col gap-4">
-                  
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Address</p>
-                    <p className="text-xs font-medium text-slate-700 leading-relaxed line-clamp-2">
-                      {loc.address || "--"}
-                    </p>
-                  </div>
+                    {/* Body Area */}
+                    <div className="p-6 pt-4 flex-1 flex flex-col gap-4">
+                      
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Address</p>
+                        <p className="text-xs font-medium text-slate-700 leading-relaxed line-clamp-2">
+                          {loc.address || "--"}
+                        </p>
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
-                      <p className="text-xs font-semibold text-slate-700 truncate">{loc.city ? `${loc.city}, ${loc.state}` : '--'}</p>
+                      <div className="grid grid-cols-2 gap-3 mt-auto">
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
+                          <p className="text-xs font-semibold text-slate-700 truncate">{loc.city ? `${loc.city}, ${loc.state}` : '--'}</p>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
+                          <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                            <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
+                            {loc.geofence_radius_meters} meters
+                          </p>
+                        </div>
+                      </div>
+
                     </div>
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
-                      <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                        <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
-                        {loc.geofence_radius_meters} meters
-                      </p>
+
+                    {/* Footer Area for Status Toggle */}
+                    <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between shrink-0">
+                      <span className="text-xs font-bold text-slate-600">Location Status</span>
+                      <button onClick={() => handleToggleActive(loc)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}>
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
+                      </button>
                     </div>
+
                   </div>
-
-                </div>
-
-                {/* Footer Area for Status Toggle */}
-                <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between shrink-0">
-                  <span className="text-xs font-bold text-slate-600">Location Status</span>
-                  <button onClick={() => handleToggleActive(loc)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}>
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
-                  </button>
-                </div>
-
-              </div>
-            ))}
+                ))
+              )}
+            </div>
           </div>
         </main>
       </div>

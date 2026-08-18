@@ -68,43 +68,46 @@ function AttendanceLockPeriodsPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="Lock Periods" />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Period Locking</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Period Locking</h1>
               <p className="text-sm text-slate-500 mt-1">Freeze attendance data for payroll processing.</p>
             </div>
-            <button onClick={() => setShowForm(!showForm)} className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shrink-0">
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
+            >
               <HiPlus className="w-4 h-4" /> Lock Period
             </button>
           </div>
 
           {/* Create Lock Form */}
           {showForm && (
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-4">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <HiLockClosed className="w-5 h-5 text-purple-600" /> Create New Lock
+            <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 space-y-4">
+              <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+                <HiLockClosed className="w-4 h-4 text-purple-600" /> Create New Lock
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Start Date *</label>
+                  <label className="block text-xs font-semibold text-slate-550 mb-1.5">Start Date *</label>
                   <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">End Date *</label>
+                  <label className="block text-xs font-semibold text-slate-550 mb-1.5">End Date *</label>
                   <input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Reason</label>
+                  <label className="block text-xs font-semibold text-slate-550 mb-1.5">Reason</label>
                   <input type="text" value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} placeholder="e.g. July 2026 Payroll"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800">Cancel</button>
                 <button onClick={() => setShowConfirm(true)} disabled={!form.start_date || !form.end_date}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors flex items-center gap-2">
+                  className="px-5 py-2 bg-[#6D28D9] hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors flex items-center gap-2">
                   <HiLockClosed className="w-4 h-4" /> Lock Period
                 </button>
               </div>
@@ -112,9 +115,9 @@ function AttendanceLockPeriodsPage() {
           )}
 
           {/* Active Locks Table */}
-          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <HiLockClosed className="w-5 h-5 text-purple-600" /> Active Lock Periods
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
+            <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+              <HiLockClosed className="w-4 h-4 text-purple-600" /> Active Lock Periods
             </h3>
             <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50">
               <table className="w-full text-left text-sm whitespace-nowrap">

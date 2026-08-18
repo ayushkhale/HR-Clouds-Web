@@ -591,6 +591,21 @@ This is the **employee attendance detail page** — a deep-dive into one person'
 
 * **Pagination:** Standard pagination controls at the bottom.
 
+* **Enhanced Details:** As of the latest update, this API natively computes and includes `month` and `year` range resolution, as well as `breaks` and `sessions` inline in the records, allowing HR to see chronological timelines of sessions immediately without extra queries.
+
+---
+
+### API 7.10.1: `GET /api/v1/attendance/hr/employees/:userId/daily-log`
+
+**What This API Does:**
+This API retrieves the complete, highly granular attendance record for an employee on a specific date. It returns the top-level record, every individual **session**, every **break** taken during the day, any **anomalies**, and the assigned **shift** details. If the user didn't clock in, it computes their virtual status (e.g. `weekly_off`, `holiday`, `absent`).
+*(Similar versions exist for Managers: `GET /api/v1/attendance/hr/managers/:userId/daily-log` and HR Staff: `GET /api/v1/attendance/hr/hrs/:userId/daily-log`)*
+
+**Why This API Exists:**
+HR needs the deepest possible view to resolve disputes (e.g. "I forgot to clock back in after lunch"). This API surfaces the raw timeline data needed for these audits.
+
+**Query Params:** `?date=YYYY-MM-DD` (defaults to today)
+
 ---
 
 ### API 7.11: `GET /api/v1/attendance/hr/employees/:userId/summary`
@@ -924,3 +939,15 @@ if (!userOrgCheck) {
 | `400` | `INVALID_DATE_RANGE` | `from` is after `to`, or range exceeds 366 days | Highlight date pickers |
 | `400` | `INVALID_MONTH` | Month is not 1-12 or year is unreasonable | Highlight month/year selectors |
 | `429` | `RATE_LIMIT_EXCEEDED` | Too many requests to analytics endpoints | Toast: "Please wait before refreshing" |
+
+---
+
+## 10. Post-Implementation Adjustments
+
+### 10.1 Derived Metrics (`final_present_count` & `final_absent_count`)
+Following initial deployment, frontend dashboards required single, unified metrics for "Present" and "Absent" to simplify visual rendering without performing client-side math.
+
+- **`final_present_count`**: Defined as the sum of `present`, `half_day`, and `in_progress`. This ensures employees currently clocked in (`in_progress`) are counted toward today's attendance percentage.
+- **`final_absent_count`**: Defined as the sum of `absent` and missing punches (`not_marked`). For past days, missing punches are natively converted to `absent` by overnight crons. For the *current* day (where crons haven't run), the system dynamically calculates missing punches by subtracting present, leave, holiday, and weekly off counts from the expected headcount. 
+
+These derived fields were added to all summary and graph endpoints (API 7.5, 7.8, 7.15, 7.16, 7.17) to provide an immediately actionable, 100% accurate attendance percentage natively from the backend.

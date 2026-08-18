@@ -364,16 +364,11 @@ export default function AttendancePoliciesPage() {
 
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                <HiClipboardList className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">Attendance Policies</h1>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Manage how attendance is calculated for your organisation.
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Attendance Policies</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage how attendance is calculated for your organisation.
+              </p>
             </div>
             <button
               onClick={() => setModal("create")}

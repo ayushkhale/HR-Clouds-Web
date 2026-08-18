@@ -30,7 +30,12 @@ function resolveEmployeeEmail(a) {
 }
 
 function resolveEmployeeCode(a) {
-  return a.user?.employee_profile?.employee_code || null;
+  return (
+    a.user?.employee_profile?.employee_code ||
+    a.user?.manager_profile?.employee_code ||
+    a.user?.hr_profile?.employee_code ||
+    null
+  );
 }
 
 /* ─── Toast ─────────────────────────────────────────────────────────────── */
@@ -308,14 +313,9 @@ export default function AttendanceRosterPage() {
         <main className="flex-1 overflow-y-auto px-8 py-8">
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                <HiUserGroup className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">Shift Roster</h1>
-                <p className="text-xs text-slate-400 mt-0.5">View and manage shift assignments for all employees.</p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Shift Roster</h1>
+              <p className="text-sm text-slate-500 mt-1">View and manage shift assignments for all employees.</p>
             </div>
             <button onClick={() => setShowModal(true)}
               className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
