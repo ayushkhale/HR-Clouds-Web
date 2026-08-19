@@ -109,6 +109,15 @@ function AttendanceCard({ currentState, fetchStatus, shiftData }) {
                 You have not marked yourself as present today!
               </p>
             </div>
+          ) : currentState.clock_out_time ? (
+            <div className="space-y-1">
+               <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <p className="text-sm font-medium text-slate-500">
+                You have completed your shift. Have a great rest of your day!
+              </p>
+            </div>
           ) : (
             <div className="space-y-1">
                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
@@ -182,6 +191,36 @@ function AttendanceCard({ currentState, fetchStatus, shiftData }) {
                 Clock Out
               </button>
             )}
+          </div>
+        )}
+
+        {/* Shift Summary (Only visible when completed) */}
+        {(currentState && currentState.clock_out_time) && (
+          <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100">
+            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Clock In</p>
+              <p className="text-sm font-bold text-slate-700 mt-0.5">
+                {new Date(currentState.clock_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Clock Out</p>
+              <p className="text-sm font-bold text-slate-700 mt-0.5">
+                {new Date(currentState.clock_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Effective Hrs</p>
+              <p className="text-sm font-bold text-slate-700 mt-0.5">
+                {currentState.effective_hours} <span className="text-xs font-semibold text-slate-400">hrs</span>
+              </p>
+            </div>
+            <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Total Breaks</p>
+              <p className="text-sm font-bold text-slate-700 mt-0.5">
+                {currentState.break_duration_minutes || 0} <span className="text-xs font-semibold text-slate-400">mins</span>
+              </p>
+            </div>
           </div>
         )}
       </div>

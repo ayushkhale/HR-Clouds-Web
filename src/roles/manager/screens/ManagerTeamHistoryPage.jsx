@@ -41,23 +41,14 @@ function ManagerTeamHistoryPage() {
         <DashboardTopBar title="Team History" />
 
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xs">
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-            <div className="relative z-10 max-w-2xl space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tracking-wide border border-white/20 backdrop-blur-xs">
-                <HiSparkles className="w-3.5 h-3.5 text-purple-200" />
-                TEAM
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                Historical Attendance
-              </h1>
-              <p className="text-xs sm:text-sm text-purple-100/90 font-normal">
-                Review past attendance records for your team based on date ranges.
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Historical Attendance</h1>
+              <p className="text-sm text-slate-500 mt-1">Review past attendance records for your team based on date ranges.</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mt-6">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
             <form onSubmit={handleFilter} className="flex flex-col sm:flex-row items-end gap-4 mb-2">
               <div className="flex-1 w-full">
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>

@@ -11,7 +11,7 @@ function ActiveAnomalies({ anomalies, onReview }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100 overflow-hidden mt-6">
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6 mt-6">
       <h2 className="text-lg font-bold text-primary-800 mb-6 flex items-center gap-2">
         <HiExclamationCircle className="text-rose-500" /> Active Anomalies & Exceptions
       </h2>

@@ -43,6 +43,14 @@ export default function ProfileTab({ employee }) {
     return parts.length > 0 ? parts.join(", ") : null;
   };
 
+  const formatLabel = (str) => {
+    if (!str || typeof str !== 'string') return str;
+    return str
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   return (
     <div className="space-y-4">
       {/* Unified Single Card for Profile Info */}
@@ -55,9 +63,9 @@ export default function ProfileTab({ employee }) {
             <div className="space-y-2">
               <h3 className="text-[10px] font-bold text-purple-600 uppercase tracking-widest border-b border-purple-50 pb-1.5 mb-1.5">Personal Profile</h3>
               <InfoRow icon={HiCalendar} label="Date of Birth" value={formatDate(employee.date_of_birth || employee.dob)} />
-              <InfoRow icon={HiUser} label="Gender" value={employee.gender} />
-              <InfoRow icon={HiUserGroup} label="Marital Status" value={employee.marital_status} />
-              <InfoRow icon={HiUser} label="Blood Group" value={employee.blood_group} />
+              <InfoRow icon={HiUser} label="Gender" value={formatLabel(employee.gender)} />
+              <InfoRow icon={HiUserGroup} label="Marital Status" value={formatLabel(employee.marital_status)} />
+              <InfoRow icon={HiUser} label="Blood Group" value={formatLabel(employee.blood_group)} />
               <InfoRow icon={HiUser} label="Father's Name" value={employee.father_name} />
               <InfoRow icon={HiUser} label="Spouse Name" value={employee.spouse_name} />
             </div>
@@ -66,8 +74,8 @@ export default function ProfileTab({ employee }) {
             <div className="space-y-2">
               <h3 className="text-[10px] font-bold text-purple-600 uppercase tracking-widest border-b border-purple-50 pb-1.5 mb-1.5">Work & Contact Profile</h3>
               <InfoRow icon={HiCalendar} label="Date of Joining" value={formatDate(employee.date_of_joining || employee.joining_date)} />
-              <InfoRow icon={HiBriefcase} label="Employment Type" value={employee.employment_type} />
-              <InfoRow icon={HiBriefcase} label="Work Mode" value={employee.work_mode} />
+              <InfoRow icon={HiBriefcase} label="Employment Type" value={formatLabel(employee.employment_type)} />
+              <InfoRow icon={HiBriefcase} label="Work Mode" value={formatLabel(employee.work_mode)} />
               <InfoRow icon={HiOfficeBuilding} label="Work Office" value={employee.work_location || employee.location?.name} />
               <InfoRow icon={HiMail} label="Personal Email" value={employee.personal_email} />
               <InfoRow icon={HiPhone} label="Emergency Contact" value={employee.emergency_contact_name ? `${employee.emergency_contact_name} (${employee.emergency_contact_number || 'No Number'})` : null} />

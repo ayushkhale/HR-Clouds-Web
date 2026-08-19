@@ -13,6 +13,16 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function format12Hour(timeStr) {
+  if (!timeStr) return '?';
+  const [hourStr, minStr] = timeStr.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12;
+  return `${hour.toString().padStart(2, '0')}:${minStr} ${ampm}`;
+}
+
 // Resolve employee display name from the nested structure returned by GET /shifts/assignments
 function resolveEmployeeName(a) {
   const profile = a.user?.profile;
@@ -359,7 +369,7 @@ export default function AttendanceRosterPage() {
                     const empCode = resolveEmployeeCode(a);
                     const shiftLabel = a.shift?.name || a.rotation_pattern?.name || "—";
                     const shiftTimes = a.shift?.start_time
-                      ? `${a.shift.start_time.slice(0, 5)} – ${a.shift.end_time?.slice(0, 5) || "?"}`
+                      ? `${format12Hour(a.shift.start_time)} – ${format12Hour(a.shift.end_time)}`
                       : a.rotation_pattern ? "Rotation" : null;
 
                     return (

@@ -18,7 +18,7 @@ function TeamStatusToday({ team }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100 overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
       <h2 className="text-lg font-bold text-primary-800 mb-6 flex items-center gap-2">
         <HiUserGroup className="text-purple-600" /> Team Status Today
       </h2>
