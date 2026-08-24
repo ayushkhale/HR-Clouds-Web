@@ -48,7 +48,7 @@ function AttendanceLockPeriodsPage() {
   };
 
   const handleUnlock = async (lock) => {
-    if (!confirm(`Unlock period ${lock.start_date} to ${lock.end_date}? This will re-open this period for edits.`)) return;
+    if (!(await window.confirm(`Unlock period ${lock.start_date} to ${lock.end_date}? This will re-open this period for edits.`))) return;
     try {
       const res = await attendanceAPI.deleteLockPeriod(lock.id);
       if (res.success) {

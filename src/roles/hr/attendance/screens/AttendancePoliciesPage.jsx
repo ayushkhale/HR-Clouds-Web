@@ -331,7 +331,7 @@ export default function AttendancePoliciesPage() {
   }
 
   async function handleDeactivate(policy) {
-    if (!window.confirm(`Deactivate "${policy.name}"? Historical records will not be affected.`)) return;
+    if (!(await window.confirm(`Deactivate "${policy.name}"? Historical records will not be affected.`))) return;
     setDeactivating(policy.id);
     try {
       await attendanceAPI.deactivatePolicy(policy.id);

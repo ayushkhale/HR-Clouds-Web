@@ -176,6 +176,18 @@ function EmployeesPage() {
     }
   }, [role, department]);
 
+  // Pre-fill reporting manager with department HOD
+  useEffect(() => {
+    if (department && departments.length > 0) {
+      const selectedDept = departments.find(d => (d.id || d._id) === department);
+      if (selectedDept && selectedDept.head_of_department_id) {
+        setReportingManager(selectedDept.head_of_department_id);
+      } else {
+        setReportingManager("");
+      }
+    }
+  }, [department, departments]);
+
   const handleResendInvitation = async (email) => {
     try {
       setInviteResult({ type: "info", message: `Resending invitation to ${email}...` });
@@ -187,7 +199,7 @@ function EmployeesPage() {
   };
 
   const handleRevokeInvitation = async (email) => {
-    if (!window.confirm(`Are you sure you want to revoke the invitation for ${email}?`)) return;
+    if (!(await window.confirm(`Are you sure you want to revoke the invitation for ${email}?`))) return;
     try {
       setInviteResult({ type: "info", message: `Revoking invitation for ${email}...` });
       await organizationAPI.revokeInvitation({ email });
@@ -224,8 +236,8 @@ function EmployeesPage() {
       if (department) payload.department_id = department;
       if (designation) payload.designation = designation;
 
-      // Only pass reporting_person if not automatically assigned for employees with a department
-      if (reportingManager && !(role === "employee" && department)) {
+      // Pass reporting_person if explicitly selected
+      if (reportingManager) {
         payload.reporting_person = reportingManager;
       }
 
@@ -607,35 +619,28 @@ function EmployeesPage() {
                       {/* Reporting Person (Shifted to next grid position) */}
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                          Reporting Person {role !== "employee" || !department ? <span className="text-red-400">*</span> : null}
+                          Reporting Person <span className="text-red-400">*</span>
                         </label>
-                        {role === "employee" && department ? (
-                          <div className="h-10 bg-purple-50/80 border border-purple-200 rounded-xl px-3.5 text-xs text-purple-800 font-medium flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0"></span>
-                            <span className="truncate">Auto-assigned to Department Head</span>
-                          </div>
+                        <select 
+                          value={reportingManager} 
+                          onChange={(e) => setReportingManager(e.target.value)} 
+                          required 
+                          className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
+                        >
+                          <option value="">---Select Manager---</option>
+                          {((role === "manager" || role === "hr") 
+                            ? (hrList.length > 0 ? hrList : employees.filter(e => e.role === "hr"))
+                            : managers
+                          ).map(m => (
+                            <option key={m.user_id || m.id || m._id} value={m.user_id || m.id || m._id}>
+                              {m.name || m.full_name || m.email} {(m.role || "").toUpperCase() ? `(${m.role.toUpperCase()})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {role === "employee" ? (
+                          <p className="text-[11px] text-slate-500 mt-1">Defaults to Department HOD if available.</p>
                         ) : (
-                          <>
-                            <select 
-                              value={reportingManager} 
-                              onChange={(e) => setReportingManager(e.target.value)} 
-                              required 
-                              className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                            >
-                              <option value="">---Select Manager---</option>
-                              {((role === "manager" || role === "hr") 
-                                ? (hrList.length > 0 ? hrList : employees.filter(e => e.role === "hr"))
-                                : managers
-                              ).map(m => (
-                                <option key={m.user_id || m.id || m._id} value={m.user_id || m.id || m._id}>
-                                  {m.name || m.full_name || m.email} {(m.role || "").toUpperCase() ? `(${m.role.toUpperCase()})` : ""}
-                                </option>
-                              ))}
-                            </select>
-                            {(role === "manager" || role === "hr") && (
-                              <p className="text-[11px] text-purple-600 font-medium mt-1">Managers and HR Admins must report to an HR Admin.</p>
-                            )}
-                          </>
+                          <p className="text-[11px] text-purple-600 font-medium mt-1">Managers and HR Admins must report to an HR Admin.</p>
                         )}
                       </div>
 

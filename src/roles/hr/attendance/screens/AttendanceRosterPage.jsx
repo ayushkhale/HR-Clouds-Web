@@ -5,7 +5,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI, organizationAPI } from "../../../../shared/api";
 import {
   HiUserGroup, HiPlus, HiX, HiCheckCircle,
-  HiExclamationCircle, HiSearch,
+  HiExclamationCircle, HiSearch, HiDotsVertical, HiBan, HiTrash
 } from "react-icons/hi";
 
 function fmtDate(d) {
@@ -290,12 +290,137 @@ function AssignModal({ onClose, onSaved }) {
   );
 }
 
+/* ─── End Shift Modal ────────────────────────────────────────────────────── */
+function EndShiftModal({ assignment, onClose, onSaved }) {
+  const [effectiveTo, setEffectiveTo] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const minDate = assignment.effective_from ? new Date(assignment.effective_from).toISOString().split("T")[0] : "";
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!effectiveTo) { setError("Please select an end date."); return; }
+    
+    setLoading(true);
+    setError("");
+    try {
+      await attendanceAPI.endShiftAssignment(assignment.id, { effective_to: new Date(effectiveTo).toISOString() });
+      onSaved("Shift assignment ended successfully.");
+    } catch (err) {
+      setError(err.message || "Failed to end shift assignment.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">End Shift</h2>
+            <p className="text-xs text-slate-500 mt-1">Terminate this assignment on a specific date.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+            <HiX className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
+          {error && (
+            <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-center gap-2">
+              <HiBan className="w-5 h-5 shrink-0" /> <p>{error}</p>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">End Date <span className="text-red-500">*</span></label>
+            <input 
+              type="date" 
+              value={effectiveTo} 
+              onChange={e => setEffectiveTo(e.target.value)} 
+              min={minDate}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
+            />
+            <p className="text-[10px] text-slate-400 mt-1.5">The assignment will end exactly on this date. Must be after the start date ({fmtDate(assignment.effective_from)}).</p>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50">{loading ? "Ending..." : "End Shift"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Delete Shift Modal ─────────────────────────────────────────────────── */
+function DeleteShiftModal({ assignment, onClose, onSaved }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  const handleDelete = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await attendanceAPI.deleteShiftAssignment(assignment.id);
+      onSaved("Shift assignment deleted permanently.");
+    } catch (err) {
+      setError(err.message || "Failed to delete shift assignment.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-800">Delete Shift Assignment</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+            <HiX className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-6">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+            <HiTrash className="w-6 h-6 text-red-500" />
+          </div>
+          <p className="text-sm font-semibold text-slate-700 mb-2">This action is permanent and cannot be undone.</p>
+          <p className="text-sm text-slate-500 mb-6">
+            If the employee has already worked this shift, you should <strong>END</strong> it instead. Deleting will erase all record of this assignment. Are you sure you want to delete this shift?
+          </p>
+          
+          {error && (
+            <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-center gap-2">
+              <HiBan className="w-5 h-5 shrink-0" /> <p>{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={onClose} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">Cancel</button>
+            <button onClick={handleDelete} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? "Deleting..." : "Delete Permanently"}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Page ──────────────────────────────────────────────────────────── */
 export default function AttendanceRosterPage() {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  const [endModalAssignment, setEndModalAssignment] = useState(null);
+  const [deleteModalAssignment, setDeleteModalAssignment] = useState(null);
+
+  // Close menus on click outside
+  useEffect(() => {
+    const handleClick = () => setActiveMenuId(null);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, []);
 
   function showToast(msg, type = "success") {
     setToast({ message: msg, type });
@@ -359,6 +484,7 @@ export default function AttendanceRosterPage() {
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Shift</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Effective From</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valid Until</th>
+                    <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -405,6 +531,32 @@ export default function AttendanceRosterPage() {
                             </span>
                           )}
                         </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setActiveMenuId(activeMenuId === a.id ? null : a.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            >
+                              <HiDotsVertical className="w-5 h-5" />
+                            </button>
+                            {activeMenuId === a.id && (
+                              <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-10">
+                                <button
+                                  onClick={() => { setActiveMenuId(null); setEndModalAssignment(a); }}
+                                  className="w-full text-left px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50"
+                                >
+                                  End Shift
+                                </button>
+                                <button
+                                  onClick={() => { setActiveMenuId(null); setDeleteModalAssignment(a); }}
+                                  className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -420,6 +572,20 @@ export default function AttendanceRosterPage() {
         <AssignModal
           onClose={() => setShowModal(false)}
           onSaved={(msg) => { setShowModal(false); showToast(msg); load(); }}
+        />
+      )}
+      {endModalAssignment && (
+        <EndShiftModal
+          assignment={endModalAssignment}
+          onClose={() => setEndModalAssignment(null)}
+          onSaved={(msg) => { setEndModalAssignment(null); showToast(msg); load(); }}
+        />
+      )}
+      {deleteModalAssignment && (
+        <DeleteShiftModal
+          assignment={deleteModalAssignment}
+          onClose={() => setDeleteModalAssignment(null)}
+          onSaved={(msg) => { setDeleteModalAssignment(null); showToast(msg); load(); }}
         />
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />

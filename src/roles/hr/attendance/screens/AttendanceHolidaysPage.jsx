@@ -410,7 +410,7 @@ export default function AttendanceHolidaysPage() {
   useEffect(() => { load(year); }, [year, load]);
 
   async function handleDelete(h) {
-    if (!window.confirm(`Remove "${h.name}" from the holiday calendar?`)) return;
+    if (!(await window.confirm(`Remove "${h.name}" from the holiday calendar?`))) return;
     setDeleting(h.id);
     try {
       await attendanceAPI.deleteHoliday(h.id);

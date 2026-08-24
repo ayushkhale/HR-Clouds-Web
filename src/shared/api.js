@@ -435,6 +435,9 @@ export const hrmsAPI = {
   deleteEmployee(id) {
     return request(`/hr/employees/${id}`, { method: "DELETE" });
   },
+  transferDepartment(id, payload) {
+    return request(`/hr/users/${id}/department-transfer`, { method: "PUT", body: JSON.stringify(payload) });
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -507,6 +510,8 @@ export const attendanceAPI = {
   },
   assignShift: (payload) => request("/attendance/hr/shifts/assign", { method: "POST", body: JSON.stringify(payload) }),
   updateAssignment: (id, payload) => request(`/attendance/hr/shifts/assignments/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  endShiftAssignment: (id, payload) => request(`/attendance/hr/shifts/assignments/${id}/end`, { method: "POST", body: JSON.stringify(payload) }),
+  deleteShiftAssignment: (id) => request(`/attendance/hr/shifts/assignments/${id}`, { method: "DELETE" }),
 
   // ── HR — Holidays ────────────────────────────────────────────────
   getHolidays: (year = new Date().getFullYear()) => request(`/attendance/hr/holidays?year=${year}`),

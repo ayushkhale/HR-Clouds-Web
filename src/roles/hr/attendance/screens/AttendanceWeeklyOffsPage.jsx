@@ -291,7 +291,7 @@ export default function AttendanceWeeklyOffsPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(rule) {
-    if (!window.confirm("Remove this weekly off rule?")) return;
+    if (!(await window.confirm("Remove this weekly off rule?"))) return;
     setDeleting(rule.id);
     try {
       await attendanceAPI.deleteWeeklyOff(rule.id);

@@ -475,7 +475,7 @@ export default function AttendanceShiftsPage() {
   }
 
   async function handleDeleteShift(shift) {
-    if (!window.confirm(`Delete "${shift.name}"? This cannot be undone.`)) return;
+    if (!(await window.confirm(`Delete "${shift.name}"? This cannot be undone.`))) return;
     setDeleting(shift.id);
     try {
       await attendanceAPI.deleteShift(shift.id);
@@ -493,7 +493,7 @@ export default function AttendanceShiftsPage() {
   }
 
   async function handleDeleteRotation(rotation) {
-    if (!window.confirm(`Delete rotation "${rotation.name}"?`)) return;
+    if (!(await window.confirm(`Delete rotation "${rotation.name}"?`))) return;
     setDeletingRotation(rotation.id);
     try {
       await attendanceAPI.deleteRotation(rotation.id);
