@@ -54,6 +54,16 @@ import AttendanceCompOffsPage from "../roles/hr/attendance/screens/AttendanceCom
 import AttendanceLockPeriodsPage from "../roles/hr/attendance/screens/AttendanceLockPeriodsPage";
 import AttendanceReportsPage from "../roles/hr/attendance/screens/AttendanceReportsPage";
 
+// HR — Leave Management
+import LeaveTypesPage from "../roles/hr/leaves/screens/LeaveTypesPage";
+import LeavePoliciesPage from "../roles/hr/leaves/screens/LeavePoliciesPage";
+
+// Employee — Leave
+import LeaveDashboard from "../roles/employee/screens/LeaveDashboard";
+
+// Manager — Leave
+import ManagerLeavePage from "../roles/manager/screens/ManagerLeavePage";
+
 // Manager — Phase 5
 import ManagerCompOffsPage from "../roles/manager/screens/ManagerCompOffsPage";
 
@@ -130,8 +140,11 @@ function AppRoutes() {
       <Route path="/dashboard/hr/attendance/comp-offs" element={<ProtectedRoute><AttendanceCompOffsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/lock-periods" element={<ProtectedRoute><AttendanceLockPeriodsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/reports" element={<ProtectedRoute><AttendanceReportsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/leaves/types" element={<ProtectedRoute><LeaveTypesPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/leaves/policies" element={<ProtectedRoute><LeavePoliciesPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/employee/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsPage role="employee" /></ProtectedRoute>} />
+      <Route path="/dashboard/employee/leaves" element={<ProtectedRoute><LeaveDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/manager" element={<ProtectedRoute><ManagerDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/manager/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsPage role="manager" /></ProtectedRoute>} />
       <Route path="/dashboard/manager/requests/regularizations" element={<ProtectedRoute><ManagerRegularizationsPage /></ProtectedRoute>} />
@@ -140,6 +153,7 @@ function AppRoutes() {
       <Route path="/dashboard/manager/team/today" element={<ProtectedRoute><ManagerTeamPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/history" element={<ProtectedRoute><ManagerTeamHistoryPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/anomalies" element={<ProtectedRoute><ManagerAnomaliesPage /></ProtectedRoute>} />
+      <Route path="/dashboard/manager/requests/leaves" element={<ProtectedRoute><ManagerLeavePage /></ProtectedRoute>} />
 
       {/* ─── SHARED DASHBOARD PAGES ─── */}
       <Route path="/dashboard/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />

@@ -7,8 +7,10 @@ import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
 import ProfileTab from "./employee-profile/ProfileTab";
 import ReportsTab from "./employee-profile/ReportsTab";
+import LeaveTab from "./employee-profile/LeaveTab";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar,
+  HiOutlineCalendar,
   HiOutlineOfficeBuilding, HiOutlinePhone, HiOutlineMail,
   HiCog, HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
 } from "react-icons/hi";
@@ -16,6 +18,7 @@ import {
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
+  { key: "leave", label: "Leave", icon: HiOutlineCalendar },
   { key: "profile", label: "Profile", icon: HiOutlineUser },
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
 ];
@@ -561,6 +564,9 @@ export default function EmployeeProfilePage() {
               )}
               {activeTab === "attendance" && (
                 <AttendanceTab userId={userId} employeeRole={employeeRole} />
+              )}
+              {activeTab === "leave" && (
+                <LeaveTab userId={userId} />
               )}
               {activeTab === "profile" && (
                 <ProfileTab employee={employee} />

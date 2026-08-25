@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -39,6 +39,7 @@ function DashboardSidebar({ role = "guest" }) {
     shifts: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
     attendanceSettings: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
     offDays: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
+    leaveConfig: location.pathname.includes("/dashboard/hr/leaves/types") || location.pathname.includes("/dashboard/hr/leaves/policies"),
   });
 
   const toggleSubMenu = (key) => {
@@ -106,11 +107,12 @@ function DashboardSidebar({ role = "guest" }) {
                 { label: "Attendance Policies", path: "/dashboard/hr/attendance/policies", active: location.pathname === "/dashboard/hr/attendance/policies" },
                 { label: "Lock Attendance", path: "/dashboard/hr/attendance/lock-periods", active: location.pathname === "/dashboard/hr/attendance/lock-periods" }
               ]
-            }
+            },
+            { label: "Reports", path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
           ],
         },
         {
-          title: "LEAVES & HOLIDAYS",
+          title: "HOLIDAYS",
           icon: HiCalendar,
           items: [
             { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
@@ -121,16 +123,18 @@ function DashboardSidebar({ role = "guest" }) {
                 { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
                 { label: "Comp Offs", path: "/dashboard/hr/attendance/comp-offs", active: location.pathname === "/dashboard/hr/attendance/comp-offs" }
               ]
-            }
+            },
           ],
         },
         {
-          title: "ANALYTICS",
-          icon: HiDocumentReport,
+          title: "LEAVES",
+          icon: HiClipboardList,
           items: [
-            { label: "Reports", path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
-          ]
+            { label: "Leave Types", path: "/dashboard/hr/leaves/types", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/leaves/types" },
+            { label: "Leave Policies", path: "/dashboard/hr/leaves/policies", icon: HiTemplate, active: location.pathname === "/dashboard/hr/leaves/policies" },
+          ],
         },
+
 
       ];
     }
@@ -149,6 +153,13 @@ function DashboardSidebar({ role = "guest" }) {
         items: [
           { label: "Regularizations", path: `/dashboard/${role}/attendance/regularizations`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/regularizations` },
         ],
+      },
+      {
+        title: "LEAVES",
+        icon: HiCalendar,
+        items: [
+          { label: "My Leaves", path: "/dashboard/employee/leaves", icon: HiCalendar, active: location.pathname === "/dashboard/employee/leaves" },
+        ],
       }] : []),
       ...(role === "manager" ? [{
         title: "REQUESTS",
@@ -158,6 +169,7 @@ function DashboardSidebar({ role = "guest" }) {
           { label: "OverTime Requests", path: "/dashboard/manager/requests/overtime", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/overtime" },
           { label: "Anomalies", path: "/dashboard/manager/team/anomalies", icon: HiChatAlt2, active: location.pathname === "/dashboard/manager/team/anomalies" },
           { label: "Comp Off Requests", path: "/dashboard/manager/requests/comp-offs", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/comp-offs" },
+          { label: "Leave Requests", path: "/dashboard/manager/requests/leaves", icon: HiClipboardList, active: location.pathname === "/dashboard/manager/requests/leaves" },
         ],
       },
       {
@@ -174,19 +186,38 @@ function DashboardSidebar({ role = "guest" }) {
 
   const navSections = getNavSections();
 
-  const [openSections, setOpenSections] = useState({
-    "ATTENDANCE & TIME": true,
-    "ORGANIZATION OVERVIEW": true,
+  // Derive which section is active based on current path
+  const getActiveSection = useCallback(() => {
+    const sections = getNavSections();
+    for (const section of sections) {
+      const hasActive = section.items.some((item) =>
+        item.active || (item.subItems && item.subItems.some((s) => s.active))
+      );
+      if (hasActive) return section.title;
+    }
+    return null;
+  }, [location.pathname]); // eslint-disable-line
+
+  const [openSections, setOpenSections] = useState(() => {
+    const active = getActiveSection();
+    return {
+      "ORGANIZATION OVERVIEW": active === "ORGANIZATION OVERVIEW",
+      "ATTENDANCE & TIME": active === "ATTENDANCE & TIME",
+      "HOLIDAYS": active === "HOLIDAYS",
+      "LEAVES": active === "LEAVES",
+      "REQUESTS": active === "REQUESTS",
+      "MY TEAM": active === "MY TEAM",
+      "ATTENDANCE": active === "ATTENDANCE",
+    };
   });
 
+  // When route changes, open only the section that contains the active route
   useEffect(() => {
-    navSections.forEach((section) => {
-      const hasActiveItem = section.items.some((item) => item.active);
-      if (hasActiveItem) {
-        setOpenSections((prev) => ({ ...prev, [section.title]: true }));
-      }
-    });
-  }, [location.pathname]);
+    const active = getActiveSection();
+    if (active) {
+      setOpenSections((prev) => ({ ...prev, [active]: true }));
+    }
+  }, [location.pathname]); // eslint-disable-line
 
   const toggleSection = (title) => {
     setOpenSections((prev) => ({
@@ -209,7 +240,7 @@ function DashboardSidebar({ role = "guest" }) {
       <aside className={`fixed inset-y-0 left-0 z-50 lg:z-10 w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-screen overflow-y-auto transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 font-sans ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Top Branding Logo */}
         <div>
-          <div className="px-6 py-8 flex items-center justify-between lg:justify-center">
+          <div className="px-6 py-4 flex items-center justify-between lg:justify-center">
             <Link to="/">
               <img src="/logocolored.png" alt="HR Clouds" className="h-12 w-auto object-contain" />
             </Link>
@@ -229,7 +260,7 @@ function DashboardSidebar({ role = "guest" }) {
           )}
 
           {/* Navigation Section */}
-          <div className="px-4 py-4 space-y-4">
+          <div className="px-4 py-2 space-y-2">
             {navSections.map((section) => {
               const isSingle = section.items.length === 1 && !section.forceDropdown;
 
@@ -243,7 +274,7 @@ function DashboardSidebar({ role = "guest" }) {
                   <Link
                     key={section.title}
                     to={item.path}
-                    className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${isActive
+                    className={`flex items-center gap-3.5 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${isActive
                       ? "bg-[#F3E8FF] text-[#7E22CE] shadow-2xs"
                       : "text-slate-600 hover:bg-slate-50 hover:text-purple-700"
                       }`}
@@ -255,7 +286,7 @@ function DashboardSidebar({ role = "guest" }) {
               }
 
               // Multi-item section — render with collapsible header
-              const isOpen = openSections[section.title] !== false;
+              const isOpen = openSections[section.title] === true;
 
               return (
                 <div key={section.title} className="space-y-1">
@@ -263,7 +294,7 @@ function DashboardSidebar({ role = "guest" }) {
                   <button
                     type="button"
                     onClick={() => toggleSection(section.title)}
-                    className="w-full flex items-center justify-between px-4 py-2 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-1 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
                   >
                     <span>{section.title}</span>
                     {isOpen ? (
@@ -286,7 +317,7 @@ function DashboardSidebar({ role = "guest" }) {
                             <div key={item.key} className="space-y-1">
                               <button
                                 onClick={() => toggleSubMenu(item.key)}
-                                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                                className={`w-full flex items-center justify-between px-4 py-1.5 rounded-xl text-xs font-medium transition-all ${isActive
                                   ? "bg-[#F3E8FF]/60 text-[#7E22CE] font-bold"
                                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                                   }`}
@@ -304,7 +335,7 @@ function DashboardSidebar({ role = "guest" }) {
                                       key={sub.path}
                                       to={sub.path}
                                       onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                                      className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${sub.active
+                                      className={`block w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${sub.active
                                         ? "text-[#7E22CE] bg-[#F3E8FF]/40"
                                         : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                                         }`}
@@ -323,7 +354,7 @@ function DashboardSidebar({ role = "guest" }) {
                             key={item.label}
                             to={item.path}
                             onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                            className={`flex items-center gap-3 px-4 py-1.5 rounded-xl text-xs font-medium transition-all ${isActive
                               ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                               }`}

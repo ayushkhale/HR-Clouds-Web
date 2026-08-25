@@ -6,5 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
+    proxy: {
+      '/api/v1': {
+        target: 'https://development.hrclouds.in',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
 })
