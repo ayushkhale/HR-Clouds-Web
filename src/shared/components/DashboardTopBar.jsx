@@ -3,11 +3,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
 import { useSidebar } from "../contexts/SidebarContext";
-import { HiSearch, HiBell, HiQuestionMarkCircle, HiChevronDown, HiDocumentText, HiLogout, HiMenuAlt2 } from "react-icons/hi";
+import { HiSearch, HiBell, HiDocumentText, HiMenuAlt2 } from "react-icons/hi";
 
 function DashboardTopBar({ title = "HR Dashboard" }) {
-  const { user, role, orgId, logout, updateTokens, getDashboardPath } = useAuth();
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const { user, role, orgId, updateTokens, getDashboardPath } = useAuth();
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const { toggleSidebar } = useSidebar();
@@ -25,11 +24,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleLogout = () => {
-    tokenHelper.clear();
-    logout();
-    navigate("/");
-  };
+
 
   const handleSwitchOrg = async (targetOrgId) => {
     if (targetOrgId === orgId || isSwitching) return;
@@ -145,40 +140,19 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
           </div>
         )}
 
-        {/* User profile avatar with Dropdown */}
-        <div className="relative">
-          <div 
-            className="flex items-center gap-2 pl-2 border-l border-slate-100 cursor-pointer group"
-            onClick={() => setShowUserDropdown(!showUserDropdown)}
+        {/* User profile avatar (Links directly to My Profile) */}
+        <div className="flex items-center gap-2 pl-2 border-l border-slate-100">
+          <button 
+            onClick={() => navigate("/dashboard/profile")}
+            className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center shadow-sm overflow-hidden border-2 border-transparent hover:border-purple-200 hover:shadow transition-all focus:outline-none"
+            title="My Profile"
           >
-            <div className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center shadow-sm overflow-hidden border-2 border-transparent group-hover:border-purple-200 transition-all">
-              <img 
-                src="https://cdn3d.iconscout.com/3d/premium/thumb/woman-avatar-3d-icon-png-download-4118353.png" 
-                alt="Avatar" 
-                className="w-full h-full object-cover bg-purple-100"
-              />
-            </div>
-          </div>
-
-          {showUserDropdown && (
-            <div className="absolute right-0 mt-3 w-48 bg-white border border-slate-100 rounded-xl shadow-lg py-2 z-50 animate-slide-up">
-              <div className="px-4 py-2 border-b border-slate-50 mb-1">
-                <p className="text-xs font-bold text-slate-900 truncate">
-                  {user?.identifier?.split("@")[0] || user?.name || "User"}
-                </p>
-                <p className="text-[10px] text-slate-400 capitalize font-medium">
-                  {role || "Hr"}
-                </p>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
-              >
-                <HiLogout className="w-4 h-4" />
-                Sign Out
-              </button>
-            </div>
-          )}
+            <img 
+              src="https://cdn3d.iconscout.com/3d/premium/thumb/woman-avatar-3d-icon-png-download-4118353.png" 
+              alt="Profile" 
+              className="w-full h-full object-cover bg-purple-100"
+            />
+          </button>
         </div>
       </div>
     </header>

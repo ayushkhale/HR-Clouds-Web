@@ -60,7 +60,8 @@ function BalanceCard({ balance, index }) {
 // ─── Override Config Modal ────────────────────────────────────────────────────
 function OverrideModal({ userId, balance, onClose, onSaved }) {
   const [form, setForm] = useState({
-    assigned_annual_quota: parseFloat(balance.total_accrued) || "",
+    // Prefer the stored config quota; fall back to total_accrued only when config is unavailable.
+    assigned_annual_quota: parseFloat(balance.config?.assigned_annual_quota ?? balance.total_accrued) || "",
     accrual_type: balance.config?.accrual_type || "upfront",
     max_carry_forward: balance.config?.max_carry_forward ?? 0,
     probation_restriction_days: balance.config?.probation_restriction_days ?? 0,
@@ -181,6 +182,7 @@ export default function LeaveTab({ userId }) {
   const [loading, setLoading] = useState(true);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [confirmAssign, setConfirmAssign] = useState(false);
   const [overrideTarget, setOverrideTarget] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -212,11 +214,17 @@ export default function LeaveTab({ userId }) {
     Promise.all([loadBalances(), loadTemplates()]).finally(() => setLoading(false));
   }, [loadBalances, loadTemplates]);
 
-  async function handleAssignPolicy() {
+  function handleAssignClick() {
     if (!selectedTemplateId) {
       showToast("Please select a policy template first.", "error");
       return;
     }
+    // Show confirmation before destructive replace of existing configs
+    setConfirmAssign(true);
+  }
+
+  async function executeAssign() {
+    setConfirmAssign(false);
     setAssigning(true);
     try {
       await leaveAPI.assignPolicy(userId, { template_id: selectedTemplateId });
@@ -310,7 +318,7 @@ export default function LeaveTab({ userId }) {
             )}
           </div>
           <button
-            onClick={handleAssignPolicy}
+            onClick={handleAssignClick}
             disabled={assigning || !selectedTemplateId}
             className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
           >
@@ -381,6 +389,37 @@ export default function LeaveTab({ userId }) {
           onClose={() => setOverrideTarget(null)}
           onSaved={onOverrideSaved}
         />
+      )}
+
+      {/* Assign Policy Confirmation */}
+      {confirmAssign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-800">Confirm Policy Assignment</h2>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Assigning a new policy will{" "}
+                <strong className="text-amber-600">replace all existing leave configurations</strong>{" "}
+                for this employee and recalculate their balances via pro-rata math. This cannot be undone.
+              </p>
+            </div>
+            <div className="p-6 flex gap-3">
+              <button
+                onClick={executeAssign}
+                disabled={assigning}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition"
+              >
+                {assigning ? "Assigning…" : "Yes, Assign Policy"}
+              </button>
+              <button
+                onClick={() => setConfirmAssign(false)}
+                className="px-5 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />

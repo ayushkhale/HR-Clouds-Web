@@ -171,4 +171,34 @@ export const organizationAPI = {
       method: "DELETE",
     });
   },
+
+  /**
+   * Fetch the logged-in user's own full profile
+   * GET /organizations/me
+   */
+  getMyProfile() {
+    return request("/organizations/me");
+  },
+
+  /**
+   * Update the logged-in user's own personal fields (whitelisted)
+   * PATCH /organizations/me
+   * @param {Object} payload - Allowed fields only (dept/designation/gender/marital_status/employee_code are locked)
+   */
+  updateMyProfile(payload) {
+    return request("/organizations/me", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Fetch the public-safe employee directory
+   * GET /organizations/directory
+   * @param {Object} params - e.g. { search, department, page, limit }
+   */
+  getDirectory(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/organizations/directory${query ? `?${query}` : ""}`);
+  },
 };

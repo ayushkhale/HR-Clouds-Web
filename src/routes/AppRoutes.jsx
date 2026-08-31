@@ -69,6 +69,7 @@ import ManagerCompOffsPage from "../roles/manager/screens/ManagerCompOffsPage";
 
 // Shared Screens
 import DocumentsPage from "../shared/screens/DocumentsPage";
+import MyProfilePage from "../shared/screens/MyProfilePage";
 
 function CatchAll() {
   const { isAuthenticated } = useAuth();
@@ -95,6 +96,7 @@ function ProtectedRoute({ children }) {
 }
 
 function AppRoutes() {
+  
   return (
     <Routes>
       {/* ─── PUBLIC LANDING WEBSITE ROUTES ─── */}
@@ -157,6 +159,7 @@ function AppRoutes() {
 
       {/* ─── SHARED DASHBOARD PAGES ─── */}
       <Route path="/dashboard/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
 
       {/* ─── CATCH-ALL ─── */}
       <Route path="*" element={<CatchAll />} />

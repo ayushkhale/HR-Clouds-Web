@@ -5,7 +5,7 @@ import { leaveAPI } from "../../../shared/api";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiCalendar,
   HiUserCircle, HiClock, HiBan, HiThumbUp, HiThumbDown,
-  HiInformationCircle,
+  HiInformationCircle, HiDocumentText,
 } from "react-icons/hi";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -27,6 +27,7 @@ function RejectModal({ request, onClose, onRejected }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const isCancellation = request.status === "cancellation_pending";
   const applicant = request.applicant;
   const name = applicant ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() || applicant.email : "Employee";
 
@@ -53,8 +54,14 @@ function RejectModal({ request, onClose, onRejected }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Reject Leave Request</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Rejecting leave for <strong>{name}</strong></p>
+            <h2 className="text-base font-bold text-slate-800">
+              {isCancellation ? "Deny Cancellation Request" : "Reject Leave Request"}
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isCancellation
+                ? <><strong>{name}</strong>'s cancellation will be denied — the leave remains approved.</>  
+                : <>Rejecting leave for <strong>{name}</strong></>}
+            </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
             <HiX className="w-4 h-4" />
@@ -82,7 +89,7 @@ function RejectModal({ request, onClose, onRejected }) {
           </div>
           <div className="flex gap-3">
             <button type="submit" disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
-              {loading ? "Rejecting…" : "Confirm Reject"}
+              {loading ? "Submitting…" : (isCancellation ? "Deny Cancellation" : "Confirm Reject")}
             </button>
             <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
           </div>
@@ -153,6 +160,13 @@ function LeaveRequestCard({ request, onApprove, onReject, approving, showToast }
                   {parseFloat(request.total_days).toFixed(1)} days
                   {request.is_half_day && <span className="ml-1 text-violet-600">({request.half_day_type === "first_half" ? "1st half" : "2nd half"})</span>}
                 </p>
+                {parseFloat(request.unpaid_days || 0) > 0 && (
+                  <p className="text-[10px] mt-0.5">
+                    <span className="text-emerald-600 font-semibold">{parseFloat(request.paid_days || 0).toFixed(1)} paid</span>
+                    {" · "}
+                    <span className="text-rose-500 font-semibold">{parseFloat(request.unpaid_days).toFixed(1)} LWP</span>
+                  </p>
+                )}
               </div>
               <div className="bg-slate-50 rounded-xl px-3 py-2.5">
                 <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Applied On</p>
@@ -164,6 +178,19 @@ function LeaveRequestCard({ request, onApprove, onReject, approving, showToast }
               <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5">
                 <HiInformationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
                 <span className="italic">"{request.reason}"</span>
+              </div>
+            )}
+            {request.document_url && (
+              <div className="mt-2">
+                <a
+                  href={request.document_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-3 py-1.5 rounded-lg transition"
+                >
+                  <HiDocumentText className="w-3.5 h-3.5" />
+                  View Supporting Document
+                </a>
               </div>
             )}
           </div>
@@ -303,17 +330,53 @@ export default function ManagerLeavePage() {
               <p className="text-xs text-slate-400">No pending leave requests from your team.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {requests.map(r => (
-                <LeaveRequestCard
-                  key={r.id}
-                  request={r}
-                  onApprove={handleApprove}
-                  onReject={handleRejectClick}
-                  approving={approving}
-                  showToast={showToast}
-                />
-              ))}
+            <div className="space-y-8">
+              {/* ── Pending Approval ── */}
+              {requests.filter(r => r.status === "pending").length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      Pending Approval ({requests.filter(r => r.status === "pending").length})
+                    </h2>
+                  </div>
+                  <div className="space-y-4">
+                    {requests.filter(r => r.status === "pending").map(r => (
+                      <LeaveRequestCard
+                        key={r.id}
+                        request={r}
+                        onApprove={handleApprove}
+                        onReject={handleRejectClick}
+                        approving={approving}
+                        showToast={showToast}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* ── Cancellation Requests ── */}
+              {requests.filter(r => r.status === "cancellation_pending").length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      Cancellation Requests ({requests.filter(r => r.status === "cancellation_pending").length})
+                    </h2>
+                  </div>
+                  <div className="space-y-4">
+                    {requests.filter(r => r.status === "cancellation_pending").map(r => (
+                      <LeaveRequestCard
+                        key={r.id}
+                        request={r}
+                        onApprove={handleApprove}
+                        onReject={handleRejectClick}
+                        approving={approving}
+                        showToast={showToast}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>

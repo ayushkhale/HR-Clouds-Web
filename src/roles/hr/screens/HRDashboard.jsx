@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../shared/contexts/AuthContext";
@@ -70,6 +70,8 @@ function HRDashboard() {
   const [loading, setLoading] = useState(true);
   const [graphLoading, setGraphLoading] = useState(false);
   const [chartDate, setChartDate] = useState(new Date());
+  const [chartPage, setChartPage] = useState(0);
+  const chartScrollTimeout = useRef(0);
   const [defaulterTab, setDefaulterTab] = useState('most_absent');
 
   useEffect(() => {
@@ -119,6 +121,7 @@ function HRDashboard() {
       newDate.setMonth(newDate.getMonth() - 1);
       return newDate;
     });
+    setChartPage(0);
   };
 
   const handleNextMonth = () => {
@@ -127,33 +130,46 @@ function HRDashboard() {
       newDate.setMonth(newDate.getMonth() + 1);
       return newDate;
     });
+    setChartPage(0);
+  };
+
+  const handleChartWheel = (e) => {
+    const now = Date.now();
+    if (now - chartScrollTimeout.current < 400) return;
+
+    if (e.deltaX > 15 || e.deltaY > 15) {
+      if (chartPage < totalChartPages - 1) {
+        setChartPage(p => p + 1);
+        chartScrollTimeout.current = now;
+      }
+    } else if (e.deltaX < -15 || e.deltaY < -15) {
+      if (chartPage > 0) {
+        setChartPage(p => p - 1);
+        chartScrollTimeout.current = now;
+      }
+    }
   };
 
   // Helper to ensure the bar chart has at least 15 days on the X-axis.
   // Also derives `on_time_count` = present - late (late is a subset of present,
   // so stacking them would double-count. We show 3 mutually-exclusive categories).
-  const getPaddedChartData = (dailyData) => {
+  const getNormalizedChartData = (dailyData) => {
     if (!dailyData || dailyData.length === 0) return [];
-    const normalize = (d) => ({
+    return dailyData.map(d => ({
       ...d,
-      // Clamp to 0 in case of data oddities
       on_time_count: Math.max(0, (d.final_present_count || 0) - (d.late_count || 0)),
-    });
-    const data = dailyData.map(normalize);
-    if (data.length < 15) {
-      let lastDate = new Date(data[data.length - 1].date);
-      for (let i = data.length; i < 15; i++) {
-        lastDate.setDate(lastDate.getDate() + 1);
-        data.push({
-          date: lastDate.toISOString().split('T')[0],
-          on_time_count: 0,
-          final_absent_count: 0,
-          late_count: 0
-        });
-      }
-    }
-    return data;
+    }));
   };
+
+  const getPaginatedChartData = (dailyData) => {
+    const data = getNormalizedChartData(dailyData);
+    if (data.length === 0) return [];
+    const itemsPerPage = Math.ceil(data.length / 2);
+    const startIdx = chartPage * itemsPerPage;
+    return data.slice(startIdx, startIdx + itemsPerPage);
+  };
+
+  const totalChartPages = dashboardGraphData?.daily && dashboardGraphData.daily.length > 0 ? 2 : 1;
 
   if (loading) {
     return (
@@ -280,20 +296,33 @@ function HRDashboard() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
-                  <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
-                    <HiChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="w-20 text-center select-none">
-                    {chartDate.toLocaleString('default', { month: 'short', year: 'numeric' })}
-                  </span>
-                  <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
-                    <HiChevronRight className="w-4 h-4" />
-                  </button>
+                <div className="flex gap-2">
+                  {/* Page Pagination */}
+                  <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
+                    <button onClick={() => setChartPage(p => Math.max(0, p - 1))} disabled={chartPage === 0} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400 transition-colors">
+                      <HiChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-center select-none w-14">Pg {chartPage + 1}/{totalChartPages}</span>
+                    <button onClick={() => setChartPage(p => Math.min(totalChartPages - 1, p + 1))} disabled={chartPage >= totalChartPages - 1} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400 transition-colors">
+                      <HiChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Month Pagination */}
+                  <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
+                    <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                      <HiChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="w-20 text-center select-none">
+                      {chartDate.toLocaleString('default', { month: 'short', year: 'numeric' })}
+                    </span>
+                    <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                      <HiChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="relative w-full h-56 mt-auto">
+              <div className="relative w-full h-56 mt-auto" onWheel={handleChartWheel}>
                 {graphLoading ? (
                   <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
                 ) : (!dashboardGraphData?.daily || dashboardGraphData.daily.length === 0) ? (
@@ -303,7 +332,7 @@ function HRDashboard() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getPaddedChartData(dashboardGraphData?.daily)} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <BarChart data={getPaginatedChartData(dashboardGraphData?.daily)} margin={{ top: 5, right: 0, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis 
                         dataKey="date" 
@@ -323,9 +352,9 @@ function HRDashboard() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                       />
-                      <Bar dataKey="on_time_count" name="On Time" fill="#8B5CF6" barSize={6} radius={[3,3,0,0]} />
-                      <Bar dataKey="late_count" name="Late" fill="#F59E0B" barSize={6} radius={[3,3,0,0]} />
-                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill="#DDD6FE" barSize={6} radius={[3,3,0,0]} />
+                      <Bar dataKey="on_time_count" name="On Time" fill="#8B5CF6" maxBarSize={8} radius={[3,3,0,0]} />
+                      <Bar dataKey="late_count" name="Late" fill="#F59E0B" maxBarSize={8} radius={[3,3,0,0]} />
+                      <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill="#DDD6FE" maxBarSize={8} radius={[3,3,0,0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
