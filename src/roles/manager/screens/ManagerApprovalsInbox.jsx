@@ -4,7 +4,7 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI, leaveAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { 
-  HiInboxIn, HiCheckCircle, HiXCircle, HiCheck, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift 
+  HiInboxIn, HiCheckCircle, HiXCircle, HiCheck, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText 
 } from "react-icons/hi";
 
 function ManagerApprovalsInbox() {
@@ -18,6 +18,7 @@ function ManagerApprovalsInbox() {
   });
   const [loading, setLoading] = useState(true);
   const [actionModal, setActionModal] = useState({ isOpen: false, type: "", action: "", id: null, title: "" });
+  const [balanceModal, setBalanceModal] = useState({ isOpen: false, empName: "", balances: [], loading: false });
   const [remarks, setRemarks] = useState("");
   const [toast, setToast] = useState(null);
 
@@ -25,14 +26,31 @@ function ManagerApprovalsInbox() {
     fetchAllRequests();
   }, []);
 
+  const fetchAndShowBalances = async (userId, empName) => {
+    setBalanceModal({ isOpen: true, empName, balances: [], loading: true });
+    try {
+      const res = await leaveAPI.getUserBalances(userId);
+      if (res.success) {
+        setBalanceModal({ isOpen: true, empName, balances: res.data || [], loading: false });
+      } else {
+        showToast(res.message || "Failed to fetch balances", "error");
+        setBalanceModal({ isOpen: false, empName: "", balances: [], loading: false });
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to fetch balances", "error");
+      setBalanceModal({ isOpen: false, empName: "", balances: [], loading: false });
+    }
+  };
+
   const fetchAllRequests = async () => {
     setLoading(true);
     try {
-      const [regRes, otRes, coRes, anomRes] = await Promise.all([
+      const [regRes, otRes, coRes, anomRes, leaveRes] = await Promise.all([
         attendanceAPI.getManagerPendingRegularizations().catch(() => ({ success: false, data: [] })),
         attendanceAPI.getManagerPendingOvertime().catch(() => ({ success: false, data: [] })),
         attendanceAPI.getManagerCompOffs().catch(() => ({ success: false, data: [] })),
-        attendanceAPI.getManagerAnomalies().catch(() => ({ success: false, data: [] }))
+        attendanceAPI.getManagerAnomalies().catch(() => ({ success: false, data: [] })),
+        leaveAPI.getTeamPendingRequests().catch(() => ({ success: false, data: [] }))
       ]);
 
       setData({
@@ -40,7 +58,7 @@ function ManagerApprovalsInbox() {
         overtime: otRes.success ? (otRes.data || []) : [],
         compOffs: coRes.success ? (coRes.data || []) : [],
         anomalies: anomRes.success ? (anomRes.data || []) : [],
-        leaves: [] // Leaves to be implemented when leaveAPI is fully ready
+        leaves: leaveRes.success ? (leaveRes.data || []) : []
       });
     } catch (err) {
       console.error(err);
@@ -71,6 +89,9 @@ function ManagerApprovalsInbox() {
         else res = await attendanceAPI.rejectManagerCompOff(id, payload);
       } else if (type === "anomaly") {
         res = await attendanceAPI.resolveManagerAnomaly(id, payload);
+      } else if (type === "leaves") {
+        if (action === "approve") res = await leaveAPI.approveRequest(id, payload);
+        else res = await leaveAPI.rejectRequest(id, payload);
       }
 
       if (res && res.success) {
@@ -87,6 +108,7 @@ function ManagerApprovalsInbox() {
   };
 
   const tabs = [
+    { id: "leaves", label: "Leaves", icon: HiDocumentText, count: data.leaves.length },
     { id: "regularizations", label: "Regularizations", icon: HiClock, count: data.regularizations.length },
     { id: "overtime", label: "Overtime", icon: HiCalendar, count: data.overtime.length },
     { id: "compOffs", label: `${DICTIONARY.TERMS.COMP_OFF}s`, icon: HiGift, count: data.compOffs.length },
@@ -117,6 +139,12 @@ function ManagerApprovalsInbox() {
               if (activeTab === "overtime") details = `${item.date} - ${item.overtime_minutes} mins`;
               if (activeTab === "compOffs") details = `Earned: ${item.earned_date} - ${item.worked_hours}h`;
               if (activeTab === "anomalies") details = `Type: ${item.anomaly_type} - ${item.date}`;
+              if (activeTab === "leaves") {
+                const start = item.start_date || item.date;
+                const end = item.end_date || item.date;
+                const days = item.total_days || 1;
+                details = `${item.leave_type?.name || 'Leave'} (${days} day${days > 1 ? 's' : ''}) : ${start} to ${end}`;
+              }
 
               return (
                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -129,6 +157,14 @@ function ManagerApprovalsInbox() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {activeTab === "leaves" && (
+                        <button 
+                          onClick={() => fetchAndShowBalances(item.user_id || item.user?.id, empName)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors mr-2"
+                        >
+                          View Balances
+                        </button>
+                      )}
                       {activeTab !== "anomalies" && (
                         <button 
                           onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "approve", id: item.id, title: `Approve Request for ${empName}` })} 
@@ -254,6 +290,40 @@ function ManagerApprovalsInbox() {
                 }`}>
                 {actionModal.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Balances Modal */}
+      {balanceModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800">Balances for {balanceModal.empName}</h3>
+              <button onClick={() => setBalanceModal({ isOpen: false, empName: "", balances: [], loading: false })} className="text-slate-400 hover:text-slate-600">
+                <HiX className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              {balanceModal.loading ? (
+                <div className="text-center py-8 text-slate-500 text-sm">Loading balances...</div>
+              ) : balanceModal.balances.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">No leave balances found for this employee.</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {balanceModal.balances.map(b => (
+                    <div key={b.id || b.leave_type_id} className="p-4 rounded-xl border border-slate-100 bg-slate-50">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">{b.leave_type?.name || "Leave"}</div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold text-slate-800">{b.current_balance}</span>
+                        <span className="text-sm font-semibold text-slate-500">remaining</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1">Total Accrued: {b.total_accrued}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
