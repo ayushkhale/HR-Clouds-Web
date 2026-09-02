@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { attendanceAPI } from "../../../shared/api";
 import { HiSparkles } from "react-icons/hi";
 
-function AttendanceCard({ currentState, fetchStatus, shiftData }) {
+function AttendanceCard({ currentState, fetchStatus, shiftData, className }) {
   const [activeTimer, setActiveTimer] = useState("00:00:00");
 
   useEffect(() => {
@@ -89,7 +89,7 @@ function AttendanceCard({ currentState, fetchStatus, shiftData }) {
   const badge = getStatusBadge();
 
   return (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-100 flex flex-col h-full">
+    <div className={className !== undefined ? className : "bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-100 flex flex-col h-full"}>
       <div className="flex justify-between items-start mb-6">
         <h3 className="text-lg font-bold text-slate-800">Today</h3>
         <span className={`px-3 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase ${badge.class}`}>

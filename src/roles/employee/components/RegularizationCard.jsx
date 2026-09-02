@@ -38,6 +38,19 @@ function RegularizationCard({ requests, fetchRegularizations }) {
     }
   };
 
+  const handleCancel = async (id) => {
+    if (!window.confirm("Are you sure you want to cancel this regularization request?")) return;
+    try {
+      const res = await attendanceAPI.cancelRegularization(id);
+      if (res.success) {
+        if (fetchRegularizations) fetchRegularizations();
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to cancel request.");
+    }
+  };
+
   const getStatusBadge = (status) => {
     if (!status) return "bg-slate-100 text-slate-700";
     const stat = status.toLowerCase();
@@ -69,6 +82,7 @@ function RegularizationCard({ requests, fetchRegularizations }) {
               <th className="px-6 py-4">Requested Out</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Reason</th>
+              <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -90,6 +104,16 @@ function RegularizationCard({ requests, fetchRegularizations }) {
                     </span>
                   </td>
                   <td className="px-6 py-4 max-w-[200px] truncate" title={req.reason}>{req.reason}</td>
+                  <td className="px-6 py-4 text-right">
+                    {(!req.status || req.status.toLowerCase() === 'pending') && (
+                      <button
+                        onClick={() => handleCancel(req._id || req.id)}
+                        className="text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             )}

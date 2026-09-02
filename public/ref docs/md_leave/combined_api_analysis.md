@@ -1,6 +1,6 @@
-# Combined API Analysis: Leave Management (Phases 1, 2, and 3)
+# Combined API Analysis: Leave Management (Phases 1, 2, 3, and 5)
 
-This document contains a comprehensive, combined analysis of all APIs implemented across Phase 1, Phase 2, and Phase 3 of the Leave Management Module. The information herein is derived exclusively from the source implementation and phase analysis Markdown documents.
+This document contains a comprehensive, combined analysis of all APIs implemented across Phases 1, 2, 3, and 5 of the Leave Management Module. Phase 4 and 6 do not introduce net-new endpoints but provide logic/payload enforcements to existing ones. The information herein is derived exclusively from the source implementation and phase analysis Markdown documents.
 
 ---
 
@@ -253,6 +253,15 @@ This document contains a comprehensive, combined analysis of all APIs implemente
 * **Detailed API Function**: Functions exactly identically to the Admin balance fetcher, but strictly scopes the query to the authenticated user's ID derived from their token.
 * **What This API Gives/Does**: This API queries the database for the authenticated user's personal leave ledger and returns an array of balance records to display available quotas.
 
+## 14b. Get My Leave Types
+* **API name / purpose**: Get My Leave Types
+* **HTTP method**: `GET`
+* **Endpoint / route**: `/api/v1/leaves/my-leave-types`
+* **Authentication / authorization requirements**: Requires Token. Roles: Any authenticated user. Feature: `leave.access`.
+* **Request JSON Payload**: This API does not use a JSON body.
+* **Detailed API Function**: Uses `leaveBalanceService.getMyLeaveTypes` to return only active leave types applicable to the caller, including their per-user configuration. Used for populating the leave application form dropdown.
+* **What This API Gives/Does**: Retrieves an array of leave types configured specifically for the authenticated user.
+
 ---
 
 # Phase 3 APIs (Leave Application & Approval)
@@ -312,6 +321,17 @@ This document contains a comprehensive, combined analysis of all APIs implemente
 * **Detailed API Function**: This API performs a `SELECT` query on the `leave_requests` table filtering strictly by the authenticated user's ID, ordered by `created_at` DESC.
 * **What This API Gives/Does**: This API queries the database for all leave request records belonging to the caller and returns the chronologically sorted array of history data.
 
+## 17b. Get Single Request
+* **API name / purpose**: Get Single Leave Request
+* **HTTP method**: `GET`
+* **Endpoint / route**: `/api/v1/leaves/requests/:id`
+* **Authentication / authorization requirements**: Requires Token. Feature: `leave.access`.
+* **Request JSON Payload**: This API does not use a JSON body.
+* **Request Fields**:
+  * `id` (Path Parameter, UUID, Required).
+* **Detailed API Function**: Fetches a single leave request. Enforces self-ownership in the database query predicate (`user_id` + `org_id`) to prevent Insecure Direct Object Reference (IDOR). Returns 404 on miss.
+* **What This API Gives/Does**: Returns the details of a single historical leave application owned by the caller.
+
 ## 18. List Team Pending Requests
 * **API name / purpose**: List Team Pending Requests
 * **HTTP method**: `GET`
@@ -356,6 +376,74 @@ This document contains a comprehensive, combined analysis of all APIs implemente
 * **Detailed API Function**: This API rejects a request or denies a cancellation. It strictly enforces BOLA and blocks Self-Rejection exploits. It verifies the payload contains the mandatory reason, then updates the `status` to `rejected` and stores the `rejection_reason` in the `leave_requests` table.
 * **Error handling**: 403 Forbidden (BOLA/Self-Rejection). 404 Not Found.
 * **What This API Gives/Does**: This API verifies approver privileges, updates the database status of the leave request to "rejected", saves the provided reason text, and returns the modified database object to the caller.
+
+## 20b. Get Team Leave Requests
+* **API name / purpose**: Get Team Leave Requests
+* **HTTP method**: `GET`
+* **Endpoint / route**: `/api/v1/leaves/team/requests`
+* **Authentication / authorization requirements**: Requires Token. Roles: `manager`, `hr`, `admin`, `super-admin`. Feature: `leave.access`.
+* **Request JSON Payload**: This API does not use a JSON body.
+* **Request Fields**: 
+  * `status` (Query Parameter, String, Optional).
+  * `user_id` (Query Parameter, UUID, Optional).
+  * `page`, `limit` (Query Parameters, Integer, Optional).
+* **Detailed API Function**: Retrieves team leave history (any status). Scoped to direct reports for managers, or org-wide for HR. Includes bounded pagination. For managers, the `user_id` filter is validated against their scope as a BOLA guard.
+
+## 20c. Get Team Member Leave Requests
+* **API name / purpose**: Get Team Member Leave Requests
+* **HTTP method**: `GET`
+* **Endpoint / route**: `/api/v1/leaves/team/member/:userId/requests`
+* **Authentication / authorization requirements**: Requires Token. Roles: `manager`, `hr`, `admin`, `super-admin`. Feature: `leave.access`.
+* **Request JSON Payload**: This API does not use a JSON body.
+* **Request Fields**:
+  * `userId` (Path Parameter, UUID, Required).
+* **Detailed API Function**: Retrieves a specific direct report's leave history. Fully scoped to ensure managers can only access their direct reports.
+
+## 20d. Get Team Member Leave Balances
+* **API name / purpose**: Get Team Member Leave Balances
+* **HTTP method**: `GET`
+* **Endpoint / route**: `/api/v1/leaves/team/member/:userId/balances`
+* **Authentication / authorization requirements**: Requires Token. Roles: `manager`, `hr`, `admin`, `super-admin`. Feature: `leave.access`.
+* **Request JSON Payload**: This API does not use a JSON body.
+* **Request Fields**:
+  * `userId` (Path Parameter, UUID, Required).
+* **Detailed API Function**: Fetches a specific direct report's leave wallet at approval time. Reuses the core `leaveBalanceService`. Fully scoped.
+
+---
+
+# Phase 5 APIs (Automation & Maintenance)
+
+## 21. Trigger Monthly Accrual (Manual Run)
+* **API name / purpose**: Trigger Monthly Accrual (Manual Run)
+* **HTTP method**: `POST`
+* **Endpoint / route**: `/api/v1/leaves/automation/accrual/run`
+* **Authentication / authorization requirements**: Requires Token. Roles: `hr`. Feature: `leave.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "reference_date": "2026-09-01"
+  }
+  ```
+* **Request Fields**:
+  * `reference_date` (String, Optional): Format `YYYY-MM-DD`. Allows testing in future or past.
+* **Detailed API Function**: Executes the Monthly Accrual engine for the caller's organization. Provides a deterministic way to trigger the monthly quota generation without waiting for the cron. Idempotent.
+* **What This API Gives/Does**: Calculates and updates `total_accrued`, `current_balance`, and sets `last_accrued_period` in `LeaveBalance`, safely skipping those already credited.
+
+## 22. Trigger Year-End Rollover (Manual Run)
+* **API name / purpose**: Trigger Year-End Rollover (Manual Run)
+* **HTTP method**: `POST`
+* **Endpoint / route**: `/api/v1/leaves/automation/rollover/run`
+* **Authentication / authorization requirements**: Requires Token. Roles: `hr`. Feature: `leave.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "reference_date": "2027-01-01"
+  }
+  ```
+* **Request Fields**:
+  * `reference_date` (String, Optional): Format `YYYY-MM-DD`. Allows testing across year boundaries.
+* **Detailed API Function**: Executes the Year-End Rollover engine for the caller's organization. Closes the previous year (sets `lapsed_balance`) and opens the new year (carries forward balances, seeds new quotas). Idempotent.
+* **What This API Gives/Does**: Triggers Jan 1st rollover logic safely skipping finalized balances.
 
 ---
 *End of Analysis*

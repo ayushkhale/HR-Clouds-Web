@@ -4,7 +4,8 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import AttendanceCard from "../components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
-import { HiSparkles, HiClock, HiCheckCircle, HiLogin, HiLogout, HiUserGroup } from "react-icons/hi";
+import { HiSparkles, HiClock, HiCheckCircle, HiArrowSmUp, HiArrowSmDown, HiUserGroup, HiLogin, HiLogout } from "react-icons/hi";
+import { formatDecimalHours } from "../../../shared/utils/formatUtils";
 
 function EmployeeDashboard() {
   const { user } = useAuth();
@@ -82,110 +83,121 @@ function EmployeeDashboard() {
             </div>
 
             <img 
-              src="https://cdn3d.iconscout.com/3d/premium/thumb/woman-employee-3d-icon-png-download-4118352.png" 
+              src="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp" 
               alt="Employee Character" 
-              className="relative z-10 w-28 sm:w-40 md:w-48 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-6 sm:-mb-8"
+              className="relative z-10 w-36 sm:w-56 md:w-72 object-contain drop-shadow-2xl sm:mr-4 md:mr-8"
             />
           </div>
 
-          {/* Row 1: Attendance Card, Stats Grid, Attendance Chart */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {/* Row 1: Attendance Card, Combined Stats & Chart */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             
             {/* 1. Today's Punch Card */}
             <div className="xl:col-span-1">
               <AttendanceCard currentState={currentState} fetchStatus={fetchStatus} shiftData={shiftData} />
             </div>
 
-            {/* 2. 2x2 Stats Grid */}
-            <div className="xl:col-span-1 grid grid-cols-2 gap-4">
-              {/* Average hours */}
-              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 flex flex-col justify-center items-start">
-                <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
-                  <HiClock className="w-4 h-4" />
-                </div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Average hours</p>
-                <p className="text-xl font-bold text-slate-800 mt-1">{graphData?.summary?.average_hours_per_day || 0}h</p>
-              </div>
-              {/* Total Hours */}
-              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 flex flex-col justify-center items-start">
-                <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
-                  <HiClock className="w-4 h-4" />
-                </div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Total Hours</p>
-                <p className="text-xl font-bold text-slate-800 mt-1">{graphData?.summary?.total_hours_worked || 0}h</p>
-              </div>
-              {/* On-time arrival */}
-              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 flex flex-col justify-center items-start">
-                <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-                  <HiCheckCircle className="w-4 h-4" />
-                </div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">On-time arrival</p>
-                <p className="text-xl font-bold text-emerald-500 mt-1">{graphData?.summary?.punctuality_percentage || 0} %</p>
-              </div>
-              {/* Overtime */}
-              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 flex flex-col justify-center items-start">
-                <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
-                  <HiClock className="w-4 h-4" />
-                </div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Overtime (mins)</p>
-                <p className="text-xl font-bold text-slate-800 mt-1">{graphData?.summary?.total_overtime_minutes || 0}m</p>
-              </div>
-            </div>
-
-            {/* 3. My Attendance Donut */}
-            <div className="xl:col-span-1 bg-white rounded-3xl p-6 shadow-xs border border-slate-100 flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-bold text-slate-800">My Attendance</h3>
-                <span className="text-xs font-semibold text-purple-600 cursor-pointer">View Stats</span>
-              </div>
+            {/* 2 & 3. Combined Stats Grid & Donut Chart */}
+            <div className="xl:col-span-2 bg-white rounded-3xl shadow-xs border border-slate-100 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
               
-              <div className="flex-1 flex items-center justify-between gap-4">
-                {/* Legend */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-purple-600"></div>
-                    <span className="text-xs font-bold text-slate-800">{graphData?.summary?.present_days || 0}</span>
-                    <span className="text-[11px] font-medium text-slate-400">present</span>
+              {/* Left Side: 2x2 Stats Grid */}
+              <div className="md:border-r border-b md:border-b-0 border-slate-100 grid grid-cols-2 gap-y-6 sm:gap-y-0 p-5 sm:p-8">
+                {/* Average hours */}
+                <div className="sm:border-b border-r border-slate-100 sm:pb-8 pr-4 sm:pr-8 flex flex-col justify-start">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 mb-3 sm:mb-4 bg-purple-50">
+                    <HiClock className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
-                    <span className="text-xs font-bold text-slate-800">{graphData?.summary?.half_days || 0}</span>
-                    <span className="text-[11px] font-medium text-slate-400">half days</span>
+                  <div className="flex items-end gap-3 mb-1">
+                    <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{formatDecimalHours(graphData?.summary?.average_hours_per_day)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                    <span className="text-xs font-bold text-slate-800">{graphData?.summary?.late_days || 0}</span>
-                    <span className="text-[11px] font-medium text-slate-400">late</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                    <span className="text-xs font-bold text-slate-800">{graphData?.summary?.absent_days || 0}</span>
-                    <span className="text-[11px] font-medium text-slate-400">absent</span>
-                  </div>
+                  <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Average Hours</div>
                 </div>
-
-                {/* Donut */}
-                <div className="relative w-28 h-28 flex-shrink-0 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="#E2E8F0" strokeWidth="8" fill="none" />
-                    {/* Purple Segment */}
-                    <circle cx="50" cy="50" r="40" stroke="#9333EA" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset="50" className="transition-all duration-1000" />
-                    {/* Indigo Segment */}
-                    <circle cx="50" cy="50" r="40" stroke="#818CF8" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset="180" className="transition-all duration-1000" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-sm font-extrabold text-slate-800">{graphData?.summary?.present_days || 0}</span>
-                    <span className="text-[9px] font-bold text-slate-400">/{(graphData?.summary?.present_days || 0) + (graphData?.summary?.absent_days || 0)}</span>
+                {/* Total Hours */}
+                <div className="sm:border-b border-slate-100 sm:pb-8 pl-4 sm:pl-8 flex flex-col justify-start">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 mb-3 sm:mb-4 bg-purple-50">
+                    <HiClock className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                    <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{formatDecimalHours(graphData?.summary?.total_hours_worked)}</span>
+                  </div>
+                  <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Total Hours</div>
+                </div>
+                {/* On-time arrival */}
+                <div className="border-r border-t sm:border-t-0 border-slate-100 pt-6 sm:pt-8 pr-4 sm:pr-8 flex flex-col justify-start">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 mb-3 sm:mb-4 bg-purple-50">
+                    <HiCheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                    <span className="text-2xl sm:text-3xl font-bold tracking-tight text-purple-600 leading-none">{graphData?.summary?.punctuality_percentage || 0}%</span>
+                  </div>
+                  <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">On-time Arrival</div>
+                </div>
+                {/* Overtime */}
+                <div className="border-t sm:border-t-0 border-slate-100 pt-6 sm:pt-8 pl-4 sm:pl-8 flex flex-col justify-start">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 mb-3 sm:mb-4 bg-purple-50">
+                    <HiClock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                    <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{graphData?.summary?.total_overtime_minutes || 0}m</span>
+                  </div>
+                  <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Overtime (mins)</div>
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl text-[11px] font-bold">
-                <HiCheckCircle className="w-4 h-4" />
-                Better than 91.3% employees!
+              {/* Right Side: My Attendance Donut */}
+              <div className="p-6 sm:p-8 flex flex-col justify-center">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-sm font-bold text-slate-800">My Attendance</h3>
+                  <span className="text-xs font-semibold text-purple-600 cursor-pointer">View Stats</span>
+                </div>
+                
+                <div className="flex-1 flex items-center justify-between gap-4">
+                  {/* Legend */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-purple-600"></div>
+                      <span className="text-xs font-bold text-slate-800">{graphData?.summary?.present_days || 0}</span>
+                      <span className="text-[11px] font-medium text-slate-400">present</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
+                      <span className="text-xs font-bold text-slate-800">{graphData?.summary?.half_days || 0}</span>
+                      <span className="text-[11px] font-medium text-slate-400">half days</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                      <span className="text-xs font-bold text-slate-800">{graphData?.summary?.late_days || 0}</span>
+                      <span className="text-[11px] font-medium text-slate-400">late</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                      <span className="text-xs font-bold text-slate-800">{graphData?.summary?.absent_days || 0}</span>
+                      <span className="text-[11px] font-medium text-slate-400">absent</span>
+                    </div>
+                  </div>
+
+                  {/* Donut */}
+                  <div className="relative w-28 h-28 flex-shrink-0 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="40" stroke="#E2E8F0" strokeWidth="8" fill="none" />
+                      {/* Purple Segment */}
+                      <circle cx="50" cy="50" r="40" stroke="#9333EA" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset="50" className="transition-all duration-1000" />
+                      {/* Indigo Segment */}
+                      <circle cx="50" cy="50" r="40" stroke="#818CF8" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset="180" className="transition-all duration-1000" />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-sm font-extrabold text-slate-800">{graphData?.summary?.present_days || 0}</span>
+                      <span className="text-[9px] font-bold text-slate-400">/{(graphData?.summary?.present_days || 0) + (graphData?.summary?.absent_days || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl text-[11px] font-bold">
+                  <HiCheckCircle className="w-4 h-4" />
+                  Better than 91.3% employees!
+                </div>
               </div>
             </div>
-
           </div>
 
           {/* Row 2: Team Table and History Table */}

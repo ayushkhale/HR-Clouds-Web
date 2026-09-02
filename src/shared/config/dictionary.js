@@ -79,5 +79,8 @@ export const DICTIONARY = {
   },
   DESCRIPTIONS: {
     ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization."
+  },
+  TERMS: {
+    COMP_OFF: "Complimentary Off"
   }
 };

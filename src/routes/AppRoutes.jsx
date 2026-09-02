@@ -33,12 +33,16 @@ import EmployeeProfilePage from "../roles/hr/screens/EmployeeProfilePage";
 import DepartmentsPage from "../roles/hr/screens/DepartmentsPage";
 import EmployeeDashboard from "../roles/employee/screens/EmployeeDashboard";
 import AttendanceRegularizationsPage from "../roles/employee/screens/AttendanceRegularizationsPage";
+import AttendanceAnomaliesPage from "../roles/employee/screens/AttendanceAnomaliesPage";
+import EmployeeOvertimePage from "../roles/employee/screens/EmployeeOvertimePage";
+import EmployeeCompOffsPage from "../roles/employee/screens/EmployeeCompOffsPage";
 import ManagerDashboard from "../roles/manager/screens/ManagerDashboard";
 import ManagerRegularizationsPage from "../roles/manager/screens/ManagerRegularizationsPage";
 import ManagerOvertimePage from "../roles/manager/screens/ManagerOvertimePage";
 import ManagerTeamPage from "../roles/manager/screens/ManagerTeamPage";
 import ManagerTeamHistoryPage from "../roles/manager/screens/ManagerTeamHistoryPage";
 import ManagerAnomaliesPage from "../roles/manager/screens/ManagerAnomaliesPage";
+import ManagerApprovalsInbox from "../roles/manager/screens/ManagerApprovalsInbox";
 
 // HR — Attendance
 import HRAttendancePage from "../roles/hr/screens/HRAttendancePage";
@@ -51,12 +55,15 @@ import AttendanceWeeklyOffsPage from "../roles/hr/attendance/screens/AttendanceW
 // HR — Phase 5 & 6
 import AttendanceLocationsPage from "../roles/hr/attendance/screens/AttendanceLocationsPage";
 import AttendanceCompOffsPage from "../roles/hr/attendance/screens/AttendanceCompOffsPage";
+import AttendanceCompOffPoliciesPage from "../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage";
 import AttendanceLockPeriodsPage from "../roles/hr/attendance/screens/AttendanceLockPeriodsPage";
 import AttendanceReportsPage from "../roles/hr/attendance/screens/AttendanceReportsPage";
+import BiometricDevicesPage from "../roles/hr/screens/BiometricDevicesPage";
 
 // HR — Leave Management
 import LeaveTypesPage from "../roles/hr/leaves/screens/LeaveTypesPage";
 import LeavePoliciesPage from "../roles/hr/leaves/screens/LeavePoliciesPage";
+import LeaveAutomationPage from "../roles/hr/leaves/screens/LeaveAutomationPage";
 
 // Employee — Leave
 import LeaveDashboard from "../roles/employee/screens/LeaveDashboard";
@@ -140,15 +147,22 @@ function AppRoutes() {
       <Route path="/dashboard/hr/attendance/weekly-offs" element={<ProtectedRoute><AttendanceWeeklyOffsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/locations" element={<ProtectedRoute><AttendanceLocationsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/comp-offs" element={<ProtectedRoute><AttendanceCompOffsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/attendance/comp-off-policies" element={<ProtectedRoute><AttendanceCompOffPoliciesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/attendance/lock-periods" element={<ProtectedRoute><AttendanceLockPeriodsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/attendance/devices" element={<ProtectedRoute><BiometricDevicesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/reports" element={<ProtectedRoute><AttendanceReportsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/leaves/types" element={<ProtectedRoute><LeaveTypesPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/leaves/policies" element={<ProtectedRoute><LeavePoliciesPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/leaves/automation" element={<ProtectedRoute><LeaveAutomationPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/employee/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsPage role="employee" /></ProtectedRoute>} />
+      <Route path="/dashboard/employee/attendance/anomalies" element={<ProtectedRoute><AttendanceAnomaliesPage role="employee" /></ProtectedRoute>} />
+      <Route path="/dashboard/employee/attendance/overtime" element={<ProtectedRoute><EmployeeOvertimePage role="employee" /></ProtectedRoute>} />
+      <Route path="/dashboard/employee/attendance/comp-offs" element={<ProtectedRoute><EmployeeCompOffsPage role="employee" /></ProtectedRoute>} />
       <Route path="/dashboard/employee/leaves" element={<ProtectedRoute><LeaveDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/manager" element={<ProtectedRoute><ManagerDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/manager/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsPage role="manager" /></ProtectedRoute>} />
+      <Route path="/dashboard/manager/requests/inbox" element={<ProtectedRoute><ManagerApprovalsInbox /></ProtectedRoute>} />
       <Route path="/dashboard/manager/requests/regularizations" element={<ProtectedRoute><ManagerRegularizationsPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/requests/overtime" element={<ProtectedRoute><ManagerOvertimePage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/requests/comp-offs" element={<ProtectedRoute><ManagerCompOffsPage /></ProtectedRoute>} />

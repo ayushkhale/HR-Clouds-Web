@@ -3,7 +3,8 @@ import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../../shared/components/PageHeader";
 import { attendanceAPI } from "../../../../shared/api";
-import { HiSparkles, HiLockClosed, HiLockOpen, HiPlus, HiX, HiExclamation, HiCheckCircle } from "react-icons/hi";
+import { DICTIONARY } from "../../../../shared/config/dictionary";
+import { HiSparkles, HiLockClosed, HiLockOpen, HiPlus, HiX, HiExclamation, HiCheckCircle, HiRefresh } from "react-icons/hi";
 
 function AttendanceLockPeriodsPage() {
   const [locks, setLocks] = useState([]);
@@ -60,6 +61,17 @@ function AttendanceLockPeriodsPage() {
     }
   };
 
+  const handleRecomputeStale = async () => {
+    if (!(await window.confirm("Are you sure you want to recompute stale attendance records? This might take a while."))) return;
+    try {
+      showToastMsg("Recomputing started...", "success");
+      await attendanceAPI.recomputeStaleRecords();
+      showToastMsg("Stale records recomputed successfully!", "success");
+    } catch (err) {
+      showToastMsg(err.message || "Failed to recompute stale records", "error");
+    }
+  };
+
   const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "--";
 
   return (
@@ -70,15 +82,23 @@ function AttendanceLockPeriodsPage() {
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Period Locking</h1>
-              <p className="text-sm text-slate-500 mt-1">Freeze attendance data for payroll processing.</p>
+              <h1 className="text-2xl font-bold text-slate-900">Period Locking & Maintenance</h1>
+              <p className="text-sm text-slate-500 mt-1">Freeze attendance data for payroll processing or run maintenance tasks.</p>
             </div>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
-            >
-              <HiPlus className="w-4 h-4" /> Lock Period
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleRecomputeStale}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
+              >
+                <HiRefresh className="w-4 h-4" /> Recompute Stale
+              </button>
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
+              >
+                <HiPlus className="w-4 h-4" /> Lock Period
+              </button>
+            </div>
           </div>
 
           {/* Create Lock Form */}
@@ -172,7 +192,7 @@ function AttendanceLockPeriodsPage() {
                 Locking <strong className="text-slate-700">{form.start_date}</strong> to <strong className="text-slate-700">{form.end_date}</strong> will freeze all attendance records for this period.
               </p>
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-700 font-medium text-left">
-                ⚠️ All pending regularizations and comp-off requests within this date range will be automatically rejected. This action can be reversed by unlocking.
+                ⚠️ All pending regularizations and {DICTIONARY.TERMS.COMP_OFF.toLowerCase()} requests within this date range will be automatically rejected. This action can be reversed by unlocking.
               </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-slate-100">

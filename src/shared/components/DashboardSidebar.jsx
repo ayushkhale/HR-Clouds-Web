@@ -18,16 +18,21 @@ import {
   HiClipboardList,
   HiChevronDown,
   HiChevronRight,
+  HiDeviceMobile,
   HiViewGrid,
   HiQuestionMarkCircle,
   HiCog,
   HiSun,
   HiMoon,
+  HiExclamationCircle,
+  HiGift,
   HiLocationMarker,
   HiLockClosed,
   HiDocumentReport,
   HiX,
-  HiUser
+  HiUser,
+  HiInboxIn,
+  HiLightningBolt
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -35,6 +40,31 @@ function DashboardSidebar({ role = "guest" }) {
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar } = useSidebar();
+  const [inboxCount, setInboxCount] = useState(0);
+
+  useEffect(() => {
+    if (role === "manager") {
+      // Basic fetch to get total pending items for the badge count
+      const fetchCounts = async () => {
+        try {
+          const [regRes, otRes, coRes, anomRes] = await Promise.all([
+            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/regularizations/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
+            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/overtime/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
+            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/comp-offs/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
+            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/team/anomalies", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] }
+          ]);
+          
+          let count = 0;
+          if (regRes.data) count += regRes.data.length;
+          if (otRes.data) count += otRes.data.length;
+          if (coRes.data) count += coRes.data.length;
+          if (anomRes.data) count += anomRes.data.length;
+          setInboxCount(count);
+        } catch (e) { console.error("Failed to fetch manager inbox counts", e); }
+      };
+      fetchCounts();
+    }
+  }, [role]);
 
   const [openSubMenus, setOpenSubMenus] = useState({
     shifts: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
@@ -103,12 +133,14 @@ function DashboardSidebar({ role = "guest" }) {
             },
             {
               label: "Attendance Settings", icon: HiCog, key: "attendanceSettings",
-              active: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
+              active: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods") || location.pathname.includes("/dashboard/hr/attendance/comp-off-policies"),
               subItems: [
                 { label: "Attendance Policies", path: "/dashboard/hr/attendance/policies", active: location.pathname === "/dashboard/hr/attendance/policies" },
+                { label: `${DICTIONARY.TERMS.COMP_OFF} Policies`, path: "/dashboard/hr/attendance/comp-off-policies", active: location.pathname === "/dashboard/hr/attendance/comp-off-policies" },
                 { label: "Lock Attendance", path: "/dashboard/hr/attendance/lock-periods", active: location.pathname === "/dashboard/hr/attendance/lock-periods" }
               ]
             },
+            // { label: "Biometric Devices", path: "/dashboard/hr/attendance/devices", icon: HiDeviceMobile, active: location.pathname === "/dashboard/hr/attendance/devices" },
             { label: "Reports", path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
           ],
         },
@@ -122,7 +154,7 @@ function DashboardSidebar({ role = "guest" }) {
               active: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
               subItems: [
                 { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
-                { label: "Comp Offs", path: "/dashboard/hr/attendance/comp-offs", active: location.pathname === "/dashboard/hr/attendance/comp-offs" }
+                { label: `${DICTIONARY.TERMS.COMP_OFF}s`, path: "/dashboard/hr/attendance/comp-offs", active: location.pathname === "/dashboard/hr/attendance/comp-offs" }
               ]
             },
           ],
@@ -133,6 +165,7 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             { label: "Leave Types", path: "/dashboard/hr/leaves/types", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/leaves/types" },
             { label: "Leave Policies", path: "/dashboard/hr/leaves/policies", icon: HiTemplate, active: location.pathname === "/dashboard/hr/leaves/policies" },
+            // { label: "Automation Engine", path: "/dashboard/hr/leaves/automation", icon: HiLightningBolt, active: location.pathname === "/dashboard/hr/leaves/automation" },
           ],
         },
 
@@ -153,6 +186,9 @@ function DashboardSidebar({ role = "guest" }) {
         icon: HiClock,
         items: [
           { label: "Regularizations", path: `/dashboard/${role}/attendance/regularizations`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/regularizations` },
+          { label: "Anomalies", path: `/dashboard/${role}/attendance/anomalies`, icon: HiExclamationCircle, active: location.pathname === `/dashboard/${role}/attendance/anomalies` },
+          { label: "Overtime", path: `/dashboard/${role}/attendance/overtime`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/overtime` },
+          { label: `${DICTIONARY.TERMS.COMP_OFF}s`, path: `/dashboard/${role}/attendance/comp-offs`, icon: HiGift, active: location.pathname === `/dashboard/${role}/attendance/comp-offs` },
         ],
       },
       {
@@ -166,10 +202,17 @@ function DashboardSidebar({ role = "guest" }) {
         title: "REQUESTS",
         icon: HiClipboardList,
         items: [
+          { 
+            label: "Approvals Inbox", 
+            path: "/dashboard/manager/requests/inbox", 
+            icon: HiInboxIn, 
+            active: location.pathname === "/dashboard/manager/requests/inbox",
+            badge: inboxCount > 0 ? inboxCount : null
+          },
           { label: "Regularization Requests", path: "/dashboard/manager/requests/regularizations", icon: HiClock, active: location.pathname === "/dashboard/manager/requests/regularizations" },
           { label: "OverTime Requests", path: "/dashboard/manager/requests/overtime", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/overtime" },
           { label: "Anomalies", path: "/dashboard/manager/team/anomalies", icon: HiChatAlt2, active: location.pathname === "/dashboard/manager/team/anomalies" },
-          { label: "Comp Off Requests", path: "/dashboard/manager/requests/comp-offs", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/comp-offs" },
+          { label: `${DICTIONARY.TERMS.COMP_OFF} Requests`, path: "/dashboard/manager/requests/comp-offs", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/comp-offs" },
           { label: "Leave Requests", path: "/dashboard/manager/requests/leaves", icon: HiClipboardList, active: location.pathname === "/dashboard/manager/requests/leaves" },
         ],
       },
@@ -336,13 +379,20 @@ function DashboardSidebar({ role = "guest" }) {
                             key={item.label}
                             to={item.path}
                             onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                            className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
                               ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
                               : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                               }`}
                           >
-                            <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                            {item.label}
+                            <div className="flex items-center gap-3">
+                              <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                              {item.label}
+                            </div>
+                            {item.badge && (
+                              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                {item.badge}
+                              </span>
+                            )}
                           </Link>
                         );
                       })}

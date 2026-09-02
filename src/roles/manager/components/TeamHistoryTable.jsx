@@ -1,5 +1,6 @@
 import React from "react";
 import { HiClock } from "react-icons/hi";
+import { formatDecimalHours } from "../../../shared/utils/formatUtils";
 
 function TeamHistoryTable({ history }) {
   const formatTime12H = (isoString) => {
@@ -61,11 +62,15 @@ function TeamHistoryTable({ history }) {
                       {mem.status ? mem.status.replace('_', ' ') : 'N/A'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-medium">
-                    {mem.total_hours ? `${mem.total_hours}h` : '--'}
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-800">
+                      {mem.total_hours ? formatDecimalHours(mem.total_hours) : '--'}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 font-medium">
-                    {mem.effective_hours ? `${mem.effective_hours}h` : '--'}
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-800">
+                      {mem.effective_hours ? formatDecimalHours(mem.effective_hours) : '--'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-xs">
                     {mem.late_minutes > 0 && <div className="text-rose-600 font-bold">{mem.late_minutes}m late</div>}

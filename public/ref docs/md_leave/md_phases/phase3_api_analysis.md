@@ -185,6 +185,33 @@ These APIs are protected by strict BOLA (Broken Object Level Authorization) guar
 
 ---
 
+### 5b. Get Team Leave Requests
+* **Endpoint:** `GET /api/v1/leaves/team/requests`
+* **Purpose:** Retrieves team leave history (any status).
+* **Query Parameters:** `status` (Optional), `user_id` (Optional), `page` (Optional), `limit` (Optional).
+* **Database Entities Affected:** `leave_requests` (SELECT).
+* **Side Effects (Hidden Logic):** Scoped to direct reports for managers, or org-wide for HR. Includes bounded pagination. For managers, the `user_id` filter is validated against their scope as a BOLA guard.
+
+---
+
+### 5c. Get Team Member Leave Requests
+* **Endpoint:** `GET /api/v1/leaves/team/member/:userId/requests`
+* **Purpose:** Retrieves a specific direct report's leave history.
+* **Path Params:** `userId` (UUID, Required).
+* **Database Entities Affected:** `leave_requests` (SELECT).
+* **Side Effects (Hidden Logic):** Fully scoped to ensure managers can only access their direct reports' history.
+
+---
+
+### 5d. Get Team Member Leave Balances
+* **Endpoint:** `GET /api/v1/leaves/team/member/:userId/balances`
+* **Purpose:** Fetches a specific direct report's leave wallet at approval time.
+* **Path Params:** `userId` (UUID, Required).
+* **Database Entities Affected:** `leave_balances` (SELECT).
+* **Side Effects (Hidden Logic):** Reuses the core `leaveBalanceService`. Fully scoped to ensure managers can only view balances of their direct reports.
+
+---
+
 ### 6. Approve Leave Request
 * **Endpoint:** `POST /api/v1/leaves/requests/:id/approve`
 * **Purpose:** Finalizes a pending request or approves a past cancellation.

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
+import { DICTIONARY } from "../../../shared/config/dictionary";
 import { HiSparkles, HiCheck, HiBan, HiCheckCircle, HiX } from "react-icons/hi";
 
 function ManagerCompOffsPage() {
@@ -52,11 +53,11 @@ function ManagerCompOffsPage() {
     <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
       <DashboardSidebar role="manager" />
       <div className="flex-1 flex flex-col min-w-0">
-        <DashboardTopBar title="Comp Off Requests" />
+        <DashboardTopBar title={`${DICTIONARY.TERMS.COMP_OFF} Requests`} />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Comp Off Requests</h1>
+              <h1 className="text-2xl font-bold text-slate-900">{DICTIONARY.TERMS.COMP_OFF} Requests</h1>
               <p className="text-sm text-slate-500 mt-1">Review and manage compensatory off requests from your team members who worked on holidays or weekly offs.</p>
             </div>
           </div>
@@ -77,7 +78,7 @@ function ManagerCompOffsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {compOffs.length === 0 ? (
-                    <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No pending comp off requests from your team.</td></tr>
+                    <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">No pending {DICTIONARY.TERMS.COMP_OFF.toLowerCase()} requests from your team.</td></tr>
                   ) : compOffs.map(co => (
                     <tr key={co.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-6 py-4 font-semibold text-primary-800">

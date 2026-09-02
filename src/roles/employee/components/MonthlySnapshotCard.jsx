@@ -1,5 +1,6 @@
 import React from "react";
 import { HiChartPie, HiCheckCircle, HiExclamationCircle, HiXCircle, HiClock } from "react-icons/hi";
+import { formatDecimalHours } from "../../../shared/utils/formatUtils";
 
 function MonthlySnapshotCard({ summary }) {
   return (
@@ -16,7 +17,7 @@ function MonthlySnapshotCard({ summary }) {
           <div className="text-2xl mb-1">
             <HiClock className="text-blue-400 w-7 h-7" />
           </div>
-          <div className="text-2xl font-extrabold text-blue-300">{summary?.total_hours_worked || 0}<span className="text-sm font-medium ml-1">h</span></div>
+          <div className="text-2xl font-extrabold text-blue-300">{formatDecimalHours(summary?.total_hours_worked)}</div>
           <div className="text-xs text-slate-300 mt-1 font-medium tracking-wide uppercase">Effective Hrs</div>
         </div>
         

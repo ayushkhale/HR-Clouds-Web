@@ -147,6 +147,19 @@ export const leaveAPI = {
     return request(`/leaves/users/${userId}/balances${query}`);
   },
 
+  // ── HR Admin — Automation & Maintenance ──────────────────────────────────
+  /**
+   * POST /leaves/automation/accrual/run
+   * Triggers monthly accrual calculation for all active employees.
+   */
+  runAccrual: () => request("/leaves/automation/accrual/run", { method: "POST" }),
+
+  /**
+   * POST /leaves/automation/rollover/run
+   * Triggers year-end balance rollover.
+   */
+  runRollover: () => request("/leaves/automation/rollover/run", { method: "POST" }),
+
   // ── Self-Service (Employee / Manager / HR — own leaves) ───────────────────
   /**
    * GET /leaves/my-balances

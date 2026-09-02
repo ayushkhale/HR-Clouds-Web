@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { leaveAPI } from "../../../shared/api";
+import { leaveAPI, attendanceAPI } from "../../../shared/api";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
   HiInformationCircle, HiClock, HiXCircle, HiExternalLink,
@@ -126,6 +126,35 @@ function BalanceCards({ balances }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Upcoming Holidays Widget ─────────────────────────────────────────────────
+function UpcomingHolidaysWidget({ holidays }) {
+  if (!holidays || holidays.length === 0) return null;
+  
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mt-8">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+          <HiCalendar className="text-purple-500 w-5 h-5" /> Upcoming Holidays
+        </h3>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {holidays.map((h, i) => (
+          <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/50 transition">
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-800 text-sm">{h.name}</span>
+              <span className="text-xs text-slate-500 mt-0.5">{h.type || 'Holiday'}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-sm font-bold text-slate-700 block">{new Date(h.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">{new Date(h.date).toLocaleDateString('en-US', { weekday: 'long' })}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -502,6 +531,7 @@ function RequestsTable({ requests, onCancel, cancelling }) {
 export default function LeaveDashboard() {
   const [balances, setBalances] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [upcomingHolidays, setUpcomingHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showApply, setShowApply] = useState(false);
   const [cancelling, setCancelling] = useState(null);
@@ -527,10 +557,19 @@ export default function LeaveDashboard() {
     } catch { /* non-critical */ }
   }, []);
 
+  const loadHolidays = useCallback(async () => {
+    try {
+      const res = await attendanceAPI.getUpcomingHolidays();
+      if (res.success) {
+        setUpcomingHolidays(res.data || []);
+      }
+    } catch { /* non-critical */ }
+  }, []);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadBalances(), loadRequests()]).finally(() => setLoading(false));
-  }, [loadBalances, loadRequests]);
+    Promise.all([loadBalances(), loadRequests(), loadHolidays()]).finally(() => setLoading(false));
+  }, [loadBalances, loadRequests, loadHolidays]);
 
   function handleCancelClick(id) {
     const req = requests.find(r => r.id === id);
@@ -597,6 +636,11 @@ export default function LeaveDashboard() {
           {/* Requests Table */}
           {!loading && (
             <RequestsTable requests={requests} onCancel={handleCancelClick} cancelling={cancelling} />
+          )}
+          
+          {/* Upcoming Holidays Widget */}
+          {!loading && (
+            <UpcomingHolidaysWidget holidays={upcomingHolidays} />
           )}
         </main>
       </div>

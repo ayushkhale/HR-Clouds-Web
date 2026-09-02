@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
+import { DICTIONARY } from "../../../../shared/config/dictionary";
 import { HiSparkles, HiCheck, HiX, HiCheckCircle, HiBan } from "react-icons/hi";
 
 const STATUS_TABS = [
@@ -38,7 +39,7 @@ function AttendanceCompOffsPage() {
       const res = await attendanceAPI.approveCompOff(id);
       if (res.success) {
         const expiry = res.data?.expiry_date ? new Date(res.data.expiry_date).toLocaleDateString() : "90 days";
-        showToast(`Comp Off approved! Expires: ${expiry}`);
+        showToast(`${DICTIONARY.TERMS.COMP_OFF} approved! Expires: ${expiry}`);
         fetchCompOffs();
       }
     } catch (err) {
@@ -50,7 +51,7 @@ function AttendanceCompOffsPage() {
     try {
       const res = await attendanceAPI.rejectCompOff(id, { remarks: remarksMap[id] || "" });
       if (res.success) {
-        showToast("Comp Off rejected");
+        showToast(`${DICTIONARY.TERMS.COMP_OFF} rejected`);
         fetchCompOffs();
       }
     } catch (err) {
@@ -67,7 +68,7 @@ function AttendanceCompOffsPage() {
         if (res.success) count++;
       } catch (err) { console.error(err); }
     }
-    showToast(`${count} comp off(s) approved!`);
+    showToast(`${count} ${DICTIONARY.TERMS.COMP_OFF.toLowerCase()}(s) approved!`);
     setSelected([]);
     fetchCompOffs();
   };
@@ -136,7 +137,7 @@ function AttendanceCompOffsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {compOffs.length === 0 ? (
-                    <tr><td colSpan={activeTab === "earned" ? 7 : 6} className="px-6 py-12 text-center text-slate-400">No {activeTab} comp offs found.</td></tr>
+                    <tr><td colSpan={activeTab === "earned" ? 7 : 6} className="px-6 py-12 text-center text-slate-400">No {activeTab} {DICTIONARY.TERMS.COMP_OFF.toLowerCase()}s found.</td></tr>
                   ) : compOffs.map(co => (
                     <tr key={co.id} className="hover:bg-slate-50/80 transition-colors">
                       {activeTab === "earned" && (

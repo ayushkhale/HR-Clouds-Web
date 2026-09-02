@@ -19,7 +19,22 @@ export const attendanceAPI = {
   getSummary: (month, year) => request(`/attendance/summary?month=${month}&year=${year}`),
   submitRegularization: (payload) => request("/attendance/regularization", { method: "POST", body: JSON.stringify(payload) }),
   getMyRegularizations: () => request("/attendance/regularizations"),
+  cancelRegularization: (id) => request(`/attendance/regularizations/${id}/cancel`, { method: "POST" }),
   getMyShift: () => request("/attendance/shift"),
+  getUpcomingHolidays: () => request("/attendance/holidays"),
+  getMyOvertime: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/overtime/mine${query ? `?${query}` : ""}`);
+  },
+  getMyAnomalies: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/anomalies/mine${query ? `?${query}` : ""}`);
+  },
+  getMyCompOffs: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/attendance/comp-offs/mine${query ? `?${query}` : ""}`);
+  },
+  getMyCompOffSummary: () => request("/attendance/comp-offs/mine/summary"),
 
   // ── Phase 7 Employee APIs ──────────────────────────────────────
   getDailyLog: (date) => request(`/attendance/daily-log${date ? `?date=${date}` : ""}`),
@@ -170,4 +185,48 @@ export const attendanceAPI = {
     const query = new URLSearchParams(params).toString();
     return request(`/attendance/hr/reports/employee/${userId}${query ? `?${query}` : ""}`);
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // HR — Devices (Biometric)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // 1. List all biometric devices
+  getDevices: () => request("/attendance/hr/devices"),
+
+  // 2. Register new device
+  createDevice: (payload) => request("/attendance/hr/devices", { method: "POST", body: JSON.stringify(payload) }),
+
+  // 3. Update device config
+  updateDevice: (id, payload) => request(`/attendance/hr/devices/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+
+  // 4. Delete device
+  deleteDevice: (id) => request(`/attendance/hr/devices/${id}`, { method: "DELETE" }),
+
+  // 5. List employee→device mappings
+  getDeviceMappings: (id) => request(`/attendance/hr/devices/${id}/mappings`),
+
+  // 6. Link employee to device
+  createDeviceMapping: (id, payload) => request(`/attendance/hr/devices/${id}/mappings`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // 7. Remove mapping
+  deleteDeviceMapping: (id, mappingId) => request(`/attendance/hr/devices/${id}/mappings/${mappingId}`, { method: "DELETE" }),
+
+  // ── HR — Maintenance
+  recomputeStaleRecords: () => request("/attendance/hr/records/recompute-stale", { method: "POST" }),
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // HR — Comp-Off Policies
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // 1. List all comp-off policies
+  getCompOffPolicies: () => request("/attendance/hr/comp-off-policies"),
+
+  // 2. Create comp-off policy
+  createCompOffPolicy: (payload) => request("/attendance/hr/comp-off-policies", { method: "POST", body: JSON.stringify(payload) }),
+
+  // 3. Update comp-off policy
+  updateCompOffPolicy: (id, payload) => request(`/attendance/hr/comp-off-policies/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+
+  // 4. Delete comp-off policy
+  deleteCompOffPolicy: (id) => request(`/attendance/hr/comp-off-policies/${id}`, { method: "DELETE" }),
 };
