@@ -3,7 +3,7 @@
 // All domain API modules import `request` and `tokenHelper` from here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://development.hrclouds.in/api/v1";
 
 // const BASE_URL = "http://192.168.29.131:4500/api/v1";
 
