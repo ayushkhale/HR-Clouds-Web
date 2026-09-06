@@ -91,7 +91,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
       await hrmsAPI.transferDepartment(userId, payload);
       onSuccess("Department transferred successfully.");
     } catch (err) {
-      if (err.data?.code === "MISSING_FALLBACK_MANAGER") {
+      if (err.data?.errorCode === "MISSING_FALLBACK_MANAGER") {
         setRequiresFallback(true);
         setError("The old department has no HOD. Please select a fallback manager for their subordinates.");
       } else {

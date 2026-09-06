@@ -221,6 +221,7 @@ function DashboardSidebar({ role = "guest" }) {
         icon: HiUserGroup,
         forceDropdown: true,
         items: [
+          { label: "Team Roster", path: "/dashboard/manager/team/roster", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/roster" },
           { label: "Status", path: "/dashboard/manager/team/today", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/today" },
           { label: "History", path: "/dashboard/manager/team/history", icon: HiCalendar, active: location.pathname === "/dashboard/manager/team/history" },
         ],

@@ -1,10 +1,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // organization.api.js — Organization, employee, department & location endpoints
+//
+// Organized by role hierarchy: HR → Manager → Employee
+// Within each role, APIs are grouped by sub-module
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { request } from "./client.js";
 
 export const organizationAPI = {
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  HR
+  //  Admin-level APIs for org setup, invitations, employees, depts, locations
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── HR › Organization Registration ─────────────────────────────────────────
+  //    Initial org setup with plan selection and payment verification
   /**
    * Initiate organization registration (with plan selection)
    * POST /organizations/register/initiate
@@ -29,10 +40,12 @@ export const organizationAPI = {
     });
   },
 
+  // ── HR › Invitations ───────────────────────────────────────────────────────
+  //    Invite users, revoke/resend invitations
   /**
    * HR invites a user to the organization
    * POST /organizations/users/invite
-   * @param {{ email, role }} payload
+   * @param {{ email, role, reporting_person?, department_id?, make_hod? }} payload
    */
   inviteUser(payload) {
     return request("/organizations/users/invite", {
@@ -65,38 +78,8 @@ export const organizationAPI = {
     });
   },
 
-  /**
-   * Validate an invitation token (public — no auth required)
-   * GET /organizations/invitations/validate?token=XYZ
-   * @param {string} token
-   */
-  validateInvitation(token) {
-    return request(`/organizations/invitations/validate?token=${encodeURIComponent(token)}`, {
-      method: "GET",
-      headers: {},  // no auth header
-    });
-  },
-
-  /**
-   * Accept an invitation
-   * POST /organizations/invitations/accept
-   * For new users: { token, password } — no auth header
-   * For existing users: { token } — with Bearer auth header
-   * @param {{ token, password? }} payload
-   * @param {boolean} isNewUser
-   */
-  acceptInvitation(payload, isNewUser = true) {
-    const options = {
-      method: "POST",
-      body: JSON.stringify(payload),
-    };
-    // New users don't have an auth token
-    if (isNewUser) {
-      options.headers = {};  // override — no auth header
-    }
-    return request("/organizations/invitations/accept", options);
-  },
-
+  // ── HR › Employee Management ───────────────────────────────────────────────
+  //    List, view, update, deactivate, and delete employees
   /**
    * Get organization employees (for shift assignments / dropdowns)
    * GET /organizations/employees?purpose=shift_assignment
@@ -105,38 +88,6 @@ export const organizationAPI = {
   getEmployees(params = {}) {
     const query = new URLSearchParams(params).toString();
     return request(`/organizations/employees${query ? `?${query}` : ""}`);
-  },
-
-  getDepartments(params = {}) {
-    const query = new URLSearchParams(params).toString();
-    return request(`/organizations/departments${query ? `?${query}` : ""}`);
-  },
-  createDepartment(payload) {
-    return request("/organizations/departments", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-  updateDepartment(id, payload) {
-    return request(`/organizations/departments/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  /**
-   * Get organization locations
-   * GET /organizations/locations
-   */
-  getLocations(params = {}) {
-    const query = new URLSearchParams(params).toString();
-    return request(`/organizations/locations${query ? `?${query}` : ""}`);
-  },
-  createLocation(payload) {
-    return request("/organizations/locations", { method: "POST", body: JSON.stringify(payload) });
-  },
-  updateLocation(id, payload) {
-    return request(`/organizations/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   },
 
   /**
@@ -172,6 +123,69 @@ export const organizationAPI = {
     });
   },
 
+  // ── HR › Departments ───────────────────────────────────────────────────────
+  //    Create and manage organizational departments
+  getDepartments(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/organizations/departments${query ? `?${query}` : ""}`);
+  },
+  createDepartment(payload) {
+    return request("/organizations/departments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateDepartment(id, payload) {
+    return request(`/organizations/departments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // ── HR › Locations (Geofencing) ────────────────────────────────────────────
+  //    Office location CRUD for geofence-based clock-in/out
+  /**
+   * Get organization locations
+   * GET /organizations/locations
+   */
+  getLocations(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/organizations/locations${query ? `?${query}` : ""}`);
+  },
+  createLocation(payload) {
+    return request("/organizations/locations", { method: "POST", body: JSON.stringify(payload) });
+  },
+  updateLocation(id, payload) {
+    return request(`/organizations/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MANAGER
+  //  Direct report profile management
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Manager › Direct Report Profiles ───────────────────────────────────────
+  //    Update a direct report's basic profile fields
+  /**
+   * PATCH /organizations/employees/:id
+   * Manager updates direct report's profile
+   */
+  updateEmployeeProfile(id, payload) {
+    return request(`/organizations/employees/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EMPLOYEE
+  //  Self-service APIs — own profile, org directory
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Employee › My Profile ──────────────────────────────────────────────────
+  //    View and update own personal profile fields
   /**
    * Fetch the logged-in user's own full profile
    * GET /organizations/me
@@ -192,6 +206,8 @@ export const organizationAPI = {
     });
   },
 
+  // ── Employee › Organization Directory ──────────────────────────────────────
+  //    Browse colleagues across the organization (public-safe data)
   /**
    * Fetch the public-safe employee directory
    * GET /organizations/directory
@@ -200,5 +216,39 @@ export const organizationAPI = {
   getDirectory(params = {}) {
     const query = new URLSearchParams(params).toString();
     return request(`/organizations/directory${query ? `?${query}` : ""}`);
+  },
+
+  // ── Employee › Invitation Acceptance (Public) ──────────────────────────────
+  //    Validate and accept an org invitation (used during onboarding)
+  /**
+   * Validate an invitation token (public — no auth required)
+   * GET /organizations/invitations/validate?token=XYZ
+   * @param {string} token
+   */
+  validateInvitation(token) {
+    return request(`/organizations/invitations/validate?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+      headers: {},  // no auth header
+    });
+  },
+
+  /**
+   * Accept an invitation
+   * POST /organizations/invitations/accept
+   * For new users: { token, password } — no auth header
+   * For existing users: { token } — with Bearer auth header
+   * @param {{ token, password? }} payload
+   * @param {boolean} isNewUser
+   */
+  acceptInvitation(payload, isNewUser = true) {
+    const options = {
+      method: "POST",
+      body: JSON.stringify(payload),
+    };
+    // New users don't have an auth token
+    if (isNewUser) {
+      options.headers = {};  // override — no auth header
+    }
+    return request("/organizations/invitations/accept", options);
   },
 };

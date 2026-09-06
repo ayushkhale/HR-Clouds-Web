@@ -226,7 +226,9 @@ function LeaveRequestCard({ request, onApprove, onReject, approving, showToast }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManagerLeavePage() {
+  const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState([]);
+  const [historyRequests, setHistoryRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -240,14 +242,19 @@ export default function ManagerLeavePage() {
   const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await leaveAPI.getTeamPendingRequests();
-      setRequests(res.data || []);
+      if (activeTab === "pending") {
+        const res = await leaveAPI.getTeamPendingRequests();
+        setRequests(res.data || []);
+      } else {
+        const res = await leaveAPI.getTeamRequests();
+        setHistoryRequests(res.data || []);
+      }
     } catch {
       showToast("Failed to load leave requests.", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => { loadRequests(); }, [loadRequests]);
 
@@ -297,7 +304,27 @@ export default function ManagerLeavePage() {
                 Review and action leave requests from your direct reports.
               </p>
             </div>
-            {/* Summary pills */}
+            
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button 
+                onClick={() => setActiveTab("pending")} 
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === "pending" ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Pending Approvals
+              </button>
+              <button 
+                onClick={() => setActiveTab("history")} 
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === "history" ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Team History
+              </button>
+            </div>
+          </div>
+
+          {activeTab === "pending" && (
+            <div className="flex items-start justify-between mb-6">
+              <div />
+              {/* Summary pills */}
             <div className="flex gap-2 shrink-0">
               {pendingCount > 0 && (
                 <span className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full">
@@ -311,8 +338,9 @@ export default function ManagerLeavePage() {
                   {cancellationCount} cancellation{cancellationCount !== 1 ? "s" : ""}
                 </span>
               )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Content */}
           {loading ? (
@@ -329,6 +357,47 @@ export default function ManagerLeavePage() {
               <p className="text-sm font-semibold text-slate-600">All caught up!</p>
               <p className="text-xs text-slate-400">No pending leave requests from your team.</p>
             </div>
+          ) : activeTab === "history" ? (
+            historyRequests.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center">
+                  <HiCalendar className="w-7 h-7 text-slate-400" />
+                </div>
+                <p className="text-sm font-semibold text-slate-600">No History Found</p>
+                <p className="text-xs text-slate-400">Your team doesn't have any past leave requests.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {historyRequests.map(req => {
+                  const applicant = req.applicant;
+                  const name = applicant ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() || applicant.email : "Employee";
+                  return (
+                    <div key={req.id} className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-bold text-slate-800">{name}</h4>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-sm font-semibold text-slate-600">{req.leave_type?.name || "Leave"}</span>
+                          <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full border 
+                            ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                              req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 
+                              req.status === 'cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
+                              'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            {req.status?.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {new Date(req.start_date).toLocaleDateString()} 
+                          {req.start_date !== req.end_date && ` – ${new Date(req.end_date).toLocaleDateString()}`}
+                          <span className="mx-2">•</span> 
+                          {parseFloat(req.total_days).toFixed(1)} days
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : (
             <div className="space-y-8">
               {/* ── Pending Approval ── */}

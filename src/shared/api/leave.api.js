@@ -1,17 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// leave.api.js — All Leave Management endpoints (HR Admin, Self-Service, Approver)
+// leave.api.js — All Leave Management endpoints
+//
+// Organized by role hierarchy: HR → Manager → Employee
+// Within each role, APIs are grouped by sub-module
 //
 // API Base: /api/v1/leaves
-// Phases covered:
-//   Phase 1 → Leave Types & Policy Templates/Entitlements  (HR Admin)
-//   Phase 2 → Policy Assignment, Balance Ledger, Config Overrides  (HR Admin)
-//   Phase 3 → Leave Application, Cancel, Approvals  (Self-Service + Approver)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { request } from "./client.js";
 
 export const leaveAPI = {
-  // ── HR Admin — Leave Types ────────────────────────────────────────────────
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  HR
+  //  Admin-level APIs for configuring leave types, policies, and overrides
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── HR › Leave Types ───────────────────────────────────────────────────────
+  //    Create/update/deactivate leave type definitions (Casual, Sick, etc.)
   /**
    * GET /leaves/types
    * @param {Object} params - e.g. { include_inactive: true }
@@ -45,7 +51,8 @@ export const leaveAPI = {
   deleteLeaveType: (id, force = false) =>
     request(`/leaves/types/${id}${force ? "?force=true" : ""}`, { method: "DELETE" }),
 
-  // ── HR Admin — Policy Templates ───────────────────────────────────────────
+  // ── HR › Policy Templates ─────────────────────────────────────────────────
+  //    Template containers that hold entitlement quotas per leave type
   /**
    * GET /leaves/templates
    */
@@ -74,7 +81,8 @@ export const leaveAPI = {
   deleteTemplate: (id) =>
     request(`/leaves/templates/${id}`, { method: "DELETE" }),
 
-  // ── HR Admin — Entitlements ───────────────────────────────────────────────
+  // ── HR › Entitlements ──────────────────────────────────────────────────────
+  //    Per-leave-type quotas within a policy template
   /**
    * POST /leaves/templates/:templateId/entitlements
    * @param {string} templateId
@@ -109,7 +117,8 @@ export const leaveAPI = {
       method: "DELETE",
     }),
 
-  // ── HR Admin — Policy Assignment & Config Overrides ───────────────────────
+  // ── HR › Policy Assignment & Config Overrides ──────────────────────────────
+  //    Assign a template to an employee, override individual configs
   /**
    * POST /leaves/users/:userId/assign-policy
    * Assigns a template to an employee. Side effect: pro-rata credits balance ledger.
@@ -136,6 +145,8 @@ export const leaveAPI = {
       body: JSON.stringify(payload),
     }),
 
+  // ── HR › Employee Balances ─────────────────────────────────────────────────
+  //    View any employee's leave balance ledger
   /**
    * GET /leaves/users/:userId/balances
    * HR view of any employee's leave balance ledger.
@@ -147,7 +158,8 @@ export const leaveAPI = {
     return request(`/leaves/users/${userId}/balances${query}`);
   },
 
-  // ── HR Admin — Automation & Maintenance ──────────────────────────────────
+  // ── HR › Automation & Maintenance ──────────────────────────────────────────
+  //    Trigger monthly accruals and year-end rollovers
   /**
    * POST /leaves/automation/accrual/run
    * Triggers monthly accrual calculation for all active employees.
@@ -160,7 +172,77 @@ export const leaveAPI = {
    */
   runRollover: () => request("/leaves/automation/rollover/run", { method: "POST" }),
 
-  // ── Self-Service (Employee / Manager / HR — own leaves) ───────────────────
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MANAGER
+  //  Team leave oversight and approval workflows
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Manager › Team Leave Requests ──────────────────────────────────────────
+  //    View pending requests, full team history, and per-member drill-downs
+  /**
+   * GET /leaves/team/requests/pending
+   * Returns pending leave requests from direct reports.
+   */
+  getTeamPendingRequests: () => request("/leaves/team/requests/pending"),
+
+  /**
+   * GET /leaves/team/requests
+   * Fetches team leave history (any status).
+   */
+  getTeamRequests: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/leaves/team/requests${qs ? `?${qs}` : ""}`);
+  },
+
+  /**
+   * GET /leaves/team/member/:userId/requests
+   * Fetches a specific direct report's leave history.
+   */
+  getTeamMemberRequests: (userId) => request(`/leaves/team/member/${userId}/requests`),
+
+  /**
+   * GET /leaves/team/member/:userId/balances
+   * Fetches a specific direct report's leave balances.
+   */
+  getTeamMemberBalances: (userId) => request(`/leaves/team/member/${userId}/balances`),
+
+  // ── Manager › Leave Approvals ──────────────────────────────────────────────
+  //    Approve or reject pending leave requests
+  /**
+   * POST /leaves/requests/:id/approve
+   * Approves a pending request. May fail with 403 (BOLA) or 400 (conflict: employee present).
+   * @param {string} id
+   */
+  approveRequest: (id) =>
+    request(`/leaves/requests/${id}/approve`, { method: "POST" }),
+
+  /**
+   * POST /leaves/requests/:id/reject
+   * Requires mandatory rejection_reason.
+   * @param {string} id
+   * @param {Object} payload - { rejection_reason: string (required, max 1000 chars) }
+   */
+  rejectRequest: (id, payload) =>
+    request(`/leaves/requests/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EMPLOYEE
+  //  Self-service APIs — own leave types, balances, requests
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Employee › Leave Types & Balances ──────────────────────────────────────
+  //    View own configured leave types and current balance wallet
+  /**
+   * GET /leaves/my-leave-types
+   * Fetches active leave types tailored to the caller's per-user config.
+   */
+  getMyLeaveTypes: () => request("/leaves/my-leave-types"),
+
   /**
    * GET /leaves/my-balances
    * @param {number|null} year
@@ -170,11 +252,19 @@ export const leaveAPI = {
     return request(`/leaves/my-balances${query}`);
   },
 
+  // ── Employee › Leave Requests ──────────────────────────────────────────────
+  //    Submit, view, and cancel own leave applications
   /**
    * GET /leaves/my-requests
    * Returns own leave request history ordered by created_at DESC.
    */
   getMyRequests: () => request("/leaves/my-requests"),
+
+  /**
+   * GET /leaves/requests/:id
+   * Fetches details of a specific leave request belonging to the user.
+   */
+  getLeaveRequest: (id) => request(`/leaves/requests/${id}`),
 
   /**
    * POST /leaves/request
@@ -195,32 +285,4 @@ export const leaveAPI = {
    */
   cancelRequest: (id) =>
     request(`/leaves/requests/${id}/cancel`, { method: "POST" }),
-
-  // ── Approver (Manager / HR / Admin) ──────────────────────────────────────
-  /**
-   * GET /leaves/team/requests/pending
-   * Returns all pending + cancellation_pending requests for the user's direct reports.
-   * HR/Admin get global queue. BOLA-protected.
-   */
-  getTeamPendingRequests: () => request("/leaves/team/requests/pending"),
-
-  /**
-   * POST /leaves/requests/:id/approve
-   * Approves a pending request. May fail with 403 (BOLA) or 400 (conflict: employee present).
-   * @param {string} id
-   */
-  approveRequest: (id) =>
-    request(`/leaves/requests/${id}/approve`, { method: "POST" }),
-
-  /**
-   * POST /leaves/requests/:id/reject
-   * Requires mandatory rejection_reason.
-   * @param {string} id
-   * @param {Object} payload - { rejection_reason: string (required, max 1000 chars) }
-   */
-  rejectRequest: (id, payload) =>
-    request(`/leaves/requests/${id}/reject`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
 };

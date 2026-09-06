@@ -151,7 +151,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
       }
       onSaved(isEdit ? "Entitlement updated." : "Entitlement added.");
     } catch (err) {
-      if (err.data?.code === "ENTITLEMENT_EXISTS") {
+      if (err.data?.errorCode === "ENTITLEMENT_EXISTS") {
         setError("This leave type already has a quota in this policy. Delete it first to reconfigure.");
       } else {
         setError(err.message || "Something went wrong.");

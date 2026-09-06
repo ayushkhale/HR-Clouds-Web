@@ -41,6 +41,7 @@ import ManagerRegularizationsPage from "../roles/manager/screens/ManagerRegulari
 import ManagerOvertimePage from "../roles/manager/screens/ManagerOvertimePage";
 import ManagerTeamPage from "../roles/manager/screens/ManagerTeamPage";
 import ManagerTeamHistoryPage from "../roles/manager/screens/ManagerTeamHistoryPage";
+import ManagerTeamRosterPage from "../roles/manager/screens/ManagerTeamRosterPage";
 import ManagerAnomaliesPage from "../roles/manager/screens/ManagerAnomaliesPage";
 import ManagerApprovalsInbox from "../roles/manager/screens/ManagerApprovalsInbox";
 
@@ -77,6 +78,7 @@ import ManagerCompOffsPage from "../roles/manager/screens/ManagerCompOffsPage";
 // Shared Screens
 import DocumentsPage from "../shared/screens/DocumentsPage";
 import MyProfilePage from "../shared/screens/MyProfilePage";
+import DirectoryPage from "../shared/screens/DirectoryPage";
 
 function CatchAll() {
   const { isAuthenticated } = useAuth();
@@ -168,12 +170,14 @@ function AppRoutes() {
       <Route path="/dashboard/manager/requests/comp-offs" element={<ProtectedRoute><ManagerCompOffsPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/today" element={<ProtectedRoute><ManagerTeamPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/history" element={<ProtectedRoute><ManagerTeamHistoryPage /></ProtectedRoute>} />
+      <Route path="/dashboard/manager/team/roster" element={<ProtectedRoute><ManagerTeamRosterPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/team/anomalies" element={<ProtectedRoute><ManagerAnomaliesPage /></ProtectedRoute>} />
       <Route path="/dashboard/manager/requests/leaves" element={<ProtectedRoute><ManagerLeavePage /></ProtectedRoute>} />
 
       {/* ─── SHARED DASHBOARD PAGES ─── */}
       <Route path="/dashboard/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
       <Route path="/dashboard/profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
+      <Route path="/dashboard/directory" element={<ProtectedRoute><DirectoryPage /></ProtectedRoute>} />
 
       {/* ─── CATCH-ALL ─── */}
       <Route path="*" element={<CatchAll />} />

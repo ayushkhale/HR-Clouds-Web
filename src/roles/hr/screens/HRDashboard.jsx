@@ -164,12 +164,34 @@ function HRDashboard() {
   const getPaginatedChartData = (dailyData) => {
     const data = getNormalizedChartData(dailyData);
     if (data.length === 0) return [];
-    const itemsPerPage = Math.ceil(data.length / 2);
+    
+    const itemsPerPage = 15;
     const startIdx = chartPage * itemsPerPage;
-    return data.slice(startIdx, startIdx + itemsPerPage);
+    let paginatedData = data.slice(startIdx, startIdx + itemsPerPage);
+    
+    // Pad to exactly 15 items so the graph doesn't stretch smaller datasets
+    if (paginatedData.length > 0 && paginatedData.length < itemsPerPage) {
+      const paddingCount = itemsPerPage - paginatedData.length;
+      const lastDate = new Date(paginatedData[paginatedData.length - 1].date);
+      
+      for (let i = 1; i <= paddingCount; i++) {
+        const nextDate = new Date(lastDate);
+        nextDate.setDate(nextDate.getDate() + i);
+        paginatedData.push({
+          date: nextDate.toISOString().split('T')[0],
+          on_time_count: 0,
+          late_count: 0,
+          final_absent_count: 0
+        });
+      }
+    }
+    
+    return paginatedData;
   };
 
-  const totalChartPages = dashboardGraphData?.daily && dashboardGraphData.daily.length > 0 ? 2 : 1;
+  const totalChartPages = dashboardGraphData?.daily && dashboardGraphData.daily.length > 0 
+    ? Math.max(1, Math.ceil(dashboardGraphData.daily.length / 15))
+    : 1;
 
   if (loading) {
     return (

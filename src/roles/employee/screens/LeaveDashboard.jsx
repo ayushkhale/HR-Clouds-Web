@@ -160,7 +160,7 @@ function UpcomingHolidaysWidget({ holidays }) {
 }
 
 // ─── Apply Leave Drawer ───────────────────────────────────────────────────────
-function ApplyLeaveDrawer({ balances, onClose, onSubmitted }) {
+function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
   const [form, setForm] = useState({
     leave_type_id: "",
     start_date: "",
@@ -312,14 +312,11 @@ function ApplyLeaveDrawer({ balances, onClose, onSubmitted }) {
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
             >
               <option value="">Select a leave type...</option>
-              {balances.map(b => {
-                const bal = parseFloat(b.current_balance);
-                return (
-                  <option key={b.leave_type_id} value={b.leave_type_id}>
-                    {b.leave_type?.name} ({bal <= 0 ? "No balance" : `${bal % 1 === 0 ? bal : bal.toFixed(1)} days left`})
-                  </option>
-                );
-              })}
+              {leaveTypes.map(t => (
+                <option key={t.id || t._id} value={t.id || t._id}>
+                  {t.name} {t.code ? `(${t.code})` : ""}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -530,6 +527,7 @@ function RequestsTable({ requests, onCancel, cancelling }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function LeaveDashboard() {
   const [balances, setBalances] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
   const [requests, setRequests] = useState([]);
   const [upcomingHolidays, setUpcomingHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -566,10 +564,17 @@ export default function LeaveDashboard() {
     } catch { /* non-critical */ }
   }, []);
 
+  const loadLeaveTypes = useCallback(async () => {
+    try {
+      const res = await leaveAPI.getMyLeaveTypes();
+      setLeaveTypes(res.data || []);
+    } catch { /* non-critical */ }
+  }, []);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadBalances(), loadRequests(), loadHolidays()]).finally(() => setLoading(false));
-  }, [loadBalances, loadRequests, loadHolidays]);
+    Promise.all([loadBalances(), loadRequests(), loadHolidays(), loadLeaveTypes()]).finally(() => setLoading(false));
+  }, [loadBalances, loadRequests, loadHolidays, loadLeaveTypes]);
 
   function handleCancelClick(id) {
     const req = requests.find(r => r.id === id);
@@ -648,7 +653,7 @@ export default function LeaveDashboard() {
       {/* Apply Modal */}
       {showApply && (
         <ApplyLeaveDrawer
-          balances={balances}
+          leaveTypes={leaveTypes}
           onClose={() => setShowApply(false)}
           onSubmitted={onLeaveSubmitted}
         />

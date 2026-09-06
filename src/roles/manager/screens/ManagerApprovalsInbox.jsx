@@ -29,7 +29,7 @@ function ManagerApprovalsInbox() {
   const fetchAndShowBalances = async (userId, empName) => {
     setBalanceModal({ isOpen: true, empName, balances: [], loading: true });
     try {
-      const res = await leaveAPI.getUserBalances(userId);
+      const res = await leaveAPI.getTeamMemberBalances(userId);
       if (res.success) {
         setBalanceModal({ isOpen: true, empName, balances: res.data || [], loading: false });
       } else {

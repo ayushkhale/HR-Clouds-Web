@@ -85,7 +85,7 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
       await leaveAPI.overrideConfig(userId, balance.leave_type_id, payload);
       onSaved("Config overridden. Balance updated automatically if applicable.");
     } catch (err) {
-      if (err.data?.code === "CONFIG_NOT_FOUND") {
+      if (err.data?.errorCode === "CONFIG_NOT_FOUND") {
         setError("No config found for this leave type. Assign a policy first.");
       } else {
         setError(err.message || "Something went wrong.");

@@ -217,7 +217,7 @@ function DeleteModal({ leaveType, onClose, onDeleted, onForceDelete }) {
       await leaveAPI.deleteLeaveType(leaveType.id, force);
       onDeleted(`"${leaveType.name}" deactivated successfully.`);
     } catch (err) {
-      const code = err.data?.code;
+      const code = err.data?.errorCode;
       if (code === "ACTIVE_BALANCES_EXIST") {
         setStage("balances_warn");
       } else if (code === "PENDING_REQUESTS_EXIST") {

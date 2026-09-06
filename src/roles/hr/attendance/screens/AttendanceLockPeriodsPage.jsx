@@ -38,7 +38,7 @@ function AttendanceLockPeriodsPage() {
         fetchLocks();
       }
     } catch (err) {
-      const code = err.data?.error?.code || "";
+      const code = err.data?.errorCode || err.data?.error?.errorCode || "";
       if (code === "OVERLAPPING_LOCK") {
         showToastMsg("This period overlaps with an existing lock", "error");
       } else {
