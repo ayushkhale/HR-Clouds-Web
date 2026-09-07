@@ -1,0 +1,48 @@
+name: Deploy Frontend (Dev) to Nginx
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Frontend Code
+      uses: actions/checkout@v4
+
+    # Since the 'dist' folder is pushed directly to GitHub, 
+    # we don't need to run npm install or npm run build!
+
+    - name: Setup SSH Key Natively
+      run: |
+        mkdir -p ~/.ssh/
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+
+    - name: Deploy 'dist' to Server (Nginx Web Root)
+      run: |
+        SERVER_USER=${{ secrets.SERVER_USER }}
+        SERVER_IP=${{ secrets.SERVER_IP }}
+        
+        # The folder containing your built files that is pushed to GitHub
+        BUILD_DIR="dist/" 
+        
+        # The directory serving the frontend (must match the 'root' directive in Nginx config)
+        WEB_ROOT="/home/$SERVER_USER/hrms-frontend-dev"
+
+        # Ensure web root directory exists
+        ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
+          mkdir -p $WEB_ROOT
+        "
+
+        # Sync the 'dist' folder to the server
+        rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no" ./$BUILD_DIR $SERVER_USER@$SERVER_IP:$WEB_ROOT
+
+        # Fix Permissions so Nginx can read the files
+        ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
+          chmod +x /home/$SERVER_USER
+          chmod -R 755 $WEB_ROOT
+        "
