@@ -15,15 +15,26 @@ function RegularizationCard({ requests, fetchRegularizations }) {
       alert("Please provide a valid date and a reason with at least 5 characters.");
       return;
     }
+
+    if (!clockIn && !clockOut) {
+      alert("Please provide either a Requested In or Requested Out time.");
+      return;
+    }
     
     try {
       setIsSubmitting(true);
+      
+      let reqIn, reqOut;
+      if (clockIn) reqIn = new Date(`${date}T${clockIn}:00`).toISOString();
+      if (clockOut) reqOut = new Date(`${date}T${clockOut}:00`).toISOString();
+
       const payload = {
         date,
         reason,
-        ...(clockIn ? { requested_clock_in: clockIn } : {}),
-        ...(clockOut ? { requested_clock_out: clockOut } : {})
+        ...(reqIn ? { requested_clock_in: reqIn } : {}),
+        ...(reqOut ? { requested_clock_out: reqOut } : {})
       };
+      
       const res = await attendanceAPI.submitRegularization(payload);
       if (res.success) {
         setIsModalOpen(false);

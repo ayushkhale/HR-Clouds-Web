@@ -4,7 +4,7 @@ import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSidebar } from "../contexts/SidebarContext";
-import { tokenHelper } from "../api";
+import { tokenHelper, attendanceAPI } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import {
   HiTemplate,
@@ -69,10 +69,10 @@ function DashboardSidebar({ role = "guest" }) {
 
         // Create a new fetch promise
         inboxFetchPromise = Promise.all([
-          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/regularizations/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
-          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/overtime/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
-          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/comp-offs/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
-          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/team/anomalies", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] }
+          tokenHelper.get() ? attendanceAPI.getManagerPendingRegularizations() : { data: [] },
+          tokenHelper.get() ? attendanceAPI.getManagerPendingOvertime() : { data: [] },
+          tokenHelper.get() ? attendanceAPI.getManagerCompOffs() : { data: [] },
+          tokenHelper.get() ? attendanceAPI.getManagerAnomalies() : { data: [] }
         ]).then(([regRes, otRes, coRes, anomRes]) => {
           let count = 0;
           if (regRes.data) count += regRes.data.length;

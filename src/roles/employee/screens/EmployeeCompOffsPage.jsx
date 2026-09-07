@@ -38,9 +38,9 @@ function EmployeeCompOffsPage({ role = "employee" }) {
 
   const getStatusBadge = (status) => {
     const s = (status || "").toLowerCase();
-    if (s === 'approved') return "bg-emerald-100 text-emerald-700 border-emerald-200";
-    if (s === 'rejected') return "bg-rose-100 text-rose-700 border-rose-200";
-    return "bg-amber-100 text-amber-700 border-amber-200";
+    if (s === 'approved') return "bg-emerald-50 text-emerald-700";
+    if (s === 'rejected') return "bg-rose-50 text-rose-700";
+    return "bg-purple-50 text-purple-600";
   };
 
   return (
@@ -50,60 +50,87 @@ function EmployeeCompOffsPage({ role = "employee" }) {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title={`My ${DICTIONARY.TERMS.COMP_OFF}s`} />
 
-        <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+        <main className="p-6 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6 lg:space-y-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Compensatory Time Off</h1>
+              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
+                  <HiGift className="w-5 h-5" />
+                </div>
+                Compensatory Time Off
+              </h1>
               <p className="text-sm text-slate-500 mt-1">Track your extra days worked and available {DICTIONARY.TERMS.COMP_OFF.toLowerCase()} balance.</p>
             </div>
-            {summary && (
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm min-w-[200px]">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Available Balance</p>
-                <p className="text-3xl font-black text-slate-900">{summary.available_balance || 0} <span className="text-sm font-medium text-slate-500">days</span></p>
-                <div className="mt-2 flex gap-4 text-[10px] uppercase font-bold text-slate-500">
-                  <span>{summary.total_earned || 0} Earned</span>
-                  <span>{summary.total_used || 0} Used</span>
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider text-xs">
-                  <tr>
-                    <th className="px-6 py-4">Worked Date</th>
-                    <th className="px-6 py-4">Days Earned</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Manager Note</th>
+          {summary && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-start">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 mb-3 sm:mb-4 bg-purple-50">
+                  <HiGift className="w-5 h-5" />
+                </div>
+                <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{summary.available_balance || 0}</span>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Available Balance</div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-start">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-emerald-100 flex items-center justify-center text-emerald-600 mb-3 sm:mb-4 bg-emerald-50">
+                  <span className="font-black text-lg">+</span>
+                </div>
+                <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{summary.total_earned || 0}</span>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Total Earned</div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-start">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 mb-3 sm:mb-4 bg-purple-50">
+                  <span className="font-black text-lg">-</span>
+                </div>
+                <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 leading-none">{summary.total_used || 0}</span>
+                <div className="text-[10px] sm:text-sm font-semibold text-slate-500 mt-1 sm:mt-2">Total Used</div>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white border border-slate-100 rounded-3xl shadow-xs overflow-hidden flex flex-col">
+            <div className="overflow-x-auto p-4 sm:p-6">
+              <table className="w-full text-left border-separate border-spacing-y-2">
+                <thead>
+                  <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    <th className="px-4 py-3 rounded-l-xl">Worked Date</th>
+                    <th className="px-4 py-3">Days Earned</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 rounded-r-xl">Manager Note</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
+                <tbody className="text-xs font-semibold text-slate-700">
                   {loading ? (
                     <tr>
-                      <td colSpan="4" className="px-6 py-12 text-center text-slate-400">Loading {DICTIONARY.TERMS.COMP_OFF.toLowerCase()}s...</td>
+                      <td colSpan="4" className="px-4 py-12 text-center text-slate-400 text-xs">Loading {DICTIONARY.TERMS.COMP_OFF.toLowerCase()}s...</td>
                     </tr>
                   ) : compOffs.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="px-6 py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center gap-2">
-                          <HiGift className="w-8 h-8 text-slate-200" />
-                          <p>No {DICTIONARY.TERMS.COMP_OFF.toLowerCase()} records found.</p>
+                      <td colSpan="4" className="px-4 py-16 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-200">
+                            <HiGift className="w-6 h-6" />
+                          </div>
+                          <p className="text-xs font-semibold text-slate-500">No {DICTIONARY.TERMS.COMP_OFF.toLowerCase()} records found.</p>
                         </div>
                       </td>
                     </tr>
                   ) : (
                     compOffs.map((record, idx) => (
-                      <tr key={record.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4 font-semibold">{record.worked_date}</td>
-                        <td className="px-6 py-4 font-bold text-emerald-600">+{record.days_earned}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide border ${getStatusBadge(record.status)}`}>
+                      <tr key={record.id || idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="text-slate-700">{record.worked_date}</span>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-emerald-600">+{record.days_earned}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-block px-2.5 py-1 text-[10px] font-bold rounded-full capitalize ${getStatusBadge(record.status)}`}>
                             {record.status || 'Pending'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 truncate max-w-xs" title={record.manager_note}>{record.manager_note || '--'}</td>
+                        <td className="px-4 py-3 truncate max-w-xs text-slate-500 font-medium" title={record.manager_note}>{record.manager_note || '--'}</td>
                       </tr>
                     ))
                   )}

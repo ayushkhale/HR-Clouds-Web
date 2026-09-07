@@ -38,11 +38,17 @@ export default function ManagerAdjustmentsPage() {
     setLoading(true);
     try {
       const [adjRes, teamRes] = await Promise.all([
-        payrollAPI.getTeamAdjustments().catch(() => ({ data: [] })),
-        organizationAPI.getMyTeam().catch(() => ({ data: [] }))
+        payrollAPI.getTeamAdjustments().catch(e => { console.error("getTeamAdjustments failed:", e); return { data: [] }; }),
+        organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(e => { console.error("getEmployees failed:", e); return { data: [] }; })
       ]);
-      setAdjustments(adjRes.data?.records || adjRes.data || []);
-      setTeamMembers(teamRes.data?.records || teamRes.data || []);
+      console.log("teamRes full:", teamRes);
+      const rawAdj = adjRes.data?.records ?? adjRes.data ?? [];
+      const rawTeam = Array.isArray(teamRes.data)
+        ? teamRes.data
+        : (teamRes.data?.employees ?? teamRes.data?.records ?? teamRes.data?.data ?? []);
+      console.log("rawTeam:", rawTeam);
+      setAdjustments(Array.isArray(rawAdj) ? rawAdj : []);
+      setTeamMembers(Array.isArray(rawTeam) ? rawTeam : []);
     } catch (err) {
       showToast(err.message || "Failed to load data", "error");
     } finally {
@@ -134,7 +140,7 @@ export default function ManagerAdjustmentsPage() {
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-red-500">*</span></label>
                 <select required value={formData.user_id} onChange={e => setFormData({...formData, user_id: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                   <option value="">-- Select Report --</option>
-                  {teamMembers.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  {teamMembers.map(m => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">

@@ -30,7 +30,7 @@ function AttendanceRegularizationsPage({ role = "employee" }) {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardTopBar title="Attendance Regularizations" />
 
-        <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6 lg:space-y-8">
+        <main className="p-6 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6 lg:space-y-8">
           
           <div className="flex items-start justify-between">
             <div>
@@ -39,7 +39,7 @@ function AttendanceRegularizationsPage({ role = "employee" }) {
             </div>
           </div>
 
-          <div className="max-w-4xl">
+          <div className="w-full">
             <RegularizationCard requests={regularizations} fetchRegularizations={fetchRegularizations} />
           </div>
 

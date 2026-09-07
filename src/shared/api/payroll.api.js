@@ -90,7 +90,7 @@ export const payrollAPI = {
   // ─────────────────────────────────────────────────────────────────────────────
   // Employee Self-Service APIs
   // ─────────────────────────────────────────────────────────────────────────────
-  getMyCurrentStructure: () => request("/payroll/me/salary-structure/current"),
+  getMyCurrentStructure: () => request("/payroll/me/salary-structure"),
   getMyStructureHistory: () => request("/payroll/me/salary-structures"),
   getMyBankAccount: () => request("/payroll/me/bank-account"),
   upsertMyBankAccount: (payload) => request("/payroll/me/bank-account", { method: "PUT", body: JSON.stringify(payload) }),

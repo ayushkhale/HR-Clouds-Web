@@ -38,7 +38,8 @@ export default function TeamSalaryPage() {
     setLoading(true);
     try {
       const res = await payrollAPI.getTeamSalaryStructures();
-      setTeamStructures(res.data?.records || res.data || []);
+      const raw = res.data?.records ?? res.data?.data ?? res.data ?? [];
+      setTeamStructures(Array.isArray(raw) ? raw : []);
     } catch (err) {
       if (err.message?.includes('permissions')) {
         showToast("Managers are not authorized to view team compensation by HR policy.", "error");

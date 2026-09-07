@@ -59,7 +59,7 @@ export default function MyPayslipsPage() {
       <DashboardSidebar role="employee" />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardTopBar title="My Payslips" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-5xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
           
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">

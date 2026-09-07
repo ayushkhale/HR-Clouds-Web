@@ -101,7 +101,7 @@ export const authAPI = {
    * GET /auth/me
    */
   me() {
-    return request("/auth/me", { method: "GET" });
+    return request("/organizations/me", { method: "GET" });
   },
 
   /**

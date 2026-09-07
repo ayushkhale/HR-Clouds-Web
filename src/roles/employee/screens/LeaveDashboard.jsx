@@ -4,7 +4,7 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI, attendanceAPI } from "../../../shared/api";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
-  HiInformationCircle, HiClock, HiXCircle, HiExternalLink,
+  HiInformationCircle, HiClock, HiXCircle, HiExternalLink, HiChevronDown
 } from "react-icons/hi";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -57,15 +57,15 @@ function CancelConfirmModal({ request, onClose, onConfirm }) {
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const map = {
-    pending: "bg-amber-50 text-amber-700 border-amber-200",
-    approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    rejected: "bg-red-50 text-red-600 border-red-200",
-    cancelled: "bg-slate-100 text-slate-500 border-slate-200",
-    cancellation_pending: "bg-orange-50 text-orange-700 border-orange-200",
+    pending: "bg-purple-50 text-purple-600",
+    approved: "bg-purple-100 text-purple-800",
+    rejected: "bg-slate-100 text-slate-500",
+    cancelled: "bg-slate-50 text-slate-400 border border-slate-100",
+    cancellation_pending: "bg-purple-50 text-purple-600 border border-purple-200",
   };
-  const cls = map[status] || "bg-slate-100 text-slate-500 border-slate-200";
+  const cls = map[status] || "bg-slate-100 text-slate-500";
   return (
-    <span className={`inline-block text-[10px] font-bold px-2.5 py-1 rounded-full border capitalize ${cls}`}>
+    <span className={`inline-block text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${cls}`}>
       {status?.replace(/_/g, " ") || "—"}
     </span>
   );
@@ -177,21 +177,12 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
 }
 
 // ─── Balance Cards ────────────────────────────────────────────────────────────
-const CARD_COLORS = [
-  { bg: "from-purple-500 to-purple-700", light: "bg-purple-50 border-purple-100" },
-  { bg: "from-blue-500 to-blue-700", light: "bg-blue-50 border-blue-100" },
-  { bg: "from-emerald-500 to-emerald-700", light: "bg-emerald-50 border-emerald-100" },
-  { bg: "from-amber-500 to-amber-600", light: "bg-amber-50 border-amber-100" },
-  { bg: "from-rose-500 to-rose-700", light: "bg-rose-50 border-rose-100" },
-  { bg: "from-cyan-500 to-cyan-700", light: "bg-cyan-50 border-cyan-100" },
-];
-
 function BalanceCards({ balances }) {
   if (balances.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 flex flex-col items-center gap-3 text-center">
-        <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
-          <HiCalendar className="w-7 h-7 text-slate-400" />
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-10 flex flex-col items-center gap-3 text-center">
+        <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center">
+          <HiCalendar className="w-7 h-7 text-purple-400" />
         </div>
         <p className="text-sm font-semibold text-slate-600">No leave balances found</p>
         <p className="text-xs text-slate-400">Contact your HR to assign a leave policy to your account.</p>
@@ -205,61 +196,95 @@ function BalanceCards({ balances }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {balances.map((b, i) => {
-        const color = CARD_COLORS[i % CARD_COLORS.length];
-        return (
-          <div key={b.id || b.leave_type_id} className={`relative rounded-2xl overflow-hidden border ${color.light}`}>
-            {/* Gradient strip */}
-            <div className={`h-1.5 w-full bg-gradient-to-r ${color.bg}`} />
-            <div className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <p className="text-xs font-bold text-slate-600 uppercase tracking-wide flex-1 truncate">
-                  {b.leave_type?.name || "Leave"}
-                </p>
-                <span className="font-mono text-[10px] font-bold bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded">
-                  {b.leave_type?.code}
-                </span>
-              </div>
-              <p className="text-3xl font-extrabold text-slate-900 mb-0.5">{fmt(parseFloat(b.current_balance))}</p>
-              <p className="text-xs text-slate-400">days remaining</p>
-              <div className="mt-3 pt-3 border-t border-slate-200/60 flex gap-4 text-xs text-slate-400">
-                <span className="font-medium">{fmt(parseFloat(b.total_accrued))} accrued</span>
-                <span className="font-medium">{fmt(parseFloat(b.total_used))} used</span>
-              </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {balances.map((b) => (
+        <div key={b.id || b.leave_type_id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs flex flex-col justify-start">
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 bg-purple-50">
+              <HiCalendar className="w-5 h-5" />
             </div>
+            <span className="font-mono text-[10px] font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded-full uppercase tracking-wider">
+              {b.leave_type?.code}
+            </span>
           </div>
-        );
-      })}
+          <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
+          <div className="flex items-end gap-1 mb-4">
+             <span className="text-3xl font-black tracking-tight text-slate-800 leading-none">{fmt(parseFloat(b.current_balance))}</span>
+             <span className="text-xs font-semibold text-slate-400 mb-1 tracking-normal">days left</span>
+          </div>
+          <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[10px] uppercase font-bold text-slate-400">
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{fmt(parseFloat(b.total_accrued))} Earned</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{fmt(parseFloat(b.total_used))} Used</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
 // ─── Upcoming Holidays Widget ─────────────────────────────────────────────────
 function UpcomingHolidaysWidget({ holidays }) {
+  const [isOpen, setIsOpen] = useState(true);
+
   if (!holidays || holidays.length === 0) return null;
   
+  function dayOfWeek(dateStr) {
+    if (!dateStr) return "";
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long" });
+  }
+  
+  function fmtDate(dateStr) {
+    if (!dateStr) return "";
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
+  
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mt-8">
-      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-          <HiCalendar className="text-purple-500 w-5 h-5" /> Upcoming Holidays
-        </h3>
-      </div>
-      <div className="divide-y divide-slate-50">
-        {holidays.map((h, i) => (
-          <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/50 transition">
-            <div className="flex flex-col">
-              <span className="font-semibold text-slate-800 text-sm">{h.name}</span>
-              <span className="text-xs text-slate-500 mt-0.5">{h.type || 'Holiday'}</span>
-            </div>
-            <div className="text-right">
-              <span className="text-sm font-bold text-slate-700 block">{new Date(h.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">{new Date(h.date).toLocaleDateString('en-US', { weekday: 'long' })}</span>
-            </div>
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col mt-8">
+      <button
+        type="button"
+        onClick={() => setIsOpen(o => !o)}
+        className="w-full px-6 py-5 flex items-center justify-between hover:bg-slate-50/60 transition-colors text-left group cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <HiCalendar className="w-4 h-4" />
           </div>
-        ))}
-      </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-800">Upcoming Holidays</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Your organization's official non-working days.</p>
+          </div>
+        </div>
+        <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div className="overflow-x-auto p-4 sm:p-6 pt-0 border-t border-slate-50">
+          <table className="w-full text-left border-separate border-spacing-y-2 mt-4">
+            <thead>
+              <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                <th className="px-4 py-3 rounded-l-xl">Holiday Name</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Day</th>
+                <th className="px-4 py-3 rounded-r-xl">Type</th>
+              </tr>
+            </thead>
+            <tbody className="text-xs font-semibold text-slate-700">
+              {holidays.map((h, i) => (
+                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-800">{h.name}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{fmtDate(h.date?.split('T')[0] || h.date)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{dayOfWeek(h.date?.split('T')[0] || h.date)}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-block px-2.5 py-1 text-[10px] font-bold rounded-full capitalize bg-purple-50 text-purple-600">
+                      {h.type || 'Public'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -417,11 +442,15 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
             >
               <option value="">Select a leave type...</option>
-              {leaveTypes.map(t => (
-                <option key={t.id || t._id} value={t.id || t._id}>
-                  {t.name} {t.code ? `(${t.code})` : ""}
-                </option>
-              ))}
+              {leaveTypes.map(item => {
+                const t = item.leave_type ? item.leave_type : item;
+                if (!t || !t.name) return null;
+                return (
+                  <option key={t.id || t._id} value={t.id || t._id}>
+                    {t.name} {t.code ? `(${t.code})` : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -532,9 +561,9 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
 function RequestsTable({ requests, onCancel, cancelling }) {
   if (requests.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 flex flex-col items-center gap-2 text-center">
-        <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-1">
-          <HiClock className="w-6 h-6 text-slate-400" />
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-10 flex flex-col items-center gap-3 text-center">
+        <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center">
+          <HiClock className="w-7 h-7 text-purple-400" />
         </div>
         <p className="text-sm font-semibold text-slate-600">No leave requests yet</p>
         <p className="text-xs text-slate-400">Your submitted leave requests will appear here.</p>
@@ -550,61 +579,69 @@ function RequestsTable({ requests, onCancel, cancelling }) {
   const cancellable = ["pending", "approved", "cancellation_pending"];
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-100">
-        <h3 className="text-sm font-bold text-slate-800">My Leave Requests</h3>
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col mt-8">
+      <div className="px-6 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <HiCalendar className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-800">My Leave Requests</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Track your past and active leave applications.</p>
+          </div>
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="overflow-x-auto p-4 sm:p-6 pt-0">
+        <table className="w-full text-left border-separate border-spacing-y-2">
           <thead>
-            <tr className="border-b border-slate-50">
-              <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
-              <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</th>
-              <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Days</th>
-              <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Applied</th>
-              <th className="px-6 py-3" />
+            <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+              <th className="px-4 py-3 rounded-l-xl">Leave Type</th>
+              <th className="px-4 py-3">Date Range</th>
+              <th className="px-4 py-3">Days</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Applied</th>
+              <th className="px-4 py-3 rounded-r-xl" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="text-xs font-semibold text-slate-700">
             {requests.map(r => (
               <React.Fragment key={r.id}>
-                <tr className="hover:bg-slate-50/40 transition-colors">
-                  <td className="px-6 py-3">
+                <tr className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={() => onCancel(r.id, true)} className="text-sm font-semibold text-purple-600 hover:text-purple-700 hover:underline text-left">
                         {r.leave_type?.name || "—"}
                       </button>
                       {r.is_half_day && (
-                        <span className="text-[9px] font-bold bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded">
+                        <span className="text-[9px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
                           {r.half_day_type === "first_half" ? "1st Half" : "2nd Half"}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-3 text-xs text-slate-600 font-medium">
+                  <td className="px-4 py-3 text-slate-600 font-medium">
                     {fmtDate(r.start_date)}
                     {r.start_date !== r.end_date && <> → {fmtDate(r.end_date)}</>}
                   </td>
-                  <td className="px-6 py-3">
+                  <td className="px-4 py-3">
                     <span className="text-sm font-bold text-slate-800">{parseFloat(r.total_days).toFixed(1)}</span>
-                    <span className="text-xs text-slate-400 ml-1">days</span>
+                    <span className="text-[10px] text-slate-400 ml-1">days</span>
                     {parseFloat(r.unpaid_days || 0) > 0 && (
                       <p className="text-[10px] mt-0.5">
-                        <span className="text-emerald-600 font-semibold">{parseFloat(r.paid_days || 0).toFixed(1)}p</span>
+                        <span className="text-purple-600 font-semibold">{parseFloat(r.paid_days || 0).toFixed(1)}p</span>
                         {" · "}
-                        <span className="text-rose-500 font-semibold">{parseFloat(r.unpaid_days).toFixed(1)} LWP</span>
+                        <span className="text-slate-400 font-semibold">{parseFloat(r.unpaid_days).toFixed(1)} LWP</span>
                       </p>
                     )}
                   </td>
-                  <td className="px-6 py-3"><StatusBadge status={r.status} /></td>
-                  <td className="px-6 py-3 text-xs text-slate-400">{fmtDate(r.created_at || r.requested_at)}</td>
-                  <td className="px-6 py-3">
+                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                  <td className="px-4 py-3 text-slate-400">{fmtDate(r.created_at || r.requested_at)}</td>
+                  <td className="px-4 py-3 text-right">
                     {cancellable.includes(r.status) && (
                       <button
                         onClick={() => onCancel(r.id)}
                         disabled={cancelling === r.id}
-                        className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
                       >
                         <HiXCircle className="w-3.5 h-3.5" />
                         {cancelling === r.id ? "…" : "Cancel"}
@@ -614,10 +651,10 @@ function RequestsTable({ requests, onCancel, cancelling }) {
                 </tr>
                 {r.status === "rejected" && r.rejection_reason && (
                   <tr>
-                    <td colSpan={6} className="px-6 pb-3 pt-0">
-                      <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
-                        <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-red-400" />
-                        <span><span className="font-semibold">Rejection reason:</span> {r.rejection_reason}</span>
+                    <td colSpan={6} className="px-4 pb-3 pt-0">
+                      <div className="flex items-start gap-2 text-[11px] text-purple-700 bg-purple-50 border border-purple-100 rounded-xl px-3 py-2.5">
+                        <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-purple-500" />
+                        <span><span className="font-bold uppercase tracking-wider text-[9px] mr-1">Rejection reason:</span> {r.rejection_reason}</span>
                       </div>
                     </td>
                   </tr>
@@ -727,9 +764,14 @@ export default function LeaveDashboard() {
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 space-y-8">
 
           {/* Page Header */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">My Leave Dashboard</h1>
+              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
+                  <HiCalendar className="w-5 h-5" />
+                </div>
+                My Leave Dashboard
+              </h1>
               <p className="text-sm text-slate-500 mt-1">View your leave balances and manage your requests.</p>
             </div>
             <button
@@ -764,10 +806,10 @@ export default function LeaveDashboard() {
 
       {/* Apply Modal */}
       {showApply && (
-        <ApplyLeaveDrawer
-          leaveTypes={leaveTypes}
-          onClose={() => setShowApply(false)}
-          onSubmitted={onLeaveSubmitted}
+        <ApplyLeaveDrawer 
+          leaveTypes={leaveTypes.length > 0 ? leaveTypes : balances.map(b => ({ ...(b.leave_type || {}), id: b.leave_type_id })).filter(t => t.name)} 
+          onClose={() => setShowApply(false)} 
+          onSubmitted={onLeaveSubmitted} 
         />
       )}
 

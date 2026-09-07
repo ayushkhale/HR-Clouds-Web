@@ -18,10 +18,10 @@ function Toast({ toast, onClose }) {
 }
 
 export default function TeamPayslipsPage() {
-  const [runs, setRuns] = useState([]);
-  const [selectedRunId, setSelectedRunId] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const [payslips, setPayslips] = useState([]);
-  const [loadingRuns, setLoadingRuns] = useState(true);
+  const [loadingTeam, setLoadingTeam] = useState(true);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -30,33 +30,32 @@ export default function TeamPayslipsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Load direct reports list
   useEffect(() => {
-    // We get the runs via HR endpoint for simplicity, but in a real app, 
-    // Manager might have a dedicated endpoint for visible runs, or we can use the HR endpoint if the token has basic HR roles, 
-    // but the backend handles permissions. We'll use getRuns() assuming it returns visible ones.
-    payrollAPI.getRuns()
-      .then(res => {
-        const approvedOrPaid = (res.data?.records || res.data || []).filter(r => ['approved', 'paid'].includes(r.status));
-        setRuns(approvedOrPaid);
-        if (approvedOrPaid.length > 0) {
-          setSelectedRunId(approvedOrPaid[0].id);
-        }
-        setLoadingRuns(false);
-      })
-      .catch(err => {
-        showToast(err.message, "error");
-        setLoadingRuns(false);
-      });
+    import("../../../../shared/api").then(({ organizationAPI }) => {
+      organizationAPI.getEmployees({ purpose: "shift_assignment" })
+        .then(res => {
+          const members = Array.isArray(res.data) ? res.data : (res.data?.employees || []);
+          setTeamMembers(members);
+          if (members.length > 0) setSelectedUserId(members[0].id || members[0]._id);
+        })
+        .catch(err => showToast(err.message, "error"))
+        .finally(() => setLoadingTeam(false));
+    });
   }, []);
 
+  // Load payslips for selected employee
   useEffect(() => {
-    if (!selectedRunId) return;
+    if (!selectedUserId) return;
     setLoadingPayslips(true);
-    payrollAPI.getTeamRunItems(selectedRunId)
-      .then(res => setPayslips(res.data?.records || res.data || []))
+    payrollAPI.getReportPayslips(selectedUserId)
+      .then(res => {
+        const raw = res.data?.records ?? res.data?.data ?? res.data ?? [];
+        setPayslips(Array.isArray(raw) ? raw : []);
+      })
       .catch(err => showToast(err.message, "error"))
       .finally(() => setLoadingPayslips(false));
-  }, [selectedRunId]);
+  }, [selectedUserId]);
 
   return (
     <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
@@ -72,20 +71,20 @@ export default function TeamPayslipsPage() {
               </h1>
               <p className="text-sm text-slate-500 mt-1">View finalized payslips for your direct reports.</p>
             </div>
-            {!loadingRuns && runs.length > 0 && (
+            {!loadingTeam && teamMembers.length > 0 && (
               <select 
-                value={selectedRunId || ""} 
-                onChange={e => setSelectedRunId(e.target.value)}
+                value={selectedUserId || ""} 
+                onChange={e => setSelectedUserId(e.target.value)}
                 className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-purple-400 shadow-sm"
               >
-                {runs.map(r => (
-                  <option key={r.id} value={r.id}>Run {r.cycle_month}/{r.cycle_year} ({r.status})</option>
+                {teamMembers.map(m => (
+                  <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>
                 ))}
               </select>
             )}
           </div>
 
-          {loadingRuns || loadingPayslips ? <Skeleton type="table" rows={4} /> : (
+          {loadingTeam || loadingPayslips ? <Skeleton type="table" rows={4} /> : (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>

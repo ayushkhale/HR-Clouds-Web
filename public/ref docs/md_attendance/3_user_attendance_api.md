@@ -338,7 +338,7 @@ Allows an employee to request a manual correction to their attendance (e.g., for
 
 ### Validation Rules
 - `date`: ISO Date. Required. Must be in the past (cannot regularize future dates).
-- `requested_clock_in`/`out`: ISO Dates. Optional.
+- `requested_clock_in`/`out`: ISO Dates. At least one of these must be provided.
 - `reason`: String. Min 5, Max 1000. Required.
 
 ### Complete Internal Execution Flow
