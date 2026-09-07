@@ -41,8 +41,9 @@ jobs:
         # Sync the 'dist' folder to the server
         rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no" ./$BUILD_DIR $SERVER_USER@$SERVER_IP:$WEB_ROOT
 
-        # Fix Permissions so Nginx can read the files
+        # Fix Permissions so Nginx can read the files and Reload Nginx to clear cache
         ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
           chmod +x /home/$SERVER_USER
           chmod -R 755 $WEB_ROOT
+          sudo systemctl reload nginx
         "
