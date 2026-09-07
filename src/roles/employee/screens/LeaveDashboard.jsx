@@ -71,6 +71,111 @@ function StatusBadge({ status }) {
   );
 }
 
+// ─── Leave Request Detail Modal ───────────────────────────────────────────────
+function LeaveRequestDetailModal({ requestId, onClose }) {
+  const [details, setDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await leaveAPI.getLeaveRequest(requestId);
+        setDetails(res.data);
+      } catch (err) {
+        setError(err.message || "Failed to load leave details.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (requestId) load();
+  }, [requestId]);
+
+  if (!requestId) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
+          <h2 className="text-base font-bold text-slate-800">Leave Request Details</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+            <HiX className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="p-6">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+            </div>
+          ) : error ? (
+            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          ) : details ? (
+            <div className="space-y-6">
+              {/* Header Info */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">{details.leave_type?.name}</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {new Date(details.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    {details.start_date !== details.end_date && ` → ${new Date(details.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`}
+                  </p>
+                </div>
+                <StatusBadge status={details.status} />
+              </div>
+
+              {/* Days breakdown */}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-2xl font-extrabold text-slate-900">{parseFloat(details.total_days).toFixed(1)}</p>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">Total</p>
+                </div>
+                <div className="bg-emerald-50 rounded-xl p-4">
+                  <p className="text-2xl font-extrabold text-emerald-700">{parseFloat(details.paid_days || 0).toFixed(1)}</p>
+                  <p className="text-[10px] uppercase font-bold text-emerald-500 mt-1">Paid</p>
+                </div>
+                <div className="bg-rose-50 rounded-xl p-4">
+                  <p className="text-2xl font-extrabold text-rose-600">{parseFloat(details.unpaid_days || 0).toFixed(1)}</p>
+                  <p className="text-[10px] uppercase font-bold text-rose-400 mt-1">LWP</p>
+                </div>
+              </div>
+
+              {/* Reason */}
+              {details.reason && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Reason</p>
+                  <p className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100">{details.reason}</p>
+                </div>
+              )}
+
+              {/* Rejection */}
+              {details.rejection_reason && (
+                <div>
+                  <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider mb-2">Rejection Reason</p>
+                  <p className="text-sm text-red-700 bg-red-50 p-4 rounded-xl border border-red-100">{details.rejection_reason}</p>
+                </div>
+              )}
+
+              {/* Document */}
+              {details.document_url && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Attachment</p>
+                  <a href={details.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 px-4 py-2 rounded-xl font-semibold transition">
+                    <HiExternalLink className="w-4 h-4" /> View Document
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Balance Cards ────────────────────────────────────────────────────────────
 const CARD_COLORS = [
   { bg: "from-purple-500 to-purple-700", light: "bg-purple-50 border-purple-100" },
@@ -467,7 +572,9 @@ function RequestsTable({ requests, onCancel, cancelling }) {
                 <tr className="hover:bg-slate-50/40 transition-colors">
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-800">{r.leave_type?.name || "—"}</span>
+                      <button onClick={() => onCancel(r.id, true)} className="text-sm font-semibold text-purple-600 hover:text-purple-700 hover:underline text-left">
+                        {r.leave_type?.name || "—"}
+                      </button>
                       {r.is_half_day && (
                         <span className="text-[9px] font-bold bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded">
                           {r.half_day_type === "first_half" ? "1st Half" : "2nd Half"}
@@ -534,6 +641,7 @@ export default function LeaveDashboard() {
   const [showApply, setShowApply] = useState(false);
   const [cancelling, setCancelling] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [detailRequestId, setDetailRequestId] = useState(null);
   const [toast, setToast] = useState(null);
 
   function showToast(message, type = "success") {
@@ -576,7 +684,11 @@ export default function LeaveDashboard() {
     Promise.all([loadBalances(), loadRequests(), loadHolidays(), loadLeaveTypes()]).finally(() => setLoading(false));
   }, [loadBalances, loadRequests, loadHolidays, loadLeaveTypes]);
 
-  function handleCancelClick(id) {
+  function handleCancelClick(id, viewOnly = false) {
+    if (viewOnly) {
+      setDetailRequestId(id);
+      return;
+    }
     const req = requests.find(r => r.id === id);
     setCancelTarget(req || { id, status: "pending" });
   }
@@ -664,6 +776,13 @@ export default function LeaveDashboard() {
           request={cancelTarget}
           onClose={() => setCancelTarget(null)}
           onConfirm={executeCancelRequest}
+        />
+      )}
+
+      {detailRequestId && (
+        <LeaveRequestDetailModal
+          requestId={detailRequestId}
+          onClose={() => setDetailRequestId(null)}
         />
       )}
 

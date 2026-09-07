@@ -30,10 +30,17 @@ import {
   HiLockClosed,
   HiDocumentReport,
   HiX,
-  HiUser,
   HiInboxIn,
-  HiLightningBolt
+  HiLightningBolt,
+  HiCurrencyRupee,
+  HiAdjustments,
+  HiPlay
 } from "react-icons/hi";
+
+let cachedInboxCount = 0;
+let lastInboxFetchTime = 0;
+let inboxFetchPromise = null;
+const INBOX_CACHE_DURATION = 60000; // 1 minute
 
 function DashboardSidebar({ role = "guest" }) {
   const navigate = useNavigate();
@@ -44,23 +51,47 @@ function DashboardSidebar({ role = "guest" }) {
 
   useEffect(() => {
     if (role === "manager") {
-      // Basic fetch to get total pending items for the badge count
       const fetchCounts = async () => {
-        try {
-          const [regRes, otRes, coRes, anomRes] = await Promise.all([
-            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/regularizations/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
-            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/overtime/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
-            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/comp-offs/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
-            tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/team/anomalies", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] }
-          ]);
-          
+        // Return immediately if cache is valid
+        if (Date.now() - lastInboxFetchTime < INBOX_CACHE_DURATION) {
+          setInboxCount(cachedInboxCount);
+          return;
+        }
+
+        // If a fetch is already in progress, wait for it instead of starting a new one
+        if (inboxFetchPromise) {
+          try {
+            const count = await inboxFetchPromise;
+            setInboxCount(count);
+          } catch (e) {}
+          return;
+        }
+
+        // Create a new fetch promise
+        inboxFetchPromise = Promise.all([
+          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/regularizations/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
+          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/overtime/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
+          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/comp-offs/pending", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] },
+          tokenHelper.get() ? fetch("http://192.168.29.131:4500/api/v1/attendance/manager/team/anomalies", { headers: { Authorization: `Bearer ${tokenHelper.get()}` }}).then(r=>r.json()) : { data: [] }
+        ]).then(([regRes, otRes, coRes, anomRes]) => {
           let count = 0;
           if (regRes.data) count += regRes.data.length;
           if (otRes.data) count += otRes.data.length;
           if (coRes.data) count += coRes.data.length;
           if (anomRes.data) count += anomRes.data.length;
-          setInboxCount(count);
-        } catch (e) { console.error("Failed to fetch manager inbox counts", e); }
+          cachedInboxCount = count;
+          lastInboxFetchTime = Date.now();
+          inboxFetchPromise = null;
+          return count;
+        }).catch(e => {
+          console.error("Failed to fetch manager inbox counts", e);
+          inboxFetchPromise = null;
+          return 0;
+        });
+
+        // Wait for our newly created promise
+        const count = await inboxFetchPromise;
+        setInboxCount(count);
       };
       fetchCounts();
     }
@@ -141,6 +172,7 @@ function DashboardSidebar({ role = "guest" }) {
               ]
             },
             // { label: "Biometric Devices", path: "/dashboard/hr/attendance/devices", icon: HiDeviceMobile, active: location.pathname === "/dashboard/hr/attendance/devices" },
+            { label: "Regularizations", path: "/dashboard/hr/attendance/regularizations", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/attendance/regularizations" },
             { label: "Reports", path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
           ],
         },
@@ -168,6 +200,18 @@ function DashboardSidebar({ role = "guest" }) {
             // { label: "Automation Engine", path: "/dashboard/hr/leaves/automation", icon: HiLightningBolt, active: location.pathname === "/dashboard/hr/leaves/automation" },
           ],
         },
+        {
+          title: "PAYROLL & COMP",
+          icon: HiCurrencyRupee,
+          items: [
+            { label: "Salary Components", path: "/dashboard/hr/payroll/components", icon: HiTemplate, active: location.pathname === "/dashboard/hr/payroll/components" },
+            { label: "Structure Templates", path: "/dashboard/hr/payroll/templates", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/payroll/templates" },
+            { label: "Employee Structures", path: "/dashboard/hr/payroll/employee-structures", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/payroll/employee-structures" },
+            { label: "Salary Approvals", path: "/dashboard/hr/payroll/approvals", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/payroll/approvals" },
+            { label: "Payroll Runs", path: "/dashboard/hr/payroll/runs", icon: HiPlay, active: location.pathname === "/dashboard/hr/payroll/runs" },
+            { label: "Adjustments", path: "/dashboard/hr/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/hr/payroll/adjustments" },
+          ],
+        },
 
 
       ];
@@ -185,7 +229,8 @@ function DashboardSidebar({ role = "guest" }) {
         title: "ATTENDANCE",
         icon: HiClock,
         items: [
-          { label: "Regularizations", path: `/dashboard/${role}/attendance/regularizations`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/regularizations` },
+          { label: "My Attendance", path: `/dashboard/${role}/attendance`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance` },
+          { label: "Regularizations", path: `/dashboard/${role}/attendance/regularizations`, icon: HiClipboardList, active: location.pathname === `/dashboard/${role}/attendance/regularizations` },
           { label: "Anomalies", path: `/dashboard/${role}/attendance/anomalies`, icon: HiExclamationCircle, active: location.pathname === `/dashboard/${role}/attendance/anomalies` },
           { label: "Overtime", path: `/dashboard/${role}/attendance/overtime`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/overtime` },
           { label: `${DICTIONARY.TERMS.COMP_OFF}s`, path: `/dashboard/${role}/attendance/comp-offs`, icon: HiGift, active: location.pathname === `/dashboard/${role}/attendance/comp-offs` },
@@ -196,6 +241,17 @@ function DashboardSidebar({ role = "guest" }) {
         icon: HiCalendar,
         items: [
           { label: "My Leaves", path: "/dashboard/employee/leaves", icon: HiCalendar, active: location.pathname === "/dashboard/employee/leaves" },
+        ],
+      },
+      {
+        title: "PAYROLL & COMP",
+        icon: HiCurrencyRupee,
+        items: [
+          { label: "My Salary & Bank", path: "/dashboard/employee/payroll/my-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/employee/payroll/my-salary" },
+          { label: "My Payslips", path: "/dashboard/employee/payroll/my-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/my-payslips" },
+          { label: "Loans & Advances", path: "/dashboard/employee/payroll/loans", icon: HiAdjustments, active: location.pathname === "/dashboard/employee/payroll/loans" },
+          { label: "Tax & Investments", path: "/dashboard/employee/payroll/tax", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/tax" },
+          { label: "Reimbursements", path: "/dashboard/employee/payroll/reimbursements", icon: HiGift, active: location.pathname === "/dashboard/employee/payroll/reimbursements" },
         ],
       }] : []),
       ...(role === "manager" ? [{
@@ -224,6 +280,16 @@ function DashboardSidebar({ role = "guest" }) {
           { label: "Team Roster", path: "/dashboard/manager/team/roster", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/roster" },
           { label: "Status", path: "/dashboard/manager/team/today", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/today" },
           { label: "History", path: "/dashboard/manager/team/history", icon: HiCalendar, active: location.pathname === "/dashboard/manager/team/history" },
+        ],
+      },
+      {
+        title: "PAYROLL & COMP",
+        icon: HiCurrencyRupee,
+        items: [
+          { label: "Team Compensation", path: "/dashboard/manager/payroll/team-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/payroll/team-salary" },
+          { label: "Team Payslips", path: "/dashboard/manager/payroll/team-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/team-payslips" },
+          { label: "Propose Adjustments", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
+          { label: "Team Reimbursements", path: "/dashboard/manager/payroll/reimbursements", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
         ],
       }] : [])
     ];

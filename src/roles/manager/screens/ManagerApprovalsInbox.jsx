@@ -204,21 +204,10 @@ function ManagerApprovalsInbox() {
         <DashboardTopBar title="Approvals Inbox" />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
           
-          <div className="bg-gradient-to-r from-purple-700 to-fuchsia-800 rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xs">
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-            <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-              <div className="max-w-2xl space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tracking-wide border border-white/20 backdrop-blur-xs">
-                  <HiInboxIn className="w-3.5 h-3.5 text-purple-200" />
-                  MANAGER INBOX
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-4">
-                  Approvals Inbox
-                </h1>
-                <p className="text-xs sm:text-sm text-purple-100/80 font-normal pt-2">
-                  Review and action pending requests from your direct reports.
-                </p>
-              </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Approvals Inbox</h1>
+              <p className="text-sm text-slate-500 mt-1">Review and action pending requests from your direct reports.</p>
             </div>
           </div>
 

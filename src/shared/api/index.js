@@ -12,3 +12,4 @@ export { organizationAPI } from "./organization.api.js";
 export { hrmsAPI } from "./hrms.api.js";
 export { attendanceAPI } from "./attendance.api.js";
 export { leaveAPI } from "./leave.api.js";
+export { payrollAPI } from "./payroll.api.js";

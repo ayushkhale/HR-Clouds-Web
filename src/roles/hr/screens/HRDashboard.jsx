@@ -67,6 +67,7 @@ function HRDashboard() {
   const [dashboardGraphData, setDashboardGraphData] = useState(null);
   const [workModeData, setWorkModeData] = useState(null);
   const [defaultersData, setDefaultersData] = useState(null);
+  const [deptSummaryData, setDeptSummaryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [graphLoading, setGraphLoading] = useState(false);
   const [chartDate, setChartDate] = useState(new Date());
@@ -87,15 +88,17 @@ function HRDashboard() {
       const today = new Date().toISOString();
       const now = new Date();
       
-      const [liveRes, workModeRes, defaultersRes] = await Promise.all([
+      const [liveRes, workModeRes, defaultersRes, deptRes] = await Promise.all([
         attendanceAPI.getLiveDashboard(),
         attendanceAPI.getWorkModeDistribution(today),
-        attendanceAPI.getTopDefaulters(now.getMonth() + 1, now.getFullYear())
+        attendanceAPI.getTopDefaulters(now.getMonth() + 1, now.getFullYear()),
+        attendanceAPI.getDepartmentSummary()
       ]);
 
       if (liveRes.success) setLiveDashboard(liveRes.data);
       if (workModeRes.success) setWorkModeData(workModeRes.data);
       if (defaultersRes.success) setDefaultersData(defaultersRes.data);
+      if (deptRes.success) setDeptSummaryData(deptRes.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -382,6 +385,45 @@ function HRDashboard() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Department Summary Section */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-100">
+            <h3 className="text-lg font-bold text-slate-800 mb-6">Department Overview (Today)</h3>
+            
+            {!deptSummaryData || deptSummaryData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                <HiUserGroup className="w-12 h-12 mb-3 opacity-30" />
+                <p className="text-sm font-semibold">No department data available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {deptSummaryData.map((dept, i) => (
+                  <div key={i} className="border border-slate-100 rounded-2xl p-5 hover:shadow-md transition-shadow bg-slate-50">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-slate-800 truncate pr-2">{dept.department}</h4>
+                      <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">
+                        {dept.total_employees} members
+                      </span>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Present</div>
+                        <div className="text-xl font-bold text-slate-800">{dept.present_count || 0}</div>
+                      </div>
+                      <div className="flex-1 border-l border-slate-200 pl-4">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Absent</div>
+                        <div className="text-xl font-bold text-slate-800">{dept.absent_count || 0}</div>
+                      </div>
+                      <div className="flex-1 border-l border-slate-200 pl-4">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Late</div>
+                        <div className="text-xl font-bold text-slate-800">{dept.late_count || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Bottom Layout Container (Attendance Directory) */}

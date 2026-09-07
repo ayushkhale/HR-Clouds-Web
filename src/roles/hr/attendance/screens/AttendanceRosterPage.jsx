@@ -62,16 +62,16 @@ function Toast({ toast, onClose }) {
 }
 
 /* ─── Assign Modal ───────────────────────────────────────────────────────── */
-function AssignModal({ onClose, onSaved }) {
+function AssignModal({ editAssignment, onClose, onSaved }) {
   const [shifts, setShifts] = useState([]);
   const [rotations, setRotations] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [assignType, setAssignType] = useState("shift"); // "shift" | "rotation"
+  const [assignType, setAssignType] = useState(editAssignment ? (editAssignment.rotation_pattern_id ? "rotation" : "shift") : "shift");
   const [form, setForm] = useState({
-    user_id: "",
-    shift_id: "",
-    rotation_pattern_id: "",
-    effective_from: new Date().toISOString().split("T")[0],
+    user_id: editAssignment?.user_id || "",
+    shift_id: editAssignment?.shift_id || "",
+    rotation_pattern_id: editAssignment?.rotation_pattern_id || "",
+    effective_from: editAssignment?.effective_from ? new Date(editAssignment.effective_from).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
   });
   const [loading, setLoading] = useState(false);
   const [dropLoading, setDropLoading] = useState(true);
@@ -139,10 +139,16 @@ function AssignModal({ onClose, onSaved }) {
       } else {
         payload.rotation_pattern_id = form.rotation_pattern_id;
       }
-      await attendanceAPI.assignShift(payload);
-      onSaved("Shift assigned successfully.");
+      
+      if (editAssignment) {
+        await attendanceAPI.updateAssignment(editAssignment.id, payload);
+        onSaved("Shift updated successfully.");
+      } else {
+        await attendanceAPI.assignShift(payload);
+        onSaved("Shift assigned successfully.");
+      }
     } catch (err) {
-      setError(err.message || "Failed to assign shift.");
+      setError(err.message || (editAssignment ? "Failed to update shift." : "Failed to assign shift."));
     } finally {
       setLoading(false);
     }
@@ -153,9 +159,9 @@ function AssignModal({ onClose, onSaved }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Assign Shift</h2>
+            <h2 className="text-base font-bold text-slate-800">{editAssignment ? "Edit Shift" : "Assign Shift"}</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Pick an employee and choose which shift they should work. Their current shift ends the day before the new one starts.
+              {editAssignment ? "Update shift assignment details." : "Pick an employee and choose which shift they should work."}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
@@ -277,7 +283,7 @@ function AssignModal({ onClose, onSaved }) {
           <div className="flex items-center gap-3 pt-1">
             <button type="submit" disabled={loading || dropLoading}
               className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {loading ? "Assigning…" : "Assign Shift"}
+              {loading ? "Saving…" : (editAssignment ? "Save Changes" : "Assign Shift")}
             </button>
             <button type="button" onClick={onClose}
               className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
@@ -414,6 +420,7 @@ export default function AttendanceRosterPage() {
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [endModalAssignment, setEndModalAssignment] = useState(null);
   const [deleteModalAssignment, setDeleteModalAssignment] = useState(null);
+  const [editModalAssignment, setEditModalAssignment] = useState(null);
 
   // Close menus on click outside
   useEffect(() => {
@@ -452,7 +459,7 @@ export default function AttendanceRosterPage() {
               <h1 className="text-2xl font-bold text-slate-900">Shift Roster</h1>
               <p className="text-sm text-slate-500 mt-1">View and manage shift assignments for all employees.</p>
             </div>
-            <button onClick={() => setShowModal(true)}
+            <button onClick={() => { setEditModalAssignment(null); setShowModal(true); }}
               className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
               <HiPlus className="w-4 h-4" /> Assign Shift
             </button>
@@ -470,7 +477,7 @@ export default function AttendanceRosterPage() {
                 </div>
                 <p className="text-sm font-semibold text-slate-600">No shift assignments yet</p>
                 <p className="text-xs text-slate-400 max-w-xs">Assign shifts to employees so the attendance engine knows their expected working hours.</p>
-                <button onClick={() => setShowModal(true)}
+                <button onClick={() => { setEditModalAssignment(null); setShowModal(true); }}
                   className="mt-2 flex items-center gap-2 bg-purple-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl">
                   <HiPlus className="w-4 h-4" /> Assign Shift
                 </button>
@@ -542,6 +549,12 @@ export default function AttendanceRosterPage() {
                             {activeMenuId === a.id && (
                               <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-10">
                                 <button
+                                  onClick={() => { setActiveMenuId(null); setEditModalAssignment(a); setShowModal(true); }}
+                                  className="w-full text-left px-4 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50"
+                                >
+                                  Edit
+                                </button>
+                                <button
                                   onClick={() => { setActiveMenuId(null); setEndModalAssignment(a); }}
                                   className="w-full text-left px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50"
                                 >
@@ -570,6 +583,7 @@ export default function AttendanceRosterPage() {
 
       {showModal && (
         <AssignModal
+          editAssignment={editModalAssignment}
           onClose={() => setShowModal(false)}
           onSaved={(msg) => { setShowModal(false); showToast(msg); load(); }}
         />

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { tokenHelper } from "../api";
+import { tokenHelper, authAPI } from "../api";
 
 const AuthContext = createContext();
 
@@ -38,6 +38,12 @@ export function AuthContextProvider({ children }) {
           role: (decoded.role || "").toLowerCase(),
           orgId: decoded.orgId || decoded.org_id,
         });
+
+        authAPI.me().then(res => {
+          if (res.data || res.user) {
+            setUser(prev => ({ ...prev, ...(res.data || res.user) }));
+          }
+        }).catch(err => console.error("Failed to fetch user profile", err));
       }
     }
 
@@ -123,6 +129,8 @@ export function AuthContextProvider({ children }) {
 
   // Logout — clear everything
   const logout = useCallback(() => {
+    // Fire-and-forget server-side logout
+    authAPI.logout().catch(console.error);
     tokenHelper.clear();
     clearSelectionState();
     setUser(null);

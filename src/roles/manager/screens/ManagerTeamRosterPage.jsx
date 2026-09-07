@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { organizationAPI, leaveAPI } from "../../../shared/api";
+import { organizationAPI, leaveAPI, attendanceAPI } from "../../../shared/api";
 import { 
   HiUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding, 
   HiOutlineBriefcase, HiOutlineCalendar, HiPencil, HiX, HiCheckCircle, HiExclamationCircle,
-  HiUserCircle, HiInformationCircle
+  HiUserCircle, HiInformationCircle, HiClock
 } from "react-icons/hi";
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
@@ -158,6 +158,137 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
   );
 }
 
+// ─── View Attendance Modal ────────────────────────────────────────────────────
+function ViewAttendanceModal({ employee, onClose }) {
+  const [summary, setSummary] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    setLoading(true);
+    setError("");
+    const empId = employee.id || employee._id;
+    Promise.all([
+      attendanceAPI.getTeamMemberSummary(empId, month, year),
+      attendanceAPI.getTeamMemberHistory(empId, month, year)
+    ])
+      .then(([summaryRes, historyRes]) => {
+        setSummary(summaryRes.data);
+        setHistory(historyRes.data?.records || historyRes.data || []);
+      })
+      .catch(err => setError(err.message || "Failed to load attendance data."))
+      .finally(() => setLoading(false));
+  }, [employee, month, year]);
+
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const fmtTime = (t) => t ? new Date(t).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Attendance Details</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{employee.name}'s attendance record.</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <input 
+              type="month" 
+              value={`${year}-${String(month).padStart(2, '0')}`}
+              onChange={e => {
+                const [y, m] = e.target.value.split('-');
+                setYear(parseInt(y, 10));
+                setMonth(parseInt(m, 10));
+              }}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-purple-500"
+            />
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
+              <HiX className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+            </div>
+          ) : error ? (
+            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-2xl font-bold text-emerald-600">{summary?.present_days || 0}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Present</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-2xl font-bold text-rose-600">{summary?.absent_days || 0}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Absent</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-2xl font-bold text-amber-500">{summary?.late_days || 0}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Late</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-2xl font-bold text-purple-600">{summary?.total_effective_hours || "0"}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Total Hours</p>
+                </div>
+              </div>
+
+              {/* History Table */}
+              <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400">
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Clock In</th>
+                      <th className="px-4 py-3">Clock Out</th>
+                      <th className="px-4 py-3">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-sm">
+                    {history.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for this month.</td>
+                      </tr>
+                    ) : (
+                      history.map((record, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-700">{fmtDate(record.date)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border 
+                              ${record.status === 'present' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                                record.status === 'absent' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
+                                record.status === 'half-day' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                                'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                              {record.status?.toUpperCase() || "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
+                          <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
+                          <td className="px-4 py-3 text-slate-600">{record.effective_hours || "0.00"} hrs</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Roster Page ─────────────────────────────────────────────────────────
 export default function ManagerTeamRosterPage() {
   const [team, setTeam] = useState([]);
@@ -166,12 +297,13 @@ export default function ManagerTeamRosterPage() {
   
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [viewingLeaveHistory, setViewingLeaveHistory] = useState(null);
+  const [viewingAttendance, setViewingAttendance] = useState(null);
   const [toast, setToast] = useState(null);
 
   const fetchTeam = async () => {
     setLoading(true);
     try {
-      const res = await organizationAPI.getEmployees(); // Scoped to direct reports automatically
+      const res = await organizationAPI.getEmployees({ purpose: "shift_assignment" }); // Scoped to direct reports automatically
       setTeam(Array.isArray(res.data) ? res.data : (res.data?.employees || []));
     } catch (err) {
       setError(err.message || "Failed to load team roster.");
@@ -273,16 +405,22 @@ export default function ManagerTeamRosterPage() {
 
                   <div className="border-t border-slate-100 bg-slate-50 flex divide-x divide-slate-100">
                     <button 
-                      onClick={() => setViewingLeaveHistory(emp)}
-                      className="flex-1 py-3 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-2"
+                      onClick={() => setViewingAttendance(emp)}
+                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
                     >
-                      <HiOutlineCalendar className="w-4 h-4" /> Leaves
+                      <HiClock className="w-3.5 h-3.5" /> Attendance
+                    </button>
+                    <button 
+                      onClick={() => setViewingLeaveHistory(emp)}
+                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
+                    >
+                      <HiOutlineCalendar className="w-3.5 h-3.5" /> Leaves
                     </button>
                     <button 
                       onClick={() => setEditingEmployee(emp)}
-                      className="flex-1 py-3 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-2"
+                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
                     >
-                      <HiPencil className="w-4 h-4" /> Edit
+                      <HiPencil className="w-3.5 h-3.5" /> Edit
                     </button>
                   </div>
                 </div>
@@ -308,6 +446,13 @@ export default function ManagerTeamRosterPage() {
         <ViewLeaveHistoryModal 
           employee={viewingLeaveHistory}
           onClose={() => setViewingLeaveHistory(null)}
+        />
+      )}
+
+      {viewingAttendance && (
+        <ViewAttendanceModal 
+          employee={viewingAttendance}
+          onClose={() => setViewingAttendance(null)}
         />
       )}
     </div>
