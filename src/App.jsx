@@ -6,6 +6,7 @@ import { AuthContextProvider } from "./shared/contexts/AuthContext";
 import { SidebarProvider } from "./shared/contexts/SidebarContext";
 import { GlobalAlertProvider } from "./shared/components/GlobalAlertProvider";
 import AppRoutes from "./routes/AppRoutes";
+import ChatbotWidget from "./shared/components/ChatbotWidget";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           </ModalContextProvider>
         </AuthContextProvider>
       </GoogleOAuthProvider>
+      <ChatbotWidget />
     </GlobalAlertProvider>
   );
 }
