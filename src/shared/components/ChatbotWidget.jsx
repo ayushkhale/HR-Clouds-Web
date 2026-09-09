@@ -86,7 +86,7 @@ const ChatbotWidget = () => {
 
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end font-sans select-none">
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end font-sans select-none pointer-events-none">
 
       {/* ══ Chat Window ══ */}
       <div
@@ -260,7 +260,7 @@ const ChatbotWidget = () => {
       <button
         onClick={() => setIsOpen(p => !p)}
         className={`flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full shadow-xl transition-all
-          hover:scale-105 active:scale-95 z-50 relative
+          hover:scale-105 active:scale-95 z-50 relative pointer-events-auto
           ${isOpen ? 'bg-slate-700' : 'bg-gradient-to-r from-purple-700 to-purple-500'}
         `}
       >
