@@ -1,17 +1,44 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_URL = import.meta.env.DEV ? '/docmind-api' : 'https://rag.docmind.codewithrishi.fun/api/public';
+const API_URL = import.meta.env.DEV ? '/docmind-api' : 'https://api.codewithrishi.fun/api/public';
 const API_KEY = import.meta.env.VITE_DOCMIND_API_KEY;
+
+// The RAG backend emits this sentinel when no relevant context is found.
+// We replace it with a friendly message that doesn't expose implementation details.
+const NOT_IN_CONTEXT_SENTINEL = "I could not find any relevant information in the uploaded documents to answer your question.";
+const NOT_IN_CONTEXT_REPLY = "I'm sorry, I don't have information about that right now. Please try rephrasing your question, or contact our support team for more help.";
+
+// Default config used before the API responds
+const DEFAULT_CONFIG = {
+  workspace: { name: 'HR Clouds' },
+  widget: {
+    title: 'Maya',
+    description: 'HR Assistant · Online',
+    welcomeMessage: "Hi there! I'm Maya, your HR assistant. Ask me anything about HR Clouds — policies, payroll, leave, and more.",
+    placeholder: 'Ask Maya anything…',
+    suggestedQuestions: [
+      'What are the leave policies at HR Clouds?',
+      'How do I apply for payroll services?',
+      'What features does HR Clouds offer?',
+    ],
+    primaryColor: '#7c3aed',
+    theme: 'light',
+    sourceMode: 'labels',
+  },
+  limits: { maxQueryLength: 1000, maxHistoryTurns: 6 },
+  capabilities: { filterByDocument: false },
+};
 
 export function useDocMindChat() {
   const [messages, setMessages] = useState([]);
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Keep config in ref to avoid re-renders if not needed in UI
-  const configRef = useRef({ limits: { maxHistoryTurns: 6, maxQueryLength: 1000 } });
+
+  // Keep limits in ref for use inside callbacks without stale closure issues
+  const limitsRef = useRef(DEFAULT_CONFIG.limits);
   const sessionIdRef = useRef(crypto.randomUUID());
 
   // Initialization
@@ -21,17 +48,42 @@ export function useDocMindChat() {
         const res = await fetch(`${API_URL}/config`, {
           headers: { 'X-Api-Key': API_KEY }
         });
-        
-        if (!res.ok) {
-          throw new Error('Failed to load chat configuration');
+
+        // Check content-type before parsing
+        let data = null;
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const text = await res.text();
+          console.warn('DocMind config returned non-JSON:', res.status, text.slice(0, 120));
         }
-        
-        const data = await res.json();
-        configRef.current = data;
+
+        if (!res.ok) {
+          const msg = data?.error || 'Failed to load chat configuration';
+          console.error('DocMind config error:', msg);
+          // Still mark initialized — use defaults
+          setIsInitialized(true);
+          return;
+        }
+
+        if (data?.success) {
+          // Deep merge with defaults so missing fields fallback gracefully
+          setConfig(prev => ({
+            ...prev,
+            ...data,
+            workspace: { ...prev.workspace, ...(data.workspace || {}) },
+            widget: { ...prev.widget, ...(data.widget || {}) },
+            limits: { ...prev.limits, ...(data.limits || {}) },
+            capabilities: { ...prev.capabilities, ...(data.capabilities || {}) },
+          }));
+          if (data.limits) limitsRef.current = { ...DEFAULT_CONFIG.limits, ...data.limits };
+        }
+
         setIsInitialized(true);
       } catch (err) {
         console.error('DocMind init error:', err);
-        setError('Chat is currently unavailable.');
+        setIsInitialized(true); // Use defaults, don't block the widget
       }
     };
 
@@ -39,36 +91,42 @@ export function useDocMindChat() {
       initChat();
     } else {
       setError('Missing API Key.');
+      setIsInitialized(true);
     }
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setError(null);
+    sessionIdRef.current = crypto.randomUUID(); // Fresh session
   }, []);
 
   const sendMessage = useCallback(async (query) => {
     if (!query.trim() || isLoading || isStreaming) return;
 
     const currentQuery = query.trim();
-    
-    // Check limits
-    const maxLength = configRef.current?.limits?.maxQueryLength || 1000;
+
+    // Check limits from ref (always up to date, no closure issues)
+    const maxLength = limitsRef.current?.maxQueryLength || 1000;
     if (currentQuery.length > maxLength) {
       setError(`Query exceeds maximum length of ${maxLength} characters.`);
       return;
     }
 
     // Prepare history payload based on limits
-    const maxTurns = configRef.current?.limits?.maxHistoryTurns || 6;
-    
-    // We filter out any transient properties from state messages
+    const maxTurns = limitsRef.current?.maxHistoryTurns || 6;
+
+    // Filter out transient UI properties before sending
     const validHistory = messages.map(m => ({ role: m.role, content: m.content }));
-    // Slice to keep only the latest allowed turns
     const historyPayload = validHistory.slice(-maxTurns);
 
     // Optimistically add the user message and a placeholder for the assistant
-    const userMessage = { id: crypto.randomUUID(), role: 'user', content: currentQuery };
+    const userMessage = { id: crypto.randomUUID(), role: 'user', content: currentQuery, sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
     const assistantMessageId = crypto.randomUUID();
-    
+
     setMessages(prev => [
-      ...prev, 
-      userMessage, 
+      ...prev,
+      userMessage,
       { id: assistantMessageId, role: 'assistant', content: '', isStreaming: true }
     ]);
     
@@ -172,10 +230,13 @@ export function useDocMindChat() {
         }
       }
 
-      // Ensure the final state reflects streaming is done
+      // Mark streaming done, stamp time, and sanitise sentinel messages
       setMessages(prev => prev.map(msg => {
         if (msg.id === assistantMessageId) {
-          return { ...msg, isStreaming: false };
+          const finalContent = msg.content.trim() === NOT_IN_CONTEXT_SENTINEL
+            ? NOT_IN_CONTEXT_REPLY
+            : msg.content;
+          return { ...msg, isStreaming: false, content: finalContent, sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
         }
         return msg;
       }));
@@ -197,10 +258,11 @@ export function useDocMindChat() {
   return {
     messages,
     sendMessage,
+    clearMessages,
     isLoading,
     isStreaming,
     error,
     isInitialized,
-    config: configRef.current
+    config,
   };
 }

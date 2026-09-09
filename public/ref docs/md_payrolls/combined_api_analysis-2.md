@@ -1,6 +1,6 @@
-# Combined API Analysis: Payroll Module (Phases 1–3: Foundation, Run Engine & Variable Pay)
+# Combined API Analysis: Payroll Module (Phases 1–4: Foundation, Run Engine, Variable Pay & Statutory/Tax)
 
-This document is the request/response contract for **every endpoint shipped across Phases 1, 2, and 3** of the Payroll module: the salary-component catalog, salary-structure templates, per-employee versioned effective-dated salary structures (with the D-13 maker-checker chain), org payroll settings, encrypted bank accounts, the append-only audit trail, the core calculation and run execution engine, and the complete variable-pay suite (bonuses, ad-hoc adjustments, bulk CSV batches, employee loans, EMI schedules, foreclosures, and shortfall carry-forwards).
+This document is the request/response contract for **every endpoint shipped across Phases 1, 2, 3, and 4** of the Payroll module: the salary-component catalog, salary-structure templates, per-employee versioned effective-dated salary structures (with the D-13 maker-checker chain), org payroll settings, encrypted bank accounts, the append-only audit trail, the core calculation and run execution engine, the complete variable-pay suite (bonuses, ad-hoc adjustments, bulk CSV batches, employee loans, EMI schedules, foreclosures, and shortfall carry-forwards), and the **Phase 4 statutory & tax layer** (the `statutory_configs` singleton, professional-tax slabs, income-tax regimes/slabs, investment declarations, per-employee tax summaries & Form 16, and the self-service tax surface).
 
 > **Global envelope.** Success: `{ "success": true, "message": "...", "data": ... }`. Error: `{ "success": false, "message": "...", "errorCode": "..." }` via `AppError(status, message, errorCode)`. Every handler is `async (req, res, next)` with `try/catch → next(error)`.
 
@@ -9,6 +9,10 @@ This document is the request/response contract for **every endpoint shipped acro
 > **Feature flag.** Every route requires the `payroll.access` feature. An org without the flag receives `403 FEATURE_NOT_AVAILABLE` (or `400 MISSING_ORG_CONTEXT` for a platform token).
 
 > **Money & dates.** Money-bearing fields (`value`, `annual_ctc`) accept **either a number or a numeric string**; the string form is preferred because `money.utils` parses it losslessly (integer-paise arithmetic, no float round-trip). All amounts are stored and reconciled in integer minor units (paise). Effective dates are `YYYY-MM-DD` strings to keep `DATEONLY` free of timezone drift.
+
+> **`ctc_cost` semantic change in Phase 4 (engine 4).** On a run item, `ctc_cost` is the true employer cost of employment for the period. Through engine 3 it was earnings plus employer variable-pay contributions; from **engine 4 it additionally includes the employer statutory contributions** — PF-employer, EPS, EDLI, the PF admin charge, and ESI-employer — because those are real employer outlays. Frozen engine-2/-3 runs are unaffected (D-12); their `ctc_cost` keeps the old meaning, and the item's `engine_version` disambiguates which definition applies. Consumers aggregating employer cost across mixed-engine periods must not assume a single formula — read `engine_version`.
+
+> **Honesty guard on every payslip/figure endpoint.** Each run item carries `statutory_status` (`applied` | `disabled` | `not_applied`) and its run carries `engine_version`, so a reader can never mistake a pre-statutory `net_pay` for a real post-withholding take-home. Engine-4 items are `applied` (org withholds) or `disabled` (org opted out); engine-2/-3 items are `not_applied`. The self/manager payslip exposes the employee's own statutory heads and wage bases but **never** `statutory_snapshot` (HR-only diagnostics carrying declaration-derived figures — D-28).
 
 > **Component-evaluation definitional note (§5.2 — must not be re-derived differently).** When a structure is evaluated (on assignment, revision, and **preview**), components resolve in a fixed, deterministic order — within each tier by `display_order`, then `code` as a stable tiebreak:
 > 1. `flat` — the given amount.
@@ -637,3 +641,385 @@ This document is the request/response contract for **every endpoint shipped acro
 * **Endpoint**: `GET /api/v1/payroll/me/loans/:id/installments` · **Roles**: `all`
 * **What This API Gives/Does**: Returns the employee's monthly EMI repayment schedule and deduction history.
 
+---
+
+# Phase 4 — Statutory & Tax APIs
+
+*Numbering continues the registry (`api_registry.md` #95–#127). **No manager surface exists for Phase 4 (D-28)** — there are no manager tax or declaration endpoints, and `payroll_manager.routes.js` is untouched.*
+
+## HR Administration APIs — `/api/v1/payroll/hr` (Phase 4)
+
+*Auth stack for every route below: `authenticate` → `authorize(['hr'])` → `requireFeature('payroll.access')`.*
+
+### 95. Get Statutory Config
+* **API Name / Purpose**: Fetch the organization's global statutory configurations.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/statutory/config`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Lazily uses `getOrCreate` for the org's `statutory_configs` singleton, which contains PF/ESI/PT/TDS enablement, rates, and wage ceilings. Returns `updated_at` and `updated_by` tracking.
+* **Error Handling**: Standard auth errors.
+* **What This API Gives/Does**: The single active statutory configuration record for the organization.
+
+### 96. Update Statutory Config
+* **API Name / Purpose**: Update the organization's statutory configurations.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/statutory/config`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**: Accepts any subset of configuration flags/rates.
+  * Fields: `pf_enabled`, `pf_employee_rate`, `pf_employer_rate`, `pf_wage_ceiling`, `pf_restrict_to_ceiling`, `pf_lop_reduces_ceiling`, `pf_include_overtime`, `eps_enabled`, `eps_rate`, `eps_wage_ceiling`, `pf_admin_charge_rate`, `pf_admin_charge_min`, `edli_enabled`, `edli_rate`, `edli_wage_ceiling`, `esi_enabled`, `esi_employee_rate`, `esi_employer_rate`, `esi_wage_threshold`, `esi_include_overtime`, `pt_enabled`, `income_tax_enabled`, `tds_no_pan_rate`, `tds_no_pan_enforced`, `cess_rate`.
+* **Detailed API Function**: Performs a partial update on the singleton configuration. It is audit-logged (old to new values). Modifying configurations affects newly calculated runs; already frozen/calculated runs must be cancelled and re-created to pick up changes. Enabling a statutory head activates its corresponding component catalog rows.
+* **Error Handling**: `400/422` validation for unknown or invalid keys.
+* **What This API Gives/Does**: Returns the updated statutory configuration object.
+
+### 97. List Professional-Tax Slabs
+* **API Name / Purpose**: List professional tax (PT) slabs.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/statutory/pt-slabs`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `state_code` (String, Optional), `is_active` (Boolean, Optional).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Fetches active PT slabs, optionally filtered by state code. Query parameters are validated in the controller.
+* **Error Handling**: Standard auth errors (`401 Unauthorized`, `403 Forbidden`); `400/422` query validation errors on invalid filters.
+* **What This API Gives/Does**: An array of PT slabs.
+
+### 98. Replace a State's PT Slab Set
+* **API Name / Purpose**: Atomically replace a state's entire professional tax slab set.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/statutory/pt-slabs/states/:stateCode`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `stateCode` (Path, String).
+* **Request JSON Payload**: 
+  * `state_name` (String, Optional)
+  * `slabs` (Array of objects): `from_amount` (Money), `to_amount` (Money or null), `monthly_amount` (Money), `gender` ('any'|'male'|'female'), `month_overrides` (Object mapping '1'-'12' to Money).
+* **Detailed API Function**: Atomically replaces the state's PT slab set. Performs a soft-delete of existing active slabs and inserts the new set. Validates the contiguous, half-open `[from, to)` intervals to prevent gaps or overlaps per gender. Uses `pg_advisory_xact_lock` to prevent concurrent replacement race conditions.
+* **Error Handling**: `422 PT_SLAB_RANGE_INVALID` (naming the exact gap or overlap), `422 PT_SLAB_STATE_REQUIRED`.
+* **What This API Gives/Does**: Returns the newly inserted slab set.
+
+### 99. Deactivate a State's PT Slabs
+* **API Name / Purpose**: Soft-delete a state's active professional tax slabs.
+* **HTTP Method**: `DELETE`
+* **Endpoint / Route**: `/api/v1/payroll/hr/statutory/pt-slabs/states/:stateCode`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `stateCode` (Path, String).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Soft-deletes (sets `deleted_at`) all currently active PT slabs for the specified state.
+* **Error Handling**: `404 PT_SLAB_STATE_NOT_FOUND` when no active slabs exist for the state, `422 PT_SLAB_STATE_REQUIRED`.
+* **What This API Gives/Does**: Confirms deactivation of the slabs.
+
+### 100. Bootstrap Tax Tables
+* **API Name / Purpose**: Idempotently seed default income-tax regimes and slabs.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/bootstrap`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**: `{ "financial_year": "YYYY-YY" }`
+* **Detailed API Function**: Seeds the default old and new income-tax regimes along with their corresponding slabs for the specified financial year. Only inserts missing `(financial_year, code)` pairs, never overwriting HR-edited regimes. It is audit-logged.
+* **Error Handling**: `400/422` validation errors for invalid financial year format.
+* **What This API Gives/Does**: Returns `{ created: [...], skipped: [...] }` to indicate newly added versus pre-existing regimes.
+
+### 101. List Tax Regimes
+* **API Name / Purpose**: List tax regimes available for a financial year.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/regimes`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns the tax regimes available in the given financial year along with their slab counts.
+* **Error Handling**: Standard auth errors; `422 INVALID_FINANCIAL_YEAR` if query param format is invalid.
+* **What This API Gives/Does**: An array of regimes.
+
+### 102. Update a Tax Regime
+* **API Name / Purpose**: Update tax regime parameters.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/regimes/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: Accepts fields to update (min 1): `name`, `standard_deduction`, `allows_chapter_via`, `allows_hra_exemption`, `chapter_via_limits` (Object map), `rebate_87a_income_limit`, `rebate_87a_max_amount`, `surcharge_slabs` (Array of objects), `is_default`, `is_active`.
+* **Detailed API Function**: Partially updates the tax regime. If `is_default` is set to true, it atomically clears the default flag from sibling regimes. Note that `chapter_via_limits` and `surcharge_slabs` are wholesale replacements.
+* **Error Handling**: `404 TAX_REGIME_NOT_FOUND` if regime ID does not exist, `422` validation errors.
+* **What This API Gives/Does**: Returns the updated tax regime.
+
+### 103. Get a Regime's Slabs
+* **API Name / Purpose**: List the tax slabs for a specific regime.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/regimes/:id/slabs`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Fetches all tax slabs associated with the regime, optionally grouped by `age_band`.
+* **Error Handling**: `404 TAX_REGIME_NOT_FOUND` if regime ID does not exist or belongs to another tenant.
+* **What This API Gives/Does**: An array of tax slabs.
+
+### 104. Replace a Regime's Slabs
+* **API Name / Purpose**: Atomically replace a tax regime's slabs.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/regimes/:id/slabs`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: 
+  * `slabs` (Array of objects): `age_band`, `from_amount`, `to_amount`, `rate_percent`, `display_order`.
+* **Detailed API Function**: Replaces the entire slab set for one or more age bands atomically. Validates half-open `[from, to)` contiguity per age band to ensure no gaps or overlaps exist.
+* **Error Handling**: `404 TAX_REGIME_NOT_FOUND`, `422 TAX_SLAB_RANGE_INVALID` (if range is not contiguous or has gaps/overlaps).
+* **What This API Gives/Does**: Returns the newly inserted slab set.
+
+### 105. Declaration Verification Queue
+* **API Name / Purpose**: Fetch the queue of employee investment declarations.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/declarations`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `financial_year` (`YYYY-YY`), `status` (Enum: draft, submitted, under_review, verified, partially_verified, rejected), `user_id` (UUID), `page`, `limit`.
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns paginated declaration headers. To maintain PAN secrecy, sensitive items like landlord PANs/rents do not surface in this list view.
+* **Error Handling**: Standard auth errors; `400/422` query validation errors on invalid filters.
+* **What This API Gives/Does**: An array of declaration headers for the verification queue.
+
+### 106. Get a Declaration
+* **API Name / Purpose**: Get a detailed investment declaration.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/declarations/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Fetches the declaration header along with all its specific declared items and the employee's current tax regime.
+* **Error Handling**: `404 DECLARATION_NOT_FOUND`.
+* **What This API Gives/Does**: Detailed declaration record including all line items.
+
+### 107. Verify a Declaration
+* **API Name / Purpose**: HR verification of an employee's investment declaration.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/declarations/:id/verify`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: 
+  * `items` (Array): `{ item_id, verified_amount, proof_status, proof_reference, verifier_remarks }`
+  * `remarks` (String, Optional)
+* **Detailed API Function**: Applies verification decisions item-by-item. `verified_amount` is checked to not exceed `declared_amount`. Uses an advisory lock. If a proof is rejected, the amount is coerced to zero. Changes the declaration header status to `verified` if all items are verified, otherwise `partially_verified`.
+* **Error Handling**: `404 DECLARATION_NOT_FOUND`, `409 DECLARATION_NOT_VERIFIABLE` (if declaration is not in submitted or under_review status), `403 DECLARATION_ITEM_FORBIDDEN` (if item does not belong to declaration), `422 VERIFIED_EXCEEDS_DECLARED`, `422 INVALID_PROOF_STATUS`.
+* **What This API Gives/Does**: Returns the verified declaration.
+
+### 108. Reject a Declaration
+* **API Name / Purpose**: Reject a declaration entirely.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/declarations/:id/reject`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: `{ "rejection_reason": "string" }`
+* **Detailed API Function**: Sets the declaration header to `rejected`. Automatically updates every line item to `verified_amount = 0` and `proof_status = 'rejected'`. Protected by an advisory lock.
+* **Error Handling**: `404 DECLARATION_NOT_FOUND`, `409 DECLARATION_NOT_VERIFIABLE` (must be in submitted or under_review status), `422 REJECTION_REASON_REQUIRED`.
+* **What This API Gives/Does**: Returns the rejected declaration.
+
+### 109. Reopen a Declaration
+* **API Name / Purpose**: Reopen a submitted or verified declaration for editing.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/declarations/:id/reopen`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID).
+* **Request JSON Payload**: `{ "reason": "string" }`
+* **Detailed API Function**: Returns the declaration to `draft` status so the employee can edit it. Preserves `submitted_at` and `proof_deadline` (EC-43). Increments `reopened_count`.
+* **Error Handling**: `404 DECLARATION_NOT_FOUND`, `409 DECLARATION_ALREADY_DRAFT`, `422 REOPEN_REASON_REQUIRED`.
+* **What This API Gives/Does**: Returns the reopened declaration.
+
+### 110. Employee Tax Summary
+* **API Name / Purpose**: View an employee's tax summary for a financial year.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/summary`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID); `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Fetches the employee's chosen regime, previous employer figures, YTD actuals (derived from calculation engine), declaration status, and finalization state.
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: Detailed tax overview payload.
+
+### 111. Override Employee Regime
+* **API Name / Purpose**: HR forcibly overrides an employee's tax regime.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/regime`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID); `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: `{ "regime_code": "old" | "new" }`
+* **Detailed API Function**: Sets the employee's regime with `regime_source = 'hr'`. Blocked once the financial year is finalized.
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `409 FINANCIAL_YEAR_FINALIZED`, `422 TAX_REGIME_UNAVAILABLE`, `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: The updated regime setting.
+
+### 112. Set Previous-Employer Figures
+* **API Name / Purpose**: Update Form 12B previous-employer financial figures.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/previous-employer`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID); `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: Optional money fields: `previous_employer_gross`, `previous_employer_taxable`, `previous_employer_tds`, `previous_employer_pf`, `previous_employer_pt`.
+* **Detailed API Function**: Records income and tax deducted by previous employers. Any unspecified fields default to zero. Blocked once the financial year is finalized.
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `409 FINANCIAL_YEAR_FINALIZED`, `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: The updated previous-employer record.
+
+### 113. Employee Tax Projection
+* **API Name / Purpose**: Trace and debug an employee's tax projection.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/projection`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID); `financial_year` (Query, Optional, `YYYY-YY`), `as_of_period` (Query, Optional, `YYYY-MM`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Computes and returns the full calculation trace detailing how TDS and tax liabilities are generated. Does not persist any data.
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `422 INVALID_FINANCIAL_YEAR`, `422 PERIOD_OUTSIDE_FINANCIAL_YEAR` (if as_of_period falls outside the FY).
+* **What This API Gives/Does**: A deep calculation trace payload.
+
+### 114. Form 16 Part-B Dataset
+* **API Name / Purpose**: Fetch the dataset for Form 16 Part-B.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID), `financialYear` (Path, `YYYY-YY`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns the finalized `form16_snapshot` if the FY is finalized. Otherwise, returns a provisional assembly dynamically generated and marked `is_provisional: true`.
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `422 INVALID_FINANCIAL_YEAR`, `422 NO_PAYROLL_IN_FINANCIAL_YEAR` (if no payroll exists to build provisional).
+* **What This API Gives/Does**: Form 16 Part-B data structure.
+
+### 115. Set Form 16 Part-A Reference
+* **API Name / Purpose**: Record the acknowledgment for Form 16 Part-A.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear/part-a`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID), `financialYear` (Path, `YYYY-YY`).
+* **Request JSON Payload**: `{ "ack_number": "...", "issued_on": "YYYY-MM-DD", "reference_url": "..." }`
+* **Detailed API Function**: Records the Part-A reference acknowledgment metadata. Does not store a file (D-29).
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `422 FORM16_PART_A_ACK_REQUIRED` (if ack_number is missing or empty), `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: Updated reference tracking metadata.
+
+### 116. Finalize One Employee's FY
+* **API Name / Purpose**: Finalize tax records for a single employee.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/employees/:userId/tax/financial-years/:financialYear/finalize`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `userId` (Path, UUID), `financialYear` (Path, `YYYY-YY`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Freezes the Form 16 snapshot, locking it permanently. Secured under a per-employee advisory lock (`payroll:tax:{userId}:{fy}`). Idempotent (returns `already_finalized: true` on repeated call).
+* **Error Handling**: `404 EMPLOYEE_NOT_FOUND`, `422 INVALID_FINANCIAL_YEAR`, `422 NO_PAYROLL_IN_FINANCIAL_YEAR` (zero closed payroll items in FY), `422 TAX_TABLES_MISSING`, `422 FORM16_RECONCILIATION_FAILED`.
+* **What This API Gives/Does**: The finalized tax record.
+
+### 117. Finalize FY Org-Wide
+* **API Name / Purpose**: Bulk finalize tax records organization-wide.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/financial-years/:financialYear/finalize`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `financialYear` (Path, `YYYY-YY`).
+* **Request JSON Payload**: `{ "acknowledge_missing_months": false, "reason": "string" }`
+* **Detailed API Function**: Batches finalization across all eligible employees in the org. If gaps exist in the FY (missing closed payroll months), it requires `acknowledge_missing_months: true` and a non-empty `reason` to proceed. Resumable and per-employee error-isolated.
+* **Error Handling**: `409 FINANCIAL_YEAR_INCOMPLETE` (if missing closed payroll months without acknowledgment), `422 ACKNOWLEDGE_REASON_REQUIRED` (if acknowledge_missing_months is true but reason is empty), `422 TAX_TABLES_MISSING`, `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: Summary of successful and failed finalizations.
+
+### 118. Statutory Summary (Challan View)
+* **API Name / Purpose**: Retrieve the organization-wide statutory challan summary.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/tax/financial-years/:financialYear/statutory-summary`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `financialYear` (Path, `YYYY-YY`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Aggregates month-by-month PF, ESI, PT, and TDS alongside headcount figures using only approved/paid items.
+* **Error Handling**: Standard auth errors; `422 INVALID_FINANCIAL_YEAR` if parameter format is invalid.
+* **What This API Gives/Does**: Comprehensive statutory aggregation payload.
+
+---
+
+## Employee Self-Service APIs — `/api/v1/payroll/me` (Phase 4)
+
+*Auth stack: `authenticate` → `requireFeature('payroll.access')`. No `authorize()` wrapper; these APIs always execute against the authenticated user token (`req.user.id`).*
+
+### 119. My Tax Summary
+* **API Name / Purpose**: Employee views their own tax summary.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/summary`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Displays the employee's tax regime, YTD aggregated TDS/PF/ESI/PT, projected liability, and declaration statuses.
+* **Error Handling**: Standard auth errors (`401 Unauthorized`); `422 INVALID_FINANCIAL_YEAR` if query param format is invalid.
+* **What This API Gives/Does**: Tax overview payload.
+
+### 120. My Tax Projection
+* **API Name / Purpose**: Employee views their own tax projection trace.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/projection`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`), `as_of_period` (Query, Optional, `YYYY-MM`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Similar to #113, gives the employee full visibility into how their current tax liabilities are calculated.
+* **Error Handling**: `422 INVALID_FINANCIAL_YEAR`, `422 PERIOD_OUTSIDE_FINANCIAL_YEAR` (if as_of_period falls outside the FY).
+* **What This API Gives/Does**: Complete, deep calculation trace.
+
+### 121. My Monthly Tax Breakup
+* **API Name / Purpose**: Employee views their monthly tax statement data.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/monthly`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Month-by-month breakdown of taxes (TDS, PF, ESI, PT) collected over the fiscal year based strictly on approved payroll runs.
+* **Error Handling**: Standard auth errors; `422 INVALID_FINANCIAL_YEAR` if query param format is invalid.
+* **What This API Gives/Does**: Array of monthly statutory deductions.
+
+### 122. My Declaration
+* **API Name / Purpose**: Employee fetches their own investment declaration.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/declarations`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns the investment declaration draft or submitted copy, specific items, proof deadlines, and the status of the declaration window.
+* **Error Handling**: Standard auth errors; `422 INVALID_FINANCIAL_YEAR` if query param format is invalid.
+* **What This API Gives/Does**: Declaration items and state.
+
+### 123. Upsert My Declaration
+* **API Name / Purpose**: Employee creates or updates their investment declaration items.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/declarations`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: 
+  * `items`: Array of items. Max 150 items. Fields per item: `item_id` (UUID, Optional), `section` (String, Required), `sub_category` (String, Optional), `declared_amount` (Money, Required), `proof_reference` (String, Optional), `metadata` (Object, Optional).
+* **Detailed API Function**: A wholesale replace-set operation. Validates while in `draft` state and within the submission window. Prevents editing auto-synchronized items like EPF (`sub_category: 'EPF_AUTO'`). Preserves existing verifications on unchanged items.
+* **Error Handling**: `409 DECLARATION_NOT_DRAFT`, `422 DECLARATION_WINDOW_CLOSED`, `422 RESERVED_DECLARATION_SUB_CATEGORY` (if sub_category is EPF_AUTO), `422 INVALID_DECLARATION_ITEM` (max 150 items constraint, missing section).
+* **What This API Gives/Does**: The updated declaration.
+
+### 124. Submit My Declaration
+* **API Name / Purpose**: Employee submits their declaration for HR review.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/declarations/submit`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Transitions the declaration from `draft` to `submitted`. Freezes the `proof_deadline` upon the first submission. 
+* **Error Handling**: `404 DECLARATION_NOT_FOUND` (no draft exists for the FY), `409 DECLARATION_NOT_DRAFT` (if called while already submitted or under review), `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: The submitted declaration.
+
+### 125. Switch My Regime
+* **API Name / Purpose**: Employee chooses between old/new tax regimes.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/regime`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: `{ "regime_code": "old" | "new" }`
+* **Detailed API Function**: Sets the tax regime. Denied if `allow_employee_regime_switch` is disabled by the organization, or if the FY is finalized.
+* **Error Handling**: `403 REGIME_SWITCH_NOT_ALLOWED`, `409 FINANCIAL_YEAR_FINALIZED`, `422 TAX_REGIME_UNAVAILABLE`, `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: The selected regime context.
+
+### 126. My Form 16
+* **API Name / Purpose**: Employee downloads their Form 16 dataset.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/form16/:financialYear`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financialYear` (Path, `YYYY-YY`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Exposes the Part-B Form 16 data to the employee. It will return a 404 until the FY is fully finalized by HR.
+* **Error Handling**: `404 FORM16_NOT_FINALIZED` (employee never receives provisional Form 16), `422 INVALID_FINANCIAL_YEAR`.
+* **What This API Gives/Does**: The Form 16 data payload.
+
+### 127. Record My Declaration Proofs
+* **API Name / Purpose**: Employee uploads proofs against submitted declaration items.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/me/tax/declarations/proofs`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `financial_year` (Query, Optional, `YYYY-YY`, defaults to current FY).
+* **Request JSON Payload**: `{ "items": [{ "item_id": "uuid", "proof_reference": "string" }] }`
+* **Detailed API Function**: Records proof references for specific items and transitions their status to `submitted`. Executed without reopening the entire declaration. Allowed while status is `submitted` or `under_review`, provided the item is not `rejected`. Cannot touch `declared_amount`.
+* **Error Handling**: `404 DECLARATION_NOT_FOUND`, `409 DECLARATION_NOT_SUBMITTED` (only allowed while submitted or under_review), `403 DECLARATION_ITEM_FORBIDDEN` (item must belong to declaration), `422 INVALID_DECLARATION_ITEM`.
+* **What This API Gives/Does**: Updates specific proof references in the declaration.

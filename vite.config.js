@@ -13,10 +13,10 @@ export default defineConfig({
         secure: false,
       },
       '/docmind-api': {
-        target: 'https://rag.docmind.codewithrishi.fun/api/public',
+        target: 'https://api.codewithrishi.fun',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/docmind-api/, '')
+        rewrite: (path) => path.replace(/^\/docmind-api/, '/api/public')
       }
     }
   },
