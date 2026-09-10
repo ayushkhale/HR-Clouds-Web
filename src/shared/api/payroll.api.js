@@ -100,55 +100,107 @@ export const payrollAPI = {
   getMyPayslip: (runId) => request(`/payroll/me/payslips/${runId}`),
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Phase 3: Variable Pay (Adjustments, Bonuses, Loans)
+  // Phase 3: Variable Pay (Adjustments, Bonuses, Loans & Advances) — API #57–#94
   // ─────────────────────────────────────────────────────────────────────────────
-  
-  // HR Adjustments
+
+  // HR — Adjustments (#57–#62)
   createAdjustment: (payload) => request("/payroll/hr/adjustments", { method: "POST", body: JSON.stringify(payload) }),
   getAdjustments: (params) => request(`/payroll/hr/adjustments${buildQuery(params)}`),
   getAdjustment: (id) => request(`/payroll/hr/adjustments/${id}`),
   approveAdjustment: (id) => request(`/payroll/hr/adjustments/${id}/approve`, { method: "POST" }),
   rejectAdjustment: (id, payload) => request(`/payroll/hr/adjustments/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
   cancelAdjustment: (id) => request(`/payroll/hr/adjustments/${id}/cancel`, { method: "POST" }),
-  
-  // HR Bulk Adjustments
+
+  // HR — Bulk Adjustments (#63–#65)
   previewBulkAdjustments: (payload) => request("/payroll/hr/adjustments/bulk/preview", { method: "POST", body: JSON.stringify(payload) }),
-  commitBulkAdjustments: (payload) => request("/payroll/hr/adjustments/bulk/commit", { method: "POST", body: JSON.stringify(payload) }),
-  
-  // HR Bonus Rules
+  commitBulkAdjustments: (payload) => request("/payroll/hr/adjustments/bulk", { method: "POST", body: JSON.stringify(payload) }),
+  cancelAdjustmentBatch: (batchId) => request(`/payroll/hr/adjustments/batches/${batchId}/cancel`, { method: "POST" }),
+
+  // HR — Bonus Rules (#66–#74)
   createBonusRule: (payload) => request("/payroll/hr/bonus-rules", { method: "POST", body: JSON.stringify(payload) }),
   getBonusRules: (params) => request(`/payroll/hr/bonus-rules${buildQuery(params)}`),
   getBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}`),
+  updateBonusRule: (id, payload) => request(`/payroll/hr/bonus-rules/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   approveBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}/approve`, { method: "POST" }),
   rejectBonusRule: (id, payload) => request(`/payroll/hr/bonus-rules/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  previewBonusRuleImpact: (id) => request(`/payroll/hr/bonus-rules/${id}/preview-impact`, { method: "POST" }),
   applyBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}/apply`, { method: "POST" }),
-  
-  // HR Loans
-  grantLoan: (payload) => request("/payroll/hr/loans", { method: "POST", body: JSON.stringify(payload) }),
+  cancelBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}/cancel`, { method: "POST" }),
+
+  // HR — Loans & Advances (#75–#82)
+  grantLoan: (userId, payload) => request(`/payroll/hr/employees/${userId}/loans`, { method: "POST", body: JSON.stringify(payload) }),
   getLoans: (params) => request(`/payroll/hr/loans${buildQuery(params)}`),
+  getLoan: (id) => request(`/payroll/hr/loans/${id}`),
   getLoanInstallments: (id) => request(`/payroll/hr/loans/${id}/installments`),
   approveLoan: (id) => request(`/payroll/hr/loans/${id}/approve`, { method: "POST" }),
   rejectLoan: (id, payload) => request(`/payroll/hr/loans/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
-  forecloseLoan: (id) => request(`/payroll/hr/loans/${id}/foreclose`, { method: "POST" }),
+  cancelLoan: (id) => request(`/payroll/hr/loans/${id}/cancel`, { method: "POST" }),
+  forecloseLoan: (id, payload) => request(`/payroll/hr/loans/${id}/foreclose`, { method: "POST", body: JSON.stringify(payload) }),
 
-  // Manager Adjustments
-  proposeTeamAdjustment: (userId, payload) => request(`/payroll/manager/employees/${userId}/adjustments`, { method: "POST", body: JSON.stringify(payload) }),
+  // Manager — Team Variable Pay (#83–#90)
+  proposeTeamAdjustment: (userId, payload) => request(`/payroll/manager/employees/${userId}/adjustments/propose`, { method: "POST", body: JSON.stringify(payload) }),
   getTeamAdjustments: (params) => request(`/payroll/manager/adjustments${buildQuery(params)}`),
   cancelTeamAdjustment: (id) => request(`/payroll/manager/adjustments/${id}/cancel`, { method: "POST" }),
+  proposeTeamBonusRule: (payload) => request("/payroll/manager/bonus-rules/propose", { method: "POST", body: JSON.stringify(payload) }),
+  getTeamBonusRules: (params) => request(`/payroll/manager/bonus-rules${buildQuery(params)}`),
+  recommendTeamLoan: (userId, payload) => request(`/payroll/manager/employees/${userId}/loans/recommend`, { method: "POST", body: JSON.stringify(payload) }),
+  getTeamLoans: (params) => request(`/payroll/manager/loans${buildQuery(params)}`),
+  getTeamLoan: (id) => request(`/payroll/manager/loans/${id}`),
 
-  // Employee Loans
+  // Employee Self-Service — Variable Pay (#91–#94)
+  getMyBonuses: () => request("/payroll/me/bonuses"),
+  getMyAdjustments: () => request("/payroll/me/adjustments"),
   getMyLoans: (params) => request(`/payroll/me/loans${buildQuery(params)}`),
   getMyLoanInstallments: (id) => request(`/payroll/me/loans/${id}/installments`),
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Phase 4: Statutory & Tax
+  // Phase 4: Statutory & Tax (PF, ESI, PT, TDS, Declarations, Form 16) — API #95–#127
   // ─────────────────────────────────────────────────────────────────────────────
-  getTaxConfigurations: () => request("/payroll/hr/tax-configurations"),
-  updateTaxConfigurations: (payload) => request("/payroll/hr/tax-configurations", { method: "PUT", body: JSON.stringify(payload) }),
-  getInvestmentDeclarations: (params) => request(`/payroll/hr/investment-declarations${buildQuery(params)}`),
-  approveInvestmentDeclaration: (id, payload) => request(`/payroll/hr/investment-declarations/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
-  submitInvestmentDeclaration: (payload) => request("/payroll/me/investment-declarations", { method: "POST", body: JSON.stringify(payload) }),
-  getMyTaxProjections: () => request("/payroll/me/tax-projections"),
+
+  // HR — Statutory config & PT slabs (#95–#99)
+  getStatutoryConfig: () => request("/payroll/hr/statutory/config"),
+  updateStatutoryConfig: (payload) => request("/payroll/hr/statutory/config", { method: "PUT", body: JSON.stringify(payload) }),
+  getPtSlabs: (params) => request(`/payroll/hr/statutory/pt-slabs${buildQuery(params)}`),
+  replacePtSlabs: (stateCode, payload) => request(`/payroll/hr/statutory/pt-slabs/states/${encodeURIComponent(stateCode)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deactivatePtSlabs: (stateCode) => request(`/payroll/hr/statutory/pt-slabs/states/${encodeURIComponent(stateCode)}`, { method: "DELETE" }),
+
+  // HR — Income-tax regimes & slabs (#100–#104)
+  bootstrapTaxTables: (payload) => request("/payroll/hr/tax/bootstrap", { method: "POST", body: JSON.stringify(payload) }),
+  getTaxRegimes: (params) => request(`/payroll/hr/tax/regimes${buildQuery(params)}`),
+  updateTaxRegime: (id, payload) => request(`/payroll/hr/tax/regimes/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  getTaxRegimeSlabs: (id) => request(`/payroll/hr/tax/regimes/${id}/slabs`),
+  replaceTaxRegimeSlabs: (id, payload) => request(`/payroll/hr/tax/regimes/${id}/slabs`, { method: "PUT", body: JSON.stringify(payload) }),
+
+  // HR — Investment declaration verification queue (#105–#109)
+  getDeclarationQueue: (params) => request(`/payroll/hr/tax/declarations${buildQuery(params)}`),
+  getDeclaration: (id) => request(`/payroll/hr/tax/declarations/${id}`),
+  verifyDeclaration: (id, payload) => request(`/payroll/hr/tax/declarations/${id}/verify`, { method: "POST", body: JSON.stringify(payload) }),
+  rejectDeclaration: (id, payload) => request(`/payroll/hr/tax/declarations/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  reopenDeclaration: (id, payload) => request(`/payroll/hr/tax/declarations/${id}/reopen`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // HR — Per-employee tax (#110–#116)
+  getEmployeeTaxSummary: (userId, params) => request(`/payroll/hr/employees/${userId}/tax/summary${buildQuery(params)}`),
+  overrideEmployeeRegime: (userId, payload, params) => request(`/payroll/hr/employees/${userId}/tax/regime${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  setPreviousEmployer: (userId, payload, params) => request(`/payroll/hr/employees/${userId}/tax/previous-employer${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  getEmployeeTaxProjection: (userId, params) => request(`/payroll/hr/employees/${userId}/tax/projection${buildQuery(params)}`),
+  getEmployeeForm16: (userId, financialYear) => request(`/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}`),
+  setForm16PartA: (userId, financialYear, payload) => request(`/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}/part-a`, { method: "PUT", body: JSON.stringify(payload) }),
+  finalizeEmployeeFY: (userId, financialYear) => request(`/payroll/hr/employees/${userId}/tax/financial-years/${encodeURIComponent(financialYear)}/finalize`, { method: "POST" }),
+
+  // HR — Year-end closure (#117–#118)
+  finalizeOrgFY: (financialYear, payload) => request(`/payroll/hr/tax/financial-years/${encodeURIComponent(financialYear)}/finalize`, { method: "POST", body: JSON.stringify(payload) }),
+  getStatutorySummary: (financialYear) => request(`/payroll/hr/tax/financial-years/${encodeURIComponent(financialYear)}/statutory-summary`),
+
+  // Employee Self-Service — Tax (#119–#127)
+  getMyTaxSummary: (params) => request(`/payroll/me/tax/summary${buildQuery(params)}`),
+  getMyTaxProjection: (params) => request(`/payroll/me/tax/projection${buildQuery(params)}`),
+  getMyMonthlyTax: (params) => request(`/payroll/me/tax/monthly${buildQuery(params)}`),
+  getMyDeclaration: (params) => request(`/payroll/me/tax/declarations${buildQuery(params)}`),
+  upsertMyDeclaration: (payload, params) => request(`/payroll/me/tax/declarations${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  submitMyDeclaration: (params) => request(`/payroll/me/tax/declarations/submit${buildQuery(params)}`, { method: "POST" }),
+  switchMyRegime: (payload, params) => request(`/payroll/me/tax/regime${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  getMyForm16: (financialYear) => request(`/payroll/me/tax/form16/${encodeURIComponent(financialYear)}`),
+  recordMyDeclarationProofs: (payload, params) => request(`/payroll/me/tax/declarations/proofs${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Phase 5: Reimbursements & Benefits

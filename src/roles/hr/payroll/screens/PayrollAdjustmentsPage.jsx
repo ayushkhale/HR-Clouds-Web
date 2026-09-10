@@ -36,7 +36,14 @@ export default function PayrollAdjustmentsPage() {
     is_taxable: true, pf_applicable: false, esi_applicable: false
   });
   
-  const [csvPreview, setCsvPreview] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [csvContent, setCsvContent] = useState("");
+  const [csvPreview, setCsvPreview] = useState(null); // API response of bulk/preview
+  const [bulkMonth, setBulkMonth] = useState(new Date().getMonth() + 1);
+  const [bulkYear, setBulkYear] = useState(new Date().getFullYear());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const CSV_TEMPLATE = "employee_code,adjustment_type,category,component_name,amount,reason\nEMP-001,earning,bonus,Festive Bonus,5000,Diwali\nEMP-002,deduction,recovery,Laptop Recovery,2000,Damaged screen";
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -47,7 +54,7 @@ export default function PayrollAdjustmentsPage() {
     setLoading(true);
     try {
       const [adjRes, empRes, compRes] = await Promise.all([
-        payrollAPI.getAdjustments(),
+        payrollAPI.getAdjustments(statusFilter ? { status: statusFilter } : undefined),
         organizationAPI.getEmployees({ purpose: "emp_report" }),
         payrollAPI.getComponents()
       ]);
@@ -62,6 +69,44 @@ export default function PayrollAdjustmentsPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const bulkPeriod = () => `${bulkYear}-${bulkMonth.toString().padStart(2, "0")}`;
+
+  const handleBulkPreview = async () => {
+    if (!csvContent.trim()) return showToast("Paste or upload CSV content first", "error");
+    setBulkBusy(true);
+    try {
+      const res = await payrollAPI.previewBulkAdjustments({ period_month: bulkPeriod(), csv_content: csvContent });
+      setCsvPreview(res.data || res);
+    } catch (err) {
+      showToast(err.message || "Preview failed", "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkCommit = async () => {
+    setBulkBusy(true);
+    try {
+      await payrollAPI.commitBulkAdjustments({ period_month: bulkPeriod(), csv_content: csvContent });
+      showToast("Bulk batch committed successfully");
+      setIsBulkModalOpen(false);
+      setCsvContent("");
+      setCsvPreview(null);
+      loadData();
+    } catch (err) {
+      showToast(err.message || "Commit failed", "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleCsvFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { setCsvContent(ev.target.result || ""); setCsvPreview(null); };
+    reader.readAsText(file);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -120,13 +165,15 @@ export default function PayrollAdjustmentsPage() {
     }
   };
 
-  // Mocking file selection for bulk adjustments
-  const handleBulkSimulate = () => {
-    setCsvPreview([
-      { row: 1, employee: "EMP-001", amount: 5000, type: "earning", status: "valid" },
-      { row: 2, employee: "EMP-002", amount: 1500, type: "deduction", status: "valid" },
-      { row: 3, employee: "EMP-003", amount: 0, type: "earning", status: "invalid", error: "Amount must be > 0" }
-    ]);
+  const batchCancel = async (batchId) => {
+    if (!batchId || !window.confirm("Cancel every unapplied row in this batch?")) return;
+    try {
+      await payrollAPI.cancelAdjustmentBatch(batchId);
+      showToast("Batch cancelled");
+      loadData();
+    } catch (err) {
+      showToast(err.message || "Failed to cancel batch", "error");
+    }
   };
 
   return (
@@ -144,7 +191,14 @@ export default function PayrollAdjustmentsPage() {
               <p className="text-sm text-slate-500 mt-1">Manage one-off additions, deductions, and bonuses.</p>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setCsvPreview(null); setIsBulkModalOpen(true); }} className="px-4 py-2.5 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <button onClick={() => { setCsvPreview(null); setCsvContent(""); setIsBulkModalOpen(true); }} className="px-4 py-2.5 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
                 <HiUpload className="w-5 h-5" /> Bulk Upload
               </button>
               <button onClick={() => setIsModalOpen(true)} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
@@ -179,12 +233,15 @@ export default function PayrollAdjustmentsPage() {
                       <td className="px-6 py-4 capitalize text-slate-600">
                         {adj.adjustment_type}
                         <span className="block text-[10px] text-slate-400 font-bold">{adj.category?.replace(/_/g, ' ')}</span>
+                        {adj.batch_id && <span className="inline-block mt-1 text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">BATCH</span>}
+                        {adj.bonus_rule_id && <span className="inline-block mt-1 text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">RULE</span>}
                       </td>
                       <td className="px-6 py-4 font-semibold text-slate-800">₹{parseFloat(adj.amount || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${adj.status === 'proposed' ? 'bg-amber-100 text-amber-700' : adj.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : adj.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${(adj.status === 'pending' || adj.status === 'proposed') ? 'bg-amber-100 text-amber-700' : adj.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : adj.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
                           {adj.status}
                         </span>
+                        {adj.applied_run_id && <span className="block mt-1 text-[9px] font-bold text-slate-400 uppercase">applied</span>}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
@@ -194,8 +251,11 @@ export default function PayrollAdjustmentsPage() {
                               <button onClick={() => setRejectingId(adj.id)} className="p-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition" title="Reject"><HiX className="w-4 h-4" /></button>
                             </>
                           )}
-                          {(adj.status === 'approved' || adj.status === 'pending') && (
+                          {(adj.status === 'approved' || adj.status === 'pending') && !adj.applied_run_id && (
                             <button onClick={() => handleCancel(adj.id)} className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel"><HiTrash className="w-4 h-4" /></button>
+                          )}
+                          {adj.batch_id && !adj.applied_run_id && (
+                            <button onClick={() => batchCancel(adj.batch_id)} className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel whole batch"><HiUpload className="w-4 h-4 rotate-180" /></button>
                           )}
                         </div>
                       </td>
@@ -326,52 +386,103 @@ export default function PayrollAdjustmentsPage() {
         </div>
       )}
 
-      {/* Bulk Adjustments Modal (Simulated) */}
-      {isBulkModalOpen && (
+      {/* Bulk Adjustments Modal */}
+      {isBulkModalOpen && (() => {
+        const rows = csvPreview?.rows || [];
+        const errorRows = rows.filter(r => r.status === "error").length;
+        const validRows = csvPreview ? (csvPreview.valid_rows ?? rows.length - errorRows) : 0;
+        return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Bulk Adjustments Upload</h2>
               <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 overflow-y-auto">
-               {!csvPreview ? (
-                 <div className="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center flex flex-col items-center gap-3">
-                   <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center">
-                     <HiUpload className="w-6 h-6" />
-                   </div>
-                   <div>
-                     <p className="text-sm font-bold text-slate-800">Drag & Drop CSV File Here</p>
-                     <p className="text-xs text-slate-500 mt-1">Format: email, amount, type (earning/deduction), description</p>
-                   </div>
-                   <button onClick={handleBulkSimulate} className="mt-4 px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-xl hover:bg-purple-700">Simulate Upload</button>
-                 </div>
-               ) : (
-                 <div>
-                   <h3 className="text-sm font-bold text-slate-800 mb-4">Preview Validation</h3>
-                   <div className="space-y-2 text-sm">
-                     {csvPreview.map(row => (
-                       <div key={row.row} className={`p-3 rounded-lg border flex justify-between items-center ${row.status === 'valid' ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                         <span className="font-semibold">{row.employee}</span>
-                         <span className="text-slate-600 capitalize">{row.type}: ₹{row.amount}</span>
-                         {row.status === 'invalid' && <span className="text-xs font-bold text-red-600">{row.error}</span>}
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-               )}
-            </div>
-            {csvPreview && (
-              <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
-                  <button onClick={() => setCsvPreview(null)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition">Reset</button>
-                  <button onClick={() => { setIsBulkModalOpen(false); showToast("Bulk batch committed successfully"); }} className="px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200">
-                    Commit Valid Rows
-                  </button>
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Target Month</label>
+                  <select value={bulkMonth} onChange={(e) => { setBulkMonth(parseInt(e.target.value)); setCsvPreview(null); }} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
+                    {Array.from({ length: 12 }).map((_, i) => <option key={i} value={i + 1}>{new Date(0, i).toLocaleString("default", { month: "long" })}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Target Year</label>
+                  <input type="number" value={bulkYear} onChange={(e) => { setBulkYear(parseInt(e.target.value)); setCsvPreview(null); }} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                </div>
               </div>
-            )}
+
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">CSV Content</label>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => { setCsvContent(CSV_TEMPLATE); setCsvPreview(null); }} className="text-[11px] font-bold text-purple-600 hover:underline">Insert sample</button>
+                  <label className="text-[11px] font-bold text-purple-600 hover:underline cursor-pointer">
+                    Upload .csv
+                    <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => handleCsvFile(e.target.files?.[0])} />
+                  </label>
+                </div>
+              </div>
+              <textarea
+                value={csvContent}
+                onChange={(e) => { setCsvContent(e.target.value); setCsvPreview(null); }}
+                rows={6}
+                placeholder={CSV_TEMPLATE}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:border-purple-400 outline-none resize-none"
+              />
+              <p className="text-[11px] text-slate-400">Headers: <span className="font-mono">employee_code, adjustment_type, category, component_name, amount, reason</span>. Max 5,000 rows.</p>
+
+              {csvPreview && (
+                <div>
+                  <div className="flex gap-4 mb-3 text-sm font-bold">
+                    <span className="text-slate-600">{csvPreview.total_rows ?? rows.length} rows</span>
+                    <span className="text-emerald-600">{validRows} valid</span>
+                    <span className={errorRows ? "text-red-600" : "text-slate-400"}>{errorRows} errors</span>
+                  </div>
+                  <div className="border border-slate-100 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 sticky top-0">
+                          <th className="px-3 py-2">Line</th>
+                          <th className="px-3 py-2">Employee</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                          <th className="px-3 py-2">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {rows.map((row, idx) => (
+                          <tr key={idx} className={row.status === "error" ? "bg-red-50/50" : ""}>
+                            <td className="px-3 py-1.5 text-slate-400">{row.line ?? idx + 1}</td>
+                            <td className="px-3 py-1.5 font-semibold text-slate-700">{row.employee_code || row.user_id || "-"}</td>
+                            <td className="px-3 py-1.5 text-right text-slate-600">₹{parseFloat(row.amount || 0).toLocaleString()}</td>
+                            <td className="px-3 py-1.5">
+                              {row.status === "error"
+                                ? <span className="font-bold text-red-600">{row.error_code || row.error || "Invalid"}</span>
+                                : <span className="font-bold text-emerald-600">OK</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+              <button onClick={() => setIsBulkModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition">Close</button>
+              {!csvPreview ? (
+                <button disabled={bulkBusy} onClick={handleBulkPreview} className="px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50">
+                  {bulkBusy ? "Validating…" : "Preview & Validate"}
+                </button>
+              ) : (
+                <button disabled={bulkBusy || errorRows > 0} onClick={handleBulkCommit} className="px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50">
+                  {bulkBusy ? "Committing…" : errorRows > 0 ? "Fix errors to commit" : `Commit ${validRows} rows`}
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Reject Modal */}
       {rejectingId && (

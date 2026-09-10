@@ -210,6 +210,11 @@ function DashboardSidebar({ role = "guest" }) {
             { label: "Salary Approvals", path: "/dashboard/hr/payroll/approvals", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/payroll/approvals" },
             { label: "Payroll Runs", path: "/dashboard/hr/payroll/runs", icon: HiPlay, active: location.pathname === "/dashboard/hr/payroll/runs" },
             { label: "Adjustments", path: "/dashboard/hr/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/hr/payroll/adjustments" },
+            { label: "Bonus Rules", path: "/dashboard/hr/payroll/bonus-rules", icon: HiGift, active: location.pathname === "/dashboard/hr/payroll/bonus-rules" },
+            { label: "Loans & Advances", path: "/dashboard/hr/payroll/loans", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/hr/payroll/loans" },
+            { label: "Statutory & Tax", path: "/dashboard/hr/payroll/statutory", icon: HiCog, active: location.pathname === "/dashboard/hr/payroll/statutory" },
+            { label: "Tax Declarations", path: "/dashboard/hr/payroll/tax-declarations", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/payroll/tax-declarations" },
+            { label: "Year-End & Form 16", path: "/dashboard/hr/payroll/year-end", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/payroll/year-end" },
           ],
         },
 
@@ -249,7 +254,7 @@ function DashboardSidebar({ role = "guest" }) {
         items: [
           { label: "My Salary & Bank", path: "/dashboard/employee/payroll/my-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/employee/payroll/my-salary" },
           { label: "My Payslips", path: "/dashboard/employee/payroll/my-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/my-payslips" },
-          { label: "Loans & Advances", path: "/dashboard/employee/payroll/loans", icon: HiAdjustments, active: location.pathname === "/dashboard/employee/payroll/loans" },
+          { label: "Loans & Variable Pay", path: "/dashboard/employee/payroll/loans", icon: HiAdjustments, active: location.pathname === "/dashboard/employee/payroll/loans" },
           { label: "Tax & Investments", path: "/dashboard/employee/payroll/tax", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/tax" },
           { label: "Reimbursements", path: "/dashboard/employee/payroll/reimbursements", icon: HiGift, active: location.pathname === "/dashboard/employee/payroll/reimbursements" },
         ],
@@ -288,7 +293,7 @@ function DashboardSidebar({ role = "guest" }) {
         items: [
           { label: "Team Compensation", path: "/dashboard/manager/payroll/team-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/payroll/team-salary" },
           { label: "Team Payslips", path: "/dashboard/manager/payroll/team-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/team-payslips" },
-          { label: "Propose Adjustments", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
+          { label: "Team Variable Pay", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
           { label: "Team Reimbursements", path: "/dashboard/manager/payroll/reimbursements", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
         ],
       }] : [])

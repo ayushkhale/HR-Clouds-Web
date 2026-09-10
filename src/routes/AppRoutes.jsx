@@ -85,7 +85,11 @@ import PayrollApprovalsPage from "../roles/hr/payroll/screens/PayrollApprovalsPa
 import PayrollSettingsPage from "../roles/hr/payroll/screens/PayrollSettingsPage";
 import PayrollRunDashboard from "../roles/hr/payroll/screens/PayrollRunDashboard";
 import PayrollAdjustmentsPage from "../roles/hr/payroll/screens/PayrollAdjustmentsPage";
+import PayrollBonusRulesPage from "../roles/hr/payroll/screens/PayrollBonusRulesPage";
+import PayrollLoansPage from "../roles/hr/payroll/screens/PayrollLoansPage";
 import TaxConfigurationsPage from "../roles/hr/payroll/screens/TaxConfigurationsPage";
+import TaxDeclarationsPage from "../roles/hr/payroll/screens/TaxDeclarationsPage";
+import YearEndClosurePage from "../roles/hr/payroll/screens/YearEndClosurePage";
 import BenefitsAndReimbursementsPage from "../roles/hr/payroll/screens/BenefitsAndReimbursementsPage";
 import PayrollReportsPage from "../roles/hr/payroll/screens/PayrollReportsPage";
 
@@ -211,7 +215,11 @@ function AppRoutes() {
       <Route path="/dashboard/hr/payroll/settings" element={<ProtectedRoute><PayrollSettingsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/payroll/runs" element={<ProtectedRoute><PayrollRunDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/hr/payroll/adjustments" element={<ProtectedRoute><PayrollAdjustmentsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/payroll/bonus-rules" element={<ProtectedRoute><PayrollBonusRulesPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/payroll/loans" element={<ProtectedRoute><PayrollLoansPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/payroll/statutory" element={<ProtectedRoute><TaxConfigurationsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/payroll/tax-declarations" element={<ProtectedRoute><TaxDeclarationsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/hr/payroll/year-end" element={<ProtectedRoute><YearEndClosurePage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/payroll/benefits" element={<ProtectedRoute><BenefitsAndReimbursementsPage /></ProtectedRoute>} />
       <Route path="/dashboard/hr/payroll/reports" element={<ProtectedRoute><PayrollReportsPage /></ProtectedRoute>} />
       
