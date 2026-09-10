@@ -1,12 +1,52 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   HiXMark, HiPaperAirplane,
-  HiArrowPath, HiChevronRight, HiStop
+  HiArrowPath, HiChevronRight, HiStop,
+  HiArrowsPointingOut, HiArrowsPointingIn
 } from 'react-icons/hi2';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useDocMindChat } from '../hooks/useDocMindChat';
 
 /* ─── helpers ─── */
 const ts = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/* ─── Markdown renderer for Maya's replies ─── */
+const drop = (p) => { const q = { ...p }; delete q.node; return q; };
+const md = (Tag, className) => function MdEl(props) { return <Tag className={className} {...drop(props)} />; };
+
+const MD_COMPONENTS = {
+  p:  md('p',  'my-1.5 first:mt-0 last:mb-0 leading-relaxed'),
+  ul: md('ul', 'my-1.5 pl-5 list-disc space-y-1 marker:text-purple-400'),
+  ol: md('ol', 'my-1.5 pl-5 list-decimal space-y-1 marker:text-slate-400'),
+  li: md('li', 'leading-relaxed'),
+  h1: md('h1', 'mt-3 mb-1.5 first:mt-0 text-[15px] font-bold text-slate-800'),
+  h2: md('h2', 'mt-3 mb-1.5 first:mt-0 text-sm font-bold text-slate-800'),
+  h3: md('h3', 'mt-2.5 mb-1 first:mt-0 text-sm font-semibold text-slate-800'),
+  strong: md('strong', 'font-semibold text-slate-900'),
+  em: md('em', 'italic'),
+  blockquote: md('blockquote', 'my-2 border-l-2 border-purple-300 pl-3 text-slate-500 italic'),
+  hr: () => <hr className="my-3 border-slate-200" />,
+  a: (props) => <a className="text-purple-600 font-medium underline underline-offset-2 hover:text-purple-800 break-words" target="_blank" rel="noreferrer" {...drop(props)} />,
+  code: (props) => {
+    const { className, children, ...rest } = drop(props);
+    const isBlock = /language-/.test(className || '') || /\n/.test(String(children));
+    return isBlock
+      ? <code className="block my-2 p-3 rounded-lg bg-slate-900 text-slate-100 text-[12px] font-mono overflow-x-auto whitespace-pre" {...rest}>{children}</code>
+      : <code className="px-1 py-0.5 rounded bg-purple-50 text-purple-700 text-[12px] font-mono break-words" {...rest}>{children}</code>;
+  },
+  pre: (props) => <>{props.children}</>,
+  table: (props) => <div className="my-2 overflow-x-auto"><table className="w-full text-[12px] border-collapse" {...drop(props)} /></div>,
+  thead: md('thead', 'bg-slate-100'),
+  th: md('th', 'border border-slate-200 px-2 py-1 text-left font-semibold text-slate-700'),
+  td: md('td', 'border border-slate-200 px-2 py-1 align-top'),
+};
+
+const MayaMarkdown = ({ children }) => (
+  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS} skipHtml>
+    {children}
+  </ReactMarkdown>
+);
 
 const TypingDots = () => (
   <span className="flex gap-1 items-center h-4 px-1">
@@ -39,6 +79,7 @@ const MayaAvatar = ({ size = 'md' }) => {
 /* ─── Main widget ─── */
 const ChatbotWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
   const textareaRef    = useRef(null);
@@ -95,7 +136,11 @@ const ChatbotWidget = () => {
           ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                    : 'opacity-0 scale-95 translate-y-4 pointer-events-none'}
         `}
-        style={{ width: 'min(calc(100vw - 48px), 400px)', height: 'min(calc(100vh - 130px), 600px)' }}
+        style={
+          isExpanded
+            ? { width: 'min(calc(100vw - 48px), 80vw)', height: 'min(calc(100vh - 96px), 90vh)' }
+            : { width: 'min(calc(100vw - 48px), 400px)', height: 'min(calc(100vh - 130px), 600px)' }
+        }
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
@@ -115,6 +160,10 @@ const ChatbotWidget = () => {
             <button onClick={() => { clearMessages(); setInputValue(''); }} title="Clear chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiArrowPath className="w-4 h-4" />
+            </button>
+            <button onClick={() => setIsExpanded(p => !p)} title={isExpanded ? 'Shrink' : 'Enlarge'}
+              className="hidden sm:block p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
+              {isExpanded ? <HiArrowsPointingIn className="w-4 h-4" /> : <HiArrowsPointingOut className="w-4 h-4" />}
             </button>
             <button onClick={() => setIsOpen(false)}
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
@@ -176,7 +225,7 @@ const ChatbotWidget = () => {
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-0.5" style={{ maxWidth: '78%' }}>
+                  <div className="flex flex-col gap-0.5" style={{ maxWidth: isExpanded ? 'min(88%, 760px)' : '78%' }}>
                     <div
                       className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm select-text
                         ${msg.role === 'user'
@@ -189,10 +238,15 @@ const ChatbotWidget = () => {
                     >
                       {msg.isStreaming && !msg.content
                         ? <TypingDots />
-                        : <span className="whitespace-pre-wrap">
-                            {msg.content}
-                            {msg.isStreaming && <StreamCursor />}
-                          </span>
+                        : msg.role === 'assistant' && !msg.isError
+                          ? <span className="block">
+                              <MayaMarkdown>{msg.content}</MayaMarkdown>
+                              {msg.isStreaming && <StreamCursor />}
+                            </span>
+                          : <span className="whitespace-pre-wrap">
+                              {msg.content}
+                              {msg.isStreaming && <StreamCursor />}
+                            </span>
                       }
                     </div>
                     {msg.sentAt && (
