@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_URL = import.meta.env.DEV ? '/docmind-api' : 'https://api.codewithrishi.fun/api/public';
+const API_URL = import.meta.env.VITE_DOCMIND_API_URL || 'https://api.codewithrishi.fun/api/public';
 const API_KEY = import.meta.env.VITE_DOCMIND_API_KEY;
 
 // The RAG backend emits this sentinel when no relevant context is found.

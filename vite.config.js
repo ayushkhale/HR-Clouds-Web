@@ -11,12 +11,6 @@ export default defineConfig({
         target: 'https://development.hrclouds.in',
         changeOrigin: true,
         secure: false,
-      },
-      '/docmind-api': {
-        target: 'https://api.codewithrishi.fun',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/docmind-api/, '/api/public')
       }
     }
   },
