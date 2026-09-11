@@ -236,6 +236,46 @@ function ConfigTab({ showToast }) {
 // ───────────────────────── PT slabs tab ─────────────────────────
 const emptyPtRow = () => ({ from_amount: "", to_amount: "", monthly_amount: "", gender: "any" });
 
+// Shared half-open [from, to) slab-set rule used by both PT slabs (per gender) and tax-regime
+// slabs (per age_band), per phase4_implementation_plan.md §7.2: sorted ascending by from_amount,
+// the lowest band must start at exactly 0, contiguous with next.from === prev.to exactly (no gap/
+// overlap), and exactly one band — the highest — is open-ended (to_amount = null).
+function validateSlabRanges(rows, groupField, groupLabel) {
+  const byGroup = rows.reduce((acc, r) => {
+    const key = r[groupField] || "any";
+    (acc[key] = acc[key] || []).push(r);
+    return acc;
+  }, {});
+  for (const [key, group] of Object.entries(byGroup)) {
+    const tag = `${groupLabel} "${key}"`;
+    const sorted = [...group].sort((a, b) => (parseFloat(a.from_amount) || 0) - (parseFloat(b.from_amount) || 0));
+    const firstFrom = parseFloat(sorted[0].from_amount) || 0;
+    if (firstFrom !== 0) {
+      return `❌ ${tag}: The first (lowest) band must start at exactly ₹0, but yours starts at ${money(firstFrom)}.\n\n💡 Fix: Edit the first band's "From" field to 0. If you want PT only for salaries above ${money(firstFrom)}, add a new band first: From ₹0, To ₹${firstFrom}, PT ₹0.`;
+    }
+    const openEnded = sorted.filter((r) => r.to_amount === "" || r.to_amount === null || r.to_amount === undefined);
+    if (openEnded.length === 0) {
+      const top = money(parseFloat(sorted[sorted.length - 1].from_amount) || 0);
+      return `❌ ${tag}: Every band has a fixed "To" amount, but there's no top band covering high earners.\n\n💡 Fix: The highest band (${top} and above) must have "To" left blank. Edit Band ${sorted.length}'s "To" field and delete the value — leave it completely empty. This tells the system "everyone earning ${top} or more gets this PT amount."`;
+    }
+    if (openEnded.length > 1) {
+      return `❌ ${tag}: Multiple bands are left open-ended (${openEnded.length} of them), but only the highest one can be.\n\n💡 Fix: Give every band a fixed "To" value except the last (highest) band. Only the top band should have a blank "To".`;
+    }
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const prevTo = sorted[i].to_amount === "" || sorted[i].to_amount === null || sorted[i].to_amount === undefined ? null : parseFloat(sorted[i].to_amount);
+      const curFrom = parseFloat(sorted[i + 1].from_amount) || 0;
+      if (prevTo === null) {
+        return `❌ ${tag}: Band ${i + 1} has no upper limit (open-ended), but it's followed by Band ${i + 2}. This creates a gap in coverage.\n\n💡 Fix: Only the highest/last band can be open-ended. Band ${i + 1} should have a fixed "To" value.`;
+      }
+      if (prevTo !== curFrom) {
+        return `❌ ${tag}: Bands ${i + 1} and ${i + 2} don't connect properly.\n\n Band ${i + 1} ends at ${money(prevTo)}\n Band ${i + 2} starts at ${money(curFrom)}\n\n💡 Fix: The upper limit of one band must exactly match the lower limit of the next. Either change Band ${i + 1}'s "To" to ${money(curFrom)} OR change Band ${i + 2}'s "From" to ${money(prevTo)}.`;
+      }
+    }
+  }
+  return null;
+}
+const validatePtSlabRows = (rows) => validateSlabRanges(rows, "gender", "Gender");
+
 function PtSlabsTab({ showToast }) {
   const [slabs, setSlabs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -269,6 +309,8 @@ function PtSlabsTab({ showToast }) {
 
   const saveEditor = async () => {
     if (!editorState.stateCode.trim()) return showToast("State code required", "error");
+    const validationError = validatePtSlabRows(editorState.rows);
+    if (validationError) return showToast(validationError, "error");
     try {
       await payrollAPI.replacePtSlabs(editorState.stateCode.trim().toUpperCase(), {
         state_name: editorState.stateName.trim(),
@@ -343,12 +385,12 @@ function PtSlabsTab({ showToast }) {
 
       {editorState && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">State PT Slabs</h2>
               <button onClick={() => setEditorState(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 space-y-4 overflow-y-auto">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">State Code <span className="text-red-500">*</span></label>
@@ -359,24 +401,34 @@ function PtSlabsTab({ showToast }) {
                   <input value={editorState.stateName} onChange={(e) => setEditorState({ ...editorState, stateName: e.target.value })} placeholder="Karnataka" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 text-[10px] font-bold text-slate-400 uppercase px-1">
-                  <span>From ₹</span><span>To ₹ (blank = ∞)</span><span>Monthly PT ₹</span><span>Gender</span><span></span>
-                </div>
+              <div className="space-y-3">
                 {editorState.rows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2">
-                    <input type="number" value={r.from_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, from_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                    <input type="number" value={r.to_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, to_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                    <input type="number" value={r.monthly_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, monthly_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                    <select value={r.gender} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, gender: e.target.value }; setEditorState({ ...editorState, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400">
-                      <option value="any">Any</option><option value="male">Male</option><option value="female">Female</option>
-                    </select>
-                    <button onClick={() => setEditorState({ ...editorState, rows: editorState.rows.filter((_, x) => x !== i) })} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><HiTrash className="w-4 h-4" /></button>
+                  <div key={i} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Band {i + 1}</span>
+                      <button onClick={() => setEditorState({ ...editorState, rows: editorState.rows.filter((_, x) => x !== i) })} className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition" title="Remove band"><HiTrash className="w-4 h-4" /></button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <Field label="From ₹">
+                        <input type="number" value={r.from_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, from_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} placeholder="0" className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                      </Field>
+                      <Field label="To ₹ (blank = ∞)">
+                        <input type="number" value={r.to_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, to_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} placeholder={i === editorState.rows.length - 1 ? "Leave blank for top band" : ""} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                      </Field>
+                      <Field label="Monthly PT ₹">
+                        <input type="number" value={r.monthly_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, monthly_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                      </Field>
+                      <Field label="Gender">
+                        <select value={r.gender} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, gender: e.target.value }; setEditorState({ ...editorState, rows }); }} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400">
+                          <option value="any">Any</option><option value="male">Male</option><option value="female">Female</option>
+                        </select>
+                      </Field>
+                    </div>
                   </div>
                 ))}
                 <button onClick={() => setEditorState({ ...editorState, rows: [...editorState.rows, emptyPtRow()] })} className="text-xs font-bold text-purple-600 hover:underline flex items-center gap-1"><HiPlus className="w-3.5 h-3.5" /> Add slab row</button>
               </div>
-              <p className="text-[11px] text-slate-400">Ranges are half-open <span className="font-mono">[from, to)</span> and must be contiguous per gender — no gaps or overlaps.</p>
+              <p className="text-[11px] text-slate-400">Ranges are half-open <span className="font-mono">[from, to)</span> and must be contiguous per gender — the lowest band per gender must start at ₹0, and the highest band must have blank "To" to cover all high earners.</p>
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
               <button onClick={() => setEditorState(null)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition">Cancel</button>
@@ -445,7 +497,8 @@ function RegimesTab({ showToast }) {
   const openSlabs = async (regime) => {
     try {
       const res = await payrollAPI.getTaxRegimeSlabs(regime.id);
-      const rows = (res.data?.records || res.data || []).map((s) => ({
+      const recordsArray = res.data?.records || res.data || [];
+      const rows = (Array.isArray(recordsArray) ? recordsArray : []).map((s) => ({
         age_band: s.age_band || "below_60", from_amount: s.from_amount, to_amount: s.to_amount ?? "", rate_percent: s.rate_percent,
       }));
       setSlabEditor({ regime, rows: rows.length ? rows : [{ age_band: "below_60", from_amount: 0, to_amount: "", rate_percent: 0 }] });
@@ -455,6 +508,8 @@ function RegimesTab({ showToast }) {
   };
 
   const saveSlabs = async () => {
+    const validationError = validateSlabRanges(slabEditor.rows, "age_band", "Age band");
+    if (validationError) return showToast(validationError, "error");
     try {
       await payrollAPI.replaceTaxRegimeSlabs(slabEditor.regime.id, {
         slabs: slabEditor.rows.map((r, i) => ({
@@ -545,28 +600,38 @@ function RegimesTab({ showToast }) {
 
       {slabEditor && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800 capitalize">{slabEditor.regime.name || slabEditor.regime.code} — Slabs</h2>
               <button onClick={() => setSlabEditor(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 space-y-2 overflow-y-auto">
-              <div className="grid grid-cols-[1.2fr_1fr_1fr_0.8fr_auto] gap-2 text-[10px] font-bold text-slate-400 uppercase px-1">
-                <span>Age Band</span><span>From ₹</span><span>To ₹ (blank=∞)</span><span>Rate %</span><span></span>
-              </div>
+            <div className="p-6 space-y-3 overflow-y-auto flex-1">
               {slabEditor.rows.map((r, i) => (
-                <div key={i} className="grid grid-cols-[1.2fr_1fr_1fr_0.8fr_auto] gap-2">
-                  <select value={r.age_band} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, age_band: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400">
-                    <option value="below_60">Below 60</option><option value="60_to_80">60–80</option><option value="above_80">Above 80</option>
-                  </select>
-                  <input type="number" value={r.from_amount} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, from_amount: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                  <input type="number" value={r.to_amount} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, to_amount: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                  <input type="number" value={r.rate_percent} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, rate_percent: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                  <button onClick={() => setSlabEditor({ ...slabEditor, rows: slabEditor.rows.filter((_, x) => x !== i) })} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><HiTrash className="w-4 h-4" /></button>
+                <div key={i} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">Slab {i + 1}</span>
+                    <button onClick={() => setSlabEditor({ ...slabEditor, rows: slabEditor.rows.filter((_, x) => x !== i) })} className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition" title="Remove slab"><HiTrash className="w-4 h-4" /></button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Field label="Age Band">
+                      <select value={r.age_band} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, age_band: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400">
+                        <option value="below_60">Below 60</option><option value="60_to_79">60–79</option><option value="80_plus">80+</option>
+                      </select>
+                    </Field>
+                    <Field label="From ₹">
+                      <input type="number" value={r.from_amount} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, from_amount: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} placeholder="0" className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                    </Field>
+                    <Field label="To ₹ (blank = ∞)">
+                      <input type="number" value={r.to_amount} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, to_amount: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} placeholder={i === slabEditor.rows.length - 1 ? "Leave blank for top slab" : ""} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                    </Field>
+                    <Field label="Rate %">
+                      <input type="number" value={r.rate_percent} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, rate_percent: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} placeholder="e.g., 30" className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                    </Field>
+                  </div>
                 </div>
               ))}
               <button onClick={() => setSlabEditor({ ...slabEditor, rows: [...slabEditor.rows, { age_band: "below_60", from_amount: 0, to_amount: "", rate_percent: 0 }] })} className="text-xs font-bold text-purple-600 hover:underline flex items-center gap-1"><HiPlus className="w-3.5 h-3.5" /> Add slab</button>
-              <p className="text-[11px] text-slate-400 pt-2">Half-open <span className="font-mono">[from, to)</span> ranges, contiguous per age band.</p>
+              <p className="text-[11px] text-slate-400">Half-open <span className="font-mono">[from, to)</span> ranges, contiguous per age band — the lowest slab starts at ₹0, and the highest slab is left open-ended (blank "To").</p>
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
               <button onClick={() => setSlabEditor(null)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition">Cancel</button>

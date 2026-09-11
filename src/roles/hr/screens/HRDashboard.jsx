@@ -397,31 +397,92 @@ function HRDashboard() {
                 <p className="text-sm font-semibold">No department data available</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {deptSummaryData.map((dept, i) => (
-                  <div key={i} className="border border-slate-100 rounded-2xl p-5 hover:shadow-md transition-shadow bg-slate-50">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-bold text-slate-800 truncate pr-2">{dept.department}</h4>
-                      <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">
-                        {dept.total_employees} members
-                      </span>
+              <div
+                className={`grid gap-6 grid-cols-1 md:grid-cols-2 ${
+                  deptSummaryData.length === 1
+                    ? "lg:grid-cols-1"
+                    : deptSummaryData.length === 2
+                    ? "lg:grid-cols-2"
+                    : deptSummaryData.length === 4
+                    ? "lg:grid-cols-4"
+                    : "lg:grid-cols-3"
+                }`}
+              >
+                {deptSummaryData.map((dept, i) => {
+                  const totalEmployees = dept.total_employees || 0;
+                  const denom = totalEmployees || 1;
+                  const presentCount = dept.present_count || 0;
+                  const absentCount = dept.absent_count || 0;
+                  const lateCount = dept.late_count || 0;
+                  const presentPct = Math.round((presentCount / denom) * 100);
+                  const absentPct = Math.round((absentCount / denom) * 100);
+                  const latePct = Math.round((lateCount / denom) * 100);
+                  const initials = (dept.department || "—")
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w) => w[0])
+                    .join("")
+                    .toUpperCase();
+
+                  return (
+                    <div
+                      key={i}
+                      className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-md hover:border-purple-200 transition-all duration-200 flex flex-col"
+                    >
+                      {/* Header: avatar + name + attendance rate */}
+                      <div className="flex items-center justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-600 to-purple-800 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-800 truncate text-sm" title={dept.department}>
+                              {dept.department}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                              {totalEmployees} {totalEmployees === 1 ? "member" : "members"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xl font-bold text-slate-800 leading-none">{presentPct}%</div>
+                          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mt-1">Present</div>
+                        </div>
+                      </div>
+
+                      {/* Stacked proportion bar */}
+                      <div className="flex w-full h-2 rounded-full overflow-hidden bg-slate-100 mb-4">
+                        {presentPct > 0 && <div className="bg-purple-600 h-full" style={{ width: `${presentPct}%` }} />}
+                        {latePct > 0 && <div className="bg-purple-400 h-full" style={{ width: `${latePct}%` }} />}
+                        {absentPct > 0 && <div className="bg-purple-200 h-full" style={{ width: `${absentPct}%` }} />}
+                      </div>
+
+                      {/* Legend / counts */}
+                      <div className="flex items-center justify-between gap-2 mt-auto">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
+                          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Present</span>
+                          <span className="text-sm font-bold text-slate-800 ml-auto">{presentCount}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />
+                          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Late</span>
+                          <span className="text-sm font-bold text-slate-800 ml-auto">{lateCount}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full bg-purple-200 shrink-0" />
+                          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Absent</span>
+                          <span className="text-sm font-bold text-slate-800 ml-auto">{absentCount}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Present</div>
-                        <div className="text-xl font-bold text-slate-800">{dept.present_count || 0}</div>
-                      </div>
-                      <div className="flex-1 border-l border-slate-200 pl-4">
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Absent</div>
-                        <div className="text-xl font-bold text-slate-800">{dept.absent_count || 0}</div>
-                      </div>
-                      <div className="flex-1 border-l border-slate-200 pl-4">
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Late</div>
-                        <div className="text-xl font-bold text-slate-800">{dept.late_count || 0}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -322,7 +322,11 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
     }), "Form 16 Part-A reference saved");
   };
 
-  const regime = summary?.regime_code || summary?.regime;
+  const rawRegime = summary?.regime_code ?? summary?.regime;
+  const regime =
+    typeof rawRegime === "object" && rawRegime !== null
+      ? rawRegime.code || rawRegime.regime_code || rawRegime.name || ""
+      : rawRegime || "";
   const ytd = summary?.ytd || summary?.actuals || {};
 
   return (
