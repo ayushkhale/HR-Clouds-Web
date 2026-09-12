@@ -34,7 +34,9 @@ import {
   HiLightningBolt,
   HiCurrencyRupee,
   HiAdjustments,
-  HiPlay
+  HiPlay,
+  HiShieldCheck,
+  HiDatabase
 } from "react-icons/hi";
 
 let cachedInboxCount = 0;
@@ -195,9 +197,10 @@ function DashboardSidebar({ role = "guest" }) {
           title: "LEAVES",
           icon: HiClipboardList,
           items: [
+            { label: "Leave Requests", path: "/dashboard/hr/leaves/requests", icon: HiInboxIn, active: location.pathname === "/dashboard/hr/leaves/requests" },
             { label: "Leave Types", path: "/dashboard/hr/leaves/types", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/leaves/types" },
             { label: "Leave Policies", path: "/dashboard/hr/leaves/policies", icon: HiTemplate, active: location.pathname === "/dashboard/hr/leaves/policies" },
-            // { label: "Automation Engine", path: "/dashboard/hr/leaves/automation", icon: HiLightningBolt, active: location.pathname === "/dashboard/hr/leaves/automation" },
+            { label: "Automation Engine", path: "/dashboard/hr/leaves/automation", icon: HiLightningBolt, active: location.pathname === "/dashboard/hr/leaves/automation" },
           ],
         },
         {
@@ -212,9 +215,11 @@ function DashboardSidebar({ role = "guest" }) {
             { label: "Adjustments", path: "/dashboard/hr/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/hr/payroll/adjustments" },
             { label: "Bonus Rules", path: "/dashboard/hr/payroll/bonus-rules", icon: HiGift, active: location.pathname === "/dashboard/hr/payroll/bonus-rules" },
             { label: "Loans & Advances", path: "/dashboard/hr/payroll/loans", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/hr/payroll/loans" },
+            { label: "Bank Verification", path: "/dashboard/hr/payroll/bank-verification", icon: HiShieldCheck, active: location.pathname === "/dashboard/hr/payroll/bank-verification" },
             { label: "Statutory & Tax", path: "/dashboard/hr/payroll/statutory", icon: HiCog, active: location.pathname === "/dashboard/hr/payroll/statutory" },
             { label: "Tax Declarations", path: "/dashboard/hr/payroll/tax-declarations", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/payroll/tax-declarations" },
             { label: "Year-End & Form 16", path: "/dashboard/hr/payroll/year-end", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/payroll/year-end" },
+            { label: "Audit Log", path: "/dashboard/hr/payroll/audit-log", icon: HiDatabase, active: location.pathname === "/dashboard/hr/payroll/audit-log" },
           ],
         },
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCash, HiCalendar, HiGift, HiTrendingDown, HiTrendingUp } from "react-icons/hi";
@@ -96,9 +95,7 @@ export default function MyLoansAndAdvancesPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Loans & Variable Pay" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8">
 
@@ -159,7 +156,6 @@ export default function MyLoansAndAdvancesPage() {
             </div>
           )}
         </main>
-      </div>
 
       {selectedLoan && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -200,7 +196,7 @@ export default function MyLoansAndAdvancesPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }
 

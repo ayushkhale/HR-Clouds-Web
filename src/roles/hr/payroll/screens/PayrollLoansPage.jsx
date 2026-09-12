@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, organizationAPI } from "../../../../shared/api";
 import {
@@ -26,6 +25,11 @@ const fmtPeriod = (pm) => {
   if (!pm) return "-";
   const [y, m] = pm.split("-");
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
+};
+const fmtDate = (d) => {
+  if (!d) return "—";
+  const date = new Date(d);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };
 
 const STATUS_PILL = {
@@ -167,12 +171,19 @@ export default function PayrollLoansPage() {
   };
 
   const openSchedule = async (loan) => {
-    try {
-      const res = await payrollAPI.getLoanInstallments(loan.id);
-      setSchedule({ loan, installments: res.data?.records || res.data || [] });
-    } catch (err) {
-      showToast(err.message || "Failed to load schedule", "error");
+    // Full metadata (#77) + installment schedule (#78), failure-isolated so a
+    // missing schedule never hides the summary and vice-versa.
+    const [detailRes, instRes] = await Promise.allSettled([
+      payrollAPI.getLoan(loan.id),
+      payrollAPI.getLoanInstallments(loan.id),
+    ]);
+    if (detailRes.status === "rejected" && instRes.status === "rejected") {
+      showToast(detailRes.reason?.message || "Failed to load loan", "error");
+      return;
     }
+    const detail = detailRes.status === "fulfilled" ? (detailRes.value.data || loan) : loan;
+    const installments = instRes.status === "fulfilled" ? (instRes.value.data?.records || instRes.value.data || []) : [];
+    setSchedule({ loan: detail, installments });
   };
 
   const handleForeclose = async (e) => {
@@ -193,9 +204,7 @@ export default function PayrollLoansPage() {
   const outstanding = (l) => l.outstanding_principal ?? l.outstanding_balance ?? l.remaining_balance ?? 0;
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Loans & Advances" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
 
@@ -279,7 +288,6 @@ export default function PayrollLoansPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Grant loan modal */}
       {isModalOpen && (
@@ -385,11 +393,28 @@ export default function PayrollLoansPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-lg font-bold text-slate-800">Repayment Schedule</h2>
-                <p className="text-xs text-slate-500">{empName(schedule.loan.user_id)} · {money(schedule.loan.principal_amount)}</p>
+                <h2 className="text-lg font-bold text-slate-800">Loan details</h2>
+                <p className="text-xs text-slate-500">
+                  {empName(schedule.loan.user_id)} · {(schedule.loan.loan_type || "").replace(/_/g, " ")}
+                  <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${STATUS_PILL[schedule.loan.status] || "bg-slate-100 text-slate-600"}`}>{schedule.loan.status}</span>
+                </p>
               </div>
               <button onClick={() => setSchedule(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
+
+            {/* Summary (#77) */}
+            <div className="px-6 py-4 border-b border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Principal</p><p className="text-sm font-bold text-slate-800 mt-0.5">{money(schedule.loan.principal_amount)}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">EMI</p><p className="text-sm font-bold text-slate-800 mt-0.5">{money(schedule.loan.emi_amount)}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Recovered</p><p className="text-sm font-bold text-emerald-600 mt-0.5">{money(schedule.loan.recovered_amount ?? schedule.loan.total_recovered)}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Outstanding</p><p className="text-sm font-bold text-purple-700 mt-0.5">{money(outstanding(schedule.loan))}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Interest</p><p className="text-sm font-semibold text-slate-700 mt-0.5">{parseFloat(schedule.loan.annual_interest_rate || 0)}% · {(schedule.loan.interest_method || "").replace(/_/g, " ") || "—"}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Tenure</p><p className="text-sm font-semibold text-slate-700 mt-0.5">{schedule.loan.tenure_months} months</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">First EMI</p><p className="text-sm font-semibold text-slate-700 mt-0.5">{fmtPeriod(schedule.loan.start_period_month)}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase">Disbursed</p><p className="text-sm font-semibold text-slate-700 mt-0.5">{fmtDate(schedule.loan.disbursement_date)}</p></div>
+            </div>
+
+            <p className="px-6 pt-4 pb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Repayment schedule</p>
             <div className="overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -494,6 +519,6 @@ export default function PayrollLoansPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

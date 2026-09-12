@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiClock } from "react-icons/hi";
 
-function EmployeeOvertimePage({ role = "employee" }) {
+function EmployeeOvertimePage() {
   const [overtime, setOvertime] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,10 +34,7 @@ function EmployeeOvertimePage({ role = "employee" }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={role} />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="My Overtime" />
 
         <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
@@ -93,8 +89,7 @@ function EmployeeOvertimePage({ role = "employee" }) {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

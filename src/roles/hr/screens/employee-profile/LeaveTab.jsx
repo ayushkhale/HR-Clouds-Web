@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { leaveAPI } from "../../../../shared/api";
+import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
+import { noticeValue } from "../../../../shared/utils/leaveConfig";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil,
   HiCalendar, HiInformationCircle, HiRefresh,
@@ -59,37 +61,56 @@ function BalanceCard({ balance, index }) {
 
 // ─── Override Config Modal ────────────────────────────────────────────────────
 function OverrideModal({ userId, balance, onClose, onSaved }) {
+  // The balances endpoint returns NO current-config object (see backend
+  // clarification B1), so we cannot prefill the employee's real rule values.
+  // Every field therefore starts blank and only fields the HR user actually
+  // changes are sent — unsent fields keep their current server-side values, as
+  // the backend contract guarantees ("Unsent fields remain at their current
+  // values"). This prevents silently resetting accrual type / carry-forward /
+  // probation / overdraft, and avoids capping the annual quota at a mid-year
+  // partial `total_accrued`.
   const [form, setForm] = useState({
-    // Prefer the stored config quota; fall back to total_accrued only when config is unavailable.
-    assigned_annual_quota: parseFloat(balance.config?.assigned_annual_quota ?? balance.total_accrued) || "",
-    accrual_type: balance.config?.accrual_type || "upfront",
-    max_carry_forward: balance.config?.max_carry_forward ?? 0,
-    probation_restriction_days: balance.config?.probation_restriction_days ?? 0,
-    max_negative_balance: balance.config?.max_negative_balance ?? 0,
+    assigned_annual_quota: "",
+    accrual_type: "",
+    max_carry_forward: "",
+    probation_restriction_days: "",
+    max_negative_balance: "",
+    notice_mode: "",   // "" = unchanged; else unrestricted | blocked | capped
+    notice_days: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
+  function set(key, val) { setForm(f => ({ ...f, [key]: val })); setError(""); }
+
+  const isDirty = (v) => v !== "" && v !== null && v !== undefined;
+  // notice_days alone is not an override; only a chosen notice_mode is.
+  const dirtyCount = Object.entries(form)
+    .filter(([k, v]) => k !== "notice_days" && isDirty(v)).length;
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (dirtyCount === 0) {
+      setError("Change at least one field to override. Blank fields keep their current values.");
+      return;
+    }
+    if (form.notice_mode === "capped" && (form.notice_days === "" || parseInt(form.notice_days, 10) < 1)) {
+      setError("Enter the maximum notice-period days, or choose Unrestricted / Blocked.");
+      return;
+    }
     setLoading(true); setError("");
     const payload = {};
-    if (form.assigned_annual_quota !== "") payload.assigned_annual_quota = parseFloat(form.assigned_annual_quota) || 0;
-    payload.accrual_type = form.accrual_type;
-    payload.max_carry_forward = parseFloat(form.max_carry_forward) || 0;
-    payload.probation_restriction_days = parseInt(form.probation_restriction_days) || 0;
-    payload.max_negative_balance = parseFloat(form.max_negative_balance) || 0;
+    if (isDirty(form.assigned_annual_quota)) payload.assigned_annual_quota = parseFloat(form.assigned_annual_quota) || 0;
+    if (isDirty(form.accrual_type)) payload.accrual_type = form.accrual_type;
+    if (isDirty(form.max_carry_forward)) payload.max_carry_forward = parseFloat(form.max_carry_forward) || 0;
+    if (isDirty(form.probation_restriction_days)) payload.probation_restriction_days = parseInt(form.probation_restriction_days) || 0;
+    if (isDirty(form.max_negative_balance)) payload.max_negative_balance = parseFloat(form.max_negative_balance) || 0;
+    if (isDirty(form.notice_mode)) payload.notice_period_max_days = noticeValue(form.notice_mode, form.notice_days);
     try {
       await leaveAPI.overrideConfig(userId, balance.leave_type_id, payload);
       onSaved("Config overridden. Balance updated automatically if applicable.");
     } catch (err) {
-      if (err.data?.errorCode === "CONFIG_NOT_FOUND") {
-        setError("No config found for this leave type. Assign a policy first.");
-      } else {
-        setError(err.message || "Something went wrong.");
-      }
+      setError(leaveErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -119,7 +140,10 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
           {/* Info tip */}
           <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
             <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
-            <span>If you increase the annual quota for an <strong>upfront</strong> policy, the balance is automatically credited immediately.</span>
+            <span>
+              Only fields you change are sent — <strong>leave a field blank to keep its current value</strong>.
+              If you increase the annual quota for an <strong>upfront</strong> policy, the balance is credited immediately.
+            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -129,11 +153,15 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
                 type="number" step="0.5" min="0" max="365"
                 value={form.assigned_annual_quota}
                 onChange={e => set("assigned_annual_quota", e.target.value)}
+                placeholder="Unchanged"
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Accrual Type</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Accrual Type
+                {!form.accrual_type && <span className="ml-2 normal-case font-normal text-slate-400">(unchanged)</span>}
+              </label>
               <div className="flex gap-2 mt-1">
                 {["upfront", "monthly"].map(t => (
                   <label key={t} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.accrual_type === t ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
@@ -149,23 +177,50 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Carry Forward</label>
               <input type="number" step="0.5" min="0" value={form.max_carry_forward} onChange={e => set("max_carry_forward", e.target.value)}
+                placeholder="Unchanged"
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Probation (days)</label>
               <input type="number" step="1" min="0" value={form.probation_restriction_days} onChange={e => set("probation_restriction_days", e.target.value)}
+                placeholder="Unchanged"
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Overdraft (days)</label>
               <input type="number" step="0.5" min="0" value={form.max_negative_balance} onChange={e => set("max_negative_balance", e.target.value)}
+                placeholder="Unchanged"
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
             </div>
           </div>
 
+          {/* Notice-period cap (Phase 6) — includes an "Unchanged" state */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Notice-Period Leave Cap</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { v: "", l: "Unchanged" },
+                { v: "unrestricted", l: "Unrestricted" },
+                { v: "blocked", l: "Blocked" },
+                { v: "capped", l: "Capped" },
+              ].map(opt => (
+                <button type="button" key={opt.v || "unchanged"} onClick={() => set("notice_mode", opt.v)}
+                  className={`py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.notice_mode === opt.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+            {form.notice_mode === "capped" && (
+              <input type="number" step="1" min="1" value={form.notice_days} onChange={e => set("notice_days", e.target.value)}
+                placeholder="Max days during notice period"
+                className="mt-2 w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+            )}
+            <p className="text-[10px] text-slate-400 mt-1">Leave on "Unchanged" to keep the current cap. Blocked = no leave once resigned; Capped = at most N days.</p>
+          </div>
+
           <div className="flex gap-3 pt-1">
-            <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
-              {loading ? "Saving…" : "Save Override"}
+            <button type="submit" disabled={loading || dirtyCount === 0} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 rounded-xl transition">
+              {loading ? "Saving…" : dirtyCount === 0 ? "Change a field to save" : "Save Override"}
             </button>
             <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
           </div>
@@ -176,10 +231,15 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
 }
 
 // ─── Main LeaveTab Component ──────────────────────────────────────────────────
+const LT_CURRENT_YEAR = new Date().getFullYear();
+const LT_YEAR_OPTIONS = [LT_CURRENT_YEAR, LT_CURRENT_YEAR - 1, LT_CURRENT_YEAR - 2];
+
 export default function LeaveTab({ userId }) {
   const [balances, setBalances] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+  const [year, setYear] = useState(LT_CURRENT_YEAR);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [confirmAssign, setConfirmAssign] = useState(false);
@@ -192,13 +252,16 @@ export default function LeaveTab({ userId }) {
   }
 
   const loadBalances = useCallback(async () => {
+    setBalancesLoading(true);
     try {
-      const res = await leaveAPI.getUserBalances(userId);
+      const res = await leaveAPI.getUserBalances(userId, year);
       setBalances(res.data || []);
     } catch {
       showToast("Failed to load leave balances.", "error");
+    } finally {
+      setBalancesLoading(false);
     }
-  }, [userId]);
+  }, [userId, year]);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -209,10 +272,13 @@ export default function LeaveTab({ userId }) {
     }
   }, []);
 
+  // Balances reload independently when the year changes (no full-tab skeleton).
+  useEffect(() => { loadBalances(); }, [loadBalances]);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadBalances(), loadTemplates()]).finally(() => setLoading(false));
-  }, [loadBalances, loadTemplates]);
+    loadTemplates().finally(() => setLoading(false));
+  }, [loadTemplates]);
 
   function handleAssignClick() {
     if (!selectedTemplateId) {
@@ -262,20 +328,30 @@ export default function LeaveTab({ userId }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm font-bold text-slate-800">Leave Balances</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Current year leave wallet for this employee.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Leave wallet for this employee.</p>
           </div>
-          <button onClick={loadBalances} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Refresh">
-            <HiRefresh className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <select value={year} onChange={e => setYear(Number(e.target.value))}
+              className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white" title="Balance year">
+              {LT_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <button onClick={loadBalances} disabled={balancesLoading} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Refresh">
+              <HiRefresh className={`w-4 h-4 ${balancesLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
 
-        {balances.length === 0 ? (
+        {balancesLoading ? (
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => <div key={i} className="h-32 bg-slate-100 rounded-2xl animate-pulse" />)}
+          </div>
+        ) : balances.length === 0 ? (
           <div className="px-6 py-10 flex flex-col items-center gap-2 text-center">
             <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-1">
               <HiCalendar className="w-6 h-6 text-slate-400" />
             </div>
             <p className="text-sm font-semibold text-slate-600">No leave policy assigned</p>
-            <p className="text-xs text-slate-400">Assign a policy below to initialise this employee's leave balance.</p>
+            <p className="text-xs text-slate-400">{year === LT_CURRENT_YEAR ? "Assign a policy below to initialise this employee's leave balance." : `No leave balances recorded for ${year}.`}</p>
           </div>
         ) : (
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

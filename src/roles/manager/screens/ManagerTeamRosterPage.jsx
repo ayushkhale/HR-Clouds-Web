@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { organizationAPI, leaveAPI, attendanceAPI } from "../../../shared/api";
 import { 
@@ -322,10 +321,7 @@ export default function ManagerTeamRosterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="My Team Roster" />
 
         <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
@@ -428,7 +424,6 @@ export default function ManagerTeamRosterPage() {
             </div>
           )}
         </main>
-      </div>
 
       {editingEmployee && (
         <EditProfileModal 
@@ -455,6 +450,6 @@ export default function ManagerTeamRosterPage() {
           onClose={() => setViewingAttendance(null)}
         />
       )}
-    </div>
+    </>
   );
 }

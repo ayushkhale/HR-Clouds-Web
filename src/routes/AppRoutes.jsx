@@ -2,6 +2,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import Skeleton from "../shared/components/Skeleton";
+import DashboardLayout from "../shared/layouts/DashboardLayout";
 
 // Landing Layout & Pages
 import LandingLayout from "../landing/LandingLayout";
@@ -67,6 +68,7 @@ import BiometricDevicesPage from "../roles/hr/screens/BiometricDevicesPage";
 import LeaveTypesPage from "../roles/hr/leaves/screens/LeaveTypesPage";
 import LeavePoliciesPage from "../roles/hr/leaves/screens/LeavePoliciesPage";
 import LeaveAutomationPage from "../roles/hr/leaves/screens/LeaveAutomationPage";
+import HRLeaveRequestsPage from "../roles/hr/leaves/screens/HRLeaveRequestsPage";
 
 // Employee — Leave
 import LeaveDashboard from "../roles/employee/screens/LeaveDashboard";
@@ -84,6 +86,7 @@ import EmployeeSalaryStructuresPage from "../roles/hr/payroll/screens/EmployeeSa
 import PayrollApprovalsPage from "../roles/hr/payroll/screens/PayrollApprovalsPage";
 import PayrollSettingsPage from "../roles/hr/payroll/screens/PayrollSettingsPage";
 import PayrollRunDashboard from "../roles/hr/payroll/screens/PayrollRunDashboard";
+import PayrollRunDetailPage from "../roles/hr/payroll/screens/PayrollRunDetailPage";
 import PayrollAdjustmentsPage from "../roles/hr/payroll/screens/PayrollAdjustmentsPage";
 import PayrollBonusRulesPage from "../roles/hr/payroll/screens/PayrollBonusRulesPage";
 import PayrollLoansPage from "../roles/hr/payroll/screens/PayrollLoansPage";
@@ -92,6 +95,8 @@ import TaxDeclarationsPage from "../roles/hr/payroll/screens/TaxDeclarationsPage
 import YearEndClosurePage from "../roles/hr/payroll/screens/YearEndClosurePage";
 import BenefitsAndReimbursementsPage from "../roles/hr/payroll/screens/BenefitsAndReimbursementsPage";
 import PayrollReportsPage from "../roles/hr/payroll/screens/PayrollReportsPage";
+import BankVerificationPage from "../roles/hr/payroll/screens/BankVerificationPage";
+import PayrollAuditLogPage from "../roles/hr/payroll/screens/PayrollAuditLogPage";
 
 // Manager — Payroll
 import TeamSalaryPage from "../roles/manager/payroll/screens/TeamSalaryPage";
@@ -165,79 +170,101 @@ function AppRoutes() {
       {/* ─── INVITATION ACCEPTANCE (standalone layout) ─── */}
       <Route path="/invitation/accept" element={<InvitationAcceptPage />} />
 
-      {/* ─── DASHBOARDS (role-based) ─── */}
+      {/* ─── STANDALONE DASHBOARDS (no sidebar shell) ─── */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/dashboard/guest" element={<ProtectedRoute><GuestDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/attendance" element={<ProtectedRoute><EmployeeAttendancePage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/employees/:userId" element={<ProtectedRoute><EmployeeProfilePage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/departments" element={<ProtectedRoute><DepartmentsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/directory" element={<ProtectedRoute><HRAttendancePage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/policies" element={<ProtectedRoute><AttendancePoliciesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/shifts" element={<ProtectedRoute><AttendanceShiftsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/roster" element={<ProtectedRoute><AttendanceRosterPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsHRPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/holidays" element={<ProtectedRoute><AttendanceHolidaysPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/weekly-offs" element={<ProtectedRoute><AttendanceWeeklyOffsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/locations" element={<ProtectedRoute><AttendanceLocationsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/comp-offs" element={<ProtectedRoute><AttendanceCompOffsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/comp-off-policies" element={<ProtectedRoute><AttendanceCompOffPoliciesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/lock-periods" element={<ProtectedRoute><AttendanceLockPeriodsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/attendance/devices" element={<ProtectedRoute><BiometricDevicesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/reports" element={<ProtectedRoute><AttendanceReportsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/leaves/types" element={<ProtectedRoute><LeaveTypesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/leaves/policies" element={<ProtectedRoute><LeavePoliciesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/leaves/automation" element={<ProtectedRoute><LeaveAutomationPage /></ProtectedRoute>} />
-      <Route path="/dashboard/employee" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsPage role="employee" /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/attendance/anomalies" element={<ProtectedRoute><AttendanceAnomaliesPage role="employee" /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/attendance/overtime" element={<ProtectedRoute><EmployeeOvertimePage role="employee" /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/attendance/comp-offs" element={<ProtectedRoute><EmployeeCompOffsPage role="employee" /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/leaves" element={<ProtectedRoute><LeaveDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/manager" element={<ProtectedRoute><ManagerDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/attendance/regularizations" element={<ProtectedRoute><AttendanceRegularizationsPage role="manager" /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/requests/inbox" element={<ProtectedRoute><ManagerApprovalsInbox /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/requests/regularizations" element={<ProtectedRoute><ManagerRegularizationsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/requests/overtime" element={<ProtectedRoute><ManagerOvertimePage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/requests/comp-offs" element={<ProtectedRoute><ManagerCompOffsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/team/today" element={<ProtectedRoute><ManagerTeamPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/team/history" element={<ProtectedRoute><ManagerTeamHistoryPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/team/roster" element={<ProtectedRoute><ManagerTeamRosterPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/team/anomalies" element={<ProtectedRoute><ManagerAnomaliesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/requests/leaves" element={<ProtectedRoute><ManagerLeavePage /></ProtectedRoute>} />
 
-      {/* ─── PAYROLL ROUTES ─── */}
-      <Route path="/dashboard/hr/payroll/components" element={<ProtectedRoute><PayrollComponentsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/templates" element={<ProtectedRoute><PayrollTemplatesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/employee-structures" element={<ProtectedRoute><EmployeeSalaryStructuresPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/approvals" element={<ProtectedRoute><PayrollApprovalsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/settings" element={<ProtectedRoute><PayrollSettingsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/runs" element={<ProtectedRoute><PayrollRunDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/adjustments" element={<ProtectedRoute><PayrollAdjustmentsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/bonus-rules" element={<ProtectedRoute><PayrollBonusRulesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/loans" element={<ProtectedRoute><PayrollLoansPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/statutory" element={<ProtectedRoute><TaxConfigurationsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/tax-declarations" element={<ProtectedRoute><TaxDeclarationsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/year-end" element={<ProtectedRoute><YearEndClosurePage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/benefits" element={<ProtectedRoute><BenefitsAndReimbursementsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/hr/payroll/reports" element={<ProtectedRoute><PayrollReportsPage /></ProtectedRoute>} />
-      
-      <Route path="/dashboard/manager/payroll/team-salary" element={<ProtectedRoute><TeamSalaryPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/payroll/team-payslips" element={<ProtectedRoute><TeamPayslipsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/payroll/adjustments" element={<ProtectedRoute><ManagerAdjustmentsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/manager/payroll/reimbursements" element={<ProtectedRoute><TeamReimbursementsPage /></ProtectedRoute>} />
-      
-      <Route path="/dashboard/employee/payroll/my-salary" element={<ProtectedRoute><MySalaryPage /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/payroll/my-payslips" element={<ProtectedRoute><MyPayslipsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/payroll/loans" element={<ProtectedRoute><MyLoansAndAdvancesPage /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/payroll/tax" element={<ProtectedRoute><MyTaxAndInvestmentsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/employee/payroll/reimbursements" element={<ProtectedRoute><MyReimbursementsPage /></ProtectedRoute>} />
+      {/* ─── HR WORKSPACE ───
+         The layout renders the sidebar once for the whole group, so navigating
+         between these routes keeps its scroll position and expanded sections. */}
+      <Route element={<ProtectedRoute><DashboardLayout role="hr" /></ProtectedRoute>}>
+        <Route path="/dashboard/hr" element={<HRDashboard />} />
+        <Route path="/dashboard/hr/employees" element={<EmployeesPage />} />
+        <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
+        <Route path="/dashboard/hr/departments" element={<DepartmentsPage />} />
+        <Route path="/dashboard/hr/attendance/directory" element={<HRAttendancePage />} />
+        <Route path="/dashboard/hr/attendance/policies" element={<AttendancePoliciesPage />} />
+        <Route path="/dashboard/hr/attendance/shifts" element={<AttendanceShiftsPage />} />
+        <Route path="/dashboard/hr/attendance/roster" element={<AttendanceRosterPage />} />
+        <Route path="/dashboard/hr/attendance/regularizations" element={<AttendanceRegularizationsHRPage />} />
+        <Route path="/dashboard/hr/attendance/holidays" element={<AttendanceHolidaysPage />} />
+        <Route path="/dashboard/hr/attendance/weekly-offs" element={<AttendanceWeeklyOffsPage />} />
+        <Route path="/dashboard/hr/attendance/locations" element={<AttendanceLocationsPage />} />
+        <Route path="/dashboard/hr/attendance/comp-offs" element={<AttendanceCompOffsPage />} />
+        <Route path="/dashboard/hr/attendance/comp-off-policies" element={<AttendanceCompOffPoliciesPage />} />
+        <Route path="/dashboard/hr/attendance/lock-periods" element={<AttendanceLockPeriodsPage />} />
+        <Route path="/dashboard/hr/attendance/devices" element={<BiometricDevicesPage />} />
+        <Route path="/dashboard/hr/reports" element={<AttendanceReportsPage />} />
+        <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
+        <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
+        <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
+        <Route path="/dashboard/hr/leaves/automation" element={<LeaveAutomationPage />} />
 
-      {/* ─── SHARED DASHBOARD PAGES ─── */}
-      <Route path="/dashboard/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
-      <Route path="/dashboard/directory" element={<ProtectedRoute><DirectoryPage /></ProtectedRoute>} />
+        {/* HR payroll */}
+        <Route path="/dashboard/hr/payroll/components" element={<PayrollComponentsPage />} />
+        <Route path="/dashboard/hr/payroll/templates" element={<PayrollTemplatesPage />} />
+        <Route path="/dashboard/hr/payroll/employee-structures" element={<EmployeeSalaryStructuresPage />} />
+        <Route path="/dashboard/hr/payroll/approvals" element={<PayrollApprovalsPage />} />
+        <Route path="/dashboard/hr/payroll/settings" element={<PayrollSettingsPage />} />
+        <Route path="/dashboard/hr/payroll/runs" element={<PayrollRunDashboard />} />
+        <Route path="/dashboard/hr/payroll/runs/:runId" element={<PayrollRunDetailPage />} />
+        <Route path="/dashboard/hr/payroll/adjustments" element={<PayrollAdjustmentsPage />} />
+        <Route path="/dashboard/hr/payroll/bonus-rules" element={<PayrollBonusRulesPage />} />
+        <Route path="/dashboard/hr/payroll/loans" element={<PayrollLoansPage />} />
+        <Route path="/dashboard/hr/payroll/bank-verification" element={<BankVerificationPage />} />
+        <Route path="/dashboard/hr/payroll/audit-log" element={<PayrollAuditLogPage />} />
+        <Route path="/dashboard/hr/payroll/statutory" element={<TaxConfigurationsPage />} />
+        <Route path="/dashboard/hr/payroll/tax-declarations" element={<TaxDeclarationsPage />} />
+        <Route path="/dashboard/hr/payroll/year-end" element={<YearEndClosurePage />} />
+        <Route path="/dashboard/hr/payroll/benefits" element={<BenefitsAndReimbursementsPage />} />
+        <Route path="/dashboard/hr/payroll/reports" element={<PayrollReportsPage />} />
+      </Route>
+
+      {/* ─── MANAGER WORKSPACE ─── */}
+      <Route element={<ProtectedRoute><DashboardLayout role="manager" /></ProtectedRoute>}>
+        <Route path="/dashboard/manager" element={<ManagerDashboard />} />
+        <Route path="/dashboard/manager/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
+        <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
+        <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
+        <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
+        <Route path="/dashboard/manager/requests/comp-offs" element={<ManagerCompOffsPage />} />
+        <Route path="/dashboard/manager/requests/leaves" element={<ManagerLeavePage />} />
+        <Route path="/dashboard/manager/team/today" element={<ManagerTeamPage />} />
+        <Route path="/dashboard/manager/team/history" element={<ManagerTeamHistoryPage />} />
+        <Route path="/dashboard/manager/team/roster" element={<ManagerTeamRosterPage />} />
+        <Route path="/dashboard/manager/team/anomalies" element={<ManagerAnomaliesPage />} />
+
+        {/* Manager payroll */}
+        <Route path="/dashboard/manager/payroll/team-salary" element={<TeamSalaryPage />} />
+        <Route path="/dashboard/manager/payroll/team-payslips" element={<TeamPayslipsPage />} />
+        <Route path="/dashboard/manager/payroll/adjustments" element={<ManagerAdjustmentsPage />} />
+        <Route path="/dashboard/manager/payroll/reimbursements" element={<TeamReimbursementsPage />} />
+      </Route>
+
+      {/* ─── EMPLOYEE WORKSPACE ─── */}
+      <Route element={<ProtectedRoute><DashboardLayout role="employee" /></ProtectedRoute>}>
+        <Route path="/dashboard/employee" element={<EmployeeDashboard />} />
+        <Route path="/dashboard/employee/attendance" element={<EmployeeAttendancePage />} />
+        <Route path="/dashboard/employee/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
+        <Route path="/dashboard/employee/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
+        <Route path="/dashboard/employee/attendance/overtime" element={<EmployeeOvertimePage />} />
+        <Route path="/dashboard/employee/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/employee/leaves" element={<LeaveDashboard />} />
+
+        {/* Employee payroll */}
+        <Route path="/dashboard/employee/payroll/my-salary" element={<MySalaryPage />} />
+        <Route path="/dashboard/employee/payroll/my-payslips" element={<MyPayslipsPage />} />
+        <Route path="/dashboard/employee/payroll/loans" element={<MyLoansAndAdvancesPage />} />
+        <Route path="/dashboard/employee/payroll/tax" element={<MyTaxAndInvestmentsPage />} />
+        <Route path="/dashboard/employee/payroll/reimbursements" element={<MyReimbursementsPage />} />
+      </Route>
+
+      {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}
+      <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+        <Route path="/dashboard/documents" element={<DocumentsPage />} />
+        <Route path="/dashboard/profile" element={<MyProfilePage />} />
+        <Route path="/dashboard/directory" element={<DirectoryPage />} />
+      </Route>
 
       {/* ─── CATCH-ALL ─── */}
       <Route path="*" element={<CatchAll />} />

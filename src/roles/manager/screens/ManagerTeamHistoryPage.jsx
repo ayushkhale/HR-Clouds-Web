@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import TeamHistoryTable from "../components/TeamHistoryTable";
 import { attendanceAPI } from "../../../shared/api";
@@ -34,10 +33,7 @@ function ManagerTeamHistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Team History" />
 
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -79,8 +75,7 @@ function ManagerTeamHistoryPage() {
 
           <TeamHistoryTable history={history} />
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

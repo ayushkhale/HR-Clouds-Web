@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, organizationAPI } from "../../../../shared/api";
 import {
@@ -35,6 +34,69 @@ const STATUS_PILL = {
 };
 const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{s}</span>;
 
+// Team loan detail + installment schedule (#90).
+function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
+  const [data, setData] = useState(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    payrollAPI.getTeamLoan(loanId)
+      .then((res) => { if (!cancelled) setData(res.data || res); })
+      .catch((err) => { if (!cancelled) { showToast(err.message || "Failed to load loan", "error"); setData(null); } });
+    return () => { cancelled = true; };
+  }, [loanId, showToast]);
+
+  const loan = data?.loan || data || {};
+  const installments = data?.installments || loan.installments || [];
+  const outstanding = loan.outstanding_amount ?? loan.outstanding_balance;
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Loan details</h2>
+            <p className="text-xs text-slate-500">{memberName}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 overflow-y-auto">
+          {data === undefined ? <Skeleton type="table" rows={4} /> : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Principal</p><p className="text-sm font-black text-slate-800">{money(loan.principal_amount)}</p></div>
+                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Recovered</p><p className="text-sm font-black text-emerald-600">{money(loan.recovered_amount)}</p></div>
+                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Outstanding</p><p className="text-sm font-black text-purple-700">{money(outstanding)}</p></div>
+                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Tenure</p><p className="text-sm font-black text-slate-800">{loan.tenure_months ?? "—"} mo</p></div>
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 mb-2">Installment schedule</h3>
+              {installments.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4 text-center">No installments scheduled yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
+                      <tr><th className="px-4 py-2.5 text-left">Period</th><th className="px-4 py-2.5 text-right">Amount</th><th className="px-4 py-2.5 text-left">Status</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {installments.map((inst, i) => (
+                        <tr key={inst.id || i}>
+                          <td className="px-4 py-2.5 text-slate-700">{fmtPeriod(inst.period_month || inst.due_period_month)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{money(inst.amount ?? inst.emi_amount ?? inst.installment_amount)}</td>
+                          <td className="px-4 py-2.5"><Pill s={inst.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const now = new Date();
 const TABS = [
   { key: "adjustments", label: "Adjustments", icon: HiAdjustments },
@@ -51,15 +113,18 @@ export default function ManagerAdjustmentsPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null); // 'adj' | 'bonus' | 'loan'
+  const [loanDetail, setLoanDetail] = useState(null); // { id, name } | null
 
   const [adjForm, setAdjForm] = useState({ user_id: "", adjustment_type: "earning", category: "incentive", component_name: "", amount: "", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
   const [bonusForm, setBonusForm] = useState({ name: "", bonus_type: "flat", value: "", user_ids: [], reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
   const [loanForm, setLoanForm] = useState({ user_id: "", loan_type: "salary_advance", principal_amount: "", tenure_months: "3", annual_interest_rate: "0", interest_method: "reducing_balance", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
 
-  const showToast = (message, type = "success") => {
+  // Stable identity: LoanDetailModal's fetch effect lists showToast in its deps,
+  // so an unstable function would re-fire the fetch on every parent re-render.
+  const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
-  };
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -170,9 +235,7 @@ export default function ManagerAdjustmentsPage() {
   }[tab];
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Team Variable Pay" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
 
@@ -270,7 +333,7 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {loans.map((l) => (
-                        <tr key={l.id} className="hover:bg-slate-50/50">
+                        <tr key={l.id} onClick={() => setLoanDetail({ id: l.id, name: teamName(l.user_id) })} className="hover:bg-slate-50/50 cursor-pointer">
                           <td className="px-6 py-4 font-bold text-slate-800">{teamName(l.user_id)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{(l.loan_type || "").replace(/_/g, " ")}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
@@ -286,7 +349,6 @@ export default function ManagerAdjustmentsPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Propose Adjustment */}
       {modal === "adj" && (
@@ -473,7 +535,11 @@ export default function ManagerAdjustmentsPage() {
         </div>
       )}
 
+      {loanDetail && (
+        <LoanDetailModal loanId={loanDetail.id} memberName={loanDetail.name} onClose={() => setLoanDetail(null)} showToast={showToast} />
+      )}
+
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

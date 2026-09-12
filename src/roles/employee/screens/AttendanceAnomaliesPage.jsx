@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiExclamationCircle, HiFilter } from "react-icons/hi";
 
-function AttendanceAnomaliesPage({ role = "employee" }) {
+function AttendanceAnomaliesPage() {
   const [anomalies, setAnomalies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -37,10 +36,7 @@ function AttendanceAnomaliesPage({ role = "employee" }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={role} />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="My Anomalies" />
 
         <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
@@ -116,8 +112,7 @@ function AttendanceAnomaliesPage({ role = "employee" }) {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

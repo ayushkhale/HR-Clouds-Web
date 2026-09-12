@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import {
@@ -153,9 +152,7 @@ export default function EmployeeAttendancePage() {
   const trendMax = Math.max(...(getTrendData().map(t => parseFloat(t.value)) || [0]), 10);
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="My Attendance" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-[1400px] mx-auto w-full space-y-6">
           
@@ -318,11 +315,10 @@ export default function EmployeeAttendancePage() {
             </>
           )}
         </main>
-      </div>
 
       {viewLogDate && (
         <DailyLogModal date={viewLogDate} onClose={() => setViewLogDate(null)} />
       )}
-    </div>
+    </>
   );
 }

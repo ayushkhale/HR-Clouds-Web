@@ -56,7 +56,7 @@ export const payrollAPI = {
   // ─────────────────────────────────────────────────────────────────────────────
   // HR APIs — Engine Operations
   // ─────────────────────────────────────────────────────────────────────────────
-  getRunEligibility: () => request("/payroll/hr/runs/eligibility"),
+  getRunEligibility: (params) => request(`/payroll/hr/runs/eligibility${buildQuery(params)}`),
   createRun: (payload) => request("/payroll/hr/runs", { method: "POST", body: JSON.stringify(payload) }),
   getRuns: (params) => request(`/payroll/hr/runs${buildQuery(params)}`),
   getRun: (id) => request(`/payroll/hr/runs/${id}`),
@@ -66,7 +66,7 @@ export const payrollAPI = {
   getRunItem: (id, itemId) => request(`/payroll/hr/runs/${id}/items/${itemId}`),
   excludeRunItem: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/exclude`, { method: "POST", body: JSON.stringify(payload) }),
   includeRunItem: (id, itemId) => request(`/payroll/hr/runs/${id}/items/${itemId}/include`, { method: "POST" }),
-  overrideRunItemPeriod: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/override-period`, { method: "POST", body: JSON.stringify(payload) }),
+  overrideRunItemPeriod: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/period`, { method: "PATCH", body: JSON.stringify(payload) }),
   approveRun: (id) => request(`/payroll/hr/runs/${id}/approve`, { method: "POST" }),
   cancelRun: (id) => request(`/payroll/hr/runs/${id}/cancel`, { method: "POST" }),
   payRun: (id) => request(`/payroll/hr/runs/${id}/pay`, { method: "POST" }),
@@ -77,13 +77,13 @@ export const payrollAPI = {
   getTeamSalaryStructures: () => request("/payroll/manager/team/salary-structures"),
   getTeamMemberStructureHistory: (userId) => request(`/payroll/manager/employees/${userId}/salary-structures`),
   getTeamMemberCurrentStructure: (userId) => request(`/payroll/manager/employees/${userId}/salary-structures/current`),
-  proposeTeamMemberStructure: (userId, payload) => request(`/payroll/manager/employees/${userId}/salary-structures`, { method: "POST", body: JSON.stringify(payload) }),
-  getMyProposals: () => request("/payroll/manager/salary-structures/proposals"),
-  cancelMyProposal: (id) => request(`/payroll/manager/salary-structures/proposals/${id}/cancel`, { method: "POST" }),
+  proposeTeamMemberStructure: (userId, payload) => request(`/payroll/manager/employees/${userId}/salary-structures/propose`, { method: "POST", body: JSON.stringify(payload) }),
+  getMyProposals: (params) => request(`/payroll/manager/salary-structures/proposals${buildQuery(params)}`),
+  cancelMyProposal: (id) => request(`/payroll/manager/salary-structures/${id}/cancel`, { method: "POST" }),
   
   // Manager — Runs & Payslips
-  getTeamRunSummary: (runId) => request(`/payroll/manager/runs/${runId}/summary`),
-  getTeamRunItems: (runId) => request(`/payroll/manager/runs/${runId}/items`),
+  getTeamRunSummary: (runId) => request(`/payroll/manager/runs/${runId}/team-summary`),
+  getTeamRunItems: (runId, params) => request(`/payroll/manager/runs/${runId}/team-items${buildQuery(params)}`),
   getReportPayslips: (userId) => request(`/payroll/manager/employees/${userId}/payslips`),
   getReportPayslip: (userId, runId) => request(`/payroll/manager/employees/${userId}/payslips/${runId}`),
 
@@ -91,7 +91,7 @@ export const payrollAPI = {
   // Employee Self-Service APIs
   // ─────────────────────────────────────────────────────────────────────────────
   getMyCurrentStructure: () => request("/payroll/me/salary-structure"),
-  getMyStructureHistory: () => request("/payroll/me/salary-structures"),
+  getMyStructureHistory: () => request("/payroll/me/salary-structure/history"),
   getMyBankAccount: () => request("/payroll/me/bank-account"),
   upsertMyBankAccount: (payload) => request("/payroll/me/bank-account", { method: "PUT", body: JSON.stringify(payload) }),
   
@@ -203,25 +203,27 @@ export const payrollAPI = {
   recordMyDeclarationProofs: (payload, params) => request(`/payroll/me/tax/declarations/proofs${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // ⚠️  UNVERIFIED — Phase 5 (Reimbursements & Benefits) and Phase 6 (Reports &
+  //     Delivery) are NOT yet implemented on the backend (confirmed 2026-09-12).
+  //     None of the endpoints below appear in combined_api_analysis-2.md; the
+  //     paths were written speculatively and must not be wired into any screen
+  //     until the backend contract is published. Do not delete — kept as the
+  //     starting point once those phases ship.
+  // ─────────────────────────────────────────────────────────────────────────────
   // Phase 5: Reimbursements & Benefits
-  // ─────────────────────────────────────────────────────────────────────────────
-  getBenefitPlans: () => request("/payroll/hr/benefit-plans"),
-  createBenefitPlan: (payload) => request("/payroll/hr/benefit-plans", { method: "POST", body: JSON.stringify(payload) }),
-  getReimbursementClaims: (params) => request(`/payroll/hr/reimbursements${buildQuery(params)}`),
-  processReimbursementClaim: (id, payload) => request(`/payroll/hr/reimbursements/${id}/process`, { method: "POST", body: JSON.stringify(payload) }),
-  
-  getTeamReimbursementClaims: (params) => request(`/payroll/manager/reimbursements${buildQuery(params)}`),
-  approveTeamReimbursementClaim: (id, payload) => request(`/payroll/manager/reimbursements/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
-  
-  getMyReimbursementClaims: () => request("/payroll/me/reimbursements"),
-  submitReimbursementClaim: (payload) => request("/payroll/me/reimbursements", { method: "POST", body: JSON.stringify(payload) }),
-  getMyBenefitPlans: () => request("/payroll/me/benefit-plans"),
-  enrollBenefitPlan: (id, payload) => request(`/payroll/me/benefit-plans/${id}/enroll`, { method: "POST", body: JSON.stringify(payload) }),
-
-  // ─────────────────────────────────────────────────────────────────────────────
+  // getBenefitPlans: () => request("/payroll/hr/benefit-plans"),
+  // createBenefitPlan: (payload) => request("/payroll/hr/benefit-plans", { method: "POST", body: JSON.stringify(payload) }),
+  // getReimbursementClaims: (params) => request(`/payroll/hr/reimbursements${buildQuery(params)}`),
+  // processReimbursementClaim: (id, payload) => request(`/payroll/hr/reimbursements/${id}/process`, { method: "POST", body: JSON.stringify(payload) }),
+  // getTeamReimbursementClaims: (params) => request(`/payroll/manager/reimbursements${buildQuery(params)}`),
+  // approveTeamReimbursementClaim: (id, payload) => request(`/payroll/manager/reimbursements/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
+  // getMyReimbursementClaims: () => request("/payroll/me/reimbursements"),
+  // submitReimbursementClaim: (payload) => request("/payroll/me/reimbursements", { method: "POST", body: JSON.stringify(payload) }),
+  // getMyBenefitPlans: () => request("/payroll/me/benefit-plans"),
+  // enrollBenefitPlan: (id, payload) => request(`/payroll/me/benefit-plans/${id}/enroll`, { method: "POST", body: JSON.stringify(payload) }),
+  //
   // Phase 6: Reports & Delivery
-  // ─────────────────────────────────────────────────────────────────────────────
-  getPayrollRegisters: (params) => request(`/payroll/hr/reports/registers${buildQuery(params)}`),
-  exportPayrollRegister: (params) => request(`/payroll/hr/reports/registers/export${buildQuery(params)}`),
-  exportNEFTAdvice: (runId) => request(`/payroll/hr/reports/neft/${runId}/export`)
+  // getPayrollRegisters: (params) => request(`/payroll/hr/reports/registers${buildQuery(params)}`),
+  // exportPayrollRegister: (params) => request(`/payroll/hr/reports/registers/export${buildQuery(params)}`),
+  // exportNEFTAdvice: (runId) => request(`/payroll/hr/reports/neft/${runId}/export`),
 };

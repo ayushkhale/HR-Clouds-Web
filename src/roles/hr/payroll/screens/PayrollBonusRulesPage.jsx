@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, organizationAPI } from "../../../../shared/api";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiGift, HiCheck,
-  HiCalculator, HiSparkles, HiTrash, HiPencil
+  HiCalculator, HiSparkles, HiTrash, HiPencil, HiEye
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 
@@ -26,6 +25,11 @@ const fmtPeriod = (pm) => {
   if (!pm) return "-";
   const [y, m] = pm.split("-");
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
+};
+const fmtDate = (d) => {
+  if (!d) return "—";
+  const date = new Date(d);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };
 
 const STATUS_PILL = {
@@ -73,6 +77,9 @@ export default function PayrollBonusRulesPage() {
 
   const [impact, setImpact] = useState(null); // { rule, data }
   const [impactLoading, setImpactLoading] = useState(false);
+
+  const [detail, setDetail] = useState(null); // full bonus rule (#68)
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -203,7 +210,22 @@ export default function PayrollBonusRulesPage() {
     }
   };
 
+  const openDetail = async (rule) => {
+    setDetail(rule);
+    setDetailLoading(true);
+    try {
+      const res = await payrollAPI.getBonusRule(rule.id);
+      setDetail(res.data || rule);
+    } catch (err) {
+      showToast(err.message || "Failed to load bonus rule", "error");
+      setDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const empName = (id) => employees.find((e) => (e.id || e.user_id || e._id) === id)?.name || id;
+  const deptName = (id) => departments.find((d) => (d.id || d._id) === id)?.name || id;
   const toggleId = (key, id) => setForm((f) => ({
     ...f,
     [key]: f[key].includes(id) ? f[key].filter((x) => x !== id) : [...f[key], id],
@@ -212,9 +234,7 @@ export default function PayrollBonusRulesPage() {
   const isPercent = form.bonus_type !== "flat";
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Bonus Rules" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
 
@@ -279,6 +299,7 @@ export default function PayrollBonusRulesPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          <button onClick={() => openDetail(r)} className="p-1.5 text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
                           {(r.status === "pending" || r.status === "approved") && !r.applied_at && (
                             <button onClick={() => openImpact(r)} className="p-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition" title="Preview impact"><HiCalculator className="w-4 h-4" /></button>
                           )}
@@ -307,7 +328,6 @@ export default function PayrollBonusRulesPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Create / Edit modal */}
       {isModalOpen && (
@@ -505,7 +525,99 @@ export default function PayrollBonusRulesPage() {
         </div>
       )}
 
+      {/* Bonus rule detail drawer (#68) */}
+      {detail && (() => {
+        const cfg = detail.eligibility_config || {};
+        const src = detail.eligibility_source;
+        const meta = [
+          ["Created by", detail.created_by_name || detail.created_by],
+          ["Created on", detail.created_at ? fmtDate(detail.created_at) : null],
+          ["Approved by", detail.approved_by_name || detail.approved_by],
+          ["Rejection reason", detail.rejection_reason],
+          ["Applied", detail.applied_at ? `${detail.applied_count ?? 0} employees` : null],
+        ].filter(([, v]) => v != null && v !== "");
+        return (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">{detail.name}</h2>
+                  <p className="text-xs text-slate-500">{fmtPeriod(detail.period_month)}</p>
+                </div>
+                <button onClick={() => setDetail(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{BONUS_TYPE_LABEL[detail.bonus_type] || detail.bonus_type}</p>
+                    <p className="text-2xl font-black text-purple-700 mt-0.5">{detail.bonus_type === "flat" ? money(detail.value) : `${parseFloat(detail.value || 0)}%`}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[detail.status] || "bg-slate-100 text-slate-600"}`}>{detail.status}</span>
+                </div>
+
+                <div className="rounded-xl border border-slate-100 divide-y divide-slate-50">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase">Eligibility</span>
+                    <span className="text-sm font-semibold text-slate-800 capitalize">{(src || "").replace(/_/g, " ")}</span>
+                  </div>
+                  {src === "department" && (
+                    <div className="px-4 py-3">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1.5">Departments</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(cfg.department_ids || []).map((id) => <span key={id} className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{deptName(id)}</span>)}
+                        {(cfg.department_ids || []).length === 0 && <span className="text-xs text-slate-400">—</span>}
+                      </div>
+                    </div>
+                  )}
+                  {src === "manual" && (
+                    <div className="px-4 py-3">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1.5">Employees</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(cfg.user_ids || []).map((id) => <span key={id} className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{empName(id)}</span>)}
+                        {(cfg.user_ids || []).length === 0 && <span className="text-xs text-slate-400">—</span>}
+                      </div>
+                    </div>
+                  )}
+                  {cfg.min_tenure_months != null && cfg.min_tenure_months !== "" && (
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Min tenure</span>
+                      <span className="text-sm font-semibold text-slate-800">{cfg.min_tenure_months} months</span>
+                    </div>
+                  )}
+                  {detail.max_amount_per_employee != null && detail.max_amount_per_employee !== "" && (
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Cap / employee</span>
+                      <span className="text-sm font-semibold text-slate-800">{money(detail.max_amount_per_employee)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {detail.reason && (
+                  <div className="rounded-xl border border-slate-100 px-4 py-3">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Reason</p>
+                    <p className="text-sm text-slate-700">{detail.reason}</p>
+                  </div>
+                )}
+
+                {detailLoading ? (
+                  <p className="text-xs text-slate-400 text-center">Loading full detail…</p>
+                ) : meta.length > 0 && (
+                  <dl className="rounded-xl border border-slate-100 divide-y divide-slate-50">
+                    {meta.map(([k, v]) => (
+                      <div key={k} className="flex items-start justify-between px-4 py-2.5 gap-4">
+                        <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0">{k}</dt>
+                        <dd className="text-sm text-slate-700 text-right">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

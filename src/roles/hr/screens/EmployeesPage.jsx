@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { organizationAPI, attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiOutlineUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding,
@@ -351,10 +350,7 @@ function EmployeesPage() {
     });
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Employees" />
 
         <main className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
@@ -455,7 +451,6 @@ function EmployeesPage() {
             </div>
           </div>
         </main>
-      </div>
 
       {showAddModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
@@ -775,7 +770,7 @@ function EmployeesPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

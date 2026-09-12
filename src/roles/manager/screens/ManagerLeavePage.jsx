@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../shared/api";
+import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiCalendar,
   HiUserCircle, HiClock, HiBan, HiThumbUp, HiThumbDown,
-  HiInformationCircle, HiDocumentText,
+  HiInformationCircle, HiDocumentText, HiChevronLeft, HiChevronRight,
 } from "react-icons/hi";
+
+const HISTORY_LIMIT = 20;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -105,6 +107,24 @@ function LeaveRequestCard({ request, onApprove, onReject, approving, showToast }
   const name = applicant ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() || applicant.email : "Employee";
   const leaveTypeName = request.leave_type?.name || "Leave";
 
+  const [bal, setBal] = useState(null); // { loading, row, error } | null
+  const applicantId = request.applicant?.id;
+  const leaveTypeId = request.leave_type_id || request.leave_type?.id;
+  const paidDays = parseFloat(request.paid_days ?? request.total_days ?? 0);
+
+  async function checkBalance() {
+    if (bal && !bal.error) { setBal(null); return; } // toggle closed
+    if (!applicantId) { showToast("Applicant id unavailable for balance lookup.", "error"); return; }
+    setBal({ loading: true });
+    try {
+      const res = await leaveAPI.getTeamMemberBalances(applicantId);
+      const row = (res.data || []).find(b => b.leave_type_id === leaveTypeId) || null;
+      setBal({ loading: false, row });
+    } catch (err) {
+      setBal({ loading: false, error: leaveErrorMessage(err, "Couldn't load balance.") });
+    }
+  }
+
   function fmtDate(d) {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -196,15 +216,50 @@ function LeaveRequestCard({ request, onApprove, onReject, approving, showToast }
           </div>
         </div>
 
+        {/* Balance impact */}
+        {bal && (
+          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+            {bal.loading ? (
+              <span className="text-slate-400">Loading balance…</span>
+            ) : bal.error ? (
+              <span className="text-red-500">{bal.error}</span>
+            ) : bal.row ? (
+              (() => {
+                const current = parseFloat(bal.row.current_balance);
+                const projected = current - paidDays;
+                return (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="text-slate-500">Current <strong className="text-slate-800">{Number.isInteger(current) ? current : current.toFixed(1)}</strong></span>
+                    <span className="text-slate-400">− {paidDays.toFixed(1)} paid</span>
+                    <span className="text-slate-500">→ after approval <strong className={projected < 0 ? "text-rose-600" : "text-emerald-700"}>{Number.isInteger(projected) ? projected : projected.toFixed(1)}</strong></span>
+                    {projected < 0 && (
+                      <span className="flex items-center gap-1 text-rose-600 font-semibold"><HiExclamationCircle className="w-3.5 h-3.5" /> Goes negative — approval may hit the overdraft limit.</span>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <span className="text-slate-400">No balance record for this leave type.</span>
+            )}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="mt-5 flex gap-3 justify-end">
+          <button
+            onClick={checkBalance}
+            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl transition mr-auto"
+          >
+            <HiCalendar className="w-4 h-4" />
+            {bal && !bal.error ? "Hide balance" : "Balance impact"}
+          </button>
           <button
             onClick={() => onReject(request)}
             disabled={approving === request.id}
             className="flex items-center gap-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50"
           >
             <HiThumbDown className="w-4 h-4" />
-            Reject
+            {isCancellationPending ? "Deny" : "Reject"}
           </button>
           <button
             onClick={() => onApprove(request.id)}
@@ -229,6 +284,8 @@ export default function ManagerLeavePage() {
   const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState([]);
   const [historyRequests, setHistoryRequests] = useState([]);
+  const [historyStatus, setHistoryStatus] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -246,17 +303,22 @@ export default function ManagerLeavePage() {
         const res = await leaveAPI.getTeamPendingRequests();
         setRequests(res.data || []);
       } else {
-        const res = await leaveAPI.getTeamRequests();
+        const params = { page: historyPage, limit: HISTORY_LIMIT };
+        if (historyStatus) params.status = historyStatus;
+        const res = await leaveAPI.getTeamRequests(params);
         setHistoryRequests(res.data || []);
       }
-    } catch {
-      showToast("Failed to load leave requests.", "error");
+    } catch (err) {
+      showToast(leaveErrorMessage(err, "Failed to load leave requests."), "error");
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, historyStatus, historyPage]);
 
   useEffect(() => { loadRequests(); }, [loadRequests]);
+
+  // Changing the status filter resets to page 1 in one update so loadRequests fires once.
+  function changeHistoryStatus(v) { setHistoryStatus(v); setHistoryPage(1); }
 
   async function handleApprove(id) {
     setApproving(id);
@@ -269,7 +331,7 @@ export default function ManagerLeavePage() {
         showToast("You don't have authority to approve this request.", "error");
       } else {
         // Surface conflict messages (employee present, balance exceeded)
-        showToast(err.message || "Failed to approve request.", "error");
+        showToast(leaveErrorMessage(err, "Failed to approve request."), "error");
       }
     } finally {
       setApproving(null);
@@ -290,9 +352,7 @@ export default function ManagerLeavePage() {
   const cancellationCount = requests.filter(r => r.status === "cancellation_pending").length;
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Leave Requests" />
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
 
@@ -342,6 +402,22 @@ export default function ManagerLeavePage() {
             </div>
           )}
 
+          {/* History filters */}
+          {activeTab === "history" && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+              <select value={historyStatus} onChange={e => changeHistoryStatus(e.target.value)}
+                className="px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="cancellation_pending">Cancellation Pending</option>
+                <option value="terminated_cancelled">Terminated Cancelled</option>
+              </select>
+            </div>
+          )}
+
           {/* Content */}
           {loading ? (
             <div className="space-y-4">
@@ -349,22 +425,15 @@ export default function ManagerLeavePage() {
                 <div key={i} className="h-44 bg-white rounded-2xl border border-slate-100 animate-pulse" />
               ))}
             </div>
-          ) : requests.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
-              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
-                <HiCheckCircle className="w-7 h-7 text-emerald-400" />
-              </div>
-              <p className="text-sm font-semibold text-slate-600">All caught up!</p>
-              <p className="text-xs text-slate-400">No pending leave requests from your team.</p>
-            </div>
           ) : activeTab === "history" ? (
-            historyRequests.length === 0 ? (
+            <>
+            {historyRequests.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
                 <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center">
                   <HiCalendar className="w-7 h-7 text-slate-400" />
                 </div>
                 <p className="text-sm font-semibold text-slate-600">No History Found</p>
-                <p className="text-xs text-slate-400">Your team doesn't have any past leave requests.</p>
+                <p className="text-xs text-slate-400">{historyStatus ? "No requests match this status filter." : "Your team doesn't have any past leave requests."}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -397,7 +466,31 @@ export default function ManagerLeavePage() {
                   );
                 })}
               </div>
-            )
+            )}
+            {(historyPage > 1 || historyRequests.length >= HISTORY_LIMIT) && (
+              <div className="flex items-center justify-between mt-6">
+                <p className="text-xs text-slate-400">Page {historyPage}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    <HiChevronLeft className="w-4 h-4" /> Prev
+                  </button>
+                  <button onClick={() => setHistoryPage(p => p + 1)} disabled={historyRequests.length < HISTORY_LIMIT}
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    Next <HiChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
+          ) : requests.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
+              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                <HiCheckCircle className="w-7 h-7 text-emerald-400" />
+              </div>
+              <p className="text-sm font-semibold text-slate-600">All caught up!</p>
+              <p className="text-xs text-slate-400">No pending leave requests from your team.</p>
+            </div>
           ) : (
             <div className="space-y-8">
               {/* ── Pending Approval ── */}
@@ -449,7 +542,6 @@ export default function ManagerLeavePage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Reject Modal */}
       {rejectTarget && (
@@ -461,6 +553,6 @@ export default function ManagerLeavePage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

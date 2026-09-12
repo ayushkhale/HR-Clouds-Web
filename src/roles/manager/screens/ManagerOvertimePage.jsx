@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PendingOvertime from "../components/PendingOvertime";
 import ActionModal from "../components/ActionModal";
@@ -51,10 +50,7 @@ function ManagerOvertimePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="OverTime Requests" />
 
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -67,7 +63,6 @@ function ManagerOvertimePage() {
 
           <PendingOvertime overtime={pendingOT} onReview={handleReview} />
         </main>
-      </div>
 
       <ActionModal 
         isOpen={modalState.isOpen}
@@ -76,7 +71,7 @@ function ManagerOvertimePage() {
         onClose={() => setModalState({ ...modalState, isOpen: false })}
         onExecute={handleExecuteAction}
       />
-    </div>
+    </>
   );
 }
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI, organizationAPI } from "../../../../shared/api";
@@ -448,9 +447,7 @@ export default function AttendanceRosterPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Attendance" />
         <main className="flex-1 overflow-y-auto px-8 py-8">
           {/* Header */}
@@ -579,7 +576,6 @@ export default function AttendanceRosterPage() {
           </div>
           )}
         </main>
-      </div>
 
       {showModal && (
         <AssignModal
@@ -603,6 +599,6 @@ export default function AttendanceRosterPage() {
         />
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

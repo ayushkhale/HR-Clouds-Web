@@ -1,29 +1,33 @@
 import React from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { HiCurrencyRupee, HiPlus } from "react-icons/hi";
+import FeatureNotAvailable from "../../../../shared/components/FeatureNotAvailable";
+import { HiCurrencyRupee } from "react-icons/hi";
 
 export default function MyReimbursementsPage() {
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="My Reimbursements" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiCurrencyRupee className="text-purple-600 w-7 h-7" /> My Reimbursements
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">Submit claims and track benefit enrollments.</p>
-            </div>
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <HiCurrencyRupee className="text-purple-600 w-7 h-7" /> My Reimbursements
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">Submit claims and track benefit enrollments.</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-            <p className="text-slate-500 font-medium">You have no active reimbursement claims.</p>
-          </div>
+          <FeatureNotAvailable
+            icon={HiCurrencyRupee}
+            title="Reimbursements aren't live yet"
+            message="Submitting reimbursement claims and enrolling in benefit plans ship in an upcoming payroll release. Check back soon."
+            capabilities={[
+              { title: "Submit claims", desc: "Raise reimbursement claims with itemised amounts and receipt attachments." },
+              { title: "Track approvals", desc: "Follow each claim through its approval levels and read the reviewer's comments." },
+              { title: "Get paid automatically", desc: "Approved claims are paid tax-free in your next payslip." },
+              { title: "Enroll in benefits", desc: "Opt into health insurance, travel, and meal plans offered by your organisation." },
+            ]}
+            note="Pending the reimbursements & benefits backend. Nothing here is live yet."
+          />
         </main>
-      </div>
-    </div>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
+import { noticeModeOf, noticeValue } from "../../../../shared/utils/leaveConfig";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
@@ -17,6 +17,37 @@ function Toast({ toast, onClose }) {
       {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
+    </div>
+  );
+}
+
+// Reusable tri-state control for notice_period_max_days (null/0/n).
+function NoticePeriodField({ mode, days, onModeChange, onDaysChange }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Notice-Period Leave Cap</label>
+      <div className="flex gap-2">
+        {[
+          { v: "unrestricted", l: "Unrestricted" },
+          { v: "blocked", l: "Blocked" },
+          { v: "capped", l: "Capped" },
+        ].map(opt => (
+          <button type="button" key={opt.v} onClick={() => onModeChange(opt.v)}
+            className={`flex-1 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${mode === opt.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+            {opt.l}
+          </button>
+        ))}
+      </div>
+      {mode === "capped" && (
+        <input type="number" step="1" min="1" value={days} onChange={e => onDaysChange(e.target.value)}
+          placeholder="Max days during notice period"
+          className="mt-2 w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+      )}
+      <p className="text-[10px] text-slate-400 mt-1">
+        {mode === "unrestricted" ? "No limit on this leave once an employee resigns."
+          : mode === "blocked" ? "This leave cannot be taken at all during the notice period."
+          : "Employee may take at most this many days of this leave during their notice period."}
+      </p>
     </div>
   );
 }
@@ -115,7 +146,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
 }
 
 // ─── Add / Edit Entitlement Modal ─────────────────────────────────────────────
-function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, onSaved }) {
+function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTypeIds = [], onClose, onSaved }) {
   const isEdit = !!editEntitlement;
   const [form, setForm] = useState({
     leave_type_id: editEntitlement?.leave_type_id || "",
@@ -124,16 +155,27 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
     max_carry_forward: editEntitlement?.max_carry_forward ?? 0,
     probation_restriction_days: editEntitlement?.probation_restriction_days ?? 0,
     max_negative_balance: editEntitlement?.max_negative_balance ?? 0,
+    notice_mode: noticeModeOf(editEntitlement?.notice_period_max_days),
+    notice_days: noticeModeOf(editEntitlement?.notice_period_max_days) === "capped" ? editEntitlement.notice_period_max_days : "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
 
+  // When adding, don't offer leave types that already have a quota in this policy.
+  const selectableTypes = isEdit
+    ? leaveTypes
+    : leaveTypes.filter(lt => !existingTypeIds.includes(lt.id));
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!isEdit && !form.leave_type_id) { setError("Please select a leave type."); return; }
     if (form.annual_quota === "" || form.annual_quota === null) { setError("Annual quota is required."); return; }
+    if (form.notice_mode === "capped" && (form.notice_days === "" || parseInt(form.notice_days, 10) < 1)) {
+      setError("Enter the maximum notice-period days, or choose Unrestricted / Blocked.");
+      return;
+    }
     setLoading(true); setError("");
     const payload = {
       annual_quota: parseFloat(form.annual_quota) || 0,
@@ -141,6 +183,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
       max_carry_forward: parseFloat(form.max_carry_forward) || 0,
       probation_restriction_days: parseInt(form.probation_restriction_days) || 0,
       max_negative_balance: parseFloat(form.max_negative_balance) || 0,
+      notice_period_max_days: noticeValue(form.notice_mode, form.notice_days),
     };
     if (!isEdit) payload.leave_type_id = form.leave_type_id;
     try {
@@ -193,10 +236,13 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               <option value="">Select a leave type...</option>
-              {leaveTypes.map(lt => (
+              {(isEdit ? leaveTypes : selectableTypes).map(lt => (
                 <option key={lt.id} value={lt.id}>{lt.name} ({lt.code})</option>
               ))}
             </select>
+            {!isEdit && selectableTypes.length === 0 && (
+              <p className="text-[10px] text-amber-600 mt-1">Every active leave type already has a quota in this policy. Edit or remove an existing one instead.</p>
+            )}
           </div>
 
           {/* Quota + Accrual Type */}
@@ -271,6 +317,14 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
             />
             <p className="text-[10px] text-slate-400 mt-1">Days the employee can go below zero. 0 = no overdraft.</p>
           </div>
+
+          {/* Notice-period cap (Phase 6) */}
+          <NoticePeriodField
+            mode={form.notice_mode}
+            days={form.notice_days}
+            onModeChange={v => set("notice_mode", v)}
+            onDaysChange={v => set("notice_days", v)}
+          />
 
           <div className="flex gap-3 pt-1">
             <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
@@ -413,6 +467,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
           templateId={policy.id}
           editEntitlement={entitlementModal === "create" ? null : entitlementModal}
           leaveTypes={leaveTypes}
+          existingTypeIds={entitlements.map(e => e.leave_type_id)}
           onClose={() => setEntitlementModal(null)}
           onSaved={onEntitlementSaved}
         />
@@ -470,9 +525,7 @@ export default function LeavePoliciesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Leave Management" />
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
 
@@ -529,7 +582,6 @@ export default function LeavePoliciesPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Policy Modal */}
       {policyModal && (
@@ -541,6 +593,6 @@ export default function LeavePoliciesPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

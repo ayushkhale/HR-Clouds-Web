@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI, organizationAPI } from "../../../../shared/api";
@@ -385,9 +384,7 @@ export default function AttendanceWeeklyOffsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Attendance" />
         <main className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
           <div className="flex items-start justify-between">
@@ -437,7 +434,6 @@ export default function AttendanceWeeklyOffsPage() {
             </>
           )}
         </main>
-      </div>
 
       {showModal && (
         <WeeklyOffModal
@@ -457,6 +453,6 @@ export default function AttendanceWeeklyOffsPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

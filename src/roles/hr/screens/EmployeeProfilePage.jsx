@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { organizationAPI, hrmsAPI } from "../../../shared/api";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
@@ -378,9 +377,7 @@ export default function EmployeeProfilePage() {
   const displayName = employee?.name || employee?.full_name || "Employee";
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title={displayName} />
 
         <main className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
@@ -578,7 +575,6 @@ export default function EmployeeProfilePage() {
             </div>
           </div>
         </main>
-      </div>
 
       {/* ── DELETE MODAL ── */}
       {showDeleteModal && (
@@ -682,6 +678,6 @@ export default function EmployeeProfilePage() {
         </div>
       )}
 
-    </div>
+    </>
   );
 }

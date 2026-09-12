@@ -163,14 +163,24 @@ export const leaveAPI = {
   /**
    * POST /leaves/automation/accrual/run
    * Triggers monthly accrual calculation for all active employees.
+   * @param {string|null} referenceDate - optional YYYY-MM-DD to run for a specific month.
    */
-  runAccrual: () => request("/leaves/automation/accrual/run", { method: "POST" }),
+  runAccrual: (referenceDate = null) =>
+    request("/leaves/automation/accrual/run", {
+      method: "POST",
+      body: JSON.stringify(referenceDate ? { reference_date: referenceDate } : {}),
+    }),
 
   /**
    * POST /leaves/automation/rollover/run
    * Triggers year-end balance rollover.
+   * @param {string|null} referenceDate - optional YYYY-MM-DD to run across a year boundary.
    */
-  runRollover: () => request("/leaves/automation/rollover/run", { method: "POST" }),
+  runRollover: (referenceDate = null) =>
+    request("/leaves/automation/rollover/run", {
+      method: "POST",
+      body: JSON.stringify(referenceDate ? { reference_date: referenceDate } : {}),
+    }),
 
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -198,8 +208,13 @@ export const leaveAPI = {
   /**
    * GET /leaves/team/member/:userId/requests
    * Fetches a specific direct report's leave history.
+   * @param {string} userId
+   * @param {Object} params - optional { status, page, limit }
    */
-  getTeamMemberRequests: (userId) => request(`/leaves/team/member/${userId}/requests`),
+  getTeamMemberRequests: (userId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/leaves/team/member/${userId}/requests${qs ? `?${qs}` : ""}`);
+  },
 
   /**
    * GET /leaves/team/member/:userId/balances

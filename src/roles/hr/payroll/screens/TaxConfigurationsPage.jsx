@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import {
@@ -92,9 +91,7 @@ export default function TaxConfigurationsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Statutory & Tax Setup" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="mb-6">
@@ -116,9 +113,8 @@ export default function TaxConfigurationsPage() {
           {tab === "pt" && <PtSlabsTab showToast={showToast} />}
           {tab === "regimes" && <RegimesTab showToast={showToast} />}
         </main>
-      </div>
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiClipboardList, HiCheck, HiRefresh, HiBan } from "react-icons/hi";
@@ -154,9 +153,7 @@ export default function TaxDeclarationsPage() {
   }, 0);
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Tax Declarations" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -219,7 +216,6 @@ export default function TaxDeclarationsPage() {
             </div>
           )}
         </main>
-      </div>
 
       {detail && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -314,6 +310,6 @@ export default function TaxDeclarationsPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

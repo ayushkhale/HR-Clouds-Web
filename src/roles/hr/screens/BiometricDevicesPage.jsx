@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
@@ -145,10 +144,7 @@ function BiometricDevicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={user?.role || "hr"} />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <>
         <DashboardTopBar title="Biometric Devices" subtitle="Manage organizational hardware & mappings" />
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
@@ -267,7 +263,6 @@ function BiometricDevicesPage() {
 
           </div>
         </div>
-      </div>
 
       {/* Device Modal */}
       {showDeviceModal && (
@@ -445,7 +440,7 @@ function BiometricDevicesPage() {
         </div>
       )}
 
-    </div>
+    </>
   );
 }
 

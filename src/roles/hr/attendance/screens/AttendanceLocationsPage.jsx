@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../../shared/components/PageHeader";
 import { attendanceAPI } from "../../../../shared/api";
@@ -224,9 +223,7 @@ function AttendanceLocationsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Attendance Locations" />
         <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -345,7 +342,6 @@ function AttendanceLocationsPage() {
             </div>
           </div>
         </main>
-      </div>
 
       {/* Modal */}
       {showModal && (
@@ -462,7 +458,7 @@ function AttendanceLocationsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

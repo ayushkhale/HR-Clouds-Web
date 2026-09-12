@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { HiDocumentText, HiOutlineFolder, HiCheckCircle, HiExclamation, HiChevronLeft, HiChevronRight, HiSearch } from "react-icons/hi";
 import { attendanceAPI } from "../api";
@@ -73,10 +72,7 @@ function DocumentsPage() {
   const activeContent = docsData.content[activeTab]?.[currentRole] || {};
 
   return (
-    <div className="min-h-screen bg-white flex font-sans text-slate-800">
-      <DashboardSidebar role={currentRole} />
-
-      <div className="flex-1 flex flex-col min-w-0 border-l border-slate-100">
+    <>
         <DashboardTopBar title="Documentation" />
 
         <main className="px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-6 max-w-6xl w-full mx-auto overflow-y-auto">
@@ -261,8 +257,7 @@ function DocumentsPage() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

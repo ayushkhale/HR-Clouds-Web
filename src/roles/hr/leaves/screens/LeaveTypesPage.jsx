@@ -1,11 +1,27 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiExclamation, HiBan, HiClipboardList,
 } from "react-icons/hi";
+
+// Phase-6 demographic gating options. Empty selection ⇒ open to everyone (null).
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
+const MARITAL_OPTIONS = [
+  { value: "single", label: "Single" },
+  { value: "married", label: "Married" },
+  { value: "divorced", label: "Divorced" },
+  { value: "widowed", label: "Widowed" },
+];
+
+// A restriction array can arrive as null/[] (open) or a list of allowed values.
+function toArray(v) { return Array.isArray(v) ? v : []; }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -44,11 +60,20 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
     is_paid: editType?.is_paid ?? true,
     requires_document_threshold: editType?.requires_document_threshold ?? "",
     sandwich_rule_applies: editType?.sandwich_rule_applies ?? false,
+    allowed_genders: toArray(editType?.allowed_genders),
+    allowed_marital_statuses: toArray(editType?.allowed_marital_statuses),
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
+  // Toggle a value in a restriction array (genders / marital statuses).
+  function toggleIn(key, value) {
+    setForm(f => {
+      const arr = f[key];
+      return { ...f, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
+    });
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -61,6 +86,9 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
       code: form.code.trim().toUpperCase(),
       is_paid: form.is_paid,
       sandwich_rule_applies: form.sandwich_rule_applies,
+      // Empty selection means "open to everyone" — send null, not [].
+      allowed_genders: form.allowed_genders.length ? form.allowed_genders : null,
+      allowed_marital_statuses: form.allowed_marital_statuses.length ? form.allowed_marital_statuses : null,
     };
     if (form.description.trim()) payload.description = form.description.trim();
     if (form.requires_document_threshold !== "") {
@@ -74,7 +102,7 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
       }
       onSaved(isEdit ? "Leave type updated." : "Leave type created.");
     } catch (err) {
-      if (err.data?.code === "LEAVE_TYPE_EXISTS") {
+      if (err.data?.errorCode === "LEAVE_TYPE_EXISTS") {
         setError(`Code "${form.code.toUpperCase()}" already exists. Choose a unique code.`);
       } else {
         setError(err.message || "Something went wrong.");
@@ -179,6 +207,42 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
                 <p className="text-[10px] text-slate-400 mt-0.5">Count weekends between leave days</p>
               </div>
               <Toggle checked={form.sandwich_rule_applies} onChange={v => set("sandwich_rule_applies", v)} />
+            </div>
+          </div>
+
+          {/* Eligibility (Phase 6 demographic gating) */}
+          <div className="border border-slate-100 rounded-xl p-4 space-y-4">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Eligibility (optional)</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Restrict who can apply (e.g. Maternity → Female). Leave everything unticked to allow all employees.</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-600 mb-1.5">Allowed genders</p>
+              <div className="flex flex-wrap gap-2">
+                {GENDER_OPTIONS.map(opt => {
+                  const on = form.allowed_genders.includes(opt.value);
+                  return (
+                    <button type="button" key={opt.value} onClick={() => toggleIn("allowed_genders", opt.value)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-600 mb-1.5">Allowed marital statuses</p>
+              <div className="flex flex-wrap gap-2">
+                {MARITAL_OPTIONS.map(opt => {
+                  const on = form.allowed_marital_statuses.includes(opt.value);
+                  return (
+                    <button type="button" key={opt.value} onClick={() => toggleIn("allowed_marital_statuses", opt.value)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -365,9 +429,7 @@ export default function LeaveTypesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Leave Management" />
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
 
@@ -428,7 +490,14 @@ export default function LeaveTypesPage() {
                     {types.map(t => (
                       <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors ${!t.is_active ? "opacity-60" : ""}`}>
                         <td className="px-6 py-4">
-                          <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                            {(toArray(t.allowed_genders).length > 0 || toArray(t.allowed_marital_statuses).length > 0) && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded" title="Eligibility restricted by gender / marital status">
+                                Restricted
+                              </span>
+                            )}
+                          </div>
                           {t.description && <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px]">{t.description}</p>}
                         </td>
                         <td className="px-6 py-4">
@@ -476,7 +545,6 @@ export default function LeaveTypesPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Modals */}
       {modal && (
@@ -495,6 +563,6 @@ export default function LeaveTypesPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

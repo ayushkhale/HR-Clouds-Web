@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PendingRegularizations from "../components/PendingRegularizations";
 import ActionModal from "../components/ActionModal";
@@ -50,10 +49,7 @@ function ManagerRegularizationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Regularization Requests" />
 
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
@@ -66,7 +62,6 @@ function ManagerRegularizationsPage() {
 
           <PendingRegularizations regularizations={pendingRegs} onReview={handleReview} />
         </main>
-      </div>
 
       <ActionModal 
         isOpen={modalState.isOpen}
@@ -75,7 +70,7 @@ function ManagerRegularizationsPage() {
         onClose={() => setModalState({ ...modalState, isOpen: false })}
         onExecute={handleExecuteAction}
       />
-    </div>
+    </>
   );
 }
 

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../../shared/contexts/AuthContext";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiUserGroup,
@@ -198,23 +197,17 @@ function HRDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-        <DashboardSidebar role="hr" />
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
-          <DashboardTopBar title="HR Dashboard" />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            <Skeleton type="dashboard" />
-          </main>
-        </div>
-      </div>
+      <>
+        <DashboardTopBar title="HR Dashboard" />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <Skeleton type="dashboard" />
+        </main>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="HR Dashboard" />
 
         <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
@@ -495,8 +488,7 @@ function HRDashboard() {
 
           
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

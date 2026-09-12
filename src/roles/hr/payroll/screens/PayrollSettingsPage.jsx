@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCog } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -55,16 +55,14 @@ export default function PayrollSettingsPage() {
       await payrollAPI.updateSettings(settings);
       showToast("Payroll settings updated successfully");
     } catch (err) {
-      showToast(err.message || "Failed to update settings", "error");
+      showToast(payrollErrorMessage(err, "Failed to update settings"), "error");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Payroll Settings" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-4xl mx-auto w-full">
           
@@ -146,9 +144,8 @@ export default function PayrollSettingsPage() {
             </div>
           )}
         </main>
-      </div>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

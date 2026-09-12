@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import RegularizationCard from "../components/RegularizationCard";
 import { attendanceAPI } from "../../../shared/api";
 import { HiSparkles } from "react-icons/hi";
 
-function AttendanceRegularizationsPage({ role = "employee" }) {
+function AttendanceRegularizationsPage() {
   const [regularizations, setRegularizations] = useState([]);
 
   useEffect(() => {
@@ -24,10 +23,7 @@ function AttendanceRegularizationsPage({ role = "employee" }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={role} />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Attendance Regularizations" />
 
         <main className="p-6 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6 lg:space-y-8">
@@ -44,8 +40,7 @@ function AttendanceRegularizationsPage({ role = "employee" }) {
           </div>
 
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

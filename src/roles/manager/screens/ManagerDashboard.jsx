@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import AttendanceCard from "../../employee/components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
@@ -210,13 +209,10 @@ function ManagerDashboard() {
   const totalChartPages = teamGraphData?.daily && teamGraphData.daily.length > 0 ? 2 : 1;
 
   if (loading) return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <DashboardTopBar title="Manager Dashboard" />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8"><Skeleton type="dashboard" /></main>
-      </div>
-    </div>
+    <>
+      <DashboardTopBar title="Manager Dashboard" />
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8"><Skeleton type="dashboard" /></main>
+    </>
   );
 
   const presentCount = teamSummary?.final_present_count || 0;
@@ -225,9 +221,7 @@ function ManagerDashboard() {
   const teamSize     = teamSummary?.team_size           || 0;
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Manager Workspace" />
         <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
 
@@ -359,8 +353,7 @@ function ManagerDashboard() {
           </div>
 
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

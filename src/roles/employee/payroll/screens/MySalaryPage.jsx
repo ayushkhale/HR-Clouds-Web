@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCurrencyRupee, HiLibrary } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiCurrencyRupee, HiLibrary, HiClock } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+
+const REVISION_LABELS = {
+  initial: "Initial",
+  increment: "Increment",
+  promotion: "Promotion",
+  correction: "Correction",
+  restructure: "Restructure",
+};
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -19,6 +28,7 @@ function Toast({ toast, onClose }) {
 
 export default function MySalaryPage() {
   const [structure, setStructure] = useState(null);
+  const [history, setHistory] = useState([]);
   const [bankAccount, setBankAccount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -36,16 +46,18 @@ export default function MySalaryPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [structRes, bankRes] = await Promise.all([
+      const [structRes, histRes, bankRes] = await Promise.all([
         payrollAPI.getMyCurrentStructure().catch(() => ({ data: null })),
+        payrollAPI.getMyStructureHistory().catch(() => ({ data: [] })),
         payrollAPI.getMyBankAccount().catch(() => ({ data: null }))
       ]);
       setStructure(structRes.data);
+      setHistory(histRes.data?.records || histRes.data || []);
       if (bankRes.data) {
         setBankAccount(bankRes.data);
       }
     } catch (err) {
-      showToast("Failed to load salary data", "error");
+      showToast(payrollErrorMessage(err, "Failed to load salary data"), "error");
     } finally {
       setLoading(false);
     }
@@ -55,11 +67,13 @@ export default function MySalaryPage() {
 
   const handleOpenBankModal = () => {
     if (bankAccount) {
+      // The full account number is never returned (masked at rest), so it must
+      // be re-entered on edit — which also intentionally re-triggers HR verification.
       setBankFormData({
-        account_holder_name: bankAccount.account_holder_name,
-        bank_name: bankAccount.bank_name,
-        account_number: bankAccount.account_number,
-        ifsc_code: bankAccount.ifsc_code,
+        account_holder_name: bankAccount.account_holder_name || "",
+        bank_name: bankAccount.bank_name || "",
+        account_number: "",
+        ifsc_code: bankAccount.ifsc_code || "",
         branch_name: bankAccount.branch_name || ""
       });
     } else {
@@ -78,14 +92,12 @@ export default function MySalaryPage() {
       setIsBankModalOpen(false);
       loadData();
     } catch (err) {
-      showToast(err.message || "Failed to update bank details", "error");
+      showToast(payrollErrorMessage(err, "Failed to update bank details"), "error");
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="My Salary Details" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
           
@@ -105,7 +117,7 @@ export default function MySalaryPage() {
                   <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
                       <h2 className="text-lg font-bold text-slate-800">Current Salary Structure</h2>
-                      {structure && <p className="text-xs text-slate-500 mt-0.5">Effective from {new Date(structure.effective_from).toLocaleDateString()}</p>}
+                      {structure && <p className="text-xs text-slate-500 mt-0.5">Effective from {formatDate(structure.effective_from)}</p>}
                     </div>
                     {structure && (
                       <div className="text-right">
@@ -149,6 +161,42 @@ export default function MySalaryPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Salary revision history (approved versions only) */}
+                {history.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                      <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <HiClock className="text-purple-600 w-5 h-5" /> Salary History
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Your approved salary revisions over time.</p>
+                    </div>
+                    <ol className="p-6 space-y-0">
+                      {history.map((h, i) => {
+                        const isCurrent = !h.effective_to;
+                        return (
+                          <li key={h.id || i} className="relative pl-6 pb-6 last:pb-0 border-l-2 border-slate-100 last:border-transparent">
+                            <span className={`absolute -left-[7px] top-1 w-3 h-3 rounded-full ring-4 ring-white ${isCurrent ? "bg-purple-600" : "bg-slate-300"}`} />
+                            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                              <div>
+                                <span className="text-sm font-bold text-slate-800">{formatMoney(h.annual_ctc)}</span>
+                                <span className="text-xs text-slate-400 ml-2">/ year</span>
+                                {h.version != null && <span className="text-[11px] text-slate-400 ml-2">v{h.version}</span>}
+                              </div>
+                              <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                {REVISION_LABELS[h.revision_type] || h.revision_type || "Revision"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {formatDate(h.effective_from)} — {isCurrent ? "Present" : formatDate(h.effective_to)}
+                            </p>
+                            {h.revision_reason && <p className="text-xs text-slate-400 mt-1 italic">“{h.revision_reason}”</p>}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
+                )}
               </div>
 
               {/* Right Column - Bank Details */}
@@ -158,8 +206,9 @@ export default function MySalaryPage() {
                     <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
                       <HiLibrary className="text-purple-600 w-5 h-5" /> Bank Details
                     </h2>
-                    {bankAccount && bankAccount.verification_status === 'verified' && (
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase">Verified</span>
+                    {bankAccount && (bankAccount.is_verified
+                      ? <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase">Verified</span>
+                      : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">Pending verification</span>
                     )}
                   </div>
                   <div className="p-6 flex-1">
@@ -175,7 +224,7 @@ export default function MySalaryPage() {
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-slate-400 uppercase">Account Number</p>
-                          <p className="font-mono font-medium text-slate-600">XXXX-XXXX-{bankAccount.account_number?.slice(-4) || 'XXXX'}</p>
+                          <p className="font-mono font-medium text-slate-600">{bankAccount.masked_account_number || "••••••••"}</p>
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-slate-400 uppercase">IFSC Code</p>
@@ -199,7 +248,6 @@ export default function MySalaryPage() {
             </div>
           )}
         </main>
-      </div>
 
       {isBankModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -242,6 +290,6 @@ export default function MySalaryPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

@@ -1,11 +1,172 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI, leaveAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
-import { 
-  HiInboxIn, HiCheckCircle, HiXCircle, HiCheck, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText 
+import { formatDate } from "../../../shared/utils/formatUtils";
+import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
+import {
+  HiInboxIn, HiCheckCircle, HiXCircle, HiCheck, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText, HiUserCircle, HiThumbUp, HiThumbDown, HiInformationCircle
 } from "react-icons/hi";
+
+// Resolve a displayable employee name across the different request shapes this
+// inbox aggregates. Leave requests nest the applicant under `applicant`
+// (first_name/last_name/email); attendance requests use `user.profile`/`user.name`.
+function resolveRequesterName(item) {
+  const a = item.applicant;
+  if (a) {
+    const full = `${a.first_name || ""} ${a.last_name || ""}`.trim();
+    if (full) return full;
+    if (a.email) return a.email;
+  }
+  if (item.user?.profile) {
+    const full = `${item.user.profile.first_name || ""} ${item.user.profile.last_name || ""}`.trim();
+    if (full) return full;
+  }
+  return item.user?.name || item.user?.email || "Unknown";
+}
+
+// The user id to look up balances for, across request shapes.
+function resolveRequesterId(item) {
+  return item.applicant?.id ?? item.user_id ?? item.user?.id ?? null;
+}
+
+function LeaveInboxCard({ item, onApprove, onReject, showToast }) {
+  const empName = resolveRequesterName(item);
+  const isCancellation = item.status === "cancellation_pending";
+  const [bal, setBal] = useState(null);
+  const applicantId = resolveRequesterId(item);
+  const leaveTypeId = item.leave_type_id || item.leave_type?.id;
+  const paidDays = parseFloat(item.paid_days ?? item.total_days ?? 0);
+  const unpaid = parseFloat(item.unpaid_days || 0);
+
+  async function checkBalance() {
+    if (bal && !bal.error) { setBal(null); return; }
+    if (!applicantId) { showToast("Applicant id unavailable.", "error"); return; }
+    setBal({ loading: true });
+    try {
+      const res = await leaveAPI.getTeamMemberBalances(applicantId);
+      const row = (res.data || []).find(b => b.leave_type_id === leaveTypeId) || null;
+      setBal({ loading: false, row });
+    } catch (err) {
+      setBal({ loading: false, error: leaveErrorMessage(err, "Couldn't load balance.") });
+    }
+  }
+
+  return (
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden mb-4 ${isCancellation ? "border-orange-200" : "border-slate-100"}`}>
+      {isCancellation && (
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-orange-50 border-b border-orange-200 text-xs font-semibold text-orange-700">
+          <HiInformationCircle className="w-4 h-4" />
+          This employee is requesting to cancel an approved leave. Approving will refund their balance.
+        </div>
+      )}
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+            <HiUserCircle className="w-6 h-6 text-purple-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <p className="text-sm font-bold text-slate-800">{empName}</p>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isCancellation ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                {isCancellation ? "Cancellation Pending" : "Pending Approval"}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
+                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Leave Type</p>
+                <p className="text-xs font-bold text-slate-700">{item.leave_type?.name || "Leave"}</p>
+              </div>
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
+                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Dates</p>
+                <p className="text-xs font-bold text-slate-700">
+                  {(() => {
+                    const start = formatDate(item.start_date || item.date);
+                    const end = formatDate(item.end_date || item.date);
+                    return start === end ? start : `${start} – ${end}`;
+                  })()}
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
+                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Duration</p>
+                <p className="text-xs font-bold text-slate-700">
+                  {parseFloat(item.total_days || 1).toFixed(1)} days
+                  {item.is_half_day && <span className="ml-1 text-violet-600">({item.half_day_type === "first_half" ? "1st half" : "2nd half"})</span>}
+                </p>
+                {unpaid > 0 && (
+                  <p className="text-[10px] mt-0.5">
+                    <span className="text-emerald-600 font-semibold">{paidDays.toFixed(1)} paid</span>
+                    {" · "}
+                    <span className="text-rose-500 font-semibold">{unpaid.toFixed(1)} LWP</span>
+                  </p>
+                )}
+              </div>
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
+                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Applied On</p>
+                <p className="text-xs font-bold text-slate-700">{formatDate(item.created_at || item.requested_at)}</p>
+              </div>
+            </div>
+            
+            {item.reason && (
+              <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5">
+                <HiInformationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                <span className="italic">"{item.reason}"</span>
+              </div>
+            )}
+            
+            {item.document_url && (
+              <div className="mt-2">
+                <a href={item.document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-3 py-1.5 rounded-lg transition">
+                  <HiDocumentText className="w-3.5 h-3.5" /> View Supporting Document
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {bal && (
+          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+            {bal.loading ? (
+              <span className="text-slate-400">Loading balance…</span>
+            ) : bal.error ? (
+              <span className="text-red-500">{bal.error}</span>
+            ) : bal.row ? (
+              (() => {
+                const current = parseFloat(bal.row.current_balance);
+                const projected = current - paidDays;
+                return (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="text-slate-500">Current <strong className="text-slate-800">{Number.isInteger(current) ? current : current.toFixed(1)}</strong></span>
+                    <span className="text-slate-400">− {paidDays.toFixed(1)} paid</span>
+                    <span className="text-slate-500">→ after approval <strong className={projected < 0 ? "text-rose-600" : "text-emerald-700"}>{Number.isInteger(projected) ? projected : projected.toFixed(1)}</strong></span>
+                    {projected < 0 && (
+                      <span className="flex items-center gap-1 text-rose-600 font-semibold"><HiExclamationCircle className="w-3.5 h-3.5" /> Goes negative — approval may hit the overdraft limit.</span>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <span className="text-slate-400">No balance record for this leave type.</span>
+            )}
+          </div>
+        )}
+        
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={checkBalance} className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl transition mr-auto">
+            <HiCalendar className="w-4 h-4" />{bal && !bal.error ? "Hide balance" : "Balance impact"}
+          </button>
+          <button onClick={() => onReject(item)} className="flex items-center gap-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl transition">
+            <HiThumbDown className="w-4 h-4" />{isCancellation ? "Deny" : "Reject"}
+          </button>
+          <button onClick={() => onApprove(item)} className="flex items-center gap-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 rounded-xl transition shadow-sm shadow-emerald-200">
+            <HiThumbUp className="w-4 h-4" />{isCancellation ? "Approve Cancellation" : "Approve"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ManagerApprovalsInbox() {
   const [activeTab, setActiveTab] = useState("regularizations");
@@ -17,7 +178,7 @@ function ManagerApprovalsInbox() {
     leaves: [] // If leaveAPI has getTeamPendingRequests
   });
   const [loading, setLoading] = useState(true);
-  const [actionModal, setActionModal] = useState({ isOpen: false, type: "", action: "", id: null, title: "" });
+  const [actionModal, setActionModal] = useState({ isOpen: false, type: "", action: "", id: null, title: "", isCancellation: false });
   const [balanceModal, setBalanceModal] = useState({ isOpen: false, empName: "", balances: [], loading: false });
   const [remarks, setRemarks] = useState("");
   const [toast, setToast] = useState(null);
@@ -103,7 +264,7 @@ function ManagerApprovalsInbox() {
         showToast(res?.message || "Action failed", "error");
       }
     } catch (err) {
-      showToast(err.message || "Action failed", "error");
+      showToast(type === "leaves" ? leaveErrorMessage(err, "Action failed") : (err.message || "Action failed"), "error");
     }
   };
 
@@ -120,6 +281,30 @@ function ManagerApprovalsInbox() {
     if (loading) return <div className="p-8 text-center text-slate-500">Loading requests...</div>;
     if (!list || list.length === 0) return <div className="p-12 text-center text-slate-400 font-medium">No pending requests here! 🎉</div>;
 
+    if (activeTab === "leaves") {
+      return (
+        <div className="p-4 bg-slate-50/50">
+          {list.map(item => (
+            <LeaveInboxCard 
+              key={item.id} 
+              item={item} 
+              onApprove={(req) => {
+                const empName = resolveRequesterName(req);
+                const isCxl = req.status === "cancellation_pending";
+                setActionModal({ isOpen: true, type: "leaves", action: "approve", id: req.id, title: isCxl ? `Approve cancellation for ${empName}` : `Approve Request for ${empName}`, isCancellation: isCxl });
+              }}
+              onReject={(req) => {
+                const empName = resolveRequesterName(req);
+                const isCxl = req.status === "cancellation_pending";
+                setActionModal({ isOpen: true, type: "leaves", action: "reject", id: req.id, title: isCxl ? `Deny cancellation for ${empName}` : `Reject Request for ${empName}`, isCancellation: isCxl });
+              }}
+              showToast={showToast}
+            />
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm whitespace-nowrap">
@@ -133,18 +318,12 @@ function ManagerApprovalsInbox() {
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {list.map((item) => {
-              const empName = item.user?.profile ? `${item.user.profile.first_name} ${item.user.profile.last_name}` : (item.user?.name || "Unknown");
+              const empName = resolveRequesterName(item);
               let details = "";
               if (activeTab === "regularizations") details = `${item.date} - ${item.reason || 'No reason'}`;
               if (activeTab === "overtime") details = `${item.date} - ${item.overtime_minutes} mins`;
               if (activeTab === "compOffs") details = `Earned: ${item.earned_date} - ${item.worked_hours}h`;
               if (activeTab === "anomalies") details = `Type: ${item.anomaly_type} - ${item.date}`;
-              if (activeTab === "leaves") {
-                const start = item.start_date || item.date;
-                const end = item.end_date || item.date;
-                const days = item.total_days || 1;
-                details = `${item.leave_type?.name || 'Leave'} (${days} day${days > 1 ? 's' : ''}) : ${start} to ${end}`;
-              }
 
               return (
                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -157,17 +336,9 @@ function ManagerApprovalsInbox() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {activeTab === "leaves" && (
-                        <button 
-                          onClick={() => fetchAndShowBalances(item.user_id || item.user?.id, empName)}
-                          className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors mr-2"
-                        >
-                          View Balances
-                        </button>
-                      )}
                       {activeTab !== "anomalies" && (
-                        <button 
-                          onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "approve", id: item.id, title: `Approve Request for ${empName}` })} 
+                        <button
+                          onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "approve", id: item.id, title: `Approve Request for ${empName}`, isCancellation: false })}
                           className="p-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors" title="Approve">
                           <HiCheck className="w-4 h-4" />
                         </button>
@@ -181,7 +352,7 @@ function ManagerApprovalsInbox() {
                       )}
                       {activeTab !== "anomalies" && (
                         <button 
-                          onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "reject", id: item.id, title: `Reject Request for ${empName}` })} 
+                          onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "reject", id: item.id, title: `Reject Request for ${empName}`, isCancellation: false })} 
                           className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-600 rounded-lg transition-colors" title="Reject">
                           <HiX className="w-4 h-4" />
                         </button>
@@ -198,9 +369,7 @@ function ManagerApprovalsInbox() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Approvals Inbox" />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
           
@@ -238,7 +407,6 @@ function ManagerApprovalsInbox() {
             {renderActiveTabContent()}
           </div>
         </main>
-      </div>
 
       {/* Action Modal */}
       {actionModal.isOpen && (
@@ -251,9 +419,16 @@ function ManagerApprovalsInbox() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-sm text-slate-600">
-                Are you sure you want to <strong>{actionModal.action}</strong> this request?
-              </p>
+              {actionModal.type === "leaves" && actionModal.isCancellation ? (
+                <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border border-orange-200 text-xs font-medium text-orange-700 rounded-xl">
+                  <HiInformationCircle className="w-5 h-5 shrink-0" />
+                  {actionModal.action === "approve" ? "Approving this will cancel the approved leave and refund the employee's leave balance." : "Denying this will keep the approved leave active."}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Are you sure you want to <strong>{actionModal.action}</strong> this request?
+                </p>
+              )}
               
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-600">Remarks {actionModal.action === "reject" ? "(Required)" : "(Optional)"}</label>
@@ -325,7 +500,7 @@ function ManagerApprovalsInbox() {
           {toast.msg}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

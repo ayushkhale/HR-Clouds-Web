@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentDownload, HiDocumentText } from "react-icons/hi";
@@ -55,9 +54,7 @@ export default function MyPayslipsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="My Payslips" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
           
@@ -117,7 +114,6 @@ export default function MyPayslipsPage() {
             </div>
           )}
         </main>
-      </div>
 
       {isModalOpen && selectedPayslip && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -182,6 +178,6 @@ export default function MyPayslipsPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

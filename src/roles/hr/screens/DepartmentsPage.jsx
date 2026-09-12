@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { organizationAPI } from "../../../shared/api";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
@@ -115,10 +114,7 @@ function DepartmentsPage() {
   ).sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1));
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Departments" />
 
         <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
@@ -228,7 +224,6 @@ function DepartmentsPage() {
             </div>
           </div>
         </main>
-      </div>
 
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
@@ -330,7 +325,7 @@ function DepartmentsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

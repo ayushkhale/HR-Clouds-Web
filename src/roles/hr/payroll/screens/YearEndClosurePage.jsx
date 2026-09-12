@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, organizationAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiUser, HiSearch } from "react-icons/hi";
@@ -103,9 +102,7 @@ export default function YearEndClosurePage() {
   const filteredEmp = employees.filter((e) => (e.name || "").toLowerCase().includes(empQuery.toLowerCase())).slice(0, 8);
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Year-End & Form 16" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -189,7 +186,6 @@ export default function YearEndClosurePage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Finalize modal */}
       {finalizeOpen && (
@@ -247,7 +243,7 @@ export default function YearEndClosurePage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }
 

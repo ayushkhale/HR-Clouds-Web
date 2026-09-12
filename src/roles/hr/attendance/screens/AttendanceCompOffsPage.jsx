@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
 import { DICTIONARY } from "../../../../shared/config/dictionary";
@@ -88,9 +87,7 @@ function AttendanceCompOffsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Compensatory Offs" />
         <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -179,7 +176,6 @@ function AttendanceCompOffsPage() {
             </div>
           </div>
         </main>
-      </div>
 
       {/* Toast */}
       {toast && (
@@ -188,7 +184,7 @@ function AttendanceCompOffsPage() {
           {toast.msg}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

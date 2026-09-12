@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { organizationAPI, tokenHelper } from "../api";
-import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopBar from "../components/DashboardTopBar";
 
 import {
@@ -55,14 +54,8 @@ const ADDRESS_FIELDS = [
 /* ──────────────────────────────────────────────────────────────────────────── */
 
 function MyProfilePage() {
-  const { role: authRole, logout } = useAuth();
-  const location = useLocation();
+  const { logout } = useAuth();
   const navigate = useNavigate();
-
-  // Determine current role from route
-  let currentRole = "employee";
-  if (location.pathname.includes("/dashboard/hr") || authRole === "hr") currentRole = "hr";
-  else if (location.pathname.includes("/dashboard/manager") || authRole === "manager") currentRole = "manager";
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -280,10 +273,7 @@ function MyProfilePage() {
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div id="my-profile-page" className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
-      <DashboardSidebar role={currentRole} />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="My Profile" />
 
         <main className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
@@ -436,8 +426,7 @@ function MyProfilePage() {
             </div>
           )}
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

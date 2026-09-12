@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCheck, HiClipboardList } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -50,7 +50,7 @@ export default function PayrollApprovalsPage() {
       showToast("Proposal approved successfully");
       loadProposals();
     } catch (err) {
-      showToast(err.message || "Failed to approve proposal", "error");
+      showToast(payrollErrorMessage(err, "Failed to approve proposal"), "error");
     }
   };
 
@@ -64,14 +64,12 @@ export default function PayrollApprovalsPage() {
       setRejectionReason("");
       loadProposals();
     } catch (err) {
-      showToast(err.message || "Failed to reject", "error");
+      showToast(payrollErrorMessage(err, "Failed to reject"), "error");
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Salary Approvals" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           
@@ -126,7 +124,6 @@ export default function PayrollApprovalsPage() {
             </div>
           )}
         </main>
-      </div>
 
       {rejectingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -150,6 +147,6 @@ export default function PayrollApprovalsPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { organizationAPI } from "../api";
-import { useAuth } from "../contexts/AuthContext";
 import { 
   HiOutlineSearch, 
   HiOutlineMail, 
@@ -13,7 +11,7 @@ import {
 } from "react-icons/hi";
 
 export default function DirectoryPage() {
-  const { role } = useAuth();
+
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,10 +41,7 @@ export default function DirectoryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={role} />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Organization Directory" />
 
         <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6 lg:space-y-8">
@@ -155,7 +150,6 @@ export default function DirectoryPage() {
             </div>
           )}
         </main>
-      </div>
-    </div>
+    </>
   );
 }

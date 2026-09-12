@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
-import { HiLightningBolt, HiRefresh, HiCheckCircle, HiExclamationCircle, HiX, HiPlay } from "react-icons/hi";
+import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
+import { HiLightningBolt, HiRefresh, HiCheckCircle, HiExclamationCircle, HiX, HiPlay, HiInformationCircle } from "react-icons/hi";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -16,9 +16,40 @@ function Toast({ toast, onClose }) {
   );
 }
 
+// Renders the numeric summary the automation engines return so HR can see the
+// real outcome (e.g. how many employees were credited vs safely skipped),
+// instead of an opaque "done" toast.
+function RunSummary({ result, stats }) {
+  if (!result) return null;
+  return (
+    <div className="mt-4 pt-4 border-t border-slate-50">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Last run</p>
+      <div className="flex flex-wrap gap-2">
+        {stats.map(({ key, label, tone }) => (
+          <span
+            key={key}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${
+              tone === "good" ? "bg-emerald-50 text-emerald-700"
+                : tone === "warn" ? "bg-amber-50 text-amber-700"
+                : tone === "bad" ? "bg-rose-50 text-rose-700"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {label}: {result[key] ?? "—"}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LeaveAutomationPage() {
   const [loadingAccrual, setLoadingAccrual] = useState(false);
   const [loadingRollover, setLoadingRollover] = useState(false);
+  const [accrualDate, setAccrualDate] = useState("");
+  const [rolloverDate, setRolloverDate] = useState("");
+  const [accrualResult, setAccrualResult] = useState(null);
+  const [rolloverResult, setRolloverResult] = useState(null);
   const [toast, setToast] = useState(null);
 
   function showToast(message, type = "success") {
@@ -27,49 +58,61 @@ export default function LeaveAutomationPage() {
   }
 
   async function handleRunAccrual() {
-    if (!window.confirm("Are you sure you want to run the Monthly Leave calculations now? It will safely add leaves to everyone's account who hasn't received them this month.")) return;
+    if (!window.confirm("Run the Monthly Leave accrual now? It safely credits leaves to anyone who hasn't received them for the target month (already-credited employees are skipped).")) return;
     setLoadingAccrual(true);
+    setAccrualResult(null);
     try {
-      showToast("Accrual engine started. This may take a few moments...", "success");
-      await leaveAPI.runAccrual();
-      showToast("Monthly accruals have been successfully processed for all employees.", "success");
+      const res = await leaveAPI.runAccrual(accrualDate || null);
+      const data = res?.data || {};
+      setAccrualResult(data);
+      showToast(`Accrual complete — ${data.credited ?? 0} credited, ${data.skipped ?? 0} skipped${data.period ? ` for ${data.period}` : ""}.`);
     } catch (err) {
-      showToast(err.message || "Failed to run accrual engine.", "error");
+      showToast(leaveErrorMessage(err, "Failed to run accrual engine."), "error");
     } finally {
       setLoadingAccrual(false);
     }
   }
 
   async function handleRunRollover() {
-    if (!window.confirm("Are you sure you want to run the New Year Calculations? This will carry-forward leftover leaves and start the new year fresh.")) return;
+    if (!window.confirm("Run the Year-End Rollover now? This carries forward leftover leaves (up to each policy's limit), lapses the rest, and seeds the new year. Run this BEFORE the January accrual.")) return;
     setLoadingRollover(true);
+    setRolloverResult(null);
     try {
-      showToast("Rollover engine started. This may take a few moments...", "success");
-      await leaveAPI.runRollover();
-      showToast("Year-end rollover has been successfully processed for all employees.", "success");
+      const res = await leaveAPI.runRollover(rolloverDate || null);
+      const data = res?.data || {};
+      setRolloverResult(data);
+      showToast(`Rollover complete — ${data.rolled ?? 0} rolled, ${data.skipped ?? 0} skipped${data.oldYear ? ` (${data.oldYear} → ${data.newYear})` : ""}.`);
     } catch (err) {
-      showToast(err.message || "Failed to run rollover engine.", "error");
+      showToast(leaveErrorMessage(err, "Failed to run rollover engine."), "error");
     } finally {
       setLoadingRollover(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Leave Automation & Maintenance" />
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
-          
-          <div className="mb-8">
+
+          <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-900">Automation Engine</h1>
             <p className="text-sm text-slate-500 mt-1">
               The "brain" of the leave system. Automatically calculates and updates employee leave balances.
             </p>
           </div>
 
+          {/* Ordering hint */}
+          <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 max-w-4xl">
+            <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+            <span>
+              These run automatically via cron in production. When triggering manually across a year boundary,
+              always run <strong>Year-End Rollover before the January accrual</strong> — the rollover seeds the
+              new year's balance rows that accrual then tops up. Both engines are idempotent and safe to re-run.
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-            
+
             {/* Monthly Accrual Card */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col">
               <div className="flex items-start gap-4 mb-4">
@@ -79,12 +122,34 @@ export default function LeaveAutomationPage() {
                 <div>
                   <h2 className="text-base font-bold text-slate-800">Monthly Leaves (Accruals)</h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Automatically deposits 1 month's worth of leaves into employees' accounts on the 1st of every month. (Safe to click multiple times - it won't double-credit anyone!)
+                    Deposits one month's worth of leaves into employees' accounts on the 1st of every month. Safe to re-run — it won't double-credit anyone.
                   </p>
                 </div>
               </div>
-              <div className="mt-auto pt-4 border-t border-slate-50 flex justify-between items-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usually runs on 1st of month</span>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                <input
+                  type="date"
+                  value={accrualDate}
+                  onChange={e => setAccrualDate(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Leave blank to use today. Set a date to run accrual for a specific month.</p>
+              </div>
+
+              <RunSummary
+                result={accrualResult}
+                stats={[
+                  { key: "period", label: "Period" },
+                  { key: "processed", label: "Processed" },
+                  { key: "credited", label: "Credited", tone: "good" },
+                  { key: "skipped", label: "Skipped", tone: "warn" },
+                  { key: "failed", label: "Failed", tone: "bad" },
+                ]}
+              />
+
+              <div className="mt-auto pt-4 border-t border-slate-50 flex justify-end items-center">
                 <button
                   onClick={handleRunAccrual}
                   disabled={loadingAccrual}
@@ -108,12 +173,35 @@ export default function LeaveAutomationPage() {
                 <div>
                   <h2 className="text-base font-bold text-slate-800">New Year Calculations (Rollover)</h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Closes out the old year. Moves unused leaves (up to the limit) into the new year, drops the rest, and gives everyone their fresh new leaves for the year!
+                    Closes out the old year. Moves unused leaves (up to the limit) into the new year, lapses the rest, and seeds everyone's fresh quotas.
                   </p>
                 </div>
               </div>
-              <div className="mt-auto pt-4 border-t border-slate-50 flex justify-between items-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usually runs on Dec 31 / Mar 31</span>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                <input
+                  type="date"
+                  value={rolloverDate}
+                  onChange={e => setRolloverDate(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Leave blank to use today. Set e.g. Jan 1 to run across a year boundary.</p>
+              </div>
+
+              <RunSummary
+                result={rolloverResult}
+                stats={[
+                  { key: "oldYear", label: "Old year" },
+                  { key: "newYear", label: "New year" },
+                  { key: "processed", label: "Processed" },
+                  { key: "rolled", label: "Rolled", tone: "good" },
+                  { key: "skipped", label: "Skipped", tone: "warn" },
+                  { key: "failed", label: "Failed", tone: "bad" },
+                ]}
+              />
+
+              <div className="mt-auto pt-4 border-t border-slate-50 flex justify-end items-center">
                 <button
                   onClick={handleRunRollover}
                   disabled={loadingRollover}
@@ -130,9 +218,8 @@ export default function LeaveAutomationPage() {
 
           </div>
         </main>
-      </div>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }
