@@ -90,6 +90,21 @@ export default function MyTaxAndInvestmentsPage() {
   );
 }
 
+// The summary's regime arrives either as a code ("new") or as the regime record
+// ({ id, code, name }) — reduce both to a lowercase code plus a display label.
+function regimeCodeOf(data) {
+  const raw = data?.regime_code ?? data?.regime;
+  const code = raw && typeof raw === "object" ? raw.code ?? raw.regime_code : raw;
+  return code ? String(code).toLowerCase() : "";
+}
+
+function regimeLabelOf(data) {
+  const raw = data?.regime;
+  if (raw && typeof raw === "object" && raw.name) return raw.name;
+  const code = regimeCodeOf(data);
+  return code ? `${code.charAt(0).toUpperCase()}${code.slice(1)} Regime` : "—";
+}
+
 function SummaryTab({ fy, showToast }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -105,11 +120,10 @@ function SummaryTab({ fy, showToast }) {
   if (!data) return <Empty text="No tax summary available yet." />;
 
   const ytd = data.ytd || data.actuals || {};
-  const regime = data.regime_code || data.regime;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat k="Regime" v={regime ? String(regime).toUpperCase() : "—"} />
+        <Stat k="Regime" v={regimeLabelOf(data)} />
         <Stat k="Projected Annual Tax" v={money(data.projected_annual_tax ?? data.projected_liability)} />
         <Stat k="TDS Deducted (YTD)" v={money(ytd.tds ?? ytd.income_tax)} />
         <Stat k="Remaining TDS" v={money(data.remaining_tds ?? data.balance_tds)} />
@@ -338,7 +352,7 @@ function RegimeTab({ fy, showToast }) {
   };
 
   if (loading) return <Skeleton type="dashboard" />;
-  const regime = data?.regime_code || data?.regime;
+  const regime = regimeCodeOf(data);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
