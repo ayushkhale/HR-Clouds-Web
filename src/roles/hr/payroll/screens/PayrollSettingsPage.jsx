@@ -67,8 +67,7 @@ export default function PayrollSettingsPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-4xl mx-auto w-full">
           
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiCog className="text-purple-600 w-7 h-7" /> Payroll Settings
+            <h1 className="text-2xl font-bold text-slate-900">Payroll Settings
             </h1>
             <p className="text-sm text-slate-500 mt-1">Configure global payroll policies, LOP rules, and manager authorities.</p>
           </div>
@@ -115,7 +114,7 @@ export default function PayrollSettingsPage() {
                       <input type="checkbox" checked={settings.manager_direct_compensation_authority} onChange={e => setSettings({...settings, manager_direct_compensation_authority: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                       <div>
                         <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Manager direct compensation authority</span>
-                        <span className="block text-xs text-slate-500 mt-0.5">If enabled, manager-proposed salaries and bonuses take effect immediately without HR approval (Tier B -> Tier A).</span>
+                        <span className="block text-xs text-slate-500 mt-0.5">If enabled, manager-proposed salaries and bonuses take effect immediately without HR approval (Tier B to Tier A).</span>
                       </div>
                     </label>
                   </div>
