@@ -2,36 +2,81 @@ import React, { useState, useEffect } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { organizationAPI, leaveAPI, attendanceAPI } from "../../../shared/api";
 import { 
-  HiUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding, 
-  HiOutlineBriefcase, HiOutlineCalendar, HiPencil, HiX, HiCheckCircle, HiExclamationCircle,
-  HiUserCircle, HiInformationCircle, HiClock
+  HiUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding,
+  HiOutlineBriefcase, HiOutlineCalendar, HiOutlineLocationMarker, HiPencil, HiX,
+  HiCheckCircle, HiExclamationCircle, HiUserCircle, HiClock
 } from "react-icons/hi";
+import { usePagedList } from "../../../shared/attendance/usePagedList";
+import { num, personName, unwrap } from "../../../shared/attendance/normalize";
+import { fmtDate, fmtHours, fmtMinutes, fmtTime, monthRange, ymdOnly } from "../../../shared/attendance/dates";
+import { ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
 function EditProfileModal({ employee, onClose, onSuccess }) {
-  const [form, setForm] = useState({
-    name: employee.name || "",
-    phone_number: employee.phone_number || "",
-    avatar_url: employee.avatar_url || ""
-  });
+  const employeeId = employee.user_id || employee.id || employee._id;
+  const blank = { name: "", phone_number: "", avatar_url: "" };
+  const [form, setForm] = useState({ ...blank, name: employee.name || "" });
+  const [initial, setInitial] = useState({ ...blank, name: employee.name || "" });
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // The roster projection doesn't carry phone/avatar, so load the full record
+  // before editing — otherwise saving would post empty strings over real values.
+  useEffect(() => {
+    if (!employeeId) {
+      setError("This team member has no resolvable id.");
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    organizationAPI.getEmployee(employeeId)
+      .then((res) => {
+        if (cancelled) return;
+        const d = res?.data || {};
+        const seeded = {
+          name: d.name || employee.name || "",
+          phone_number: d.phone_number || d.contact || "",
+          avatar_url: d.avatar || d.avatar_url || "",
+        };
+        setForm(seeded);
+        setInitial(seeded);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.data?.message || "Could not load the current profile. Only fields you edit will be saved.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [employeeId]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!employeeId) return;
+    if (!form.name.trim()) {
+      setError("Name cannot be empty.");
+      return;
+    }
+
+    // Send only what actually changed, so untouched fields are never cleared.
+    const payload = {};
+    if (form.name.trim() !== initial.name) payload.name = form.name.trim();
+    if (form.phone_number.trim() !== initial.phone_number) payload.phone_number = form.phone_number.trim();
+    if (form.avatar_url.trim() !== initial.avatar_url) payload.avatar_url = form.avatar_url.trim();
+
+    if (Object.keys(payload).length === 0) {
+      onClose();
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await organizationAPI.updateEmployeeProfile(employee.id || employee._id, {
-        name: form.name.trim(),
-        phone_number: form.phone_number.trim(),
-        avatar_url: form.avatar_url.trim()
-      });
+      await organizationAPI.updateEmployeeProfile(employeeId, payload);
       onSuccess("Profile updated successfully!");
     } catch (err) {
-      setError(err.message || "Failed to update profile.");
+      setError(err?.data?.message || err.message || "Failed to update profile.");
     } finally {
       setSubmitting(false);
     }
@@ -68,8 +113,8 @@ function EditProfileModal({ employee, onClose, onSuccess }) {
             <input type="url" name="avatar_url" value={form.avatar_url} onChange={handleChange} placeholder="https://..." className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="submit" disabled={submitting} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition disabled:opacity-60">
-              {submitting ? "Saving..." : "Save Changes"}
+            <button type="submit" disabled={submitting || loading} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition disabled:opacity-60">
+              {loading ? "Loading…" : submitting ? "Saving..." : "Save Changes"}
             </button>
             <button type="button" onClick={onClose} className="px-6 py-3 font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
           </div>
@@ -86,7 +131,7 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    leaveAPI.getTeamMemberRequests(employee.id || employee._id)
+    leaveAPI.getTeamMemberRequests(employee.user_id || employee.id || employee._id)
       .then(res => setHistory(res.data || []))
       .catch(err => setError(err.message || "Failed to load leave history."))
       .finally(() => setLoading(false));
@@ -118,7 +163,7 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
-              <HiCalendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <HiOutlineCalendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm font-semibold">No leave history found.</p>
             </div>
           ) : (
@@ -159,31 +204,39 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
 
 // ─── View Attendance Modal ────────────────────────────────────────────────────
 function ViewAttendanceModal({ employee, onClose }) {
-  const [summary, setSummary] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [summaryState, setSummaryState] = useState({ data: null, loading: true, error: null });
+  const [reloadKey, setReloadKey] = useState(0);
+  const empId = employee.user_id || employee.id || employee._id;
+  const maxMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  // M15 takes a date range + pagination (not month/year).
+  const historyList = usePagedList(
+    ({ page, limit }) => attendanceAPI.getTeamMemberHistory(empId, { ...monthRange(year, month), page, limit }),
+    { limit: 15, keys: ["records"], filterKey: `${empId}-${year}-${month}` }
+  );
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
-    const empId = employee.id || employee._id;
-    Promise.all([
-      attendanceAPI.getTeamMemberSummary(empId, month, year),
-      attendanceAPI.getTeamMemberHistory(empId, month, year)
-    ])
-      .then(([summaryRes, historyRes]) => {
-        setSummary(summaryRes.data);
-        setHistory(historyRes.data?.records || historyRes.data || []);
-      })
-      .catch(err => setError(err.message || "Failed to load attendance data."))
-      .finally(() => setLoading(false));
-  }, [employee, month, year]);
+    let alive = true;
+    setSummaryState((s) => ({ ...s, loading: true, error: null }));
+    attendanceAPI.getTeamMemberSummary(empId, month, year)
+      .then((res) => alive && setSummaryState({ data: unwrap(res), loading: false, error: null }))
+      .catch((error) => alive && setSummaryState({ data: null, loading: false, error }));
+    return () => { alive = false; };
+  }, [empId, month, year, reloadKey]);
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-  const fmtTime = (t) => t ? new Date(t).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const summary = summaryState.data;
+  const history = historyList.items;
+  const loading = summaryState.loading && historyList.loading && history.length === 0;
+  const error = summaryState.error || historyList.error;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
@@ -191,13 +244,15 @@ function ViewAttendanceModal({ employee, onClose }) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
           <div>
             <h2 className="text-base font-bold text-slate-800">Attendance Details</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{employee.name}'s attendance record.</p>
+            <p className="text-xs text-slate-400 mt-0.5">{personName(employee)}'s attendance record.</p>
           </div>
           <div className="flex items-center gap-4">
-            <input 
-              type="month" 
+            <input
+              type="month"
+              max={maxMonth}
               value={`${year}-${String(month).padStart(2, '0')}`}
               onChange={e => {
+                if (!e.target.value) return;
                 const [y, m] = e.target.value.split('-');
                 setYear(parseInt(y, 10));
                 setMonth(parseInt(m, 10));
@@ -212,33 +267,29 @@ function ViewAttendanceModal({ employee, onClose }) {
         
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-            </div>
+            <LoadingRows rows={5} />
           ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
-            </div>
+            <ErrorState error={error} onRetry={() => { historyList.reload(); setReloadKey((k) => k + 1); }} fallback="Couldn't load attendance data." />
           ) : (
             <div className="space-y-6">
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-emerald-600">{summary?.present_days || 0}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Present</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-rose-600">{summary?.absent_days || 0}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Absent</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-amber-500">{summary?.late_days || 0}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Late</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-purple-600">{summary?.total_effective_hours || "0"}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Total Hours</p>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  ["Present", num(summary?.present_days), "text-emerald-600"],
+                  ["Half days", num(summary?.half_days), "text-blue-600"],
+                  ["Absent", num(summary?.absent_days), "text-rose-600"],
+                  ["On leave", num(summary?.on_leave_days), "text-purple-600"],
+                  ["Late", num(summary?.late_days), "text-amber-500"],
+                  // Summary keys per contract §4.2 (older payloads used holidays / weekly_offs).
+                  ["Holidays / offs", num(summary?.holiday_days ?? summary?.holidays) + num(summary?.weekly_off_days ?? summary?.weekly_offs), "text-slate-600"],
+                  ["Hours worked", fmtHours(summary?.total_hours_worked ?? summary?.total_effective_hours, "0m"), "text-purple-600"],
+                  ["Overtime", fmtMinutes(summary?.total_overtime_minutes, "0m"), "text-indigo-600"],
+                ].map(([label, value, tone]) => (
+                  <div key={label} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm text-center">
+                    <p className={`text-xl font-bold ${tone}`}>{value}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase mt-1">{label}</p>
+                  </div>
+                ))}
               </div>
 
               {/* History Table */}
@@ -250,35 +301,32 @@ function ViewAttendanceModal({ employee, onClose }) {
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Clock In</th>
                       <th className="px-4 py-3">Clock Out</th>
-                      <th className="px-4 py-3">Hours</th>
+                      <th className="px-4 py-3">Effective</th>
+                      <th className="px-4 py-3">Late</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50 text-sm">
+                  <tbody className={`divide-y divide-slate-50 text-sm ${historyList.loading ? "opacity-60" : ""}`}>
                     {history.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for this month.</td>
+                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for this month.</td>
                       </tr>
                     ) : (
-                      history.map((record, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="px-4 py-3 font-medium text-slate-700">{fmtDate(record.date)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border 
-                              ${record.status === 'present' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                                record.status === 'absent' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
-                                record.status === 'half-day' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                                'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                              {record.status?.toUpperCase() || "—"}
-                            </span>
-                          </td>
+                      history.map((record) => (
+                        <tr key={record.id || record.date} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{fmtDate(ymdOnly(record.date), { weekday: "short", day: "numeric", month: "short" })}</td>
+                          <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
                           <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
                           <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
-                          <td className="px-4 py-3 text-slate-600">{record.effective_hours || "0.00"} hrs</td>
+                          <td className="px-4 py-3 text-slate-600">{fmtHours(record.effective_hours)}</td>
+                          <td className="px-4 py-3 text-amber-600">{Number(record.late_minutes) > 0 ? fmtMinutes(record.late_minutes) : "—"}</td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
+                <div className="px-4 py-3 border-t border-slate-50">
+                  <Pagination page={historyList.page} totalPages={historyList.totalPages} total={historyList.total} limit={historyList.limit} onPageChange={historyList.setPage} disabled={historyList.loading} />
+                </div>
               </div>
             </div>
           )}
@@ -327,9 +375,7 @@ export default function ManagerTeamRosterPage() {
         <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiUserGroup className="text-purple-600" />
-                My Team Roster
+              <h1 className="text-2xl font-bold text-slate-900">My Team Roster
               </h1>
               <p className="text-sm text-slate-500 mt-1">View and manage your direct reports.</p>
             </div>
@@ -363,10 +409,10 @@ export default function ManagerTeamRosterPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {team.map((emp) => (
-                <div key={emp.id || emp._id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
+                <div key={emp.user_id || emp.id || emp._id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
                   <div className="p-5 flex items-start gap-4">
-                    {emp.avatar_url ? (
-                      <img src={emp.avatar_url} alt={emp.name} className="w-14 h-14 rounded-full border-2 border-purple-100 object-cover shrink-0" />
+                    {(emp.avatar || emp.avatar_url) ? (
+                      <img src={emp.avatar || emp.avatar_url} alt={emp.name} className="w-14 h-14 rounded-full border-2 border-purple-100 object-cover shrink-0" />
                     ) : (
                       <div className="w-14 h-14 rounded-full border-2 border-purple-100 bg-purple-50 flex items-center justify-center shrink-0">
                         <HiUserCircle className="w-8 h-8 text-purple-300" />
@@ -374,10 +420,12 @@ export default function ManagerTeamRosterPage() {
                     )}
                     <div className="flex-1 min-w-0 pt-1">
                       <h3 className="font-bold text-slate-900 truncate">{emp.name || "Employee"}</h3>
-                      <p className="text-purple-600 text-[11px] font-bold uppercase tracking-wider truncate mt-0.5">{emp.designation || "Member"}</p>
+                      <p className="text-purple-600 text-[11px] font-bold uppercase tracking-wider truncate mt-0.5">
+                        {emp.designation || emp.role || "Member"}
+                      </p>
                     </div>
                   </div>
-                  
+
                   <div className="px-5 pb-5 space-y-2 text-xs text-slate-600 flex-1">
                     {emp.email && (
                       <div className="flex items-center gap-2">
@@ -385,16 +433,28 @@ export default function ManagerTeamRosterPage() {
                         <span className="truncate">{emp.email}</span>
                       </div>
                     )}
-                    {emp.phone_number && (
+                    {(emp.phone_number || emp.contact) && (
                       <div className="flex items-center gap-2">
                         <HiOutlinePhone className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span>{emp.phone_number}</span>
+                        <span>{emp.phone_number || emp.contact}</span>
                       </div>
                     )}
                     {emp.department && (
                       <div className="flex items-center gap-2">
                         <HiOutlineOfficeBuilding className="w-4 h-4 text-slate-400 shrink-0" />
                         <span className="truncate">{emp.department}</span>
+                      </div>
+                    )}
+                    {emp.work_location && (
+                      <div className="flex items-center gap-2">
+                        <HiOutlineLocationMarker className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="truncate">{emp.work_location}</span>
+                      </div>
+                    )}
+                    {emp.work_mode && (
+                      <div className="flex items-center gap-2">
+                        <HiOutlineBriefcase className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="capitalize">{String(emp.work_mode).replace(/_/g, " ")}</span>
                       </div>
                     )}
                   </div>

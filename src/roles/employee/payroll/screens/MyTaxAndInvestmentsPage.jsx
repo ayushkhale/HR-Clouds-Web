@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiPlus, HiTrash,
   HiCalculator, HiCalendar, HiScale, HiPaperClip
@@ -64,8 +65,7 @@ export default function MyTaxAndInvestmentsPage() {
         <DashboardTopBar title="Tax & Investments" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiDocumentReport className="text-purple-600 w-7 h-7" /> Tax &amp; Investments
+            <h1 className="text-2xl font-bold text-slate-900">Tax &amp; Investments
             </h1>
             <p className="text-sm text-slate-500 mt-1">FY {fy} — your regime, declarations, TDS projection and Form 16.</p>
           </div>
@@ -341,7 +341,7 @@ function RegimeTab({ fy, showToast }) {
   const regime = data?.regime_code || data?.regime;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {[
         { code: "old", title: "Old Regime", blurb: "Lower slabs but you can claim HRA, 80C, 80D and other Chapter VI-A deductions." },
         { code: "new", title: "New Regime", blurb: "Higher standard deduction, wider slabs, but most exemptions are not available." },
@@ -377,7 +377,7 @@ function TraceTab({ fy, showToast, fetcher, title }) {
 
   const steps = data.steps || data.trace || data.breakdown || [];
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Stat k="Projected Gross" v={money(data.projected_gross ?? data.annual_gross)} />
         <Stat k="Taxable Income" v={money(data.taxable_income)} />
@@ -410,12 +410,26 @@ function TraceTab({ fy, showToast, fetcher, title }) {
   );
 }
 
+// `/payroll/me/tax/monthly` has no documented response shape. Accept an array
+// under a known key, or a map keyed by month ({ "2026-04": {...} }); anything
+// else yields no rows instead of crashing the tab.
+function monthlyTaxRows(res) {
+  const list = listFrom(res, ["months", "monthly", "breakdown", "records"]);
+  if (list.length) return list;
+  const payload = unwrap(res);
+  const map = payload && typeof payload === "object" && !Array.isArray(payload) ? (payload.months || payload.monthly || payload) : null;
+  if (!map || typeof map !== "object" || Array.isArray(map)) return [];
+  return Object.entries(map)
+    .filter(([key, value]) => /^\d{4}-\d{2}/.test(key) && value && typeof value === "object")
+    .map(([key, value]) => ({ period_month: key, ...value }));
+}
+
 function MonthlyTab({ fy, showToast }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     (async () => {
-      try { const res = await payrollAPI.getMyMonthlyTax({ financial_year: fy }); setRows(res.data?.records || res.data?.months || res.data || []); }
+      try { const res = await payrollAPI.getMyMonthlyTax({ financial_year: fy }); setRows(monthlyTaxRows(res)); }
       catch (err) { showToast(err.message || "Failed to load", "error"); }
       finally { setLoading(false); }
     })();
@@ -425,7 +439,7 @@ function MonthlyTab({ fy, showToast }) {
   if (rows.length === 0) return <Empty text="No monthly tax data yet." />;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden max-w-3xl">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
       <table className="w-full text-left border-collapse text-sm">
         <thead>
           <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
@@ -469,7 +483,7 @@ function Form16Tab({ fy, showToast }) {
   };
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <h3 className="font-bold text-slate-800">Form 16 — Part B (FY {fy})</h3>
         <p className="text-sm text-slate-500 mt-1">Available only after HR finalizes the financial year. A provisional Form 16 is never issued.</p>

@@ -510,11 +510,11 @@ export default function LeaveTypesPage() {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`text-xs font-semibold ${t.sandwich_rule_applies ? "text-amber-600" : "text-slate-400"}`}>
-                            {t.sandwich_rule_applies ? "✓ Applies" : "—"}
+                            {t.sandwich_rule_applies ? "✓ Applies" : "N/A"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-xs text-slate-500">
-                          {t.requires_document_threshold > 0 ? `After ${t.requires_document_threshold} days` : "—"}
+                          {t.requires_document_threshold > 0 ? `After ${t.requires_document_threshold} days` : "0"}
                         </td>
                         <td className="px-6 py-4"><StatusBadge active={t.is_active} /></td>
                         <td className="px-6 py-4">

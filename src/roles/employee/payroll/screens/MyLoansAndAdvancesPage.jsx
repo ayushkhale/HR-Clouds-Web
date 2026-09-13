@@ -100,8 +100,7 @@ export default function MyLoansAndAdvancesPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8">
 
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiCash className="text-purple-600 w-7 h-7" /> Loans &amp; Variable Pay
+            <h1 className="text-2xl font-bold text-slate-900">Loans &amp; Variable Pay
             </h1>
             <p className="text-sm text-slate-500 mt-1">Your loan balances, EMI schedules, bonuses and one-off adjustments.</p>
           </div>

@@ -1,45 +1,41 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import RegularizationCard from "../components/RegularizationCard";
 import { attendanceAPI } from "../../../shared/api";
-import { HiSparkles } from "react-icons/hi";
+import { usePagedList } from "../../../shared/attendance/usePagedList";
 
 function AttendanceRegularizationsPage() {
-  const [regularizations, setRegularizations] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [status, setStatus] = useState("all");
+  const initialDate = searchParams.get("date") || "";
 
-  useEffect(() => {
-    fetchRegularizations();
-  }, []);
+  // The backend validates `status` but never applies it (contract §4.4 / §8.4),
+  // so the list is fetched unfiltered and the status tabs filter the loaded page.
+  const list = usePagedList(
+    ({ page, limit }) => attendanceAPI.getMyRegularizations({ page, limit }),
+    { limit: 20, keys: ["requests"] }
+  );
 
-  const fetchRegularizations = async () => {
-    try {
-      const res = await attendanceAPI.getMyRegularizations();
-      if (res.success) {
-        setRegularizations(res.data?.requests || res.data || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // Remove ?date= once the form has opened so a refresh doesn't reopen it.
+  const consumePrefill = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("date");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   return (
     <>
-        <DashboardTopBar title="Attendance Regularizations" />
-
-        <main className="p-6 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6 lg:space-y-8">
-          
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Attendance Regularizations</h1>
-              <p className="text-sm text-slate-500 mt-1">Submit requests to fix missing punches or correct attendance anomalies.</p>
-            </div>
-          </div>
-
-          <div className="w-full">
-            <RegularizationCard requests={regularizations} fetchRegularizations={fetchRegularizations} />
-          </div>
-
-        </main>
+      <DashboardTopBar title="Attendance Regularizations" />
+      <main className="p-4 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Attendance Regularizations</h1>
+          <p className="text-sm text-slate-500 mt-1">Request corrections for missed or wrong punches and track their approval.</p>
+        </div>
+        <RegularizationCard list={list} statusFilter={status} onStatusChange={setStatus} initialDate={initialDate} onPrefillConsumed={consumePrefill} />
+      </main>
     </>
   );
 }

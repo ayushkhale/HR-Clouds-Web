@@ -7,6 +7,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useDocMindChat } from '../hooks/useDocMindChat';
+import { useMayaVisibility } from '../hooks/useMayaVisibility';
 
 /* ─── helpers ─── */
 const ts = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -85,6 +86,7 @@ const ChatbotWidget = () => {
   const textareaRef    = useRef(null);
 
   const { messages, sendMessage, clearMessages, isLoading, isStreaming, error, config } = useDocMindChat();
+  const { hidden } = useMayaVisibility(); // toggled from My Profile
 
   /* Config values */
   const w             = config?.widget || {};
@@ -125,6 +127,8 @@ const ChatbotWidget = () => {
   const charsLeft = maxLen - inputValue.length;
   const charWarn  = charsLeft < 100;
 
+  // Stays mounted while hidden, so the conversation survives a hide/show.
+  if (hidden) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end font-sans select-none pointer-events-none">

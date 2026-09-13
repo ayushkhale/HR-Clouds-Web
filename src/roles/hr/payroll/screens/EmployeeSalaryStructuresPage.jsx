@@ -34,7 +34,7 @@ const STRUCT_STATUS = {
 
 const userId = (u) => u?.id || u?.user_id || u?._id;
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
-const userDept = (u) => u?.department || u?.department_name || "—";
+const userDept = (u) => u?.department || u?.department_name || "N/A";
 
 // ── Revision history (all statuses — HR needs the full audit picture, #17) ──
 function HistoryModal({ user, onClose, showToast }) {
@@ -54,7 +54,7 @@ function HistoryModal({ user, onClose, showToast }) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Salary history</h2>
-            <p className="text-xs text-slate-500">{userName(user)}{userDept(user) !== "—" ? ` · ${userDept(user)}` : ""}</p>
+            <p className="text-xs text-slate-500">{userName(user)}{userDept(user) !== "N/A" ? ` · ${userDept(user)}` : ""}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
         </div>
@@ -370,8 +370,7 @@ export default function EmployeeSalaryStructuresPage() {
       <DashboardTopBar title="Employee Salary Structures" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <HiUserGroup className="text-purple-600 w-7 h-7" /> Salary Assignment
+          <h1 className="text-2xl font-bold text-slate-900">Salary Assignment
           </h1>
           <p className="text-sm text-slate-500 mt-1">Review current pay, then assign or revise salary structures.</p>
         </div>
@@ -408,7 +407,7 @@ export default function EmployeeSalaryStructuresPage() {
                             <span className="text-xs text-slate-400">Not set</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-slate-500">{cur ? formatDate(cur.effective_from) : "—"}</td>
+                        <td className="px-6 py-4 text-slate-500">{cur ? formatDate(cur.effective_from) : "N/A"}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-1.5">
                             <button onClick={() => setHistoryUser(user)} title="Salary history"

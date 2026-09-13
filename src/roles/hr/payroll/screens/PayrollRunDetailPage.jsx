@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI } from "../../../../shared/api";
+import { payrollAPI, organizationAPI } from "../../../../shared/api";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiArrowLeft, HiCalculator,
   HiCheck, HiCash, HiSearch, HiChevronLeft, HiChevronRight, HiBan,
@@ -26,22 +26,38 @@ function Toast({ toast, onClose }) {
 }
 
 // Resolve a display name for a run item, however the backend nested it.
-const itemName = (it) =>
-  it.employee_name ||
-  it.user?.profile?.display_name ||
-  [it.user?.profile?.first_name, it.user?.profile?.last_name].filter(Boolean).join(" ").trim() ||
-  it.name ||
-  it.user?.identifier ||
-  it.employee_code ||
-  "Unknown";
+const itemName = (it, emps = []) => {
+  const emp = emps.find(e => (e.id || e.user_id || e._id) === it.user_id || (e.id || e.user_id || e._id) === it.employee_id);
+  if (emp) return emp.name || emp.display_name || [emp.first_name, emp.last_name].filter(Boolean).join(" ").trim();
+  return it.employee_name ||
+    it.employee?.name ||
+    it.employee?.display_name ||
+    [it.employee?.first_name, it.employee?.last_name].filter(Boolean).join(" ").trim() ||
+    it.employee?.identifier ||
+    it.user?.profile?.display_name ||
+    [it.user?.profile?.first_name, it.user?.profile?.last_name].filter(Boolean).join(" ").trim() ||
+    it.name ||
+    it.user?.identifier ||
+    it.employee_code ||
+    "Unknown";
+};
 
-const itemDept = (it) => it.department || it.department_name || it.user?.department || it.user?.profile?.department || "—";
-const itemCode = (it) => it.employee_code || it.user?.profile?.employee_code || null;
+const itemDept = (it, emps = []) => {
+  const emp = emps.find(e => (e.id || e.user_id || e._id) === it.user_id || (e.id || e.user_id || e._id) === it.employee_id);
+  if (emp && (emp.department || emp.department_name)) return emp.department || emp.department_name;
+  return it.department || it.department_name || it.employee?.department || it.employee?.department_name || it.user?.department || it.user?.profile?.department || "N/A";
+};
+
+const itemCode = (it, emps = []) => {
+  const emp = emps.find(e => (e.id || e.user_id || e._id) === it.user_id || (e.id || e.user_id || e._id) === it.employee_id);
+  if (emp && (emp.employee_code || emp.code)) return emp.employee_code || emp.code;
+  return it.employee_code || it.employee?.employee_code || it.user?.profile?.employee_code || null;
+};
 
 const ITEM_STATUS = {
-  pending:    { cls: "bg-slate-100 text-slate-600",  label: "Pending" },
+  pending:    { cls: "bg-slate-50 text-slate-600 border border-slate-200",  label: "Pending" },
   calculated: { cls: "bg-emerald-50 text-emerald-700 border border-emerald-200", label: "Calculated" },
-  error:      { cls: "bg-red-50 text-red-700 border border-red-200", label: "Error" },
+  error:      { cls: "bg-rose-50 text-rose-700 border border-rose-200", label: "Error" },
   excluded:   { cls: "bg-amber-50 text-amber-700 border border-amber-200", label: "Excluded" },
 };
 
@@ -240,6 +256,7 @@ export default function PayrollRunDetailPage() {
   const [run, setRun] = useState(null);
   const [preview, setPreview] = useState(null);
   const [items, setItems] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
@@ -260,12 +277,14 @@ export default function PayrollRunDetailPage() {
 
   const loadHeader = useCallback(async () => {
     try {
-      const [runRes, prevRes] = await Promise.all([
+      const [runRes, prevRes, empRes] = await Promise.all([
         payrollAPI.getRun(runId),
         payrollAPI.getRunPreview(runId).catch(() => null),
+        organizationAPI.getEmployees({ purpose: "emp_report" }).catch(() => null),
       ]);
       setRun(runRes.data || runRes);
       if (prevRes) setPreview(prevRes.data || prevRes);
+      if (empRes) setEmployees(empRes.data?.records || empRes.data || empRes || []);
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to load run"), "error");
     }
@@ -297,7 +316,7 @@ export default function PayrollRunDetailPage() {
 
   // Client-side name search over the current page (server filters by UUID only).
   const visibleItems = search.trim()
-    ? items.filter((it) => itemName(it).toLowerCase().includes(search.trim().toLowerCase()) || (itemCode(it) || "").toLowerCase().includes(search.trim().toLowerCase()))
+    ? items.filter((it) => itemName(it, employees).toLowerCase().includes(search.trim().toLowerCase()) || (itemCode(it, employees) || "").toLowerCase().includes(search.trim().toLowerCase()))
     : items;
 
   const errorCount = run?.error_count ?? preview?.error_items?.length ?? 0;
@@ -518,34 +537,33 @@ export default function PayrollRunDetailPage() {
                     <tr key={it.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3.5">
                         <button onClick={() => setDetailItemId(it.id)} className="text-left group">
-                          <p className="font-bold text-slate-800 group-hover:text-purple-700 transition">{itemName(it)}</p>
-                          <p className="text-xs text-slate-400">{itemDept(it)}{itemCode(it) ? ` · ${itemCode(it)}` : ""}</p>
+                          <p className="font-bold text-slate-800 group-hover:text-purple-700 transition">{itemName(it, employees)}</p>
+                          <p className="text-xs text-slate-400">{itemDept(it, employees)}{itemCode(it, employees) ? ` · ${itemCode(it, employees)}` : ""}</p>
                         </button>
                       </td>
                       <td className="px-5 py-3.5">
                         <StatusBadge status={it.status} />
-                        {it.status === "error" && it.error_code && <p className="text-[11px] text-red-500 mt-1">{it.error_code}</p>}
                       </td>
                       <td className="px-5 py-3.5 text-right tabular-nums text-slate-600">{it.payable_days ?? "—"} / {it.lop_days ?? "—"}</td>
                       <td className="px-5 py-3.5 text-right tabular-nums font-semibold text-slate-800">{formatMoney(it.gross_earnings)}</td>
                       <td className="px-5 py-3.5 text-right tabular-nums font-bold text-emerald-600">{formatMoney(it.net_pay)}</td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setDetailItemId(it.id)} title="View payslip" className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button onClick={() => setDetailItemId(it.id)} title="View payslip" className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition">
                             <HiOutlineDocumentSearch className="w-4 h-4" />
                           </button>
                           {editable && it.status !== "excluded" && (
                             <>
-                              <button onClick={() => setReasonModal({ kind: "period", item: it })} title="Override pay period" className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition">
+                              <button onClick={() => setReasonModal({ kind: "period", item: it })} title="Override pay period" className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition">
                                 <HiCalendar className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setReasonModal({ kind: "exclude", item: it })} title="Exclude from run" className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition">
+                              <button onClick={() => setReasonModal({ kind: "exclude", item: it })} title="Exclude from run" className="p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition">
                                 <HiBan className="w-4 h-4" />
                               </button>
                             </>
                           )}
                           {editable && it.status === "excluded" && (
-                            <button onClick={() => includeItem(it)} disabled={busy} title="Re-include" className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-50">
+                            <button onClick={() => includeItem(it)} disabled={busy} title="Re-include" className="p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition disabled:opacity-50">
                               <HiRefresh className="w-4 h-4" />
                             </button>
                           )}
@@ -576,7 +594,7 @@ export default function PayrollRunDetailPage() {
 
       {reasonModal?.kind === "exclude" && (
         <ReasonModal
-          title={`Exclude ${itemName(reasonModal.item)}`}
+          title={`Exclude ${itemName(reasonModal.item, employees)}`}
           label="Exclusion reason"
           placeholder="e.g. Disciplinary hold, pending bank details"
           confirmLabel="Exclude"
@@ -588,7 +606,7 @@ export default function PayrollRunDetailPage() {
 
       {reasonModal?.kind === "period" && (
         <ReasonModal
-          title={`Override pay period — ${itemName(reasonModal.item)}`}
+          title={`Override pay period — ${itemName(reasonModal.item, employees)}`}
           label="Reason"
           placeholder="e.g. Mid-month termination"
           confirmLabel="Update period"

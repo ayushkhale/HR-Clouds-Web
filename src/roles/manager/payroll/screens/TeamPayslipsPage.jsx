@@ -193,8 +193,7 @@ export default function TeamPayslipsPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiDocumentReport className="text-purple-600 w-7 h-7" /> Team Payslips
+            <h1 className="text-2xl font-bold text-slate-900">Team Payslips
             </h1>
             <p className="text-sm text-slate-500 mt-1">Finalized payslips for your direct reports. Open a run to see the whole team's cost.</p>
           </div>

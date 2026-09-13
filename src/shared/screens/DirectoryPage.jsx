@@ -24,10 +24,11 @@ export default function DirectoryPage() {
   async function fetchDirectory() {
     try {
       setLoading(true);
+      setError(null);
       const res = await organizationAPI.getDirectory();
-      setEmployees(res.data || []);
+      setEmployees(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
-      setError(err.message || "Failed to load directory.");
+      setError(err?.data?.message || err?.message || "Failed to load directory.");
     } finally {
       setLoading(false);
     }
@@ -67,15 +68,19 @@ export default function DirectoryPage() {
             </div>
           </div>
 
-          {/* Error State */}
-          {error && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100">
-              {error}
-            </div>
-          )}
-
           {/* Directory Grid */}
-          {loading ? (
+          {error && !loading ? (
+            <div className="bg-red-50 text-red-700 p-6 rounded-xl text-sm border border-red-200 flex flex-wrap items-center gap-3">
+              <span className="font-semibold">{error}</span>
+              <button
+                type="button"
+                onClick={fetchDirectory}
+                className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-red-200 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl h-64 border border-slate-100 animate-pulse"></div>
@@ -87,18 +92,22 @@ export default function DirectoryPage() {
                 <HiUsers className="w-8 h-8 text-slate-400" />
               </div>
               <h3 className="text-lg font-bold text-slate-800">No members found</h3>
-              <p className="text-slate-500 text-sm mt-1">We couldn't find anyone matching your search criteria.</p>
+              <p className="text-slate-500 text-sm mt-1">
+                {searchQuery
+                  ? "We couldn't find anyone matching your search criteria."
+                  : "The directory is empty."}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredEmployees.map((emp) => (
-                <div key={emp.id || emp._id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
+                <div key={emp.user_id || emp.id || emp._id || emp.email} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
                   <div className="h-20 bg-gradient-to-r from-purple-500 to-indigo-600 relative">
                     <div className="absolute -bottom-10 inset-x-0 flex justify-center">
-                      {emp.avatar_url ? (
-                        <img 
-                          src={emp.avatar_url} 
-                          alt={emp.name} 
+                      {(emp.avatar || emp.avatar_url) ? (
+                        <img
+                          src={emp.avatar || emp.avatar_url}
+                          alt={emp.name}
                           className="w-20 h-20 rounded-full border-4 border-white object-cover bg-white"
                         />
                       ) : (

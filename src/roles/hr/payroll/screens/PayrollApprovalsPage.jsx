@@ -74,8 +74,7 @@ export default function PayrollApprovalsPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiClipboardList className="text-purple-600 w-7 h-7" /> Maker-Checker Queue
+            <h1 className="text-2xl font-bold text-slate-900">Maker-Checker Queue
             </h1>
             <p className="text-sm text-slate-500 mt-1">Review and approve salary structures proposed by managers or other HRs.</p>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { organizationAPI, hrmsAPI } from "../../../shared/api";
+import { organizationAPI } from "../../../shared/api";
+import { canBeHOD } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
@@ -10,8 +11,7 @@ import LeaveTab from "./employee-profile/LeaveTab";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar,
   HiOutlineCalendar,
-  HiOutlineOfficeBuilding, HiOutlinePhone, HiOutlineMail,
-  HiCog, HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
+  HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
 } from "react-icons/hi";
 
 const TABS = [
@@ -63,13 +63,39 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
     }));
   };
 
+  const isManagerial = employeeRole === "manager" || employeeRole === "hr";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Client-side guards mirroring the backend transfer contract.
+    if (!form.new_department_id) {
+      setError("Select a new department (or choose “Remove from department”).");
+      return;
+    }
+    if (isManagerial && form.is_current_hod && !form.replacement_hod_id) {
+      setError("A Replacement HOD is required when the user is the current Head of Department.");
+      return;
+    }
+    if (!isManagerial && form.new_department_id === "none" && !form.new_manager_id) {
+      setError("A New Manager is required when removing an employee from their department.");
+      return;
+    }
+    // For an employee moving into a department, the backend requires a manager
+    // unless that department already has an active HOD to inherit them.
+    if (!isManagerial && form.new_department_id !== "none" && !form.new_manager_id) {
+      const targetDept = departments.find(d => String(d.id || d._id) === String(form.new_department_id));
+      if (targetDept && !targetDept.head_of_department_id) {
+        setError(`“${targetDept.name}” has no Head of Department — select a New Manager for this employee.`);
+        return;
+      }
+    }
+
     setSubmitting(true);
-    
+
     const payload = { role: employeeRole };
-    
+
     if (form.new_department_id === "none") {
       payload.new_department_id = null;
     } else if (form.new_department_id) {
@@ -77,17 +103,18 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
     }
 
     if (form.new_manager_id) payload.new_manager_id = form.new_manager_id;
-    if (form.is_current_hod) {
+    // HOD handover only applies to managerial roles.
+    if (isManagerial && form.is_current_hod) {
       payload.is_current_hod = true;
       if (form.replacement_hod_id) payload.replacement_hod_id = form.replacement_hod_id;
     }
-    if (form.is_new_hod) payload.is_new_hod = true;
-    if (requiresFallback && form.old_dept_fallback_manager_id) {
+    if (isManagerial && form.is_new_hod) payload.is_new_hod = true;
+    if (isManagerial && form.old_dept_fallback_manager_id) {
       payload.old_dept_fallback_manager_id = form.old_dept_fallback_manager_id;
     }
 
     try {
-      await hrmsAPI.transferDepartment(userId, payload);
+      await organizationAPI.transferDepartment(userId, payload);
       onSuccess("Department transferred successfully.");
     } catch (err) {
       if (err.data?.errorCode === "MISSING_FALLBACK_MANAGER") {
@@ -156,16 +183,22 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
                 >
                   <option value="">Select a manager...</option>
-                  {employees.map(e => {
+                  {employees.filter(x => canBeHOD(x.role)).map(e => {
                     const id = e.user_id || e.id;
                     const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
                     if (String(id) === String(userId)) return null;
                     return <option key={id} value={id}>{name}</option>;
                   })}
                 </select>
-                <p className="text-[10px] text-slate-400 mt-1">Required if the user's new department has no HOD, or if moving them to "No Department". Ignored for HR/Manager roles.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Required if the user&apos;s new department has no HOD, or if moving them to &ldquo;No Department&rdquo;. Ignored for HR/Manager roles.</p>
+                {employees.filter(x => canBeHOD(x.role)).length === 0 && (
+                  <p className="text-[10px] text-amber-600 font-semibold mt-1">
+                    No Managers or HR admins exist yet — create one before transferring.
+                  </p>
+                )}
               </div>
 
+              {isManagerial && (<>
               <div className="border-t border-slate-100 my-2"></div>
 
               <label className="flex items-start gap-3 cursor-pointer group">
@@ -190,7 +223,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
                   >
                     <option value="">Who will take over?</option>
-                    {employees.map(e => {
+                    {employees.filter(x => canBeHOD(x.role)).map(e => {
                       const id = e.user_id || e.id;
                       const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
                       if (String(id) === String(userId)) return null;
@@ -223,7 +256,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
                     className="w-full bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-amber-900 outline-none focus:border-amber-500 transition-all"
                   >
                     <option value="">Select fallback manager...</option>
-                    {employees.map(e => {
+                    {employees.filter(x => canBeHOD(x.role)).map(e => {
                       const id = e.user_id || e.id;
                       const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
                       if (String(id) === String(userId)) return null;
@@ -232,6 +265,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
                   </select>
                 </div>
               )}
+              </>)}
             </>
           )}
 
@@ -263,12 +297,15 @@ export default function EmployeeProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
-  const initialTab = queryParams.get("tab") || "overview";
+  // An unknown ?tab= value would match no panel and leave the content area blank.
+  const requestedTab = queryParams.get("tab");
+  const initialTab = TABS.some((t) => t.key === requestedTab) ? requestedTab : "overview";
   
   const [activeTab, setActiveTab] = useState(initialTab);
   const [employee, setEmployee] = useState(null);
   const [managerName, setManagerName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -289,44 +326,42 @@ export default function EmployeeProfilePage() {
 
     const fetchEmployee = async () => {
       setLoading(true);
+      setLoadError("");
       try {
-        // Fetch detailed profile using the Phase 2 endpoint
-        console.log("Fetching detailed profile for user_id:", userId);
         const profileRes = await organizationAPI.getEmployee(userId);
-        console.log("Response from getEmployee API:", profileRes);
-        
+
         if (profileRes?.data) {
           setEmployee(profileRes.data);
-          
-          if (profileRes.data.reporting_person) {
-            try {
-              const mgrRes = await organizationAPI.getEmployee(profileRes.data.reporting_person);
-              if (mgrRes?.data) {
-                setManagerName(mgrRes.data.name || `${mgrRes.data.first_name || ''} ${mgrRes.data.last_name || ''}`.trim());
-              }
-            } catch (err) {
-              console.error("Failed to fetch reporting manager details:", err);
-            }
-          }
-
-          setLoading(false);
-          return;
+          // The detail endpoint already resolves the reporting person's name —
+          // no second round-trip needed.
+          const mgr = profileRes.data.reporting_person_details;
+          setManagerName(mgr?.name || "");
+        } else {
+          setEmployee(null);
         }
       } catch (err) {
-        console.error("Failed to fetch detailed profile:", err);
-        // Fallback to org members list if direct fetch fails (e.g. backend not fully implemented)
-        try {
-          const orgRes = await organizationAPI.getEmployees({ purpose: "shift_assignment" });
-          if (orgRes?.success && orgRes?.data) {
-            const found = orgRes.data.find(e => String(e.user_id || e.id) === String(userId));
-            setEmployee(found || null);
-            if (found && found.reporting_person) {
-              const mgr = orgRes.data.find(e => String(e.user_id || e.id) === String(found.reporting_person));
-              if (mgr) setManagerName(mgr.name || `${mgr.first_name || ''} ${mgr.last_name || ''}`.trim());
-            }
-          }
-        } catch {
+        // A 403 means out-of-scope/non-existent (BOLA guard) and a 404 means not
+        // found — neither should be papered over with a roster fallback.
+        if (err.status === 403 || err.status === 404) {
+          setLoadError(
+            err.status === 403
+              ? "You don't have access to this employee's profile."
+              : "Employee not found."
+          );
           setEmployee(null);
+        } else {
+          // Transient/backend error — best-effort fallback to the roster list.
+          try {
+            const orgRes = await organizationAPI.getEmployees({ purpose: "emp_report" });
+            if (orgRes?.success && orgRes?.data) {
+              const found = orgRes.data.find(e => String(e.user_id || e.id) === String(userId));
+              setEmployee(found || null);
+              if (!found) setLoadError("Could not load this employee's profile.");
+            }
+          } catch {
+            setEmployee(null);
+            setLoadError(err?.message || "Could not load this employee's profile.");
+          }
         }
       } finally {
         setLoading(false);
@@ -346,11 +381,9 @@ export default function EmployeeProfilePage() {
     setIsActionLoading(true);
     setActionError("");
     try {
-      const res = await organizationAPI.updateEmployeeStatus(userId, { is_active: newStatus });
-      console.log("Toggle Status Success:", res);
+      await organizationAPI.updateEmployeeStatus(userId, { is_active: newStatus });
       setEmployee(prev => ({ ...prev, is_active: newStatus, status: newStatus ? "active" : "inactive" }));
     } catch (err) {
-      console.error("Toggle Status Error:", err);
       setActionError(err.message || `Failed to ${actionText} employee`);
     } finally {
       setIsActionLoading(false);
@@ -363,11 +396,9 @@ export default function EmployeeProfilePage() {
     setIsActionLoading(true);
     setActionError("");
     try {
-      const res = await organizationAPI.deleteEmployee(userId);
-      console.log("Delete Employee Success:", res);
+      await organizationAPI.deleteEmployee(userId);
       navigate("/dashboard/hr/employees");
     } catch (err) {
-      console.error("Delete Employee Error:", err);
       setActionError(err.message || "Failed to delete employee");
       setIsActionLoading(false);
     }
@@ -396,6 +427,16 @@ export default function EmployeeProfilePage() {
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 capitalize flex items-center gap-1.5 ml-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
                   {employeeRole}
+                </span>
+              )}
+              {!loading && employee && (
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold flex items-center gap-1.5 ${
+                  employee.is_active === false
+                    ? "bg-rose-50 text-rose-700"
+                    : "bg-emerald-50 text-emerald-700"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${employee.is_active === false ? "bg-rose-500" : "bg-emerald-500"}`}></span>
+                  {employee.is_active === false ? "Inactive" : "Active"}
                 </span>
               )}
             </div>
@@ -442,6 +483,13 @@ export default function EmployeeProfilePage() {
               )}
             </div>
           </div>
+
+          {loadError && !loading && (
+            <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold flex items-center gap-2">
+              <HiBan className="w-5 h-5 shrink-0" />
+              {loadError}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6 items-start">
             {/* ── LEFT: Employee Card ── */}
@@ -504,7 +552,15 @@ export default function EmployeeProfilePage() {
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Manager</span>
-                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={managerName || employee.reporting_person}>{managerName || employee.reporting_person || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={managerName || undefined}>
+                          {managerName || "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Dept. Head</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.department_head_details?.name || undefined}>
+                          {employee.department_head_details?.name || "—"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -556,11 +612,17 @@ export default function EmployeeProfilePage() {
 
               {/* Tab Content Area */}
               <div>
-                {activeTab === "overview" && (
-                <OverviewTab userId={userId} employeeRole={employeeRole} />
+                {/* Attendance reads are split by role (/employees, /managers, /hrs).
+                    Wait for the profile so a manager/HR isn't first queried through
+                    /employees/* — that stale response could overwrite the real one. */}
+                {(activeTab === "overview" || activeTab === "attendance") && loading && (
+                  <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
+                )}
+                {activeTab === "overview" && !loading && employee && (
+                <OverviewTab key={userId} userId={userId} employeeRole={employeeRole} />
               )}
-              {activeTab === "attendance" && (
-                <AttendanceTab userId={userId} employeeRole={employeeRole} />
+              {activeTab === "attendance" && !loading && employee && (
+                <AttendanceTab key={userId} userId={userId} employeeRole={employeeRole} />
               )}
               {activeTab === "leave" && (
                 <LeaveTab userId={userId} />
@@ -569,7 +631,7 @@ export default function EmployeeProfilePage() {
                 <ProfileTab employee={employee} />
               )}
               {activeTab === "reports" && (
-                <ReportsTab userId={userId} />
+                <ReportsTab userId={userId} employeeName={displayName} />
               )}
               </div>
             </div>
@@ -660,11 +722,16 @@ export default function EmployeeProfilePage() {
             setShowTransferModal(false);
             setSuccessToast(msg);
             setTimeout(() => setSuccessToast(""), 4000);
-            // Re-fetch profile to show new department
+            // Re-fetch profile so the new department AND the rewired reporting
+            // line are both reflected.
             setLoading(true);
             organizationAPI.getEmployee(userId).then(profileRes => {
-              if (profileRes?.data) setEmployee(profileRes.data);
-            }).finally(() => setLoading(false));
+              if (profileRes?.data) {
+                setEmployee(profileRes.data);
+                setManagerName(profileRes.data.reporting_person_details?.name || "");
+              }
+            }).catch(() => { /* toast already shown; keep prior data */ })
+              .finally(() => setLoading(false));
           }}
         />
       )}

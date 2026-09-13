@@ -45,25 +45,17 @@ const ENTITY_TYPES = [
 
 const ENTITY_LABEL = Object.fromEntries(ENTITY_TYPES.map(([v, l]) => [v, l]));
 
-// Colour actions by their consequence so a scan surfaces destructive events.
-const actionTone = (action = "") => {
-  const a = action.toLowerCase();
-  if (/(reject|cancel|delete|deactivate|foreclose|exclude)/.test(a)) return "bg-red-100 text-red-700";
-  if (/(approve|verify|finalize|apply|pay|activate)/.test(a)) return "bg-emerald-100 text-emerald-700";
-  if (/(create|grant|bootstrap|add)/.test(a)) return "bg-purple-100 text-purple-700";
-  if (/(update|override|revise|edit|replace|set)/.test(a)) return "bg-amber-100 text-amber-700";
-  return "bg-slate-100 text-slate-600";
-};
+const actionTone = () => "bg-slate-50 text-slate-600 border-slate-200";
 
 const fmtWhen = (d) => {
-  if (!d) return "—";
+  if (!d) return "N/A";
   const date = new Date(d);
   return Number.isNaN(date.getTime())
-    ? "—"
+    ? "N/A"
     : date.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "—");
+const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "N/A");
 
 const emptyFilters = { entity_type: "", action: "", target_user_id: "", from: "", to: "" };
 const PAGE_SIZE = 20; // fixed request size — the user never changes it, so it must not depend on the response
@@ -86,7 +78,7 @@ export default function PayrollAuditLogPage() {
   }, []);
 
   const empName = useCallback(
-    (id) => employees.find((e) => userId(e) === id)?.name || id || "—",
+    (id) => employees.find((e) => userId(e) === id)?.name || id || "N/A",
     [employees]
   );
 
@@ -142,48 +134,49 @@ export default function PayrollAuditLogPage() {
       <DashboardTopBar title="Audit Log" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <HiDatabase className="text-purple-600 w-7 h-7" /> Payroll Audit Log
+          <h1 className="text-2xl font-bold text-slate-900">Payroll Audit Log
           </h1>
           <p className="text-sm text-slate-500 mt-1">An append-only record of every payroll change — who did what, and when.</p>
         </div>
 
         {/* Filter bar */}
         <form onSubmit={applyFilters} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Entity</label>
-              <select value={draft.entity_type} onChange={(e) => setDraft({ ...draft, entity_type: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+              <select value={draft.entity_type} onChange={(e) => setDraft({ ...draft, entity_type: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
                 {ENTITY_TYPES.map(([v, l]) => <option key={v || "all"} value={v}>{l}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Action</label>
-              <input value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} placeholder="e.g. approve" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+              <input value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} placeholder="e.g. approve" className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Employee</label>
-              <select value={draft.target_user_id} onChange={(e) => setDraft({ ...draft, target_user_id: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+              <select value={draft.target_user_id} onChange={(e) => setDraft({ ...draft, target_user_id: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
                 <option value="">Anyone</option>
                 {employees.map((e) => <option key={userId(e)} value={userId(e)}>{userName(e)}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">From</label>
-              <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+              <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">To</label>
-              <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+              <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
-          </div>
-          <div className="flex items-center justify-end gap-2 mt-3">
-            {hasFilters && (
-              <button type="button" onClick={resetFilters} className="px-3 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition">Clear</button>
-            )}
-            <button type="submit" className="px-4 py-2 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
-              <HiFilter className="w-4 h-4" /> Apply
-            </button>
+            <div className="flex items-end gap-2 h-full pb-0">
+              <button type="submit" className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200">
+                <HiFilter className="w-4 h-4" /> Apply
+              </button>
+              {hasFilters && (
+                <button type="button" onClick={resetFilters} className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 border border-transparent rounded-lg transition" title="Clear filters">
+                  <HiX className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </form>
 
@@ -206,7 +199,7 @@ export default function PayrollAuditLogPage() {
                     const key = log.id || i;
                     const isOpen = expanded === key;
                     const meta = log.changes ?? log.metadata ?? log.details ?? log.diff ?? null;
-                    const actor = log.actor_name || log.performed_by_name || empName(log.actor_user_id || log.performed_by || log.user_id);
+                    const actor = log.actor_name || log.performed_by_name || empName(log.actor_id || log.actor_user_id || log.performed_by || log.user_id);
                     const target = log.target_user_id ? empName(log.target_user_id) : null;
                     return (
                       <React.Fragment key={key}>
@@ -217,19 +210,15 @@ export default function PayrollAuditLogPage() {
                           <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{fmtWhen(log.created_at || log.timestamp || log.performed_at)}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{actor}</td>
                           <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${actionTone(log.action)}`}>{prettify(log.action)}</span>
+                            <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${actionTone(log.action)}`}>{prettify(log.action)}</span>
                           </td>
                           <td className="px-6 py-4 text-slate-600 capitalize">{ENTITY_LABEL[log.entity_type] || prettify(log.entity_type)}</td>
-                          <td className="px-6 py-4 text-slate-600">{target || <span className="text-slate-300">—</span>}</td>
+                          <td className="px-6 py-4 text-slate-600">{target || <span className="text-slate-300 font-medium">N/A</span>}</td>
                         </tr>
                         {isOpen && (
                           <tr className="bg-slate-50/60">
                             <td colSpan={6} className="px-6 py-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-xs mb-3">
-                                {log.entity_id && <div><span className="font-bold text-slate-400 uppercase mr-2">Entity ID</span><span className="font-mono text-slate-600">{log.entity_id}</span></div>}
-                                {log.ip_address && <div><span className="font-bold text-slate-400 uppercase mr-2">IP</span><span className="font-mono text-slate-600">{log.ip_address}</span></div>}
-                                {log.reason && <div className="sm:col-span-2"><span className="font-bold text-slate-400 uppercase mr-2">Reason</span><span className="text-slate-600">{log.reason}</span></div>}
-                              </div>
+                              {log.reason && <div className="text-xs mb-3"><span className="font-bold text-slate-400 uppercase mr-2">Reason</span><span className="text-slate-600">{log.reason}</span></div>}
                               {meta ? (
                                 <pre className="bg-white border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto whitespace-pre-wrap break-words">
                                   {typeof meta === "string" ? meta : JSON.stringify(meta, null, 2)}

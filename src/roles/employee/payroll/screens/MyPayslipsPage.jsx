@@ -59,8 +59,7 @@ export default function MyPayslipsPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
           
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiDocumentText className="text-purple-600 w-7 h-7" /> My Payslips
+            <h1 className="text-2xl font-bold text-slate-900">My Payslips
             </h1>
             <p className="text-sm text-slate-500 mt-1">View and download your monthly salary slips.</p>
           </div>

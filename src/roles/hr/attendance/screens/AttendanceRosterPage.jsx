@@ -1,292 +1,179 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { attendanceAPI, organizationAPI } from "../../../../shared/api";
-import {
-  HiUserGroup, HiPlus, HiX, HiCheckCircle,
-  HiExclamationCircle, HiSearch, HiDotsVertical, HiBan, HiTrash
-} from "react-icons/hi";
+import { attendanceAPI } from "../../../../shared/api";
+import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
+import EmployeePicker from "../../../../shared/attendance/EmployeePicker";
+import { validateAssignment, validateEndAssignment, hasErrors } from "../../../../shared/attendance/validation";
+import { listFrom, personName, personEmail, employeeCode, initials } from "../../../../shared/attendance/normalize";
+import { fmtDate, fmtClock, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
+import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
+import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, Pagination, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
+import { HiUserGroup, HiPlus, HiX, HiSearch, HiDotsVertical, HiTrash } from "react-icons/hi";
 
-function fmtDate(d) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
+const PAGE_SIZE = 25;
 
-function format12Hour(timeStr) {
-  if (!timeStr) return '?';
-  const [hourStr, minStr] = timeStr.split(':');
-  let hour = parseInt(hourStr, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  hour = hour % 12;
-  hour = hour ? hour : 12;
-  return `${hour.toString().padStart(2, '0')}:${minStr} ${ampm}`;
-}
-
-// Resolve employee display name from the nested structure returned by GET /shifts/assignments
-function resolveEmployeeName(a) {
-  const profile = a.user?.profile;
-  if (profile?.display_name) return profile.display_name;
-  if (profile?.first_name) return `${profile.first_name}${profile.last_name ? " " + profile.last_name : ""}`.trim();
-  return a.user?.identifier || (a.user_id ? a.user_id.slice(0, 8) + "…" : "—");
-}
-
-function resolveEmployeeInitial(a) {
-  return resolveEmployeeName(a).charAt(0).toUpperCase();
-}
-
-function resolveEmployeeEmail(a) {
-  return a.user?.identifier_type === "email" ? a.user.identifier : null;
-}
-
-function resolveEmployeeCode(a) {
+// Assignment rows nest the user under `user` with role-specific profiles.
+function assignmentCode(a) {
   return (
     a.user?.employee_profile?.employee_code ||
     a.user?.manager_profile?.employee_code ||
     a.user?.hr_profile?.employee_code ||
-    null
+    employeeCode(a) ||
+    ""
   );
 }
+const assignmentName = (a) => personName(a.user ? { ...a.user, profile: a.user.profile } : a);
 
-/* ─── Toast ─────────────────────────────────────────────────────────────── */
-function Toast({ toast, onClose }) {
-  if (!toast) return null;
-  const ok = toast.type === "success";
-  return (
-    <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500" /> : <HiExclamationCircle className="w-5 h-5 text-red-500" />}
-      <span>{toast.message}</span>
-      <button onClick={onClose}><HiX className="w-4 h-4 text-slate-400" /></button>
-    </div>
-  );
+function assignmentState(a, today) {
+  const from = ymdOnly(a.effective_from);
+  const to = ymdOnly(a.effective_to);
+  if (to && to < today) return "ended";
+  if (from && from > today) return "scheduled";
+  return "ongoing";
 }
 
 /* ─── Assign Modal ───────────────────────────────────────────────────────── */
-function AssignModal({ editAssignment, onClose, onSaved }) {
+function AssignModal({ onClose, onSaved }) {
   const [shifts, setShifts] = useState([]);
   const [rotations, setRotations] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [assignType, setAssignType] = useState(editAssignment ? (editAssignment.rotation_pattern_id ? "rotation" : "shift") : "shift");
-  const [form, setForm] = useState({
-    user_id: editAssignment?.user_id || "",
-    shift_id: editAssignment?.shift_id || "",
-    rotation_pattern_id: editAssignment?.rotation_pattern_id || "",
-    effective_from: editAssignment?.effective_from ? new Date(editAssignment.effective_from).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-  });
-  const [loading, setLoading] = useState(false);
   const [dropLoading, setDropLoading] = useState(true);
+  const [dropError, setDropError] = useState(null);
+  const [form, setForm] = useState({ assignType: "shift", user_id: "", shift_id: "", rotation_pattern_id: "", effective_from: todayYMD(), effective_to: "" });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
 
-  // Load shifts + rotations + employees simultaneously
   useEffect(() => {
-    Promise.all([
-      attendanceAPI.getShifts(),
-      attendanceAPI.getRotations(),
-      organizationAPI.getEmployees({ purpose: "shift_assignment" }),
-    ])
-      .then(([shiftRes, rotationRes, empRes]) => {
-        setShifts(shiftRes.data || []);
-        setRotations(rotationRes.data || []);
-        const members = empRes.data || [];
-        setEmployees(Array.isArray(members) ? members : (members.employees || members.members || []));
+    let alive = true;
+    Promise.all([attendanceAPI.getShifts(), attendanceAPI.getRotations()])
+      .then(([shiftRes, rotationRes]) => {
+        if (!alive) return;
+        setShifts(listFrom(shiftRes, ["shifts"]).filter((s) => s.is_active));
+        setRotations(listFrom(rotationRes, ["rotations"]).filter((r) => r.is_active));
       })
-      .catch(() => {})
-      .finally(() => setDropLoading(false));
+      .catch((err) => alive && setDropError(err))
+      .finally(() => alive && setDropLoading(false));
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
-
-  // Filter employees for the search box — employees from org API have simpler structure
-  const filteredEmployees = employees.filter((e) => {
-    const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier || "";
-    const email = e.identifier || e.user?.identifier || "";
-    return (
-      name.toLowerCase().includes(search.toLowerCase()) ||
-      email.toLowerCase().includes(search.toLowerCase())
-    );
-  });
-
-  function getEmployeeId(e) {
-    return e.user_id || e.employee_id || e.id;
-  }
-
-  function getEmployeeDisplayName(e) {
-    if (e.profile?.display_name) return e.profile.display_name;
-    if (e.profile?.first_name) return `${e.profile.first_name} ${e.profile.last_name || ""}`.trim();
-    if (e.user?.name) return e.user.name;
-    return e.name || e.identifier || getEmployeeId(e);
-  }
-
-  function getEmployeeEmail(e) {
-    return e.identifier || e.user?.identifier || e.email || "";
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }));
+    setErrors((e) => (e[k] ? { ...e, [k]: undefined } : e));
   }
 
   async function handleSubmit(ev) {
     ev.preventDefault();
-    if (!form.user_id) { setError("Please select an employee."); return; }
-    if (assignType === "shift" && !form.shift_id) { setError("Please select a shift."); return; }
-    if (assignType === "rotation" && !form.rotation_pattern_id) { setError("Please select a rotation pattern."); return; }
-    if (!form.effective_from) { setError("Please select an effective from date."); return; }
-    setLoading(true); setError("");
+    if (loading) return;
+    const { errors: v, payload } = validateAssignment(form);
+    const clean = Object.fromEntries(Object.entries(v).filter(([, m]) => m));
+    setErrors(clean);
+    if (hasErrors(clean)) return;
+    setLoading(true);
+    setError("");
     try {
-      const payload = {
-        user_id: form.user_id,
-        effective_from: new Date(form.effective_from).toISOString(),
-      };
-      if (assignType === "shift") {
-        payload.shift_id = form.shift_id;
-      } else {
-        payload.rotation_pattern_id = form.rotation_pattern_id;
-      }
-      
-      if (editAssignment) {
-        await attendanceAPI.updateAssignment(editAssignment.id, payload);
-        onSaved("Shift updated successfully.");
-      } else {
-        await attendanceAPI.assignShift(payload);
-        onSaved("Shift assigned successfully.");
-      }
+      await attendanceAPI.assignShift(payload);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "assignment" });
+      onSaved(form.assignType === "rotation" ? "Rotation assigned successfully." : "Shift assigned successfully.");
     } catch (err) {
-      setError(err.message || (editAssignment ? "Failed to update shift." : "Failed to assign shift."));
+      setError(attendanceErrorMessage(err, "Couldn't assign the shift."));
     } finally {
       setLoading(false);
     }
   }
 
+  const selectClass = (invalid) => `w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white ${invalid ? "border-rose-300" : "border-slate-200"}`;
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">{editAssignment ? "Edit Shift" : "Assign Shift"}</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {editAssignment ? "Update shift assignment details." : "Pick an employee and choose which shift they should work."}
-            </p>
+            <h2 className="text-base font-bold text-slate-800">Assign Shift</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Pick an employee and the shift or rotation they should follow.</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
+          <button type="button" onClick={onClose} disabled={loading} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition" aria-label="Close">
             <HiX className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5" noValidate>
+          {error && <InlineAlert tone="rose">{error}</InlineAlert>}
+
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Employee <span className="text-red-400">*</span></label>
+            <EmployeePicker value={form.user_id} onChange={(id) => set("user_id", id)} invalid={!!errors.user_id} disabled={loading} />
+            <FieldError message={errors.user_id} />
+          </div>
+
+          <div>
+            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">What kind of schedule?</span>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "shift", label: "Single Shift", desc: "Same shift every working day" },
+                { value: "rotation", label: "Rotation", desc: "Cycles through shift phases" },
+              ].map((t) => (
+                <button key={t.value} type="button" onClick={() => set("assignType", t.value)} aria-pressed={form.assignType === t.value} className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition ${form.assignType === t.value ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-slate-300"}`}>
+                  <span className={`text-xs font-bold ${form.assignType === t.value ? "text-purple-700" : "text-slate-700"}`}>{t.label}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">{t.desc}</span>
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
           {dropLoading ? (
-            <div className="py-8 flex flex-col items-center gap-2">
-              <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs text-slate-400">Loading employees and shifts…</p>
+            <p className="text-xs text-slate-400 flex items-center gap-2"><Spinner className="w-3.5 h-3.5 text-purple-600" /> Loading shifts…</p>
+          ) : dropError ? (
+            <InlineAlert tone="rose">{attendanceErrorMessage(dropError, "Couldn't load shifts and rotations.")}</InlineAlert>
+          ) : form.assignType === "shift" ? (
+            <div>
+              <label htmlFor="assign-shift" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Shift <span className="text-red-400">*</span></label>
+              <select id="assign-shift" value={form.shift_id} onChange={(e) => set("shift_id", e.target.value)} className={selectClass(!!errors.shift_id)}>
+                <option value="">Select a shift…</option>
+                {shifts.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {s.start_time && s.end_time ? `${fmtClock(s.start_time)}–${fmtClock(s.end_time)}` : `min ${s.min_hours ?? "—"} hrs`} · {s.type || s.shift_type}
+                  </option>
+                ))}
+              </select>
+              {shifts.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active shifts. Create one under Work Shifts.</p>}
+              <FieldError message={errors.shift_id} />
             </div>
           ) : (
-            <>
-              {/* Employee Search + Select */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Employee <span className="text-red-400">*</span></label>
-                <div className="relative mb-2">
-                  <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search employee…"
-                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
-                </div>
-                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-50">
-                  {filteredEmployees.length === 0 ? (
-                    <p className="px-4 py-3 text-xs text-slate-400">
-                      {employees.length === 0 ? "No employees found. Invite employees first." : "No results."}
-                    </p>
-                  ) : (
-                    filteredEmployees.map((e) => {
-                      const id = getEmployeeId(e);
-                      const name = getEmployeeDisplayName(e);
-                      const email = getEmployeeEmail(e);
-                      const isSelected = form.user_id === id;
-                      return (
-                        <button key={id} type="button" onClick={() => set("user_id", id)}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition ${isSelected ? "bg-purple-50" : "hover:bg-slate-50"}`}>
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? "bg-purple-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-                            {name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`text-xs font-semibold truncate ${isSelected ? "text-purple-700" : "text-slate-800"}`}>{name}</p>
-                            {email && <p className="text-[10px] text-slate-400 truncate">{email}</p>}
-                          </div>
-                          {isSelected && <HiCheckCircle className="w-4 h-4 text-purple-500 ml-auto flex-shrink-0" />}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Assignment Type Toggle */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">What kind of shift?</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: "shift", label: "Fixed Shift", desc: "Same shift every day" },
-                    { value: "rotation", label: "Rotating Shifts", desc: "Shifts change on a cycle" },
-                  ].map((t) => (
-                    <button key={t.value} type="button" onClick={() => setAssignType(t.value)}
-                      className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition ${assignType === t.value ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-slate-300"}`}>
-                      <span className={`text-xs font-bold ${assignType === t.value ? "text-purple-700" : "text-slate-700"}`}>{t.label}</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">{t.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Shift or Rotation Select */}
-              {assignType === "shift" ? (
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Select Shift <span className="text-red-400">*</span></label>
-                  <select value={form.shift_id} onChange={(e) => set("shift_id", e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white">
-                    <option value="">Select a shift…</option>
-                    {shifts.filter((s) => s.is_active).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} {s.start_time && s.end_time ? `(${s.start_time} – ${s.end_time})` : `(${s.type})`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Select Rotation Pattern <span className="text-red-400">*</span></label>
-                  <select value={form.rotation_pattern_id} onChange={(e) => set("rotation_pattern_id", e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white">
-                    <option value="">Select a rotation…</option>
-                    {rotations.filter((r) => r.is_active).map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} ({r.rotation_cycle_days}-day cycle)
-                      </option>
-                    ))}
-                  </select>
-                  {rotations.length === 0 && (
-                    <p className="text-[10px] text-slate-400 mt-1">No rotation patterns found. Create one in Shift Templates.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Effective From */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Starting From <span className="text-red-400">*</span></label>
-                <input type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
-                <p className="text-[10px] text-slate-400 mt-1">Their current shift ends the day before this date.</p>
-              </div>
-            </>
+            <div>
+              <label htmlFor="assign-rotation" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rotation Pattern <span className="text-red-400">*</span></label>
+              <select id="assign-rotation" value={form.rotation_pattern_id} onChange={(e) => set("rotation_pattern_id", e.target.value)} className={selectClass(!!errors.rotation_pattern_id)}>
+                <option value="">Select a rotation…</option>
+                {rotations.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name} · {r.rotation_cycle_days}-day cycle</option>
+                ))}
+              </select>
+              {rotations.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active rotation patterns. Create one under Work Shifts.</p>}
+              <FieldError message={errors.rotation_pattern_id} />
+            </div>
           )}
 
-          <div className="flex items-center gap-3 pt-1">
-            <button type="submit" disabled={loading || dropLoading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {loading ? "Saving…" : (editAssignment ? "Save Changes" : "Assign Shift")}
-            </button>
-            <button type="button" onClick={onClose}
-              className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+          <div>
+            <label htmlFor="assign-from" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective From <span className="text-red-400">*</span></label>
+            <input id="assign-from" type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)} className={`w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${errors.effective_from ? "border-rose-300" : "border-slate-200"}`} />
+            {errors.effective_from ? <FieldError message={errors.effective_from} /> : <p className="text-[10px] text-slate-400 mt-1">Attendance from this date is calculated against the selected schedule. Dates already locked for payroll aren't recalculated.</p>}
+          </div>
+
+          <div>
+            <label htmlFor="assign-to" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective Until <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+            <input id="assign-to" type="date" min={form.effective_from || undefined} value={form.effective_to} onChange={(e) => set("effective_to", e.target.value)} className={`w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${errors.effective_to ? "border-rose-300" : "border-slate-200"}`} />
+            {errors.effective_to ? <FieldError message={errors.effective_to} /> : <p className="text-[10px] text-slate-400 mt-1">Leave empty for an open-ended assignment. To change a schedule later, end this assignment and create a new one.</p>}
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+            <button type="button" onClick={onClose} disabled={loading} className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50">
               Cancel
+            </button>
+            <button type="submit" disabled={loading || dropLoading} className="flex-1 inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+              {loading && <Spinner />}
+              {loading ? "Saving…" : "Assign"}
             </button>
           </div>
         </form>
@@ -295,25 +182,29 @@ function AssignModal({ editAssignment, onClose, onSaved }) {
   );
 }
 
-/* ─── End Shift Modal ────────────────────────────────────────────────────── */
+/* ─── End Assignment Modal ───────────────────────────────────────────────── */
 function EndShiftModal({ assignment, onClose, onSaved }) {
-  const [effectiveTo, setEffectiveTo] = useState("");
+  const from = ymdOnly(assignment.effective_from);
+  const [effectiveTo, setEffectiveTo] = useState(from && from > todayYMD() ? from : todayYMD());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const minDate = assignment.effective_from ? new Date(assignment.effective_from).toISOString().split("T")[0] : "";
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!effectiveTo) { setError("Please select an end date."); return; }
-    
+    if (loading) return;
+    const { errors, payload } = validateEndAssignment({ effective_to: effectiveTo, effective_from: from });
+    if (hasErrors(errors)) {
+      setError(errors.effective_to);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      await attendanceAPI.endShiftAssignment(assignment.id, { effective_to: new Date(effectiveTo).toISOString() });
-      onSaved("Shift assignment ended successfully.");
+      await attendanceAPI.endShiftAssignment(assignment.id, payload);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "assignment" });
+      onSaved("Assignment end date set.");
     } catch (err) {
-      setError(err.message || "Failed to end shift assignment.");
+      setError(attendanceErrorMessage(err, "Couldn't end the assignment."));
     } finally {
       setLoading(false);
     }
@@ -321,36 +212,29 @@ function EndShiftModal({ assignment, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden" role="dialog" aria-modal="true">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-800">End Shift</h2>
-            <p className="text-xs text-slate-500 mt-1">Terminate this assignment on a specific date.</p>
+            <h2 className="text-base font-bold text-slate-800">End Assignment</h2>
+            <p className="text-xs text-slate-500 mt-1">{assignmentName(assignment)} · {assignment.shift?.name || assignment.rotation_pattern?.name || "Schedule"}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+          <button type="button" onClick={onClose} disabled={loading} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors" aria-label="Close">
             <HiX className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
-          {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-center gap-2">
-              <HiBan className="w-5 h-5 shrink-0" /> <p>{error}</p>
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5" noValidate>
+          {error && <InlineAlert tone="rose">{error}</InlineAlert>}
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1.5">End Date <span className="text-red-500">*</span></label>
-            <input 
-              type="date" 
-              value={effectiveTo} 
-              onChange={e => setEffectiveTo(e.target.value)} 
-              min={minDate}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-            />
-            <p className="text-[10px] text-slate-400 mt-1.5">The assignment will end exactly on this date. Must be after the start date ({fmtDate(assignment.effective_from)}).</p>
+            <label htmlFor="end-date" className="block text-xs font-bold text-slate-600 mb-1.5">Last Day on This Schedule <span className="text-red-500">*</span></label>
+            <input id="end-date" type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} min={from || undefined} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+            <p className="text-[10px] text-slate-400 mt-1.5">Started {fmtDate(from)}. The history of this assignment is kept.</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">Cancel</button>
-            <button type="submit" disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50">{loading ? "Ending..." : "End Shift"}</button>
+            <button type="submit" disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50">
+              {loading && <Spinner />}
+              {loading ? "Saving…" : "End Assignment"}
+            </button>
           </div>
         </form>
       </div>
@@ -358,19 +242,21 @@ function EndShiftModal({ assignment, onClose, onSaved }) {
   );
 }
 
-/* ─── Delete Shift Modal ─────────────────────────────────────────────────── */
+/* ─── Delete Assignment Modal ────────────────────────────────────────────── */
 function DeleteShiftModal({ assignment, onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const handleDelete = async () => {
+    if (loading) return;
     setLoading(true);
     setError("");
     try {
       await attendanceAPI.deleteShiftAssignment(assignment.id);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "assignment" });
       onSaved("Shift assignment deleted permanently.");
     } catch (err) {
-      setError(err.message || "Failed to delete shift assignment.");
+      setError(attendanceErrorMessage(err, "Couldn't delete the assignment."));
     } finally {
       setLoading(false);
     }
@@ -378,10 +264,10 @@ function DeleteShiftModal({ assignment, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden" role="dialog" aria-modal="true">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-800">Delete Shift Assignment</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+          <button type="button" onClick={onClose} disabled={loading} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors" aria-label="Close">
             <HiX className="w-5 h-5" />
           </button>
         </div>
@@ -389,20 +275,17 @@ function DeleteShiftModal({ assignment, onClose, onSaved }) {
           <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
             <HiTrash className="w-6 h-6 text-red-500" />
           </div>
-          <p className="text-sm font-semibold text-slate-700 mb-2">This action is permanent and cannot be undone.</p>
+          <p className="text-sm font-semibold text-slate-700 mb-2">This is a permanent delete.</p>
           <p className="text-sm text-slate-500 mb-6">
-            If the employee has already worked this shift, you should <strong>END</strong> it instead. Deleting will erase all record of this assignment. Are you sure you want to delete this shift?
+            If {assignmentName(assignment)} has already worked on this schedule, <strong>end</strong> the assignment instead so past attendance keeps its shift context.
           </p>
-          
-          {error && (
-            <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-center gap-2">
-              <HiBan className="w-5 h-5 shrink-0" /> <p>{error}</p>
-            </div>
-          )}
-
+          {error && <InlineAlert tone="rose" className="mb-6">{error}</InlineAlert>}
           <div className="flex gap-3">
-            <button onClick={onClose} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">Cancel</button>
-            <button onClick={handleDelete} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? "Deleting..." : "Delete Permanently"}</button>
+            <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">Cancel</button>
+            <button type="button" onClick={handleDelete} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50">
+              {loading && <Spinner />}
+              {loading ? "Deleting…" : "Delete Permanently"}
+            </button>
           </div>
         </div>
       </div>
@@ -410,195 +293,197 @@ function DeleteShiftModal({ assignment, onClose, onSaved }) {
   );
 }
 
+const STATE_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "ongoing", label: "Ongoing" },
+  { value: "scheduled", label: "Upcoming" },
+  { value: "ended", label: "Ended" },
+];
+
 /* ─── Main Page ──────────────────────────────────────────────────────────── */
 export default function AttendanceRosterPage() {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [toast, setToast] = useState(null);
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [endModalAssignment, setEndModalAssignment] = useState(null);
   const [deleteModalAssignment, setDeleteModalAssignment] = useState(null);
-  const [editModalAssignment, setEditModalAssignment] = useState(null);
+  const [stateFilter, setStateFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const { toast, showToast, clearToast } = useToast();
 
-  // Close menus on click outside
   useEffect(() => {
     const handleClick = () => setActiveMenuId(null);
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
-  function showToast(msg, type = "success") {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 4000);
-  }
-
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const res = await attendanceAPI.getAssignments();
-      setAssignments(res.data || []);
-    } catch {
-      showToast("Failed to load roster.", "error");
+      setAssignments(listFrom(res, ["assignments"]));
+    } catch (err) {
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [stateFilter, search]);
+
+  const today = todayYMD();
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return assignments.filter((a) => {
+      if (stateFilter !== "all" && assignmentState(a, today) !== stateFilter) return false;
+      if (!q) return true;
+      return [assignmentName(a), assignmentCode(a), personEmail(a.user || a), a.shift?.name, a.rotation_pattern?.name]
+        .some((f) => f && String(f).toLowerCase().includes(q));
+    });
+  }, [assignments, stateFilter, search, today]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  function onSaved(msg, close) {
+    close();
+    showToast(msg);
+    load();
+  }
 
   return (
     <>
-        <DashboardTopBar title="Attendance" />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
-          {/* Header */}
-          <div className="flex items-start justify-between mb-8">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Shift Roster</h1>
-              <p className="text-sm text-slate-500 mt-1">View and manage shift assignments for all employees.</p>
-            </div>
-            <button onClick={() => { setEditModalAssignment(null); setShowModal(true); }}
-              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
-              <HiPlus className="w-4 h-4" /> Assign Shift
-            </button>
+      <DashboardTopBar title="Attendance" />
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Shift Roster</h1>
+            <p className="text-sm text-slate-500 mt-1">View and manage which schedule each employee follows.</p>
           </div>
+          <button onClick={() => setShowModal(true)} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
+            <HiPlus className="w-4 h-4" /> Assign Shift
+          </button>
+        </div>
 
-          {/* Table */}
-          {loading ? (
-            <Skeleton type="table" rows={6} />
-          ) : (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+          <FilterTabs options={STATE_FILTERS} value={stateFilter} onChange={setStateFilter} />
+          <div className="relative w-full md:w-72">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, code or shift…" className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+          </div>
+        </div>
+
+        {loading ? (
+          <Skeleton type="table" rows={6} />
+        ) : loadError ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            <ErrorState error={loadError} onRetry={() => { setLoading(true); load(); }} fallback="Couldn't load the roster." />
+          </div>
+        ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             {assignments.length === 0 ? (
-              <div className="p-16 flex flex-col items-center gap-3 text-center">
-                <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
-                  <HiUserGroup className="w-7 h-7 text-slate-400" />
-                </div>
-                <p className="text-sm font-semibold text-slate-600">No shift assignments yet</p>
-                <p className="text-xs text-slate-400 max-w-xs">Assign shifts to employees so the attendance engine knows their expected working hours.</p>
-                <button onClick={() => { setEditModalAssignment(null); setShowModal(true); }}
-                  className="mt-2 flex items-center gap-2 bg-purple-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl">
-                  <HiPlus className="w-4 h-4" /> Assign Shift
-                </button>
-              </div>
+              <EmptyState icon={HiUserGroup} title="No shift assignments yet" message="Assign shifts to employees so the attendance engine knows their expected working hours." />
+            ) : filtered.length === 0 ? (
+              <EmptyState icon={HiSearch} title="No matching assignments" message="Try a different filter or search term." />
             ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-100">
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Emp. Code</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Shift</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Effective From</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valid Until</th>
-                    <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {assignments.map((a) => {
-                    const name = resolveEmployeeName(a);
-                    const initial = resolveEmployeeInitial(a);
-                    const email = resolveEmployeeEmail(a);
-                    const empCode = resolveEmployeeCode(a);
-                    const shiftLabel = a.shift?.name || a.rotation_pattern?.name || "—";
-                    const shiftTimes = a.shift?.start_time
-                      ? `${format12Hour(a.shift.start_time)} – ${format12Hour(a.shift.end_time)}`
-                      : a.rotation_pattern ? "Rotation" : null;
-
-                    return (
-                      <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                              {initial}
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-slate-800">{name}</p>
-                              {email && <p className="text-[10px] text-slate-400">{email}</p>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-500">{empCode || "—"}</td>
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-800">{shiftLabel}</p>
-                            {shiftTimes && (
-                              <p className="text-[10px] text-slate-400">{shiftTimes}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{fmtDate(a.effective_from)}</td>
-                        <td className="px-6 py-4">
-                          {a.effective_to ? (
-                            <span className="text-xs text-slate-600">{fmtDate(a.effective_to)}</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Ongoing
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setActiveMenuId(activeMenuId === a.id ? null : a.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                            >
-                              <HiDotsVertical className="w-5 h-5" />
-                            </button>
-                            {activeMenuId === a.id && (
-                              <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-10">
-                                <button
-                                  onClick={() => { setActiveMenuId(null); setEditModalAssignment(a); setShowModal(true); }}
-                                  className="w-full text-left px-4 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => { setActiveMenuId(null); setEndModalAssignment(a); }}
-                                  className="w-full text-left px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50"
-                                >
-                                  End Shift
-                                </button>
-                                <button
-                                  onClick={() => { setActiveMenuId(null); setDeleteModalAssignment(a); }}
-                                  className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
+              <>
+                <div className={`overflow-x-auto ${pageRows.length <= 2 ? "min-h-[200px]" : ""}`}>
+                  <table className="w-full min-w-[820px]">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Employee</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Emp. Code</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Effective From</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valid Until</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {pageRows.map((a, rowIndex) => {
+                        // The table scrolls horizontally, which clips overflow; the
+                        // menu on the last rows opens upwards so it stays reachable.
+                        const openUp = pageRows.length > 2 && rowIndex >= pageRows.length - 2;
+                        const name = assignmentName(a);
+                        const email = personEmail(a.user || a);
+                        const state = assignmentState(a, today);
+                        const label = a.shift?.name || a.rotation_pattern?.name || "—";
+                        const times = a.shift?.start_time
+                          ? `${fmtClock(a.shift.start_time)} – ${fmtClock(a.shift.end_time)}`
+                          : a.rotation_pattern ? `Rotation · ${a.rotation_pattern.rotation_cycle_days ?? "?"}-day cycle` : null;
+                        return (
+                          <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">{initials(name)}</div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-slate-800 truncate">{name}</p>
+                                  {email && email !== name && <p className="text-[10px] text-slate-400 truncate">{email}</p>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-500">{assignmentCode(a) || "—"}</td>
+                            <td className="px-6 py-4">
+                              <p className="text-xs font-semibold text-slate-800">{label}</p>
+                              {times && <p className="text-[10px] text-slate-400">{times}</p>}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-600">{fmtDate(ymdOnly(a.effective_from))}</td>
+                            <td className="px-6 py-4">
+                              {state === "ended" ? (
+                                <span className="text-xs text-slate-500">Ended {fmtDate(ymdOnly(a.effective_to))}</span>
+                              ) : a.effective_to ? (
+                                <span className="text-xs text-slate-600">{fmtDate(ymdOnly(a.effective_to))}</span>
+                              ) : state === "scheduled" ? (
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-sky-50 text-sky-700 px-2.5 py-1 rounded-full">Upcoming</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Ongoing
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                                <button onClick={() => setActiveMenuId(activeMenuId === a.id ? null : a.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" aria-label={`Actions for ${name}`} aria-expanded={activeMenuId === a.id}>
+                                  <HiDotsVertical className="w-5 h-5" />
+                                </button>
+                                {activeMenuId === a.id && (
+                                  <div className={`absolute right-0 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-10 ${openUp ? "bottom-full mb-1" : "mt-1"}`}>
+                                    {!a.effective_to && (
+                                      <button onClick={() => { setActiveMenuId(null); setEndModalAssignment(a); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50">
+                                        End Assignment
+                                      </button>
+                                    )}
+                                    <button onClick={() => { setActiveMenuId(null); setDeleteModalAssignment(a); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-6 py-4 border-t border-slate-50">
+                  <Pagination page={safePage} totalPages={totalPages} total={filtered.length} limit={PAGE_SIZE} onPageChange={setPage} />
+                </div>
+              </>
             )}
           </div>
-          )}
-        </main>
+        )}
+      </main>
 
-      {showModal && (
-        <AssignModal
-          editAssignment={editModalAssignment}
-          onClose={() => setShowModal(false)}
-          onSaved={(msg) => { setShowModal(false); showToast(msg); load(); }}
-        />
-      )}
-      {endModalAssignment && (
-        <EndShiftModal
-          assignment={endModalAssignment}
-          onClose={() => setEndModalAssignment(null)}
-          onSaved={(msg) => { setEndModalAssignment(null); showToast(msg); load(); }}
-        />
-      )}
-      {deleteModalAssignment && (
-        <DeleteShiftModal
-          assignment={deleteModalAssignment}
-          onClose={() => setDeleteModalAssignment(null)}
-          onSaved={(msg) => { setDeleteModalAssignment(null); showToast(msg); load(); }}
-        />
-      )}
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      {showModal && <AssignModal onClose={() => setShowModal(false)} onSaved={(msg) => onSaved(msg, () => setShowModal(false))} />}
+      {endModalAssignment && <EndShiftModal assignment={endModalAssignment} onClose={() => setEndModalAssignment(null)} onSaved={(msg) => onSaved(msg, () => setEndModalAssignment(null))} />}
+      {deleteModalAssignment && <DeleteShiftModal assignment={deleteModalAssignment} onClose={() => setDeleteModalAssignment(null)} onSaved={(msg) => onSaved(msg, () => setDeleteModalAssignment(null))} />}
+      <Toast toast={toast} onClose={clearToast} />
     </>
   );
 }

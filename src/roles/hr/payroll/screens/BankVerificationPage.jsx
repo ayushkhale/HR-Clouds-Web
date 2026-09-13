@@ -23,7 +23,7 @@ function Toast({ toast, onClose }) {
 
 const userId = (u) => u?.id || u?.user_id || u?._id;
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
-const userDept = (u) => u?.department || u?.department_name || "—";
+const userDept = (u) => u?.department || u?.department_name || "N/A";
 
 // A failed #24 fetch is NOT the same as "no account on file" — telling HR an
 // employee has no account when the request merely errored would send them
@@ -31,11 +31,11 @@ const userDept = (u) => u?.department || u?.department_name || "—";
 const LOAD_ERROR = Symbol("load_error");
 
 const STATE = {
-  verified: { label: "Verified", pill: "bg-emerald-100 text-emerald-700" },
-  unverified: { label: "Awaiting verification", pill: "bg-amber-100 text-amber-700" },
-  none: { label: "No account on file", pill: "bg-slate-100 text-slate-500" },
-  error: { label: "Couldn't load", pill: "bg-red-50 text-red-600" },
-  loading: { label: "Checking…", pill: "bg-slate-100 text-slate-400" },
+  verified: { label: "Verified", pill: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  unverified: { label: "Awaiting verification", pill: "bg-amber-50 text-amber-700 border-amber-200" },
+  none: { label: "No account on file", pill: "bg-slate-50 text-slate-500 border-slate-200" },
+  error: { label: "Couldn't load", pill: "bg-red-50 text-red-600 border-red-200" },
+  loading: { label: "Checking…", pill: "bg-slate-50 text-slate-400 border-slate-200" },
 };
 
 const accountState = (acct) => {
@@ -73,7 +73,7 @@ function AccountDrawer({ user, account, onClose, onVerify, verifying }) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Bank account</h2>
-            <p className="text-xs text-slate-500">{userName(user)}{userDept(user) !== "—" ? ` · ${userDept(user)}` : ""}</p>
+            <p className="text-xs text-slate-500">{userName(user)}{userDept(user) !== "N/A" ? ` · ${userDept(user)}` : ""}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
         </div>
@@ -198,12 +198,11 @@ export default function BankVerificationPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiShieldCheck className="text-purple-600 w-7 h-7" /> Bank Verification
+            <h1 className="text-2xl font-bold text-slate-900">Bank Verification
             </h1>
             <p className="text-sm text-slate-500 mt-1">Review and verify employee bank accounts before they receive salary payments.</p>
           </div>
-          <button onClick={loadData} className="px-4 py-2.5 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
+          <button onClick={loadData} className="h-[42px] px-4 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
             <HiRefresh className="w-4 h-4" /> Refresh
           </button>
         </div>
@@ -233,7 +232,7 @@ export default function BankVerificationPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name…"
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400"
+            className="w-full h-[42px] pl-9 pr-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400"
           />
         </div>
 
@@ -266,25 +265,25 @@ export default function BankVerificationPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-600">{acct?.bank_name || <span className="text-slate-300">—</span>}</td>
-                        <td className="px-6 py-4 font-mono text-slate-600">{acct?.masked_account_number || <span className="font-sans text-slate-300">—</span>}</td>
+                        <td className="px-6 py-4 text-slate-600">{acct?.bank_name || <span className="text-slate-300 font-medium">N/A</span>}</td>
+                        <td className="px-6 py-4 font-mono text-slate-600">{acct?.masked_account_number || <span className="font-sans text-slate-300 font-medium">N/A</span>}</td>
                         <td className="px-6 py-4">
                           {enriching && acct === undefined ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400"><HiClock className="w-3.5 h-3.5 animate-pulse" /> checking…</span>
                           ) : (
-                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATE[state].pill}`}>{STATE[state].label}</span>
+                            <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${STATE[state].pill}`}>{STATE[state].label}</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1.5">
                             {hasAccount(acct) && (
-                              <button onClick={() => setDrawerUser(u)} className="p-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
+                              <button onClick={() => setDrawerUser(u)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
                             )}
                             {state === "unverified" && (
                               <button
                                 disabled={verifyingId === id}
                                 onClick={() => handleVerify(u)}
-                                className="px-2.5 py-1.5 text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition flex items-center gap-1 disabled:opacity-50"
+                                className="px-2.5 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-purple-700 rounded-lg transition flex items-center gap-1 disabled:opacity-50"
                               >
                                 <HiShieldCheck className="w-3.5 h-3.5" /> {verifyingId === id ? "…" : "Verify"}
                               </button>

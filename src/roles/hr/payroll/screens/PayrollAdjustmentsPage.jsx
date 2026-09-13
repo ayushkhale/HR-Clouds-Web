@@ -200,23 +200,22 @@ export default function PayrollAdjustmentsPage() {
           
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiAdjustments className="text-purple-600 w-7 h-7" /> Salary Adjustments
+              <h1 className="text-2xl font-bold text-slate-900">Salary Adjustments
               </h1>
               <p className="text-sm text-slate-500 mt-1">Manage one-off additions, deductions, and bonuses.</p>
             </div>
             <div className="flex items-center gap-3">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-[42px] px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
                 <option value="">All statuses</option>
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
                 <option value="cancelled">Cancelled</option>
               </select>
-              <button onClick={() => { setCsvPreview(null); setCsvContent(""); setIsBulkModalOpen(true); }} className="px-4 py-2.5 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
+              <button onClick={() => { setCsvPreview(null); setCsvContent(""); setIsBulkModalOpen(true); }} className="h-[42px] px-4 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
                 <HiUpload className="w-5 h-5" /> Bulk Upload
               </button>
-              <button onClick={() => setIsModalOpen(true)} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+              <button onClick={() => setIsModalOpen(true)} className="h-[42px] px-4 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
                 <HiPlus className="w-5 h-5" /> New Adjustment
               </button>
             </div>
@@ -245,33 +244,35 @@ export default function PayrollAdjustmentsPage() {
                           return `${new Date(0, parseInt(m) - 1).toLocaleString('default', { month: 'short' })} ${y}`;
                         })() : "-"}
                       </td>
-                      <td className="px-6 py-4 capitalize text-slate-600">
+                      <td className="px-6 py-4 capitalize text-slate-800 font-medium">
                         {adj.adjustment_type}
-                        <span className="block text-[10px] text-slate-400 font-bold">{adj.category?.replace(/_/g, ' ')}</span>
-                        {adj.batch_id && <span className="inline-block mt-1 text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">BATCH</span>}
-                        {adj.bonus_rule_id && <span className="inline-block mt-1 text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">RULE</span>}
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase">{adj.category?.replace(/_/g, ' ')}</span>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          {adj.batch_id && <span className="inline-block text-[9px] font-bold text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded">BATCH</span>}
+                          {adj.bonus_rule_id && <span className="inline-block text-[9px] font-bold text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded">RULE</span>}
+                        </div>
                       </td>
                       <td className="px-6 py-4 font-semibold text-slate-800">₹{parseFloat(adj.amount || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${(adj.status === 'pending' || adj.status === 'proposed') ? 'bg-amber-100 text-amber-700' : adj.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : adj.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
+                        <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${(adj.status === 'pending' || adj.status === 'proposed') ? 'bg-amber-50 text-amber-700 border-amber-200' : adj.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : adj.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                           {adj.status}
                         </span>
-                        {adj.applied_run_id && <span className="block mt-1 text-[9px] font-bold text-slate-400 uppercase">applied</span>}
+                        {adj.applied_run_id && <span className="block mt-1.5 text-[9px] font-bold text-slate-400 uppercase">applied</span>}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => openDetail(adj)} className="p-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
+                        <div className="flex justify-end gap-1.5">
+                          <button onClick={() => openDetail(adj)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
                           {adj.status === 'pending' && (
                             <>
-                              <button onClick={() => handleApprove(adj.id)} className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition" title="Approve"><HiCheck className="w-4 h-4" /></button>
-                              <button onClick={() => setRejectingId(adj.id)} className="p-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition" title="Reject"><HiX className="w-4 h-4" /></button>
+                              <button onClick={() => handleApprove(adj.id)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Approve"><HiCheck className="w-4 h-4" /></button>
+                              <button onClick={() => setRejectingId(adj.id)} className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Reject"><HiX className="w-4 h-4" /></button>
                             </>
                           )}
                           {(adj.status === 'approved' || adj.status === 'pending') && !adj.applied_run_id && (
-                            <button onClick={() => handleCancel(adj.id)} className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel"><HiTrash className="w-4 h-4" /></button>
+                            <button onClick={() => handleCancel(adj.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Cancel"><HiTrash className="w-4 h-4" /></button>
                           )}
                           {adj.batch_id && !adj.applied_run_id && (
-                            <button onClick={() => batchCancel(adj.batch_id)} className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel whole batch"><HiUpload className="w-4 h-4 rotate-180" /></button>
+                            <button onClick={() => batchCancel(adj.batch_id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Cancel whole batch"><HiUpload className="w-4 h-4 rotate-180" /></button>
                           )}
                         </div>
                       </td>

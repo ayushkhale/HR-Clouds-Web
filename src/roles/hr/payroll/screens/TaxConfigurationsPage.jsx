@@ -95,8 +95,7 @@ export default function TaxConfigurationsPage() {
         <DashboardTopBar title="Statutory & Tax Setup" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiDocumentText className="text-purple-600 w-7 h-7" /> Statutory &amp; Tax Setup
+            <h1 className="text-2xl font-bold text-slate-900">Statutory &amp; Tax Setup
             </h1>
             <p className="text-sm text-slate-500 mt-1">Organisation-wide PF, ESI, Professional Tax and Income-Tax rules that drive every payroll run.</p>
           </div>

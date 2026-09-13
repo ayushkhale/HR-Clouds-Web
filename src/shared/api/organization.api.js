@@ -123,6 +123,19 @@ export const organizationAPI = {
     });
   },
 
+  /**
+   * Transfer an employee/manager to a new department and rewire reporting lines.
+   * PUT /organizations/users/:id/department-transfer
+   * @param {string} id - The global user_id
+   * @param {Object} payload - { role, new_department_id, new_manager_id, is_current_hod, is_new_hod, replacement_hod_id, old_dept_fallback_manager_id }
+   */
+  transferDepartment(id, payload) {
+    return request(`/organizations/users/${id}/department-transfer`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
   // ── HR › Departments ───────────────────────────────────────────────────────
   //    Create and manage organizational departments
   getDepartments(params = {}) {

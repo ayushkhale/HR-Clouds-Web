@@ -23,12 +23,12 @@ function Toast({ toast, onClose }) {
 }
 
 const STATUS_STYLES = {
-  draft: "bg-slate-100 text-slate-600",
-  calculating: "bg-blue-100 text-blue-700",
-  calculated: "bg-blue-100 text-blue-700",
-  approved: "bg-purple-100 text-purple-700",
-  paid: "bg-emerald-100 text-emerald-700",
-  cancelled: "bg-red-100 text-red-700",
+  draft: "bg-slate-50 text-slate-600 border-slate-200",
+  calculating: "bg-slate-50 text-slate-700 border-slate-300",
+  calculated: "bg-purple-50 text-purple-700 border-purple-200",
+  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  paid: "bg-slate-800 text-white border-slate-800",
+  cancelled: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 // A single readiness stat in the pre-flight panel.
@@ -148,8 +148,7 @@ export default function PayrollRunDashboard() {
 
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiPlay className="text-purple-600 w-7 h-7" /> Payroll Runs
+              <h1 className="text-2xl font-bold text-slate-900">Payroll Runs
               </h1>
               <p className="text-sm text-slate-500 mt-1">Command center to execute and finalize monthly payroll.</p>
             </div>
@@ -160,79 +159,91 @@ export default function PayrollRunDashboard() {
           </div>
 
           {loading ? <Skeleton type="dashboard" /> : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-4">
               {runs.map((run) => (
-                <div key={run.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                  <button
-                    onClick={() => openRun(run.id)}
-                    className="p-5 border-b border-slate-50 bg-slate-50/50 text-left hover:bg-slate-100/60 transition group"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-slate-800 text-lg group-hover:text-purple-700 transition">{formatPeriod(run.period_month)}</h3>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${STATUS_STYLES[run.status] || STATUS_STYLES.draft}`}>
+                <div key={run.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col xl:flex-row xl:items-center gap-6 p-5 sm:p-6 transition-all hover:border-slate-300 group">
+                  
+                  {/* Left: Period & Status & Errors */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1">
+                      <h3 className="font-bold text-slate-800 text-lg group-hover:text-purple-700 transition cursor-pointer" onClick={() => openRun(run.id)}>
+                        {formatPeriod(run.period_month)}
+                      </h3>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${STATUS_STYLES[run.status] || STATUS_STYLES.draft}`}>
                         {run.status}
                       </span>
                     </div>
                     {run.notes
-                      ? <p className="text-xs text-slate-500 line-clamp-1">{run.notes}</p>
-                      : <p className="text-xs text-purple-500 font-semibold flex items-center gap-1">Review run <HiArrowRight className="w-3 h-3" /></p>}
-                  </button>
-
-                  <div className="p-5 flex-1 space-y-4">
-                    <div className="flex justify-between">
-                      <p className="text-xs font-bold text-slate-400 uppercase">Employees</p>
-                      <p className="text-sm font-semibold text-slate-800 tabular-nums">{run.total_employees || 0}</p>
-                    </div>
-                    <div className="flex justify-between">
-                      <p className="text-xs font-bold text-slate-400 uppercase">Gross Payout</p>
-                      <p className="text-sm font-black text-purple-700 tabular-nums">{formatMoney(run.total_gross)}</p>
-                    </div>
-                    <div className="flex justify-between">
-                      <p className="text-xs font-bold text-slate-400 uppercase">Net Payout</p>
-                      <p className="text-sm font-black text-emerald-600 tabular-nums">{formatMoney(run.total_net)}</p>
-                    </div>
+                      ? <p className="text-sm text-slate-500 line-clamp-1 mb-3">{run.notes}</p>
+                      : <p className="text-sm text-slate-400 mb-3 cursor-pointer hover:text-purple-600 transition" onClick={() => openRun(run.id)}>View details</p>}
+                    
                     {run.error_count > 0 && (
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
-                        <HiExclamationCircle className="w-4 h-4 shrink-0" /> {run.error_count} item{run.error_count === 1 ? "" : "s"} need attention
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 border border-rose-100 bg-rose-50/50 rounded-lg px-2.5 py-1">
+                        <HiExclamationCircle className="w-4 h-4 shrink-0 opacity-70" /> {run.error_count} item{run.error_count === 1 ? "" : "s"} need attention
                       </div>
                     )}
                   </div>
 
-                  <div className="p-4 border-t border-slate-50 flex items-center justify-between bg-white flex-wrap gap-2">
-                    <button onClick={() => openRun(run.id)} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
-                      Review
-                    </button>
-                    {run.status === "draft" && (
-                      <button onClick={() => handleAction(run.id, "calculate")} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition">
-                        <HiCalculator className="w-4 h-4" /> Calculate
+                  {/* Middle: Stats */}
+                  <div className="flex flex-wrap items-center gap-6 xl:gap-8 shrink-0 py-4 xl:py-0 border-y border-slate-50 xl:border-y-0 xl:border-l xl:pl-8">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Employees</p>
+                      <p className="text-base font-semibold text-slate-800 tabular-nums">{run.total_employees || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gross Payout</p>
+                      <p className="text-base font-semibold text-slate-700 tabular-nums">{formatMoney(run.total_gross)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Net Payout</p>
+                      <p className="text-base font-semibold text-slate-800 tabular-nums">{formatMoney(run.total_net)}</p>
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex flex-col gap-2 shrink-0 xl:w-48 justify-end mt-2 xl:mt-0">
+                    {/* Primary next action */}
+                    {run.status === "draft" ? (
+                      <button onClick={() => handleAction(run.id, "calculate")} className="flex-1 flex justify-center items-center gap-1.5 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 hover:bg-purple-100 rounded-lg transition shadow-sm">
+                        <HiCalculator className="w-3.5 h-3.5" /> Calculate
+                      </button>
+                    ) : run.status === "calculated" ? (
+                      <button onClick={() => handleAction(run.id, "approve")} className="flex-1 flex justify-center items-center gap-1.5 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 hover:bg-purple-100 rounded-lg transition shadow-sm">
+                        <HiCheck className="w-3.5 h-3.5" /> Approve
+                      </button>
+                    ) : run.status === "approved" ? (
+                      <button onClick={() => handleAction(run.id, "pay")} className="flex-1 flex justify-center items-center gap-1.5 px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 rounded-lg transition shadow-sm">
+                        <HiCash className="w-3.5 h-3.5" /> Finalize
+                      </button>
+                    ) : (
+                      <button onClick={() => openRun(run.id)} className="flex-1 flex justify-center items-center px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition shadow-sm">
+                        Review Details
                       </button>
                     )}
-                    {run.status === "calculated" && (
-                      <>
-                        <button onClick={() => handleAction(run.id, "calculate")} className="flex justify-center items-center gap-1.5 px-2 py-2 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition" title="Recalculate">
-                          <HiCalculator className="w-4 h-4" />
+
+                    {/* Secondary actions row */}
+                    {run.status !== "paid" && run.status !== "cancelled" && (
+                      <div className="flex gap-2">
+                        <button onClick={() => openRun(run.id)} className="flex-1 flex justify-center items-center px-2 py-2 text-[11px] font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition shadow-sm" title="Review">
+                          Review
                         </button>
-                        <button onClick={() => handleAction(run.id, "approve")} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition">
-                          <HiCheck className="w-4 h-4" /> Approve
+                        {run.status === "calculated" && (
+                          <button onClick={() => handleAction(run.id, "calculate")} className="flex justify-center items-center px-3 py-2 text-[11px] text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition shadow-sm" title="Recalculate">
+                            <HiCalculator className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button onClick={() => handleAction(run.id, "cancel")} className="flex justify-center items-center px-3 py-2 text-[11px] text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-lg transition shadow-sm" title="Cancel Run">
+                          <HiX className="w-3.5 h-3.5" />
                         </button>
-                      </>
-                    )}
-                    {run.status === "approved" && (
-                      <button onClick={() => handleAction(run.id, "pay")} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
-                        <HiCash className="w-4 h-4" /> Finalize (Pay)
-                      </button>
-                    )}
-                    {["draft", "calculated", "approved"].includes(run.status) && (
-                      <button onClick={() => handleAction(run.id, "cancel")} className="flex justify-center items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel Run">
-                        <HiX className="w-4 h-4" />
-                      </button>
+                      </div>
                     )}
                   </div>
+
                 </div>
               ))}
               {runs.length === 0 && (
-                <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-100 border-dashed">
-                  <p className="text-slate-500">No payroll runs found. Start a new run to begin.</p>
+                <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 border-dashed">
+                  <p className="text-slate-500 font-medium">No payroll runs found. Start a new run to begin.</p>
                 </div>
               )}
             </div>

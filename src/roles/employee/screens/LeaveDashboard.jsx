@@ -291,7 +291,7 @@ function UpcomingHolidaysWidget({ holidays }) {
                   <td className="px-4 py-3 text-xs text-slate-500">{dayOfWeek(h.date?.split('T')[0] || h.date)}</td>
                   <td className="px-4 py-3">
                     <span className="inline-block px-2.5 py-1 text-[10px] font-bold rounded-full capitalize bg-purple-50 text-purple-600">
-                      {h.type || 'Public'}
+                      {h.is_optional ? 'Optional' : (h.type || 'Public')}
                     </span>
                   </td>
                 </tr>
@@ -864,7 +864,14 @@ export default function LeaveDashboard() {
     try {
       const res = await attendanceAPI.getUpcomingHolidays();
       if (res.success) {
-        setUpcomingHolidays(res.data || []);
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const list = Array.isArray(res.data) ? res.data : res.data?.holidays || [];
+        setUpcomingHolidays(
+          list
+            .filter((h) => String(h.date || "").slice(0, 10) >= today)
+            .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+        );
       }
     } catch { /* non-critical */ }
   }, []);
@@ -923,7 +930,7 @@ export default function LeaveDashboard() {
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-800">
                 <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
                   <HiCalendar className="w-5 h-5" />
                 </div>

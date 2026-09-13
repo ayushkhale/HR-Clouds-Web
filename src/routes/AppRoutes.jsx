@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
+import { canAccessWorkspace, dashboardPathForRole } from "../shared/auth/permissions";
 import Skeleton from "../shared/components/Skeleton";
 import DashboardLayout from "../shared/layouts/DashboardLayout";
 
@@ -125,8 +126,8 @@ function CatchAll() {
    Waits for auth hydration before deciding to render or redirect.
    Prevents the catch-all from firing during the first render tick.
 ──────────────────────────────────────────────────────────────────────────── */
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth();
+function ProtectedRoute({ children, workspace }) {
+  const { isAuthenticated, isLoading, role } = useAuth();
 
   if (isLoading) {
     // Auth still hydrating from localStorage — don't redirect yet
@@ -135,6 +136,15 @@ function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/auth/login" replace />;
+  }
+
+  // Role dimension: keep signed-in users out of workspaces their role can't use
+  // (e.g. an employee manually navigating to /dashboard/hr/*).
+  // Only gate when the role is actually known — an unexpected/role-less token
+  // would otherwise bounce to /dashboard and sit there forever. The backend
+  // still authorizes every request, so failing open here is safe.
+  if (workspace && role && !canAccessWorkspace(role, workspace)) {
+    return <Navigate to={dashboardPathForRole(role)} replace />;
   }
 
   return children;
@@ -177,7 +187,7 @@ function AppRoutes() {
       {/* ─── HR WORKSPACE ───
          The layout renders the sidebar once for the whole group, so navigating
          between these routes keeps its scroll position and expanded sections. */}
-      <Route element={<ProtectedRoute><DashboardLayout role="hr" /></ProtectedRoute>}>
+      <Route element={<ProtectedRoute workspace="hr"><DashboardLayout role="hr" /></ProtectedRoute>}>
         <Route path="/dashboard/hr" element={<HRDashboard />} />
         <Route path="/dashboard/hr/employees" element={<EmployeesPage />} />
         <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
@@ -195,6 +205,12 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/lock-periods" element={<AttendanceLockPeriodsPage />} />
         <Route path="/dashboard/hr/attendance/devices" element={<BiometricDevicesPage />} />
         <Route path="/dashboard/hr/reports" element={<AttendanceReportsPage />} />
+        {/* HR self-service attendance (all org roles may punch & request) */}
+        <Route path="/dashboard/hr/my-attendance" element={<EmployeeAttendancePage />} />
+        <Route path="/dashboard/hr/my-attendance/regularizations" element={<AttendanceRegularizationsPage />} />
+        <Route path="/dashboard/hr/my-attendance/anomalies" element={<AttendanceAnomaliesPage />} />
+        <Route path="/dashboard/hr/my-attendance/overtime" element={<EmployeeOvertimePage />} />
+        <Route path="/dashboard/hr/my-attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
@@ -221,9 +237,13 @@ function AppRoutes() {
       </Route>
 
       {/* ─── MANAGER WORKSPACE ─── */}
-      <Route element={<ProtectedRoute><DashboardLayout role="manager" /></ProtectedRoute>}>
+      <Route element={<ProtectedRoute workspace="manager"><DashboardLayout role="manager" /></ProtectedRoute>}>
         <Route path="/dashboard/manager" element={<ManagerDashboard />} />
+        <Route path="/dashboard/manager/attendance" element={<EmployeeAttendancePage />} />
         <Route path="/dashboard/manager/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
+        <Route path="/dashboard/manager/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
+        <Route path="/dashboard/manager/attendance/overtime" element={<EmployeeOvertimePage />} />
+        <Route path="/dashboard/manager/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
         <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
         <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
@@ -242,7 +262,7 @@ function AppRoutes() {
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}
-      <Route element={<ProtectedRoute><DashboardLayout role="employee" /></ProtectedRoute>}>
+      <Route element={<ProtectedRoute workspace="employee"><DashboardLayout role="employee" /></ProtectedRoute>}>
         <Route path="/dashboard/employee" element={<EmployeeDashboard />} />
         <Route path="/dashboard/employee/attendance" element={<EmployeeAttendancePage />} />
         <Route path="/dashboard/employee/attendance/regularizations" element={<AttendanceRegularizationsPage />} />

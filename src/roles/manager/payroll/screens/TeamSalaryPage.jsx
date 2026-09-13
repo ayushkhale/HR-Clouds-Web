@@ -203,8 +203,7 @@ export default function TeamSalaryPage() {
       <DashboardTopBar title="Team Compensation" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <HiCurrencyRupee className="text-purple-600 w-7 h-7" /> Team Compensation
+          <h1 className="text-2xl font-bold text-slate-900">Team Compensation
           </h1>
           <p className="text-sm text-slate-500 mt-1">Review your direct reports' pay and propose revisions for HR approval.</p>
         </div>

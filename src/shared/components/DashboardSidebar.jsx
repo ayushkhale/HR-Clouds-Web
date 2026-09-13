@@ -6,6 +6,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { useSidebar } from "../contexts/SidebarContext";
 import { tokenHelper, attendanceAPI } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
+import { listFrom } from "../attendance/normalize";
+import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
+import { SELF_SERVICE_BASE } from "../attendance/paths";
 import {
   HiTemplate,
   HiChatAlt2,
@@ -42,66 +45,73 @@ import {
 let cachedInboxCount = 0;
 let lastInboxFetchTime = 0;
 let inboxFetchPromise = null;
+let inboxCacheToken = null;
 const INBOX_CACHE_DURATION = 60000; // 1 minute
+
+// Pending attendance items across the four manager queues. Shared module-level
+// cache so remounts don't refetch; `force` bypasses it after a decision.
+// The cache belongs to one session token — a different login starts from zero.
+async function fetchInboxCount(force = false) {
+  const token = tokenHelper.get();
+  if (token !== inboxCacheToken) {
+    inboxCacheToken = token;
+    cachedInboxCount = 0;
+    lastInboxFetchTime = 0;
+  }
+  if (!force && Date.now() - lastInboxFetchTime < INBOX_CACHE_DURATION) return cachedInboxCount;
+  if (inboxFetchPromise) {
+    if (!force) return inboxFetchPromise;
+    await inboxFetchPromise.catch(() => {});
+  }
+  if (!tokenHelper.get()) return 0;
+
+  inboxFetchPromise = Promise.allSettled([
+    attendanceAPI.getManagerPendingRegularizations(),
+    attendanceAPI.getManagerPendingOvertime(),
+    attendanceAPI.getManagerCompOffs(),
+    attendanceAPI.getManagerAnomalies(),
+  ])
+    .then((results) => {
+      const count = results.reduce(
+        (sum, r) => sum + (r.status === "fulfilled" ? listFrom(r.value, ["requests", "anomalies", "comp_offs", "overtime"]).length : 0),
+        0
+      );
+      if (inboxCacheToken === token) {
+        cachedInboxCount = count;
+        lastInboxFetchTime = Date.now();
+      }
+      return count;
+    })
+    .finally(() => {
+      inboxFetchPromise = null;
+    });
+  return inboxFetchPromise;
+}
 
 function DashboardSidebar({ role = "guest" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar } = useSidebar();
-  const [inboxCount, setInboxCount] = useState(0);
+  const [inboxCount, setInboxCount] = useState(role === "manager" && inboxCacheToken === tokenHelper.get() ? cachedInboxCount : 0);
 
   useEffect(() => {
-    if (role === "manager") {
-      const fetchCounts = async () => {
-        // Return immediately if cache is valid
-        if (Date.now() - lastInboxFetchTime < INBOX_CACHE_DURATION) {
-          setInboxCount(cachedInboxCount);
-          return;
-        }
-
-        // If a fetch is already in progress, wait for it instead of starting a new one
-        if (inboxFetchPromise) {
-          try {
-            const count = await inboxFetchPromise;
-            setInboxCount(count);
-          } catch (e) {}
-          return;
-        }
-
-        // Create a new fetch promise
-        inboxFetchPromise = Promise.all([
-          tokenHelper.get() ? attendanceAPI.getManagerPendingRegularizations() : { data: [] },
-          tokenHelper.get() ? attendanceAPI.getManagerPendingOvertime() : { data: [] },
-          tokenHelper.get() ? attendanceAPI.getManagerCompOffs() : { data: [] },
-          tokenHelper.get() ? attendanceAPI.getManagerAnomalies() : { data: [] }
-        ]).then(([regRes, otRes, coRes, anomRes]) => {
-          let count = 0;
-          if (regRes.data) count += regRes.data.length;
-          if (otRes.data) count += otRes.data.length;
-          if (coRes.data) count += coRes.data.length;
-          if (anomRes.data) count += anomRes.data.length;
-          cachedInboxCount = count;
-          lastInboxFetchTime = Date.now();
-          inboxFetchPromise = null;
-          return count;
-        }).catch(e => {
-          console.error("Failed to fetch manager inbox counts", e);
-          inboxFetchPromise = null;
-          return 0;
-        });
-
-        // Wait for our newly created promise
-        const count = await inboxFetchPromise;
-        setInboxCount(count);
-      };
-      fetchCounts();
-    }
+    if (role !== "manager") return undefined;
+    let alive = true;
+    fetchInboxCount().then((count) => alive && setInboxCount(count)).catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [role]);
+
+  // Approvals, rejections and resolutions anywhere in the app refresh the badge.
+  useAttendanceChanged(INBOX_EVENT_KINDS, () => {
+    if (role === "manager") fetchInboxCount(true).then(setInboxCount).catch(() => {});
+  });
 
   const [openSubMenus, setOpenSubMenus] = useState({
     shifts: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
-    attendanceSettings: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods"),
+    attendanceSettings: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods") || location.pathname.includes("/dashboard/hr/attendance/comp-off-policies"),
     offDays: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
     leaveConfig: location.pathname.includes("/dashboard/hr/leaves/types") || location.pathname.includes("/dashboard/hr/leaves/policies"),
   });
@@ -115,6 +125,24 @@ function DashboardSidebar({ role = "guest" }) {
     logout();
     navigate("/");
   }
+
+  // Self-service attendance is authorised for every org role; managers and HR
+  // get the same pages mounted inside their own workspace.
+  const selfServiceSection = (workspace) => {
+    const base = SELF_SERVICE_BASE[workspace];
+    const item = (label, suffix, icon) => ({ label, path: `${base}${suffix}`, icon, active: location.pathname === `${base}${suffix}` });
+    return {
+      title: "MY ATTENDANCE",
+      icon: HiClock,
+      items: [
+        item("My Attendance", "", HiClock),
+        item("My Regularizations", "/regularizations", HiClipboardList),
+        item("My Flags", "/anomalies", HiExclamationCircle),
+        item("My Overtime", "/overtime", HiClock),
+        item(`My ${DICTIONARY.TERMS.COMP_OFF}s`, "/comp-offs", HiGift),
+      ],
+    };
+  };
 
   // Sidebar link items based on role
   const getNavSections = () => {
@@ -151,6 +179,7 @@ function DashboardSidebar({ role = "guest" }) {
             { label: "Office Locations", path: "/dashboard/hr/attendance/locations", icon: HiLocationMarker, active: location.pathname === "/dashboard/hr/attendance/locations" },
           ],
         },
+        selfServiceSection("hr"),
         {
           title: "ATTENDANCE & TIME",
           icon: HiClock,
@@ -233,6 +262,9 @@ function DashboardSidebar({ role = "guest" }) {
         icon: HiTemplate,
         items: [
           { label: "Dashboard", path: `/dashboard/${role}`, icon: HiViewGrid, active: location.pathname === `/dashboard/${role}` },
+          ...(role === "employee" ? [
+            { label: "My Leaves", path: "/dashboard/employee/leaves", icon: HiCalendar, active: location.pathname === "/dashboard/employee/leaves" },
+          ] : []),
         ],
       },
       ...(role === "employee" ? [{
@@ -247,13 +279,6 @@ function DashboardSidebar({ role = "guest" }) {
         ],
       },
       {
-        title: "LEAVES",
-        icon: HiCalendar,
-        items: [
-          { label: "My Leaves", path: "/dashboard/employee/leaves", icon: HiCalendar, active: location.pathname === "/dashboard/employee/leaves" },
-        ],
-      },
-      {
         title: "PAYROLL & COMP",
         icon: HiCurrencyRupee,
         items: [
@@ -264,7 +289,7 @@ function DashboardSidebar({ role = "guest" }) {
           { label: "Reimbursements", path: "/dashboard/employee/payroll/reimbursements", icon: HiGift, active: location.pathname === "/dashboard/employee/payroll/reimbursements" },
         ],
       }] : []),
-      ...(role === "manager" ? [{
+      ...(role === "manager" ? [selfServiceSection("manager"), {
         title: "REQUESTS",
         icon: HiClipboardList,
         items: [

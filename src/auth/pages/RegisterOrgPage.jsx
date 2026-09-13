@@ -55,9 +55,11 @@ function loadRazorpayScript() {
   });
 }
 
+const PENDING_ORG_KEY = "hrclouds_pending_org_id";
+
 function RegisterOrgPage() {
   const navigate = useNavigate();
-  const { login, getDashboardPath } = useAuth();
+  const { login, getDashboardPath, role } = useAuth();
 
   // Step 1: select plan; Step 2: enter details
   const [step, setStep] = useState(1);
@@ -79,8 +81,14 @@ function RegisterOrgPage() {
   useEffect(() => {
     if (!tokenHelper.get()) {
       navigate("/auth/login", { replace: true });
+      return;
     }
-  }, [navigate]);
+    // Only a guest (no org yet) may register a new organization. Anyone who
+    // already belongs to an org is sent to their dashboard.
+    if (role && role !== "guest") {
+      navigate(getDashboardPath(), { replace: true });
+    }
+  }, [navigate, role, getDashboardPath]);
 
   useEffect(() => {
     if (selectedPlan?.code === "free") {
@@ -123,8 +131,12 @@ function RegisterOrgPage() {
         return;
       }
 
-      // Paid plan Razorpay modal
+      // Paid plan Razorpay modal — persist org_id so a mid-payment reload can
+      // still verify against the right organization.
       if (res.data?.razorpay_order) {
+        if (res.data.org_id) {
+          try { sessionStorage.setItem(PENDING_ORG_KEY, res.data.org_id); } catch { /* ignore */ }
+        }
         await openRazorpay(res.data.razorpay_order, res.data.org_id);
       }
     } catch (err) {
@@ -151,13 +163,18 @@ function RegisterOrgPage() {
       handler: async function (paymentResponse) {
         setLoading(true);
         try {
+          let resolvedOrgId = orgId;
+          if (!resolvedOrgId) {
+            try { resolvedOrgId = sessionStorage.getItem(PENDING_ORG_KEY); } catch { /* ignore */ }
+          }
           const verifyRes = await organizationAPI.verifyPayment({
             razorpay_order_id: paymentResponse.razorpay_order_id,
             razorpay_payment_id: paymentResponse.razorpay_payment_id,
             razorpay_signature: paymentResponse.razorpay_signature,
-            org_id: orgId,
+            org_id: resolvedOrgId,
           });
 
+          try { sessionStorage.removeItem(PENDING_ORG_KEY); } catch { /* ignore */ }
           login(verifyRes);
           setSuccess(true);
           setTimeout(() => navigate(getDashboardPath("hr"), { replace: true }), 1500);

@@ -198,8 +198,7 @@ export default function PayrollTemplatesPage() {
           
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiDocumentText className="text-purple-600 w-7 h-7" /> Structure Templates
+              <h1 className="text-2xl font-bold text-slate-900">Structure Templates
               </h1>
               <p className="text-sm text-slate-500 mt-1">Define templates to standardize compensation packages.</p>
             </div>

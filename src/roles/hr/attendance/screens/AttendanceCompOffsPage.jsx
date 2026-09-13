@@ -1,189 +1,195 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
 import { DICTIONARY } from "../../../../shared/config/dictionary";
-import { HiSparkles, HiCheck, HiX, HiCheckCircle, HiBan } from "react-icons/hi";
+import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
+import { usePagedList } from "../../../../shared/attendance/usePagedList";
+import { COMP_OFF_FILTERS } from "../../../../shared/attendance/enums";
+import { employeeCode, entityId, initials, personName } from "../../../../shared/attendance/normalize";
+import { fmtDate, fmtHours, ymdOnly } from "../../../../shared/attendance/dates";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "../../../../shared/attendance/events";
+import DecisionDialog from "../../../../shared/attendance/DecisionDialog";
+import { DecisionDetails } from "../../../../shared/attendance/AttendanceApprovalQueue";
+import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, StatusBadge, Toast, useToast } from "../../../../shared/attendance/ui";
+import { HiCheckCircle, HiGift } from "react-icons/hi";
 
-const STATUS_TABS = [
-  { key: "earned", label: "Earned", badgeClass: "bg-purple-100 text-purple-700" },
-  { key: "approved", label: "Approved", badgeClass: "bg-indigo-100 text-indigo-700" },
-  { key: "rejected", label: "Rejected", badgeClass: "bg-slate-100 text-slate-600" },
-  { key: "expired", label: "Expired", badgeClass: "bg-slate-100 text-slate-400" },
-  { key: "consumed", label: "Consumed", badgeClass: "bg-purple-50 text-purple-500" },
+const TERM = DICTIONARY.TERMS.COMP_OFF;
+const workedDate = (r) => ymdOnly(r.earned_date || r.worked_date || r.date);
+const creditDays = (r) => r.days_earned ?? r.credit_days ?? r.days ?? null;
+const expiryDate = (r) => ymdOnly(r.expiry_date || r.expires_on || r.valid_until);
+
+const HR_ACTIONS = [
+  { key: "reject", label: "Reject", tone: "rose", requireRemarks: true },
+  { key: "approve", label: "Approve (override)", tone: "emerald" },
 ];
 
 function AttendanceCompOffsPage() {
-  const [compOffs, setCompOffs] = useState([]);
-  const [activeTab, setActiveTab] = useState("earned");
+  const [status, setStatus] = useState("earned");
   const [selected, setSelected] = useState([]);
-  const [remarksMap, setRemarksMap] = useState({});
-  const [toast, setToast] = useState(null);
+  const [decision, setDecision] = useState(null);
+  const [bulk, setBulk] = useState(null); // { done, total, failures: [] }
+  const { toast, showToast, clearToast } = useToast();
 
-  useEffect(() => { fetchCompOffs(); }, [activeTab]);
+  const list = usePagedList(
+    ({ page, limit }) => attendanceAPI.getCompOffs({ status: status || undefined, page, limit }),
+    { limit: 25, keys: ["comp_offs", "compOffs", "records"], filterKey: status }
+  );
+  useAttendanceChanged([ATTENDANCE_EVENTS.COMPOFF], list.reload);
 
-  const fetchCompOffs = async () => {
-    try {
-      const res = await attendanceAPI.getCompOffs({ status: activeTab });
-      if (res.success) setCompOffs(res.data || []);
-    } catch (err) { console.error(err); setCompOffs([]); }
-  };
+  // Selection only makes sense for the rows currently visible.
+  useEffect(() => { setSelected([]); }, [status, list.page]);
 
-  const showToast = (msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const actionable = status === "earned";
+  const visibleIds = useMemo(() => list.items.map(entityId).filter(Boolean), [list.items]);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
 
-  const handleApprove = async (id) => {
-    try {
-      const res = await attendanceAPI.approveCompOff(id);
-      if (res.success) {
-        const expiry = res.data?.expiry_date ? new Date(res.data.expiry_date).toLocaleDateString() : "90 days";
-        showToast(`${DICTIONARY.TERMS.COMP_OFF} approved! Expires: ${expiry}`);
-        fetchCompOffs();
-      }
-    } catch (err) {
-      showToast(err.message || "Failed to approve", "error");
-    }
-  };
+  const toggle = (id) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleAll = () => setSelected(allSelected ? [] : visibleIds);
 
-  const handleReject = async (id) => {
-    try {
-      const res = await attendanceAPI.rejectCompOff(id, { remarks: remarksMap[id] || "" });
-      if (res.success) {
-        showToast(`${DICTIONARY.TERMS.COMP_OFF} rejected`);
-        fetchCompOffs();
-      }
-    } catch (err) {
-      showToast(err.message || "Failed to reject", "error");
-    }
+  const handleDecision = async (action, remarks) => {
+    const id = entityId(decision);
+    if (action === "approve") await attendanceAPI.approveCompOff(id, { remarks });
+    else await attendanceAPI.rejectCompOff(id, { remarks });
+    setDecision(null);
+    emitAttendanceChanged(ATTENDANCE_EVENTS.COMPOFF, { action, id, scope: "hr" });
+    // Reject writes `cancelled` (contract §2 C11) — tell HR where the item went.
+    showToast(action === "approve" ? `${TERM} approved and credited to leave.` : `${TERM} rejected — it's now listed under Rejected / cancelled.`);
   };
 
   const handleBulkApprove = async () => {
-    if (selected.length === 0) return;
-    let count = 0;
-    for (const id of selected) {
+    if (bulk || selected.length === 0) return;
+    const rows = list.items.filter((r) => selected.includes(entityId(r)));
+    if (!(await window.confirm(`Approve ${rows.length} ${TERM.toLowerCase()}${rows.length === 1 ? "" : "s"} as an HR override? Each approval credits the employee's leave balance.`))) return;
+
+    const failures = [];
+    setBulk({ done: 0, total: rows.length, failures });
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       try {
-        const res = await attendanceAPI.approveCompOff(id);
-        if (res.success) count++;
-      } catch (err) { console.error(err); }
+        await attendanceAPI.approveCompOff(entityId(row));
+      } catch (err) {
+        failures.push({ name: personName(row, "Employee"), message: attendanceErrorMessage(err, "Failed") });
+      }
+      setBulk({ done: i + 1, total: rows.length, failures: [...failures] });
     }
-    showToast(`${count} ${DICTIONARY.TERMS.COMP_OFF.toLowerCase()}(s) approved!`);
+    const approved = rows.length - failures.length;
+    if (approved > 0) emitAttendanceChanged(ATTENDANCE_EVENTS.COMPOFF, { action: "bulk_approve", scope: "hr" });
     setSelected([]);
-    fetchCompOffs();
+    setBulk(null);
+    if (failures.length === 0) showToast(`${approved} ${TERM.toLowerCase()}${approved === 1 ? "" : "s"} approved.`);
+    else showToast(`${approved} approved, ${failures.length} failed: ${failures.map((f) => `${f.name} (${f.message})`).join("; ")}`, "error");
+    // The COMPOFF event already reloads this list when anything was approved.
+    if (approved === 0) list.reload();
   };
 
-  const toggleSelect = (id) => {
-    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-
-  const toggleSelectAll = () => {
-    if (selected.length === compOffs.length) setSelected([]);
-    else setSelected(compOffs.map(c => c.id));
-  };
-
-  const getStatusBadge = (status) => {
-    const tab = STATUS_TABS.find(t => t.key === status);
-    return tab ? tab.badgeClass : "bg-slate-100 text-slate-500";
-  };
+  const tabs = COMP_OFF_FILTERS.filter((t) => t.value !== "").concat([{ value: "", label: "All" }]);
 
   return (
     <>
-        <DashboardTopBar title="Compensatory Offs" />
-        <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Compensatory Offs</h1>
-              <p className="text-sm text-slate-500 mt-1">Review, approve, or reject compensatory off requests earned by employees working on holidays or weekly offs.</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
-            {/* Tabs */}
-            <div className="flex flex-wrap gap-2">
-              {STATUS_TABS.map(tab => (
-                <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSelected([]); }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${activeTab === tab.key ? "bg-[#6D28D9] text-white border-[#6D28D9]" : "bg-white text-slate-600 border-slate-200 hover:border-purple-300"}`}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Bulk Actions */}
-            {activeTab === "earned" && selected.length > 0 && (
-              <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-xl px-5 py-3">
-                <span className="text-sm font-semibold text-purple-700">{selected.length} selected</span>
-                <button onClick={handleBulkApprove} className="ml-auto px-4 py-2 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
-                  <HiCheckCircle className="w-4 h-4" /> Approve Selected
-                </button>
-              </div>
-            )}
-            <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-xs">
-                  <tr>
-                    {activeTab === "earned" && (
-                      <th className="px-4 py-4"><input type="checkbox" checked={selected.length === compOffs.length && compOffs.length > 0} onChange={toggleSelectAll} className="accent-purple-600" /></th>
-                    )}
-                    <th className="px-6 py-4">Employee</th>
-                    <th className="px-6 py-4">Earned Date</th>
-                    <th className="px-6 py-4">Type</th>
-                    <th className="px-6 py-4">Hours Worked</th>
-                    <th className="px-6 py-4">Status</th>
-                    {activeTab === "earned" && <th className="px-6 py-4 text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {compOffs.length === 0 ? (
-                    <tr><td colSpan={activeTab === "earned" ? 7 : 6} className="px-6 py-12 text-center text-slate-400">No {activeTab} {DICTIONARY.TERMS.COMP_OFF.toLowerCase()}s found.</td></tr>
-                  ) : compOffs.map(co => (
-                    <tr key={co.id} className="hover:bg-slate-50/80 transition-colors">
-                      {activeTab === "earned" && (
-                        <td className="px-4 py-4"><input type="checkbox" checked={selected.includes(co.id)} onChange={() => toggleSelect(co.id)} className="accent-purple-600" /></td>
-                      )}
-                      <td className="px-6 py-4 font-semibold text-primary-800">
-                        {co.user?.profile ? `${co.user.profile.first_name} ${co.user.profile.last_name}` : (co.user?.name || co.user_id?.split("-")[0] || "Unknown")}
-                      </td>
-                      <td className="px-6 py-4 font-medium">{co.earned_date}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-purple-50 text-purple-600 border border-purple-100">
-                          {co.worked_type ? co.worked_type.replace("_", " ") : "--"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-medium">{co.worked_hours ? `${co.worked_hours}h` : "--"}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide border border-black/5 ${getStatusBadge(co.status)}`}>
-                          {co.status}
-                        </span>
-                      </td>
-                      {activeTab === "earned" && (
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <input type="text" placeholder="Remarks..." value={remarksMap[co.id] || ""} onChange={e => setRemarksMap({ ...remarksMap, [co.id]: e.target.value })}
-                              className="w-28 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-purple-500" />
-                            <button onClick={() => handleApprove(co.id)} className="p-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors" title="Approve">
-                              <HiCheck className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleReject(co.id)} className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-lg transition-colors" title="Reject">
-                              <HiBan className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
-
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold flex items-center gap-2 animate-[slideUp_0.3s_ease] ${toast.type === "error" ? "bg-rose-500 text-white" : "bg-purple-600 text-white"}`}>
-          {toast.type === "error" ? <HiX className="w-4 h-4" /> : <HiCheckCircle className="w-4 h-4" />}
-          {toast.msg}
+      <DashboardTopBar title={`${TERM}s`} />
+      <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{TERM}s</h1>
+          <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits as an override of the manager step.</p>
         </div>
-      )}
+
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-hidden">
+          <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <FilterTabs options={tabs} value={status} onChange={setStatus} />
+            {actionable && selected.length > 0 && (
+              <button type="button" onClick={handleBulkApprove} disabled={!!bulk} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-60">
+                {bulk ? <><Spinner /> Approving {bulk.done}/{bulk.total}…</> : <><HiCheckCircle className="w-4 h-4" /> Approve {selected.length} selected</>}
+              </button>
+            )}
+          </div>
+
+          {list.error ? (
+            <ErrorState error={list.error} onRetry={list.reload} fallback={`Couldn't load ${TERM.toLowerCase()}s.`} />
+          ) : list.loading && list.items.length === 0 ? (
+            <div className="p-6"><LoadingRows rows={5} /></div>
+          ) : list.items.length === 0 ? (
+            <EmptyState icon={HiGift} title="Nothing here" message={`No ${status ? `${status} ` : ""}${TERM.toLowerCase()}s found.`} />
+          ) : (
+            <>
+              <div className={`overflow-x-auto ${list.loading ? "opacity-60" : ""}`}>
+                <table className="w-full text-left text-sm min-w-[860px]">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-[11px]">
+                    <tr>
+                      {actionable && (
+                        <th className="px-4 py-3.5 w-10">
+                          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-purple-600" aria-label="Select all on this page" />
+                        </th>
+                      )}
+                      <th className="px-5 py-3.5">Employee</th>
+                      <th className="px-5 py-3.5">Worked on</th>
+                      <th className="px-5 py-3.5">Hours</th>
+                      <th className="px-5 py-3.5">Credit</th>
+                      <th className="px-5 py-3.5">Expires</th>
+                      <th className="px-5 py-3.5">Status</th>
+                      {actionable && <th className="px-5 py-3.5 text-right"><span className="sr-only">Actions</span></th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {list.items.map((co) => {
+                      const id = entityId(co);
+                      const name = personName(co, "Employee");
+                      const code = employeeCode(co);
+                      return (
+                        <tr key={id} className="hover:bg-slate-50/80 transition-colors">
+                          {actionable && (
+                            <td className="px-4 py-3">
+                              <input type="checkbox" checked={selected.includes(id)} onChange={() => toggle(id)} disabled={!!bulk} className="accent-purple-600" aria-label={`Select ${name}`} />
+                            </td>
+                          )}
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold shrink-0">{initials(name)}</div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
+                                {code && <p className="text-[10px] text-slate-400">{code}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3 text-xs whitespace-nowrap">{fmtDate(workedDate(co))}</td>
+                          <td className="px-5 py-3 text-xs">{co.worked_hours != null ? fmtHours(co.worked_hours) : "—"}</td>
+                          <td className="px-5 py-3 text-xs font-bold text-emerald-600">{creditDays(co) != null ? `${creditDays(co)} day(s)` : "—"}</td>
+                          <td className="px-5 py-3 text-xs">{expiryDate(co) ? fmtDate(expiryDate(co)) : "—"}</td>
+                          <td className="px-5 py-3"><StatusBadge kind="compoff" status={co.status} /></td>
+                          {actionable && (
+                            <td className="px-5 py-3 text-right">
+                              <button type="button" onClick={() => setDecision(co)} disabled={!!bulk} className="text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-3.5 py-1.5 rounded-lg transition disabled:opacity-50">
+                                Review
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100">
+                <Pagination page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading || !!bulk} />
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+
+      <DecisionDialog
+        open={!!decision}
+        entityKey={decision ? entityId(decision) : undefined}
+        title={`HR override · ${TERM}`}
+        subtitle={decision ? personName(decision, "Employee") : ""}
+        actions={HR_ACTIONS}
+        notice={<InlineAlert tone="amber">This decision bypasses the manager step. Approving credits the {TERM.toLowerCase()} to the employee's leave balance; rejecting moves it to Rejected / cancelled.</InlineAlert>}
+        onSubmit={handleDecision}
+        onClose={() => setDecision(null)}
+      >
+        {decision && <DecisionDetails type="compoff" item={decision} person={{ name: personName(decision, "Employee"), code: employeeCode(decision) }} />}
+      </DecisionDialog>
+
+      <Toast toast={toast} onClose={clearToast} />
     </>
   );
 }

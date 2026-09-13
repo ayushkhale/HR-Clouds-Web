@@ -1,94 +1,76 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiClock } from "react-icons/hi";
+import { usePagedList } from "../../../shared/attendance/usePagedList";
+import { fmtDate, fmtDateTime, fmtMinutes, ymdOnly } from "../../../shared/attendance/dates";
+import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+
+// Response shape is undocumented (audit C14); minutes are the canonical unit
+// elsewhere in the module, hours are accepted as a fallback.
+function overtimeMinutes(record) {
+  if (record.overtime_minutes != null) return Number(record.overtime_minutes);
+  if (record.minutes != null) return Number(record.minutes);
+  if (record.requested_minutes != null) return Number(record.requested_minutes);
+  if (record.hours != null) return Math.round(Number(record.hours) * 60);
+  return null;
+}
 
 function EmployeeOvertimePage() {
-  const [overtime, setOvertime] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchOvertime();
-  }, []);
-
-  const fetchOvertime = async () => {
-    setLoading(true);
-    try {
-      const res = await attendanceAPI.getMyOvertime();
-      if (res.success) {
-        const data = res.data?.data || res.data?.overtime || res.data || [];
-        setOvertime(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    const s = (status || "").toLowerCase();
-    if (s === 'approved') return "bg-emerald-100 text-emerald-700 border-emerald-200";
-    if (s === 'rejected') return "bg-rose-100 text-rose-700 border-rose-200";
-    return "bg-amber-100 text-amber-700 border-amber-200";
-  };
+  const list = usePagedList(({ page, limit }) => attendanceAPI.getMyOvertime({ page, limit }), { limit: 20, keys: ["overtime", "requests", "records"] });
 
   return (
     <>
-        <DashboardTopBar title="My Overtime" />
+      <DashboardTopBar title="My Overtime" />
+      <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">My Overtime</h1>
+          <p className="text-sm text-slate-500 mt-1">Overtime recorded from your attendance and its approval status.</p>
+        </div>
 
-        <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">My Overtime Hours</h1>
-              <p className="text-sm text-slate-500 mt-1">Track your approved extra hours.</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider text-xs">
-                  <tr>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Hours</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Manager Note</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {loading ? (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          {list.error ? (
+            <ErrorState error={list.error} onRetry={list.reload} fallback="Couldn't load your overtime." />
+          ) : list.loading && list.items.length === 0 ? (
+            <div className="p-6"><LoadingRows rows={4} /></div>
+          ) : list.items.length === 0 ? (
+            <EmptyState icon={HiClock} title="No overtime yet" message="Overtime appears here when you work beyond your shift and your attendance policy tracks it." />
+          ) : (
+            <>
+              <div className={`overflow-x-auto ${list.loading ? "opacity-60" : ""}`}>
+                <table className="w-full text-left text-sm min-w-[640px]">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                     <tr>
-                      <td colSpan="4" className="px-6 py-12 text-center text-slate-400">Loading overtime records...</td>
+                      <th className="px-6 py-3.5">Date</th>
+                      <th className="px-6 py-3.5">Overtime</th>
+                      <th className="px-6 py-3.5">Status</th>
+                      <th className="px-6 py-3.5">Reviewer remarks</th>
+                      <th className="px-6 py-3.5">Reviewed</th>
                     </tr>
-                  ) : overtime.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="px-6 py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center gap-2">
-                          <HiClock className="w-8 h-8 text-slate-200" />
-                          <p>No overtime records found.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    overtime.map((record, idx) => (
-                      <tr key={record.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4 font-semibold">{record.date}</td>
-                        <td className="px-6 py-4 font-bold text-indigo-600">{record.hours} hrs</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide border ${getStatusBadge(record.status)}`}>
-                            {record.status || 'Pending'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 truncate max-w-xs" title={record.manager_note}>{record.manager_note || '--'}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {list.items.map((record, idx) => {
+                      const remarks = record.remarks || record.manager_remarks || record.manager_note;
+                      return (
+                        <tr key={record.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(record.date || record.record_date || record.attendance_record?.date))}</td>
+                          <td className="px-6 py-3.5 font-bold text-indigo-600">{fmtMinutes(overtimeMinutes(record))}</td>
+                          <td className="px-6 py-3.5"><StatusBadge kind="overtime" status={record.status || "pending"} /></td>
+                          <td className="px-6 py-3.5 max-w-xs truncate" title={remarks}>{remarks || "—"}</td>
+                          <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(record.approved_at || record.reviewed_at || record.updated_at, "—")}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100">
+                <Pagination page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} />
+              </div>
+            </>
+          )}
+        </div>
+      </main>
     </>
   );
 }

@@ -107,8 +107,7 @@ export default function YearEndClosurePage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiDocumentReport className="text-purple-600 w-7 h-7" /> Year-End Closure &amp; Form 16
+              <h1 className="text-2xl font-bold text-slate-900">Year-End Closure &amp; Form 16
               </h1>
               <p className="text-sm text-slate-500 mt-1">Statutory challan summary, FY finalization, and per-employee Form 16.</p>
             </div>

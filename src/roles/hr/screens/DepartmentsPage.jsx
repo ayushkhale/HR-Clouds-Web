@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { organizationAPI } from "../../../shared/api";
+import { canBeHOD } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
@@ -23,6 +24,8 @@ function DepartmentsPage() {
   const [isActive, setIsActive] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [result, setResult] = useState({ type: "", message: "" });
 
   useEffect(() => {
@@ -30,6 +33,8 @@ function DepartmentsPage() {
   }, []);
 
   const fetchData = async () => {
+    setPageLoading(true);
+    setFetchError("");
     try {
       const [depRes, locRes, empRes] = await Promise.all([
         organizationAPI.getDepartments(),
@@ -37,17 +42,14 @@ function DepartmentsPage() {
         organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ success: false, data: [] }))
       ]);
 
-      if (depRes.success && depRes.data) {
-        setDepartments(depRes.data);
-      }
-      if (locRes.success && locRes.data) {
-        setLocations(locRes.data);
-      }
-      if (empRes.success && empRes.data) {
-        setEmployees(empRes.data);
-      }
+      setDepartments(Array.isArray(depRes?.data) ? depRes.data : []);
+      if (Array.isArray(locRes?.data)) setLocations(locRes.data);
+      if (Array.isArray(empRes?.data)) setEmployees(empRes.data);
     } catch (error) {
-      console.error("Failed to fetch data", error);
+      console.error("Failed to fetch departments", error);
+      setFetchError(error?.data?.message || error?.message || "Could not load departments.");
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -81,6 +83,22 @@ function DepartmentsPage() {
     setResult({ type: "", message: "" });
 
     try {
+      // Warn before an HOD change: the backend atomically rewires every
+      // subordinate reporting line to the new Head of Department.
+      if (isEditing) {
+        const current = departments.find((d) => (d.id || d._id) === editingId);
+        const prevHod = current?.head_of_department_id || "";
+        if (prevHod && headOfDepartmentId && prevHod !== headOfDepartmentId) {
+          const ok = window.confirm(
+            "Changing the Head of Department will transfer all direct reports to the new HOD. Continue?"
+          );
+          if (!ok) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const payload = {
         name,
         description,
@@ -112,6 +130,26 @@ function DepartmentsPage() {
   const filteredDepartments = departments.filter((dept) =>
     (dept.name || "").toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1));
+
+  // ── HOD selector options ──────────────────────────────────────────────────
+  // Only Managers/HR may lead a department. A department that already has an
+  // HOD must be handed over to a named successor rather than left headless, so
+  // the blank option is withheld in that case. A legacy HOD whose role no
+  // longer qualifies is still listed, otherwise the select would render blank
+  // and silently reassign on save.
+  const editingDept = isEditing
+    ? departments.find((d) => (d.id || d._id) === editingId)
+    : null;
+  const hasExistingHod = Boolean(editingDept?.head_of_department_id);
+  const eligibleHods = employees.filter((emp) => canBeHOD(emp.role));
+  const hodOptions = (headOfDepartmentId && !eligibleHods.some(
+    (e) => String(e.user_id || e.id) === String(headOfDepartmentId)
+  ))
+    ? [
+        ...eligibleHods,
+        ...employees.filter((e) => String(e.user_id || e.id) === String(headOfDepartmentId)),
+      ]
+    : eligibleHods;
 
   return (
     <>
@@ -146,16 +184,40 @@ function DepartmentsPage() {
               </div>
             </div>
 
+            {fetchError && !pageLoading && (
+              <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold flex flex-wrap items-center gap-3">
+                <span>{fetchError}</span>
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-red-200 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-              {filteredDepartments.length === 0 ? (
+              {pageLoading ? (
+                [...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-[20px] h-56 border border-slate-100 animate-pulse" />
+                ))
+              ) : filteredDepartments.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-slate-400 font-medium">
                   <HiOutlineOfficeBuilding className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  No departments found.
+                  {fetchError
+                    ? "Departments unavailable."
+                    : searchQuery
+                      ? `No departments matching "${searchQuery}"`
+                      : "No departments yet — add your first one."}
                 </div>
               ) : (
                 filteredDepartments.map((dept) => {
-                  const loc = locations.find(l => l.id === dept.location_id || l._id === dept.location_id) || dept.location;
-                  const hod = employees.find(e => e.user_id === dept.head_of_department_id || e.id === dept.head_of_department_id) || dept.head_of_department;
+                  // Prefer server-resolved names; fall back to local lookup only if absent.
+                  const locName = dept.location_name
+                    || (locations.find(l => l.id === dept.location_id || l._id === dept.location_id) || dept.location)?.name;
+                  const hodName = dept.head_of_department_name
+                    || (employees.find(e => e.user_id === dept.head_of_department_id || e.id === dept.head_of_department_id) || dept.head_of_department)?.name;
 
                   return (
                     <div
@@ -209,11 +271,11 @@ function DepartmentsPage() {
                         <div className="mt-auto flex flex-col gap-2.5 pt-4 border-t border-slate-100">
                           <div className="flex items-center gap-2">
                             <HiLocationMarker className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="text-xs font-semibold text-slate-600 truncate">{loc?.name || "No location assigned"}</span>
+                            <span className="text-xs font-semibold text-slate-600 truncate">{locName || "No location assigned"}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <HiUser className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="text-xs font-semibold text-slate-600 truncate">{hod?.name || hod?.full_name || "No HOD assigned"}</span>
+                            <span className="text-xs font-semibold text-slate-600 truncate">{hodName || "No HOD assigned"}</span>
                           </div>
                         </div>
                       </div>
@@ -277,11 +339,23 @@ function DepartmentsPage() {
                   onChange={(e) => setHeadOfDepartmentId(e.target.value)}
                   className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
                 >
-                  <option value="">---Select HOD---</option>
-                  {employees.map(emp => (
-                    <option key={emp.user_id || emp.id} value={emp.user_id || emp.id}>{emp.name || emp.full_name || emp.email}</option>
+                  {!hasExistingHod && <option value="">---Select HOD---</option>}
+                  {hodOptions.map(emp => (
+                    <option key={emp.user_id || emp.id} value={emp.user_id || emp.id}>
+                      {emp.name || emp.full_name || emp.email} ({(emp.role || "").toUpperCase()})
+                    </option>
                   ))}
                 </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {hasExistingHod
+                    ? "Only Managers and HR Admins can lead a department. Choose a successor to hand over — a department cannot be left headless."
+                    : "Only Managers and HR Admins can lead a department."}
+                </p>
+                {hodOptions.length === 0 && (
+                  <p className="text-[11px] text-amber-600 font-medium mt-1">
+                    No Managers or HR Admins available to assign.
+                  </p>
+                )}
               </div>
 
               <div>

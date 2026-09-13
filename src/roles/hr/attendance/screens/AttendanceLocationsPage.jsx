@@ -1,14 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import PageHeader from "../../../../shared/components/PageHeader";
 import { attendanceAPI } from "../../../../shared/api";
-import { HiSparkles, HiPlus, HiPencil, HiTrash, HiLocationMarker, HiX, HiSearch } from "react-icons/hi";
+import { HiSparkles, HiPlus, HiPencil, HiLocationMarker, HiX, HiSearch } from "react-icons/hi";
+
+// Best-effort default timezone for new locations. The backend defaults to UTC
+// when omitted, which silently breaks attendance geofence/clock calculations,
+// so we always send a real IANA zone (documented `timezone` field).
+const BROWSER_TZ = (() => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+  catch { return "UTC"; }
+})();
 
 function AttendanceLocationsPage() {
   const [locations, setLocations] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
-  const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
+  const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "", timezone: BROWSER_TZ });
+  const [saveError, setSaveError] = useState("");
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -22,20 +33,32 @@ function AttendanceLocationsPage() {
   useEffect(() => { fetchLocations(); }, []);
 
   const fetchLocations = async () => {
+    setListLoading(true);
+    setListError("");
     try {
       const res = await attendanceAPI.getLocations();
-      if (res.success) setLocations(res.data || []);
-    } catch (err) { console.error(err); }
+      setLocations(Array.isArray(res?.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      setListError(err?.data?.message || err?.message || "Could not load office locations.");
+    } finally {
+      setListLoading(false);
+    }
   };
 
   const openModal = (loc = null) => {
+    setSaveError("");
     if (loc) {
       setEditingLocation(loc);
-      setForm({ name: loc.name, address: loc.address || "", latitude: String(loc.latitude), longitude: String(loc.longitude), geofence_radius_meters: loc.geofence_radius_meters || 100, city: loc.city || "", state: loc.state || "", country: loc.country || "", pincode: loc.pincode || "" });
+      setForm({ name: loc.name || "", address: loc.address || "", latitude: String(loc.latitude ?? ""), longitude: String(loc.longitude ?? ""), geofence_radius_meters: loc.geofence_radius_meters || 100, city: loc.city || "", state: loc.state || "", country: loc.country || "", pincode: loc.zip_code || loc.pincode || "", timezone: loc.timezone || BROWSER_TZ });
+      setSearchQuery(loc.address || "");
     } else {
       setEditingLocation(null);
-      setForm({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
+      setForm({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "", timezone: BROWSER_TZ });
+      setSearchQuery("");
     }
+    setSuggestions([]);
+    setShowSuggestions(false);
     setShowModal(true);
   };
 
@@ -57,8 +80,11 @@ function AttendanceLocationsPage() {
       if (typeof window.L === "undefined") return;
       if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
 
-      const lat = parseFloat(form.latitude) || 28.6139;
-      const lng = parseFloat(form.longitude) || 77.209;
+      // Note: 0 is a valid coordinate, so test for finiteness rather than truthiness.
+      const parsedLat = parseFloat(form.latitude);
+      const parsedLng = parseFloat(form.longitude);
+      const lat = Number.isFinite(parsedLat) ? parsedLat : 28.6139;
+      const lng = Number.isFinite(parsedLng) ? parsedLng : 77.209;
 
       const map = window.L.map(mapRef.current).setView([lat, lng], 15);
       window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -186,17 +212,39 @@ function AttendanceLocationsPage() {
   };
 
   const handleSave = async () => {
+    setSaveError("");
+
+    const lat = parseFloat(form.latitude);
+    const lng = parseFloat(form.longitude);
+    if (!form.name?.trim()) {
+      setSaveError("Location name is required.");
+      return;
+    }
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      setSaveError("Latitude must be a number between -90 and 90.");
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setSaveError("Longitude must be a number between -180 and 180.");
+      return;
+    }
+
+    // Documented location schema: name, address, city, state, country, zip_code,
+    // timezone, is_active. Geofence lat/long/radius are sent alongside because
+    // attendance clock-in depends on them (per the org-structure API note).
     const payload = {
-      name: form.name?.toUpperCase(),
-      address: form.address?.toUpperCase(),
-      latitude: parseFloat(form.latitude),
-      longitude: parseFloat(form.longitude),
-      geofence_radius_meters: parseInt(form.geofence_radius_meters),
-      city: form.city?.toUpperCase(),
-      state: form.state?.toUpperCase(),
-      country: form.country?.toUpperCase(),
-      pincode: form.pincode,
+      name: form.name?.trim(),
+      address: form.address?.trim(),
+      latitude: lat,
+      longitude: lng,
+      geofence_radius_meters: parseInt(form.geofence_radius_meters, 10) || 100,
+      city: form.city?.trim(),
+      state: form.state?.trim(),
+      country: form.country?.trim(),
+      zip_code: form.pincode?.trim(),
+      timezone: form.timezone || BROWSER_TZ,
     };
+    setSaving(true);
     try {
       if (editingLocation) {
         await attendanceAPI.updateLocation(editingLocation.id, payload);
@@ -207,15 +255,21 @@ function AttendanceLocationsPage() {
       fetchLocations();
     } catch (err) {
       console.error(err);
-      alert(err.message || "Failed to save location");
+      setSaveError(err?.data?.message || err.message || "Failed to save location");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleToggleActive = async (loc) => {
+    setListError("");
     try {
       await attendanceAPI.updateLocation(loc.id, { is_active: !loc.is_active });
       fetchLocations();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setListError(err?.data?.message || err?.message || "Could not update the location status.");
+    }
   };
 
   const filteredLocations = locations.filter(loc =>
@@ -253,12 +307,33 @@ function AttendanceLocationsPage() {
               </div>
             </div>
 
+            {listError && !listLoading && (
+              <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold flex flex-wrap items-center gap-3">
+                <span>{listError}</span>
+                <button
+                  type="button"
+                  onClick={fetchLocations}
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-red-200 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
             {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-              {filteredLocations.length === 0 ? (
+              {listLoading ? (
+                [...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-[20px] h-72 border border-slate-100 animate-pulse" />
+                ))
+              ) : filteredLocations.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-slate-400 font-medium">
                   <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  No locations found.
+                  {listError
+                    ? "Locations unavailable."
+                    : localSearchQuery
+                      ? `No locations matching "${localSearchQuery}"`
+                      : "No locations yet — add your first office."}
                 </div>
               ) : (
                 filteredLocations.map((loc) => (
@@ -315,13 +390,15 @@ function AttendanceLocationsPage() {
                       <div className="grid grid-cols-2 gap-3 mt-auto">
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
-                          <p className="text-xs font-semibold text-slate-700 truncate">{loc.city ? `${loc.city}, ${loc.state}` : '--'}</p>
+                          <p className="text-xs font-semibold text-slate-700 truncate">
+                            {[loc.city, loc.state].filter(Boolean).join(", ") || "--"}
+                          </p>
                         </div>
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
                           <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                             <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
-                            {loc.geofence_radius_meters} meters
+                            {loc.geofence_radius_meters != null ? `${loc.geofence_radius_meters} meters` : "--"}
                           </p>
                         </div>
                       </div>
@@ -441,6 +518,11 @@ function AttendanceLocationsPage() {
                   </div>
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timezone</label>
+                  <input type="text" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })} placeholder="Asia/Kolkata" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  <p className="text-[10px] text-slate-400 mt-1">IANA zone used for attendance calculations at this location.</p>
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.geofence_radius_meters}m</span></label>
                   <input type="range" min="25" max="1000" step="25" value={form.geofence_radius_meters} onChange={e => setForm({ ...form, geofence_radius_meters: parseInt(e.target.value) })} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 shadow-inner" />
                   <div className="flex justify-between text-[10px] text-slate-400 mt-1.5"><span>25m</span><span>500m</span><span>1000m</span></div>
@@ -449,10 +531,15 @@ function AttendanceLocationsPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 p-6 border-t border-slate-100 shrink-0 bg-white">
+            <div className="flex flex-col sm:flex-row sm:justify-end items-stretch sm:items-center gap-3 p-6 border-t border-slate-100 shrink-0 bg-white">
+              {saveError && (
+                <div className="mr-auto text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {saveError}
+                </div>
+              )}
               <button onClick={closeModal} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-              <button onClick={handleSave} disabled={!form.name || !form.latitude || !form.longitude} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95">
-                {editingLocation ? "Update Location" : "Create Location"}
+              <button onClick={handleSave} disabled={saving || !form.name || !form.latitude || !form.longitude} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95">
+                {saving ? "Saving…" : editingLocation ? "Update Location" : "Create Location"}
               </button>
             </div>
           </div>

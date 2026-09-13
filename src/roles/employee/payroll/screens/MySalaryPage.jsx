@@ -102,8 +102,7 @@ export default function MySalaryPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
           
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiCurrencyRupee className="text-purple-600 w-7 h-7" /> Salary & Bank Details
+            <h1 className="text-2xl font-bold text-slate-900">Salary & Bank Details
             </h1>
             <p className="text-sm text-slate-500 mt-1">View your current salary structure and manage deposit details.</p>
           </div>

@@ -3,10 +3,50 @@
 //
 // Organized by role hierarchy: HR → Manager → Employee
 // Within each role, APIs are grouped by sub-module (e.g. Policies, Shifts, etc.)
+//
+// Contract source of truth: public/ref docs/md_attendance/ATTENDANCE_API_CONTRACT.md
+// (supersedes 3..6_*.md). Every query string goes through `qs()` so empty
+// filters are never sent as literal values (e.g. `status=` or `date=undefined`).
+// Only endpoints and parameters that exist in the backend validators are
+// exposed — unknown keys are silently stripped server-side (§1.8).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { request } from "./client.js";
 import { organizationAPI } from "./organization.api.js";
+
+/**
+ * Build a query string from a params object, dropping undefined / null / ""
+ * values. Returns "" or "?a=1&b=2".
+ * @param {Record<string, unknown>} [params]
+ */
+export function qs(params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (typeof value === "number" && Number.isNaN(value)) return;
+    search.append(key, String(value));
+  });
+  const str = search.toString();
+  return str ? `?${str}` : "";
+}
+
+// Path params are URI-encoded: a malformed id (e.g. from a hand-edited
+// /employees/:userId URL) must not change which endpoint is called.
+const seg = (value) => encodeURIComponent(String(value ?? ""));
+
+const post = (path, payload) =>
+  request(path, payload === undefined
+    ? { method: "POST" }
+    : { method: "POST", body: JSON.stringify(payload) });
+
+const put = (path, payload) => request(path, { method: "PUT", body: JSON.stringify(payload) });
+const del = (path) => request(path, { method: "DELETE" });
+
+// Decision bodies: `remarks` is only sent when the user actually typed one.
+const decisionBody = (payload) => {
+  const remarks = typeof payload?.remarks === "string" ? payload.remarks.trim() : "";
+  return remarks ? { remarks } : undefined;
+};
 
 export const attendanceAPI = {
 
@@ -15,146 +55,111 @@ export const attendanceAPI = {
   //  All admin-level APIs for configuring and monitoring attendance
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ── HR › Dashboard ─────────────────────────────────────────────────────────
-  //    Live counts, graphs, department breakdowns, defaulters, work-mode dist.
-  getLiveDashboard: () => request("/attendance/hr/dashboard/live"),
-  getDashboardGraphData: (month, year) => request(`/attendance/hr/dashboard/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
-  getDepartmentSummary: (date) => request(`/attendance/hr/dashboard/department-summary${date ? `?date=${date}` : ""}`),
-  getTopDefaulters: (month, year) => request(`/attendance/hr/dashboard/top-defaulters${month && year ? `?month=${month}&year=${year}` : ""}`),
-  getWorkModeDistribution: (date) => request(`/attendance/hr/dashboard/work-mode-distribution${date ? `?date=${date}` : ""}`),
+  // ── HR › Dashboard (H59–H63) ───────────────────────────────────────────────
+  // §6.4: on the five dashboard endpoints `month`/`year` are regex-matched
+  // strings; qs() stringifies numbers, so 9 → "9" satisfies ^(0?[1-9]|1[012])$.
+  /** @param {string} [date] YYYY-MM-DD — pass it explicitly (server "today" is IST, §8.6). */
+  getLiveDashboard: (date) => request(`/attendance/hr/dashboard/live${qs({ date })}`),
+  getDashboardGraphData: (month, year) => request(`/attendance/hr/dashboard/graph-data${qs({ month, year })}`),
+  /** @param {string} [date] YYYY-MM-DD (local) */
+  getDepartmentSummary: (date) => request(`/attendance/hr/dashboard/department-summary${qs({ date })}`),
+  /** Always grouped: `{ most_absent: [...], most_late: [...] }`. `limit` 1–50. */
+  getTopDefaulters: (month, year, limit) => request(`/attendance/hr/dashboard/top-defaulters${qs({ month, year, limit })}`),
+  /** @param {string} [date] YYYY-MM-DD (local) */
+  getWorkModeDistribution: (date) => request(`/attendance/hr/dashboard/work-mode-distribution${qs({ date })}`),
 
-  // ── HR › Policies ──────────────────────────────────────────────────────────
-  //    Attendance policies (grace period, auto-absent, etc.)
+  // ── HR › Policies (H1–H5) ──────────────────────────────────────────────────
   getPolicies: () => request("/attendance/hr/policies"),
-  getPolicy: (id) => request(`/attendance/hr/policies/${id}`),
-  createPolicy: (payload) => request("/attendance/hr/policies", { method: "POST", body: JSON.stringify(payload) }),
-  updatePolicy: (id, payload) => request(`/attendance/hr/policies/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deactivatePolicy: (id) => request(`/attendance/hr/policies/${id}/deactivate`, { method: "PATCH" }),
+  getPolicy: (id) => request(`/attendance/hr/policies/${seg(id)}`),
+  createPolicy: (payload) => post("/attendance/hr/policies", payload),
+  updatePolicy: (id, payload) => put(`/attendance/hr/policies/${seg(id)}`, payload),
+  deactivatePolicy: (id) => request(`/attendance/hr/policies/${seg(id)}/deactivate`, { method: "PATCH" }),
 
-  // ── HR › Shifts ────────────────────────────────────────────────────────────
-  //    Shift definitions (start/end time, type, etc.)
+  // ── HR › Shifts (H10–H14) ──────────────────────────────────────────────────
   getShifts: () => request("/attendance/hr/shifts"),
-  getShift: (id) => request(`/attendance/hr/shifts/${id}`),
-  createShift: (payload) => request("/attendance/hr/shifts", { method: "POST", body: JSON.stringify(payload) }),
-  updateShift: (id, payload) => request(`/attendance/hr/shifts/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deleteShift: (id) => request(`/attendance/hr/shifts/${id}`, { method: "DELETE" }),
+  getShift: (id) => request(`/attendance/hr/shifts/${seg(id)}`),
+  createShift: (payload) => post("/attendance/hr/shifts", payload),
+  updateShift: (id, payload) => put(`/attendance/hr/shifts/${seg(id)}`, payload),
+  deleteShift: (id) => del(`/attendance/hr/shifts/${seg(id)}`),
 
-  // ── HR › Shift Roster / Assignments ────────────────────────────────────────
-  //    Assign shifts to employees, update/end/delete assignments
-  getAssignments: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/shifts/assignments${query ? `?${query}` : ""}`);
-  },
-  assignShift: (payload) => request("/attendance/hr/shifts/assign", { method: "POST", body: JSON.stringify(payload) }),
-  updateAssignment: (id, payload) => request(`/attendance/hr/shifts/assignments/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  endShiftAssignment: (id, payload) => request(`/attendance/hr/shifts/assignments/${id}/end`, { method: "POST", body: JSON.stringify(payload) }),
-  deleteShiftAssignment: (id) => request(`/attendance/hr/shifts/assignments/${id}`, { method: "DELETE" }),
+  // ── HR › Shift Roster / Assignments (H6–H9) ────────────────────────────────
+  getAssignments: (params = {}) => request(`/attendance/hr/shifts/assignments${qs(params)}`),
+  /** body: { user_id, (shift_id XOR rotation_pattern_id), effective_from, effective_to? } — no update route exists (§2 C2). */
+  assignShift: (payload) => post("/attendance/hr/shifts/assign", payload),
+  /** body: { effective_to: "YYYY-MM-DD" } */
+  endShiftAssignment: (id, payload) => post(`/attendance/hr/shifts/assignments/${seg(id)}/end`, payload),
+  deleteShiftAssignment: (id) => del(`/attendance/hr/shifts/assignments/${seg(id)}`),
 
-  // ── HR › Rotations ─────────────────────────────────────────────────────────
-  //    Shift rotation schedules
+  // ── HR › Rotations (H15–H17) ───────────────────────────────────────────────
   getRotations: () => request("/attendance/hr/rotations"),
-  createRotation: (payload) => request("/attendance/hr/rotations", { method: "POST", body: JSON.stringify(payload) }),
-  deleteRotation: (id) => request(`/attendance/hr/rotations/${id}`, { method: "DELETE" }),
+  createRotation: (payload) => post("/attendance/hr/rotations", payload),
+  deleteRotation: (id) => del(`/attendance/hr/rotations/${seg(id)}`),
 
-  // ── HR › Holidays ──────────────────────────────────────────────────────────
-  //    Organization-wide holiday calendar
-  getHolidays: (year = new Date().getFullYear()) => request(`/attendance/hr/holidays?year=${year}`),
-  createHoliday: (payload) => request("/attendance/hr/holidays", { method: "POST", body: JSON.stringify(payload) }),
-  updateHoliday: (id, payload) => request(`/attendance/hr/holidays/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deleteHoliday: (id) => request(`/attendance/hr/holidays/${id}`, { method: "DELETE" }),
+  // ── HR › Holidays (H18–H21) ────────────────────────────────────────────────
+  getHolidays: (year = new Date().getFullYear()) => request(`/attendance/hr/holidays${qs({ year })}`),
+  createHoliday: (payload) => post("/attendance/hr/holidays", payload),
+  updateHoliday: (id, payload) => put(`/attendance/hr/holidays/${seg(id)}`, payload),
+  deleteHoliday: (id) => del(`/attendance/hr/holidays/${seg(id)}`),
 
-  // ── HR › Weekly Offs ───────────────────────────────────────────────────────
-  //    Weekly off rules (e.g. Sat-Sun off for all, alternate Saturdays, etc.)
+  // ── HR › Weekly Offs (H22–H25) ─────────────────────────────────────────────
   getWeeklyOffs: () => request("/attendance/hr/weekly-offs"),
-  createWeeklyOff: (payload) => request("/attendance/hr/weekly-offs", { method: "POST", body: JSON.stringify(payload) }),
-  updateWeeklyOff: (id, payload) => request(`/attendance/hr/weekly-offs/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deleteWeeklyOff: (id) => request(`/attendance/hr/weekly-offs/${id}`, { method: "DELETE" }),
+  createWeeklyOff: (payload) => post("/attendance/hr/weekly-offs", payload),
+  updateWeeklyOff: (id, payload) => put(`/attendance/hr/weekly-offs/${seg(id)}`, payload),
+  deleteWeeklyOff: (id) => del(`/attendance/hr/weekly-offs/${seg(id)}`),
 
   // ── HR › Regularizations ───────────────────────────────────────────────────
-  //    View/approve/reject all regularization requests across the org
-  getOrgRegularizations: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/regularizations${query ? `?${query}` : ""}`);
-  },
-  approveRegularization: (id) => request(`/attendance/hr/regularizations/${id}/approve`, { method: "POST" }),
-  rejectRegularization: (id, payload) => request(`/attendance/hr/regularizations/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  // There is no /hr/regularizations route (§2 C1). HR reads and decides through
+  // /manager/regularizations/* — for HR the hierarchy filter is null, so the
+  // pending queue is org-wide and HIERARCHY_VIOLATION is unreachable.
 
-  // ── HR › Comp-Off Management ───────────────────────────────────────────────
-  //    View/approve/reject comp-off requests across the org
-  getCompOffs: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/comp-offs${query ? `?${query}` : ""}`);
-  },
-  approveCompOff: (id) => request(`/attendance/hr/comp-offs/${id}/approve`, { method: "POST" }),
-  rejectCompOff: (id, payload) => request(`/attendance/hr/comp-offs/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  // ── HR › Comp-Off Management (H37–H39) ─────────────────────────────────────
+  /** @param {{status?: "earned"|"approved"|"used"|"expired"|"cancelled", page?: number, limit?: number}} params */
+  getCompOffs: (params = {}) => request(`/attendance/hr/comp-offs${qs(params)}`),
+  // Body `{ remarks? ≤1000 }` (§2 C10). Reject writes status `cancelled` (§2 C11).
+  approveCompOff: (id, payload) => post(`/attendance/hr/comp-offs/${seg(id)}/approve`, decisionBody(payload)),
+  rejectCompOff: (id, payload) => post(`/attendance/hr/comp-offs/${seg(id)}/reject`, decisionBody(payload)),
 
-  // ── HR › Comp-Off Policies ─────────────────────────────────────────────────
-  //    Configure comp-off eligibility rules
+  // ── HR › Comp-Off Policies (H33–H36) ───────────────────────────────────────
   getCompOffPolicies: () => request("/attendance/hr/comp-off-policies"),
-  createCompOffPolicy: (payload) => request("/attendance/hr/comp-off-policies", { method: "POST", body: JSON.stringify(payload) }),
-  updateCompOffPolicy: (id, payload) => request(`/attendance/hr/comp-off-policies/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deleteCompOffPolicy: (id) => request(`/attendance/hr/comp-off-policies/${id}`, { method: "DELETE" }),
+  createCompOffPolicy: (payload) => post("/attendance/hr/comp-off-policies", payload),
+  updateCompOffPolicy: (id, payload) => put(`/attendance/hr/comp-off-policies/${seg(id)}`, payload),
+  deleteCompOffPolicy: (id) => del(`/attendance/hr/comp-off-policies/${seg(id)}`),
 
-  // ── HR › Lock Periods ──────────────────────────────────────────────────────
-  //    Lock attendance records for specific date ranges (prevents edits)
+  // ── HR › Lock Periods (H40–H42) ────────────────────────────────────────────
   getLockPeriods: () => request("/attendance/hr/locks"),
-  createLockPeriod: (payload) => request("/attendance/hr/locks", { method: "POST", body: JSON.stringify(payload) }),
-  deleteLockPeriod: (id) => request(`/attendance/hr/locks/${id}`, { method: "DELETE" }),
+  /** body: { start_date, end_date, reason? } — violations raise PERIOD_LOCKED (403). */
+  createLockPeriod: (payload) => post("/attendance/hr/locks", payload),
+  deleteLockPeriod: (id) => del(`/attendance/hr/locks/${seg(id)}`),
 
-  // ── HR › Employee Attendance Records ───────────────────────────────────────
-  //    View attendance data for any employee/manager/HR in the org
-  getAllEmployeesAttendance: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/employees/attendance${query ? `?${query}` : ""}`);
-  },
-  getIndividualEmployeeAttendanceDetail: (userId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/employees/${userId}/attendance${query ? `?${query}` : ""}`);
-  },
-  getIndividualEmployeeMonthlySummary: (userId, month, year) => request(`/attendance/hr/employees/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
-  getEmployeeDailyLog: (userId, date) => request(`/attendance/hr/employees/${userId}/daily-log${date ? `?date=${date}` : ""}`),
+  // ── HR › Employee Attendance Records (H47–H58) ─────────────────────────────
+  getAllEmployeesAttendance: (params = {}) => request(`/attendance/hr/employees/attendance${qs(params)}`),
+  getIndividualEmployeeAttendanceDetail: (userId, params = {}) => request(`/attendance/hr/employees/${seg(userId)}/attendance${qs(params)}`),
+  getIndividualEmployeeMonthlySummary: (userId, month, year) => request(`/attendance/hr/employees/${seg(userId)}/summary${qs({ month, year })}`),
+  getEmployeeDailyLog: (userId, date) => request(`/attendance/hr/employees/${seg(userId)}/daily-log${qs({ date })}`),
 
-  getAllManagersAttendance: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/managers/attendance${query ? `?${query}` : ""}`);
-  },
-  getIndividualManagerAttendanceDetail: (userId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/managers/${userId}/attendance${query ? `?${query}` : ""}`);
-  },
-  getIndividualManagerMonthlySummary: (userId, month, year) => request(`/attendance/hr/managers/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
-  getManagerDailyLog: (userId, date) => request(`/attendance/hr/managers/${userId}/daily-log${date ? `?date=${date}` : ""}`),
+  getAllManagersAttendance: (params = {}) => request(`/attendance/hr/managers/attendance${qs(params)}`),
+  getIndividualManagerAttendanceDetail: (userId, params = {}) => request(`/attendance/hr/managers/${seg(userId)}/attendance${qs(params)}`),
+  getIndividualManagerMonthlySummary: (userId, month, year) => request(`/attendance/hr/managers/${seg(userId)}/summary${qs({ month, year })}`),
+  getManagerDailyLog: (userId, date) => request(`/attendance/hr/managers/${seg(userId)}/daily-log${qs({ date })}`),
 
-  getAllHRsAttendance: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/hrs/attendance${query ? `?${query}` : ""}`);
-  },
-  getHRDailyLog: (userId, date) => request(`/attendance/hr/hrs/${userId}/daily-log${date ? `?date=${date}` : ""}`),
+  getAllHRsAttendance: (params = {}) => request(`/attendance/hr/hrs/attendance${qs(params)}`),
+  getIndividualHRAttendanceDetail: (userId, params = {}) => request(`/attendance/hr/hrs/${seg(userId)}/attendance${qs(params)}`),
+  getIndividualHRMonthlySummary: (userId, month, year) => request(`/attendance/hr/hrs/${seg(userId)}/summary${qs({ month, year })}`),
+  getHRDailyLog: (userId, date) => request(`/attendance/hr/hrs/${seg(userId)}/daily-log${qs({ date })}`),
 
-  // ── HR › Reports & Analytics ───────────────────────────────────────────────
-  //    Daily/monthly/per-employee attendance reports
-  getDailyReport: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/reports/daily${query ? `?${query}` : ""}`);
-  },
-  getMonthlyReport: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/reports/monthly${query ? `?${query}` : ""}`);
-  },
-  getEmployeeReport: (userId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/hr/reports/employee/${userId}${query ? `?${query}` : ""}`);
-  },
+  // ── HR › Reports & Analytics (H44–H46) ─────────────────────────────────────
+  getDailyReport: (params = {}) => request(`/attendance/hr/reports/daily${qs(params)}`),
+  getMonthlyReport: (params = {}) => request(`/attendance/hr/reports/monthly${qs(params)}`),
+  getEmployeeReport: (userId, params = {}) => request(`/attendance/hr/reports/employee/${seg(userId)}${qs(params)}`),
 
-  // ── HR › Devices (Biometric) ───────────────────────────────────────────────
-  //    Register/manage biometric devices and employee→device mappings
+  // ── HR › Devices (Biometric) (H26–H32) ─────────────────────────────────────
   getDevices: () => request("/attendance/hr/devices"),
-  createDevice: (payload) => request("/attendance/hr/devices", { method: "POST", body: JSON.stringify(payload) }),
-  updateDevice: (id, payload) => request(`/attendance/hr/devices/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deleteDevice: (id) => request(`/attendance/hr/devices/${id}`, { method: "DELETE" }),
-  getDeviceMappings: (id) => request(`/attendance/hr/devices/${id}/mappings`),
-  createDeviceMapping: (id, payload) => request(`/attendance/hr/devices/${id}/mappings`, { method: "POST", body: JSON.stringify(payload) }),
-  deleteDeviceMapping: (id, mappingId) => request(`/attendance/hr/devices/${id}/mappings/${mappingId}`, { method: "DELETE" }),
+  createDevice: (payload) => post("/attendance/hr/devices", payload),
+  updateDevice: (id, payload) => put(`/attendance/hr/devices/${seg(id)}`, payload),
+  deleteDevice: (id) => del(`/attendance/hr/devices/${seg(id)}`),
+  getDeviceMappings: (id) => request(`/attendance/hr/devices/${seg(id)}/mappings`),
+  createDeviceMapping: (id, payload) => post(`/attendance/hr/devices/${seg(id)}/mappings`, payload),
+  deleteDeviceMapping: (id, mappingId) => del(`/attendance/hr/devices/${seg(id)}/mappings/${seg(mappingId)}`),
 
   // ── HR › Locations (Geofencing) ────────────────────────────────────────────
   //    Delegates to organizationAPI for location management
@@ -162,116 +167,101 @@ export const attendanceAPI = {
   createLocation: (payload) => organizationAPI.createLocation(payload),
   updateLocation: (id, payload) => organizationAPI.updateLocation(id, payload),
 
-  // ── HR › Maintenance ───────────────────────────────────────────────────────
-  //    Recompute stale attendance records
-  recomputeStaleRecords: () => request("/attendance/hr/records/recompute-stale", { method: "POST" }),
+  // ── HR › Maintenance (H43) ─────────────────────────────────────────────────
+  /** @param {{date?: string}} [params] optional YYYY-MM-DD; omitted = full sweep */
+  recomputeStaleRecords: ({ date } = {}) => post("/attendance/hr/records/recompute-stale", date ? { date } : undefined),
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  MANAGER
-  //  Team oversight, approvals, and direct-report drill-downs
+  //  MANAGER (hierarchy-scoped server-side)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ── Manager › Team Overview ────────────────────────────────────────────────
-  //    Today's status, history, summary, and graph data for direct reports
+  // ── Manager › Team Overview (M1, M2, M14, M17) ─────────────────────────────
+  /** No query accepted; server computes "today" in UTC (§8.2). */
   getManagerTeamToday: () => request("/attendance/manager/team/today"),
-  getManagerTeamHistory: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/manager/team/history${query ? `?${query}` : ""}`);
-  },
-  getTeamSummary: (date) => request(`/attendance/manager/team/summary${date ? `?date=${date}` : ""}`),
-  getTeamGraphData: (month, year) => request(`/attendance/manager/team/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
+  // GET /manager/team/history is intentionally NOT exposed: it ignores every
+  // query parameter and returns all records ever for the team, unbounded
+  // (§2 C15, §8.1). Team history is read per member via getTeamMemberHistory.
+  /** @param {string} [date] YYYY-MM-DD (local) */
+  getTeamSummary: (date) => request(`/attendance/manager/team/summary${qs({ date })}`),
+  getTeamGraphData: (month, year) => request(`/attendance/manager/team/graph-data${qs({ month, year })}`),
 
-  // ── Manager › Team Member Drill-Down ───────────────────────────────────────
-  //    View a specific direct report's attendance history and monthly summary
-  getTeamMemberHistory: (userId, month, year) => request(`/attendance/manager/team/member/${userId}/history${month && year ? `?month=${month}&year=${year}` : ""}`),
-  getTeamMemberSummary: (userId, month, year) => request(`/attendance/manager/team/member/${userId}/summary${month && year ? `?month=${month}&year=${year}` : ""}`),
+  // ── Manager › Team Member Drill-Down (M15, M16) ────────────────────────────
+  /** Filtered + paginated (`total_pages`). @param {{from?: string, to?: string, page?: number, limit?: number}} params */
+  getTeamMemberHistory: (userId, params = {}) => request(`/attendance/manager/team/member/${seg(userId)}/history${qs(params)}`),
+  getTeamMemberSummary: (userId, month, year) => request(`/attendance/manager/team/member/${seg(userId)}/summary${qs({ month, year })}`),
 
-  // ── Manager › Anomalies ────────────────────────────────────────────────────
-  //    View and resolve attendance anomalies for direct reports
+  // ── Manager › Anomalies (M3, M4) ───────────────────────────────────────────
   getManagerAnomalies: () => request("/attendance/manager/team/anomalies"),
-  resolveManagerAnomaly: (id, payload) => request(`/attendance/manager/anomalies/${id}/resolve`, { method: "POST", body: JSON.stringify(payload) }),
+  resolveManagerAnomaly: (id, payload) => post(`/attendance/manager/anomalies/${seg(id)}/resolve`, decisionBody(payload)),
 
-  // ── Manager › Regularization Approvals ─────────────────────────────────────
-  //    Approve/reject regularization requests from direct reports
+  // ── Manager › Regularization Approvals (M5–M7) ─────────────────────────────
   getManagerPendingRegularizations: () => request("/attendance/manager/regularizations/pending"),
-  approveManagerRegularization: (id, payload) => request(`/attendance/manager/regularizations/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
-  rejectManagerRegularization: (id, payload) => request(`/attendance/manager/regularizations/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  approveManagerRegularization: (id, payload) => post(`/attendance/manager/regularizations/${seg(id)}/approve`, decisionBody(payload)),
+  rejectManagerRegularization: (id, payload) => post(`/attendance/manager/regularizations/${seg(id)}/reject`, decisionBody(payload)),
 
-  // ── Manager › Overtime Approvals ───────────────────────────────────────────
-  //    Approve/reject overtime requests from direct reports
+  // ── Manager › Overtime Approvals (M8–M10) ──────────────────────────────────
   getManagerPendingOvertime: () => request("/attendance/manager/overtime/pending"),
-  approveManagerOvertime: (id, payload) => request(`/attendance/manager/overtime/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
-  rejectManagerOvertime: (id, payload) => request(`/attendance/manager/overtime/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  approveManagerOvertime: (id, payload) => post(`/attendance/manager/overtime/${seg(id)}/approve`, decisionBody(payload)),
+  rejectManagerOvertime: (id, payload) => post(`/attendance/manager/overtime/${seg(id)}/reject`, decisionBody(payload)),
 
-  // ── Manager › Comp-Off Approvals ───────────────────────────────────────────
-  //    Approve/reject comp-off requests from direct reports
+  // ── Manager › Comp-Off Approvals (M11–M13) ─────────────────────────────────
+  /** Returns comp-offs with status `earned`. */
   getManagerCompOffs: () => request("/attendance/manager/comp-offs/pending"),
-  approveManagerCompOff: (id) => request(`/attendance/manager/comp-offs/${id}/approve`, { method: "POST" }),
-  rejectManagerCompOff: (id, payload) => request(`/attendance/manager/comp-offs/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  // Body `{ remarks? ≤1000 }` (§6.3); reject writes status `cancelled`.
+  approveManagerCompOff: (id, payload) => post(`/attendance/manager/comp-offs/${seg(id)}/approve`, decisionBody(payload)),
+  rejectManagerCompOff: (id, payload) => post(`/attendance/manager/comp-offs/${seg(id)}/reject`, decisionBody(payload)),
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  EMPLOYEE
-  //  Self-service APIs — clock in/out, breaks, own history/stats
+  //  SELF-SERVICE (all org roles)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ── Employee › Clock In / Out ──────────────────────────────────────────────
-  //    Punch in/out with location data
-  clockIn: (payload) => request("/attendance/clock-in", { method: "POST", body: JSON.stringify(payload) }),
-  clockOut: (payload) => request("/attendance/clock-out", { method: "POST", body: JSON.stringify(payload) }),
+  // ── Clock In / Out (U1, U2) ────────────────────────────────────────────────
+  /** body: { source, latitude?, longitude?, client_timestamp?, notes?, work_mode?, metadata? } */
+  clockIn: (payload) => post("/attendance/clock-in", payload),
+  /** body: { source, latitude?, longitude?, client_timestamp?, notes?, metadata? } — NO work_mode (§2 C18). */
+  clockOut: (payload) => post("/attendance/clock-out", payload),
 
-  // ── Employee › Breaks ──────────────────────────────────────────────────────
-  //    Start/end break during a shift
-  breakStart: () => request("/attendance/break/start", { method: "POST" }),
-  breakEnd: () => request("/attendance/break/end", { method: "POST" }),
+  // ── Breaks (U3, U4) — body { source, notes? } ──────────────────────────────
+  breakStart: (payload = { source: "web" }) => post("/attendance/break/start", payload),
+  breakEnd: (payload = { source: "web" }) => post("/attendance/break/end", payload),
 
-  // ── Employee › Today & History ─────────────────────────────────────────────
-  //    Today's live record, paginated history, monthly summary
+  // ── Today & History (U5, U11, U12) ─────────────────────────────────────────
   getToday: () => request("/attendance/today"),
-  getHistory: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/history${query ? `?${query}` : ""}`);
-  },
-  getSummary: (month, year) => request(`/attendance/summary?month=${month}&year=${year}`),
+  /** @param {{from?: string, to?: string, page?: number, limit?: number}} params */
+  getHistory: (params = {}) => request(`/attendance/history${qs(params)}`),
+  getSummary: (month, year) => request(`/attendance/summary${qs({ month, year })}`),
 
-  // ── Employee › Daily Log & Insights ────────────────────────────────────────
-  //    Detailed daily log, graph data, weekly calendar, trend analysis
-  getDailyLog: (date) => request(`/attendance/daily-log${date ? `?date=${date}` : ""}`),
-  getGraphData: (month, year) => request(`/attendance/graph-data${month && year ? `?month=${month}&year=${year}` : ""}`),
-  getWeeklyCalendar: (date) => request(`/attendance/weekly-calendar${date ? `?date=${date}` : ""}`),
-  getTrends: (months) => request(`/attendance/trends${months ? `?months=${months}` : ""}`),
+  // ── Daily Log & Insights (U16–U19) ─────────────────────────────────────────
+  getDailyLog: (date) => request(`/attendance/daily-log${qs({ date })}`),
+  getGraphData: (month, year) => request(`/attendance/graph-data${qs({ month, year })}`),
+  /** @param {string} [date] YYYY-MM-DD — week containing this date */
+  getWeeklyCalendar: (date) => request(`/attendance/weekly-calendar${qs({ date })}`),
+  /** @param {number} [months] 1–12 (backend default 3) */
+  getTrends: (months) => request(`/attendance/trends${qs({ months })}`),
 
-  // ── Employee › Shift & Holidays ────────────────────────────────────────────
-  //    View own assigned shift and upcoming holidays
+  // ── Shift & Holidays (U13, U20) ────────────────────────────────────────────
   getMyShift: () => request("/attendance/shift"),
+  /** Takes no parameters — a `year` would be ignored (§4.3). Filter by date client-side. */
   getUpcomingHolidays: () => request("/attendance/holidays"),
 
-  // ── Employee › Regularizations ─────────────────────────────────────────────
-  //    Submit/view/cancel own regularization requests
-  submitRegularization: (payload) => request("/attendance/regularization", { method: "POST", body: JSON.stringify(payload) }),
-  getMyRegularizations: () => request("/attendance/regularizations"),
-  cancelRegularization: (id) => request(`/attendance/regularizations/${id}/cancel`, { method: "POST" }),
+  // ── Regularizations (U6–U8) ────────────────────────────────────────────────
+  submitRegularization: (payload) => post("/attendance/regularization", payload),
+  /** `status` is validated but ignored by the controller (§4.4, §8.4) — filter client-side. */
+  getMyRegularizations: (params = {}) => request(`/attendance/regularizations${qs(params)}`),
+  cancelRegularization: (id) => post(`/attendance/regularizations/${seg(id)}/cancel`),
 
-  // ── Employee › Overtime ────────────────────────────────────────────────────
-  //    View own overtime logs
-  getMyOvertime: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/overtime/mine${query ? `?${query}` : ""}`);
-  },
+  // ── Overtime (U9) ──────────────────────────────────────────────────────────
+  /** `page`/`limit` only — no status filter exists (§4.5). */
+  getMyOvertime: ({ page, limit } = {}) => request(`/attendance/overtime/mine${qs({ page, limit })}`),
 
-  // ── Employee › Anomalies ───────────────────────────────────────────────────
-  //    View own attendance anomalies
-  getMyAnomalies: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/anomalies/mine${query ? `?${query}` : ""}`);
-  },
+  // ── Anomalies (U10) ────────────────────────────────────────────────────────
+  /** Records carry `is_resolved` (boolean), not `status` (§2 C16). @param {{status?: "open"|"resolved"|"all", page?: number, limit?: number}} params */
+  getMyAnomalies: (params = {}) => request(`/attendance/anomalies/mine${qs(params)}`),
 
-  // ── Employee › Comp-Offs ───────────────────────────────────────────────────
-  //    View own comp-off requests and summary
-  getMyCompOffs: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/attendance/comp-offs/mine${query ? `?${query}` : ""}`);
-  },
+  // ── Comp-Offs (U14, U15) ───────────────────────────────────────────────────
+  /** @param {{status?: "earned"|"approved"|"used"|"expired"|"cancelled", page?: number, limit?: number}} params */
+  getMyCompOffs: (params = {}) => request(`/attendance/comp-offs/mine${qs(params)}`),
   getMyCompOffSummary: () => request("/attendance/comp-offs/mine/summary"),
 };

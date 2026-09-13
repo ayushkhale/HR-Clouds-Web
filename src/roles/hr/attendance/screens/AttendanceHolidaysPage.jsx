@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { attendanceAPI, organizationAPI } from "../../../../shared/api";
+import { attendanceAPI } from "../../../../shared/api";
 import MultiSelectDropdown from "../../../../shared/components/MultiSelectDropdown";
+import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
+import { listFrom } from "../../../../shared/attendance/normalize";
+import { parseYMDLocal, ymdOnly } from "../../../../shared/attendance/dates";
+import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
+import { useTargetingOptions, withSelected, describeTargeting } from "../../../../shared/attendance/useTargetingOptions";
+import { ErrorState, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle,
   HiExclamationCircle, HiTrash, HiPencil, HiChevronDown, HiSparkles,
@@ -24,11 +30,16 @@ function typeLabel(val) {
 function typeColor(val) {
   return HOLIDAY_TYPES.find((t) => t.value === val)?.color || "bg-slate-100 text-slate-600";
 }
-function dayOfWeek(dateStr) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long" });
+// Holiday dates are calendar days: parse the leading YYYY-MM-DD as a local date
+// so timestamps ("2026-08-15T00:00:00.000Z") neither render as Invalid Date nor
+// shift to the previous day.
+function dayOfWeek(value) {
+  const d = parseYMDLocal(ymdOnly(value));
+  return d ? d.toLocaleDateString("en-IN", { weekday: "long" }) : "—";
 }
-function fmtDate(dateStr) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+function fmtDate(value) {
+  const d = parseYMDLocal(ymdOnly(value));
+  return d ? d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 }
 
 function getHolidayIconInfo(name) {
@@ -106,25 +117,12 @@ function getPresetHolidays(y) {
   return combined.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-/* ─── Toast ─────────────────────────────────────────────────────────────── */
-function Toast({ toast, onClose }) {
-  if (!toast) return null;
-  const ok = toast.type === "success";
-  return (
-    <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500" /> : <HiExclamationCircle className="w-5 h-5 text-red-500" />}
-      <span>{toast.message}</span>
-      <button onClick={onClose}><HiX className="w-4 h-4 text-slate-400" /></button>
-    </div>
-  );
-}
-
 /* ─── Holiday Modal (Create / Edit) ──────────────────────────────────────── */
 function HolidayModal({ editHoliday, onClose, onSaved }) {
   const isEdit = !!editHoliday;
   const [form, setForm] = useState({
     name: editHoliday?.name || "",
-    date: editHoliday?.date || "",
+    date: ymdOnly(editHoliday?.date),
     type: editHoliday?.type || "public",
     target_locations: editHoliday?.target_locations || [],
     target_departments: editHoliday?.target_departments || [],
@@ -135,37 +133,27 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [locations, setLocations] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [employees, setEmployees] = useState([]);
-
-  useEffect(() => {
-    async function loadTargetingData() {
-      try {
-        const [locRes, depRes, empRes] = await Promise.all([
-          organizationAPI.getLocations().catch(() => ({ data: [] })),
-          organizationAPI.getDepartments().catch(() => ({ data: [] })),
-          organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ data: [] }))
-        ]);
-        setLocations((locRes.data || []).filter(x => x.is_active !== false));
-        setDepartments((depRes.data || []).filter(x => x.is_active !== false));
-        setEmployees((empRes.data || []).filter(x => x.is_active !== false && x.status !== "Inactive"));
-      } catch (err) {
-        console.error("Failed to load targeting data", err);
-      }
-    }
-    loadTargetingData();
-  }, []);
+  const targeting = useTargetingOptions();
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !form.date) { setError("Please provide both holiday name and date."); return; }
+    if (loading) return;
+    const name = form.name.trim();
+    if (!name) { setError("Please enter the holiday name."); return; }
+    if (!parseYMDLocal(form.date)) { setError("Please choose a valid date."); return; }
+    if (form.included_users.some((id) => form.excluded_users.includes(id))) {
+      setError("An employee can't be both force-included and force-excluded.");
+      return;
+    }
     setLoading(true); setError("");
     try {
+      // `date` is a calendar day — sent as YYYY-MM-DD so no timezone shift can
+      // move the holiday (audit C7).
       const payload = {
-        name: form.name,
+        name,
+        date: form.date,
         type: form.type,
         target_locations: form.target_locations,
         target_departments: form.target_departments,
@@ -174,24 +162,14 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
         included_users: form.included_users,
         excluded_users: form.excluded_users,
       };
-      // Only include date if we are creating or if we want to update it
-      if (!isEdit || form.date) {
-        payload.date = new Date(form.date + "T00:00:00Z").toISOString();
-      }
-
-      if (isEdit) {
-        await attendanceAPI.updateHoliday(editHoliday.id, payload);
-        onSaved("Holiday updated successfully.");
-      } else {
-        await attendanceAPI.createHoliday(payload);
-        onSaved("Holiday added successfully.");
-      }
+      if (isEdit) await attendanceAPI.updateHoliday(editHoliday.id, payload);
+      else await attendanceAPI.createHoliday(payload);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "holiday" });
+      onSaved(isEdit ? "Holiday updated successfully." : "Holiday added successfully.");
     } catch (err) {
-      if (err.status === 409) {
-        setError("A holiday already exists on this date.");
-      } else {
-        setError(err.message || "Something went wrong.");
-      }
+      setError(err.status === 409 && !err?.data?.message
+        ? "A holiday already exists on this date."
+        : attendanceErrorMessage(err, "Couldn't save the holiday."));
     } finally {
       setLoading(false);
     }
@@ -220,7 +198,7 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Holiday Name <span className="text-red-400">*</span></label>
-              <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)}
+              <input type="text" maxLength={150} value={form.name} onChange={(e) => set("name", e.target.value)}
                 placeholder="e.g. Diwali"
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
             </div>
@@ -248,64 +226,66 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
           <h3 className="text-sm font-bold text-slate-800">Targeting Rules</h3>
           <p className="text-xs text-slate-500 mb-4">Leave empty to apply to the entire organization.</p>
           
+          {targeting.loading && <p className="text-[11px] text-slate-400">Loading locations, departments and employees…</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <MultiSelectDropdown
               label="Applicable Locations"
               placeholder="All Locations"
-              options={locations.map(l => ({ value: l.id, label: l.name }))}
+              options={withSelected(targeting.locationOptions, form.target_locations)}
               value={form.target_locations}
               onChange={v => set("target_locations", v)}
             />
             <MultiSelectDropdown
               label="Applicable Departments"
               placeholder="All Departments"
-              options={departments.map(d => ({ value: d.id || d._id, label: d.name }))}
+              options={withSelected(targeting.departmentOptions, form.target_departments)}
               value={form.target_departments}
               onChange={v => set("target_departments", v)}
             />
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <MultiSelectDropdown
               label="Employment Types"
               placeholder="All Types"
-              options={[{value:"Full-time", label:"Full-time"}, {value:"Part-time", label:"Part-time"}, {value:"Contract", label:"Contract"}]}
+              options={withSelected(targeting.employmentTypeOptions, form.target_employment_types)}
               value={form.target_employment_types}
               onChange={v => set("target_employment_types", v)}
             />
             <MultiSelectDropdown
               label="Job Statuses"
               placeholder="All Statuses"
-              options={[{value:"Active", label:"Active"}, {value:"Probation", label:"Probation"}, {value:"Notice Period", label:"Notice Period"}]}
+              options={withSelected(targeting.jobStatusOptions, form.target_job_statuses)}
               value={form.target_job_statuses}
               onChange={v => set("target_job_statuses", v)}
             />
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <MultiSelectDropdown
               label="Force Include Employees"
               placeholder="None"
-              options={employees.map(e => ({ value: e.user_id || e.id, label: e.name || e.full_name, subtitle: e.employee_code, avatarIdentifier: e.email || e.name }))}
+              options={withSelected(targeting.employeeOptions, form.included_users, "Former employee")}
               value={form.included_users}
               onChange={v => set("included_users", v)}
             />
             <MultiSelectDropdown
               label="Force Exclude Employees"
               placeholder="None"
-              options={employees.map(e => ({ value: e.user_id || e.id, label: e.name || e.full_name, subtitle: e.employee_code, avatarIdentifier: e.email || e.name }))}
+              options={withSelected(targeting.employeeOptions, form.excluded_users, "Former employee")}
               value={form.excluded_users}
               onChange={v => set("excluded_users", v)}
             />
           </div>
-          <div className="flex items-center gap-3 pt-1">
-            <button type="submit" disabled={loading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {loading ? "Saving…" : isEdit ? "Update Holiday" : "Add Holiday"}
-            </button>
-            <button type="button" onClick={onClose}
-              className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+            <button type="button" onClick={onClose} disabled={loading}
+              className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50">
               Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+              {loading && <Spinner />}
+              {loading ? "Saving…" : isEdit ? "Update Holiday" : "Add Holiday"}
             </button>
           </div>
         </form>
@@ -320,8 +300,10 @@ export default function AttendanceHolidaysPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | "create" | holiday object
-  const [toast, setToast] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const { toast, showToast, clearToast } = useToast();
   const [deleting, setDeleting] = useState(null);
+  const targeting = useTargetingOptions();
   const [isNationalOpen, setIsNationalOpen] = useState(false);
   const [isTableOpen, setIsTableOpen] = useState(true);
   const [importingHoliday, setImportingHoliday] = useState(null);
@@ -329,78 +311,67 @@ export default function AttendanceHolidaysPage() {
   const presetList = getPresetHolidays(year);
 
   function isHolidayAdded(preset) {
-    return holidays.some((h) => {
-      const hDate = h.date ? h.date.split("T")[0] : "";
-      return hDate === preset.date || h.name.toLowerCase() === preset.name.toLowerCase();
-    });
+    return holidays.some((h) => ymdOnly(h.date) === preset.date || (h.name || "").toLowerCase() === preset.name.toLowerCase());
   }
 
   async function handleAddPresetHoliday(preset) {
+    if (importingHoliday) return;
+    if (!(await window.confirm(`Add "${preset.name}" on ${fmtDate(preset.date)}? It will apply to everyone in the organisation — edit it afterwards to target specific locations or departments.`))) return;
     setImportingHoliday(preset.name);
     try {
-      const payload = {
-        name: preset.name,
-        type: preset.type || "public",
-        date: new Date(preset.date + "T00:00:00Z").toISOString(),
-      };
-      await attendanceAPI.createHoliday(payload);
-      showToast(`Added "${preset.name}" to holiday calendar.`);
+      await attendanceAPI.createHoliday({ name: preset.name, type: preset.type || "public", date: preset.date });
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "holiday" });
+      showToast(`Added "${preset.name}" to the holiday calendar.`);
       load(year);
     } catch (err) {
-      if (err.status === 409) {
-        showToast(`Holiday "${preset.name}" already exists on this date.`, "error");
-      } else {
-        showToast(err.message || `Failed to add ${preset.name}`, "error");
-      }
+      showToast(err.status === 409 && !err?.data?.message
+        ? `A holiday already exists on ${fmtDate(preset.date)}.`
+        : attendanceErrorMessage(err, `Couldn't add ${preset.name}.`), "error");
     } finally {
       setImportingHoliday(null);
     }
   }
 
   async function handleAddAllPresets() {
-    const existingDates = new Set(holidays.map((h) => (h.date ? h.date.split("T")[0] : "")));
-    const existingNames = new Set(holidays.map((h) => h.name.toLowerCase()));
-
-    const toAdd = presetList.filter(
-      (p) => !existingDates.has(p.date) && !existingNames.has(p.name.toLowerCase())
-    );
-
+    if (importingHoliday) return;
+    const toAdd = presetList.filter((p) => !isHolidayAdded(p));
     if (toAdd.length === 0) {
-      showToast("All national holidays are already added for this year!");
+      showToast("All catalog holidays are already added for this year.");
       return;
     }
+    if (!(await window.confirm(`Add ${toAdd.length} holiday${toAdd.length === 1 ? "" : "s"} for ${year}? They will apply to everyone in the organisation — edit them afterwards to target specific locations or departments.`))) return;
 
     setImportingHoliday("ALL");
-    let addedCount = 0;
+    const failed = [];
     for (const preset of toAdd) {
       try {
-        await attendanceAPI.createHoliday({
-          name: preset.name,
-          type: preset.type || "public",
-          date: new Date(preset.date + "T00:00:00Z").toISOString(),
-        });
-        addedCount++;
+        await attendanceAPI.createHoliday({ name: preset.name, type: preset.type || "public", date: preset.date });
       } catch {
-        // Ignore conflicts
+        failed.push(preset.name);
       }
     }
     setImportingHoliday(null);
-    showToast(`Added ${addedCount} national holiday(s) to calendar.`);
+    const added = toAdd.length - failed.length;
+    if (added > 0) emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "holiday" });
+    showToast(
+      failed.length === 0
+        ? `Added ${added} holiday${added === 1 ? "" : "s"} to the calendar.`
+        : `Added ${added} of ${toAdd.length}. Couldn't add: ${failed.join(", ")}.`,
+      failed.length === 0 ? "success" : "error"
+    );
     load(year);
-  }
-
-  function showToast(msg, type = "success") {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 4000);
   }
 
   const load = useCallback(async (y) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await attendanceAPI.getHolidays(y);
-      setHolidays(res.data || []);
-    } catch {
-      showToast("Failed to load holidays.", "error");
+      const list = listFrom(res, ["holidays"]);
+      setHolidays([...list].sort((a, b) => ymdOnly(a.date).localeCompare(ymdOnly(b.date))));
+    } catch (err) {
+      setHolidays([]);
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -409,14 +380,15 @@ export default function AttendanceHolidaysPage() {
   useEffect(() => { load(year); }, [year, load]);
 
   async function handleDelete(h) {
-    if (!(await window.confirm(`Remove "${h.name}" from the holiday calendar?`))) return;
+    if (!(await window.confirm(`Remove "${h.name}" from the holiday calendar? Attendance for that day will be recalculated as a normal working day.`))) return;
     setDeleting(h.id);
     try {
       await attendanceAPI.deleteHoliday(h.id);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "holiday" });
       showToast("Holiday removed.");
       load(year);
     } catch (err) {
-      showToast(err.message || "Failed to delete.", "error");
+      showToast(attendanceErrorMessage(err, "Couldn't remove the holiday."), "error");
     } finally {
       setDeleting(null);
     }
@@ -596,6 +568,8 @@ export default function AttendanceHolidaysPage() {
           <div className="border-t border-slate-100">
           {loading ? (
             <div className="p-6"><Skeleton type="table" rows={6} /></div>
+          ) : loadError ? (
+            <ErrorState error={loadError} onRetry={() => load(year)} fallback="Couldn't load holidays." />
           ) : (
             holidays.length === 0 ? (
               <div className="p-16 flex flex-col items-center gap-3 text-center">
@@ -632,13 +606,17 @@ export default function AttendanceHolidaysPage() {
                           {typeLabel(h.type)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 max-w-xs">
                         {(() => {
-                          const targetingCount = (h.target_locations?.length || 0) + (h.target_departments?.length || 0) + (h.target_employment_types?.length || 0) + (h.target_job_statuses?.length || 0) + (h.included_users?.length || 0) + (h.excluded_users?.length || 0);
-                          return targetingCount === 0 ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Global</span>
+                          const lines = describeTargeting(h, targeting);
+                          return lines.length === 0 ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Whole organisation</span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-100 cursor-help" title={`Targeted to ${targetingCount} rule(s)`}>Targeted</span>
+                            <div className="space-y-0.5">
+                              {lines.map((line) => (
+                                <p key={line} className="text-[10px] font-semibold text-slate-500 truncate" title={line}>{line}</p>
+                              ))}
+                            </div>
                           );
                         })()}
                       </td>
@@ -672,7 +650,7 @@ export default function AttendanceHolidaysPage() {
           onSaved={onSaved}
         />
       )}
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      <Toast toast={toast} onClose={clearToast} />
     </>
   );
 }

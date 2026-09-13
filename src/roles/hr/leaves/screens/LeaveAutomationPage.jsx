@@ -22,17 +22,17 @@ function Toast({ toast, onClose }) {
 function RunSummary({ result, stats }) {
   if (!result) return null;
   return (
-    <div className="mt-4 pt-4 border-t border-slate-50">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Last run</p>
-      <div className="flex flex-wrap gap-2">
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Last run:</span>
         {stats.map(({ key, label, tone }) => (
           <span
             key={key}
-            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${
-              tone === "good" ? "bg-emerald-50 text-emerald-700"
-                : tone === "warn" ? "bg-amber-50 text-amber-700"
-                : tone === "bad" ? "bg-rose-50 text-rose-700"
-                : "bg-slate-100 text-slate-600"
+            className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${
+              tone === "good" ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                : tone === "warn" ? "bg-amber-50 text-amber-700 border-amber-100"
+                : tone === "bad" ? "bg-rose-50 text-rose-700 border-rose-100"
+                : "bg-slate-50 text-slate-600 border-slate-200"
             }`}
           >
             {label}: {result[key] ?? "—"}
@@ -96,121 +96,110 @@ export default function LeaveAutomationPage() {
 
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-900">Automation Engine</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              The "brain" of the leave system. Automatically calculates and updates employee leave balances.
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-4xl">
+              The "brain" of the leave system. Automatically calculates and updates employee leave balances via scheduled background jobs. 
+              When triggering manually across a year boundary, always run <strong className="text-slate-700">Year-End Rollover before the January accrual</strong>. Both engines are safe to re-run.
             </p>
           </div>
 
-          {/* Ordering hint */}
-          <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 max-w-4xl">
-            <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
-            <span>
-              These run automatically via cron in production. When triggering manually across a year boundary,
-              always run <strong>Year-End Rollover before the January accrual</strong> — the rollover seeds the
-              new year's balance rows that accrual then tops up. Both engines are idempotent and safe to re-run.
-            </span>
-          </div>
+          <div className="flex flex-col gap-4">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-
-            {/* Monthly Accrual Card */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                  <HiLightningBolt className="w-6 h-6" />
+            {/* Monthly Accrual Row */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col xl:flex-row xl:items-start gap-6 transition-all hover:border-slate-300">
+              {/* Left Side: Info */}
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100/50">
+                  <HiLightningBolt className="w-5 h-5" />
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-800">Monthly Leaves (Accruals)</h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Deposits one month's worth of leaves into employees' accounts on the 1st of every month. Safe to re-run — it won't double-credit anyone.
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-slate-800 truncate">Monthly Leaves (Accruals)</h2>
+                  <p className="text-sm text-slate-500 mt-1 leading-relaxed pr-4">
+                    Deposits one month's worth of leaves into employees' accounts on the 1st of every month.
                   </p>
+                  <RunSummary
+                    result={accrualResult}
+                    stats={[
+                      { key: "period", label: "Period" },
+                      { key: "processed", label: "Processed" },
+                      { key: "credited", label: "Credited", tone: "good" },
+                      { key: "skipped", label: "Skipped", tone: "warn" },
+                      { key: "failed", label: "Failed", tone: "bad" },
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
-                <input
-                  type="date"
-                  value={accrualDate}
-                  onChange={e => setAccrualDate(e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Leave blank to use today. Set a date to run accrual for a specific month.</p>
-              </div>
-
-              <RunSummary
-                result={accrualResult}
-                stats={[
-                  { key: "period", label: "Period" },
-                  { key: "processed", label: "Processed" },
-                  { key: "credited", label: "Credited", tone: "good" },
-                  { key: "skipped", label: "Skipped", tone: "warn" },
-                  { key: "failed", label: "Failed", tone: "bad" },
-                ]}
-              />
-
-              <div className="mt-auto pt-4 border-t border-slate-50 flex justify-end items-center">
+              {/* Right Side: Actions */}
+              <div className="flex flex-col sm:flex-row xl:flex-col gap-3 shrink-0 xl:w-56">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                  <input
+                    type="date"
+                    value={accrualDate}
+                    onChange={e => setAccrualDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 transition"
+                  />
+                </div>
                 <button
                   onClick={handleRunAccrual}
                   disabled={loadingAccrual}
-                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
+                  className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:text-purple-700 hover:border-purple-200 hover:bg-purple-50 disabled:opacity-50 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm"
                 >
                   {loadingAccrual ? (
-                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+                    <><div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-purple-600 rounded-full animate-spin" /> Running...</>
                   ) : (
-                    <><HiPlay className="w-4 h-4" /> Trigger Accrual</>
+                    <><HiPlay className="w-4 h-4 text-purple-500" /> Trigger Accrual</>
                   )}
                 </button>
               </div>
             </div>
 
-            {/* Year End Rollover Card */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <HiRefresh className="w-6 h-6" />
+            {/* Year End Rollover Row */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col xl:flex-row xl:items-start gap-6 transition-all hover:border-slate-300">
+              {/* Left Side: Info */}
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/50">
+                  <HiRefresh className="w-5 h-5" />
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-800">New Year Calculations (Rollover)</h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Closes out the old year. Moves unused leaves (up to the limit) into the new year, lapses the rest, and seeds everyone's fresh quotas.
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-slate-800 truncate">New Year Calculations (Rollover)</h2>
+                  <p className="text-sm text-slate-500 mt-1 leading-relaxed pr-4">
+                    Closes out the old year. Moves unused leaves into the new year, lapses the rest, and seeds fresh quotas.
                   </p>
+                  <RunSummary
+                    result={rolloverResult}
+                    stats={[
+                      { key: "oldYear", label: "Old" },
+                      { key: "newYear", label: "New" },
+                      { key: "processed", label: "Processed" },
+                      { key: "rolled", label: "Rolled", tone: "good" },
+                      { key: "skipped", label: "Skipped", tone: "warn" },
+                      { key: "failed", label: "Failed", tone: "bad" },
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
-                <input
-                  type="date"
-                  value={rolloverDate}
-                  onChange={e => setRolloverDate(e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Leave blank to use today. Set e.g. Jan 1 to run across a year boundary.</p>
-              </div>
-
-              <RunSummary
-                result={rolloverResult}
-                stats={[
-                  { key: "oldYear", label: "Old year" },
-                  { key: "newYear", label: "New year" },
-                  { key: "processed", label: "Processed" },
-                  { key: "rolled", label: "Rolled", tone: "good" },
-                  { key: "skipped", label: "Skipped", tone: "warn" },
-                  { key: "failed", label: "Failed", tone: "bad" },
-                ]}
-              />
-
-              <div className="mt-auto pt-4 border-t border-slate-50 flex justify-end items-center">
+              {/* Right Side: Actions */}
+              <div className="flex flex-col sm:flex-row xl:flex-col gap-3 shrink-0 xl:w-56">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                  <input
+                    type="date"
+                    value={rolloverDate}
+                    onChange={e => setRolloverDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition"
+                  />
+                </div>
                 <button
                   onClick={handleRunRollover}
                   disabled={loadingRollover}
-                  className="flex items-center gap-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
+                  className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:text-blue-700 hover:border-blue-200 hover:bg-blue-50 disabled:opacity-50 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm"
                 >
                   {loadingRollover ? (
-                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+                    <><div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin" /> Running...</>
                   ) : (
-                    <><HiPlay className="w-4 h-4" /> Trigger Rollover</>
+                    <><HiPlay className="w-4 h-4 text-blue-500" /> Trigger Rollover</>
                   )}
                 </button>
               </div>
