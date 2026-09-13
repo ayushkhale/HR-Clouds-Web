@@ -65,7 +65,8 @@ export default function PayrollComponentsPage() {
         name: comp.name, code: comp.code, component_type: comp.component_type, calculation_type: comp.calculation_type,
         value: comp.value || 0, is_basic: comp.is_basic, is_part_of_ctc: comp.is_part_of_ctc, is_taxable: comp.is_taxable,
         is_lop_applicable: comp.is_lop_applicable, is_prorated_on_joining: comp.is_prorated_on_joining,
-        pf_applicable: comp.pf_applicable, esi_applicable: comp.esi_applicable, display_order: comp.display_order
+        pf_applicable: comp.pf_applicable, esi_applicable: comp.esi_applicable, display_order: comp.display_order,
+        is_active: comp.is_active !== false
       });
     } else {
       setEditingComp(null);
@@ -83,7 +84,8 @@ export default function PayrollComponentsPage() {
     try {
       if (editingComp) {
         await payrollAPI.updateComponent(editingComp.id, formData);
-        showToast("Component updated successfully");
+        const statusChanged = formData.is_active !== (editingComp.is_active !== false);
+        showToast(statusChanged ? (formData.is_active ? "Component activated" : "Component deactivated") : "Component updated successfully");
       } else {
         await payrollAPI.createComponent(formData);
         showToast("Component created successfully");
@@ -152,6 +154,7 @@ export default function PayrollComponentsPage() {
                       <td className="px-6 py-4 font-semibold text-slate-800">{comp.calculation_type === 'flat' ? `₹${comp.value}` : comp.calculation_type !== 'balancing' ? `${comp.value}%` : '—'}</td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
+                          {!comp.is_active && <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[9px] font-bold rounded">INACTIVE</span>}
                           {comp.is_basic && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-bold rounded">BASIC</span>}
                           {comp.is_part_of_ctc && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[9px] font-bold rounded">CTC</span>}
                           {comp.is_taxable && <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold rounded">TAX</span>}
@@ -182,7 +185,29 @@ export default function PayrollComponentsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <h2 className="text-lg font-bold text-slate-800">{editingComp ? "Edit Component" : "New Component"}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+              <div className="flex items-center gap-3">
+                {editingComp && (() => {
+                  // System components can't be deactivated (same rule as the row's delete action).
+                  const locked = editingComp.is_system && editingComp.is_active !== false;
+                  return (
+                    <label className={`flex items-center gap-2 ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`} title={locked ? "System components can't be deactivated" : undefined}>
+                      <span className={`text-xs font-bold ${formData.is_active ? "text-purple-600" : "text-slate-400"}`}>{formData.is_active ? "Active" : "Inactive"}</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formData.is_active}
+                        aria-label="Component active"
+                        disabled={locked}
+                        onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed ${formData.is_active ? "bg-purple-600" : "bg-slate-300"}`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${formData.is_active ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                      </button>
+                    </label>
+                  );
+                })()}
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+              </div>
             </div>
             <div className="p-6 overflow-y-auto">
               <form id="compForm" onSubmit={handleSubmit} className="space-y-6">
