@@ -197,5 +197,5 @@ export function statusMeta(kind, status) {
   const map = STATUS_MAPS[kind] || RECORD_STATUS;
   const meta = map[key];
   if (meta) return { key, label: meta.short || meta.label, longLabel: meta.label, tone: meta.tone };
-  return { key, label: humanize(key) || "—", longLabel: humanize(key) || "—", tone: "slate" };
+  return { key, label: humanize(key) || "N/A", longLabel: humanize(key) || "N/A", tone: "slate" };
 }

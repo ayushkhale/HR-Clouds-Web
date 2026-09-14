@@ -1,6 +1,8 @@
 import React from "react";
-import { Link, Outlet, NavLink } from "react-router-dom";
+import { Link, Navigate, Outlet, NavLink, useSearchParams } from "react-router-dom";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "../shared/contexts/AuthContext";
+import { safeRedirect } from "./redirect";
 import hrcloudsLogo from "../assets/logo2.png";
 
 // ── Left panel — Photo with right-fade blend ─────────────────────────────────
@@ -71,6 +73,13 @@ function AuthLayout() {
   const location = useLocation();
   const isLogin = location.pathname === "/auth/login";
   const isRegister = location.pathname === "/auth/register";
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, isLoading, getDashboardPath } = useAuth();
+
+  // Persistent login: an already signed-in user skips the sign-in / sign-up forms.
+  if (!isLoading && isAuthenticated && (isLogin || isRegister)) {
+    return <Navigate to={safeRedirect(searchParams.get("redirect")) || getDashboardPath()} replace />;
+  }
 
   return (
     <div className="min-h-screen flex font-sans bg-white">

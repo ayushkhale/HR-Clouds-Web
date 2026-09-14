@@ -105,14 +105,6 @@ export const authAPI = {
   },
 
   /**
-   * Logout — invalidate server-side session
-   * POST /auth/logout
-   */
-  logout() {
-    return request("/auth/logout", { method: "POST" });
-  },
-
-  /**
    * Select organization after multi-org login
    * POST /auth/select-organization
    * Uses the short-lived selection_token (not the normal access token)

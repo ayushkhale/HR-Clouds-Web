@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
+import { payrollAPI } from "../../../../shared/api";
+import useEmployeeDirectory from "../useEmployeeDirectory";
+import { matchesEmployee } from "../variablePayMeta";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiUser, HiSearch } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
@@ -30,7 +32,8 @@ export default function YearEndClosurePage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  const [employees, setEmployees] = useState([]);
+  // Every employee, leavers included: someone who left mid-year still needs a Form 16.
+  const people = useEmployeeDirectory();
 
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [ackMissing, setAckMissing] = useState(false);
@@ -49,12 +52,9 @@ export default function YearEndClosurePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sumRes, empRes] = await Promise.all([
-        payrollAPI.getStatutorySummary(fy).catch(() => ({ data: { months: [] } })),
-        organizationAPI.getEmployees({ purpose: "emp_report" }).catch(() => ({ data: [] })),
-      ]);
+      // Employees come from useEmployeeDirectory once; only the summary depends on the year.
+      const sumRes = await payrollAPI.getStatutorySummary(fy).catch(() => ({ data: { months: [] } }));
       setSummary(sumRes.data || sumRes);
-      setEmployees(empRes.data?.records || empRes.data?.employees || empRes.data || []);
     } catch (err) {
       showToast(err.message || "Failed to load", "error");
     } finally {
@@ -88,18 +88,22 @@ export default function YearEndClosurePage() {
     }
   };
 
+  // `emp` is a directory entry: `id` is the user_id, plus name / code / department.
   const openEmployee = async (emp) => {
-    const id = emp.id || emp.user_id || emp._id;
     setEmpPanel({ employee: emp, summary: null });
     try {
-      const res = await payrollAPI.getEmployeeTaxSummary(id, { financial_year: fy });
-      setEmpPanel({ employee: emp, summary: res.data || res });
+      const res = await payrollAPI.getEmployeeTaxSummary(emp.id, { financial_year: fy });
+      // A slower answer for someone else must not replace the panel that's open now.
+      setEmpPanel((cur) => (cur?.employee.id === emp.id ? { employee: emp, summary: res.data || res } : cur));
     } catch (err) {
       showToast(err.message || "Failed to load employee tax summary", "error");
     }
   };
 
-  const filteredEmp = employees.filter((e) => (e.name || "").toLowerCase().includes(empQuery.toLowerCase())).slice(0, 8);
+  // An open panel holds the previous year's figures; close it when the year changes.
+  useEffect(() => { setEmpPanel(null); }, [fy]);
+
+  const filteredEmp = empQuery.trim() ? people.directory.options.filter((e) => matchesEmployee(e, empQuery)).slice(0, 8) : [];
 
   return (
     <>
@@ -174,8 +178,9 @@ export default function YearEndClosurePage() {
                 {empQuery && (
                   <div className="mt-2 border border-slate-100 rounded-xl divide-y divide-slate-50">
                     {filteredEmp.map((e) => (
-                      <button key={e.id || e.user_id || e._id} onClick={() => { openEmployee(e); setEmpQuery(""); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex items-center gap-2">
+                      <button key={e.id} onClick={() => { openEmployee(e); setEmpQuery(""); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex items-center gap-2">
                         <HiUser className="w-4 h-4 text-slate-400" /> {e.name}
+                        {(e.code || !e.active) && <span className="text-xs text-slate-400">{[e.code, e.active ? "" : "left"].filter(Boolean).join(" · ")}</span>}
                       </button>
                     ))}
                     {filteredEmp.length === 0 && <p className="px-4 py-2.5 text-sm text-slate-400">No match.</p>}
@@ -213,7 +218,7 @@ export default function YearEndClosurePage() {
                   <div className="flex justify-between"><span className="text-slate-500">Finalized</span><span className="font-bold text-emerald-600">{finalizeResult.successful ?? finalizeResult.success_count ?? 0}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Failed</span><span className="font-bold text-red-600">{finalizeResult.failed ?? finalizeResult.failure_count ?? 0}</span></div>
                   {(finalizeResult.errors || []).slice(0, 6).map((e, i) => (
-                    <p key={i} className="text-[11px] text-red-500">{e.user_id || e.name}: {e.message || e.error}</p>
+                    <p key={i} className="text-[11px] text-red-500">{e.user_id ? people.nameOf(e.user_id) : e.name || "Employee"}: {e.message || e.error}</p>
                   ))}
                 </div>
               )}
@@ -285,8 +290,8 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
     "Previous-employer figures saved"
   );
 
-  const finalizeOne = () => {
-    if (!window.confirm(`Finalize FY ${fy} for ${employee.name}? This is permanent.`)) return;
+  const finalizeOne = async () => {
+    if (!(await window.confirm(`Finalize FY ${fy} for ${employee.name}? This is permanent.`))) return;
     act(() => payrollAPI.finalizeEmployeeFY(userId, fy), "Employee FY finalized");
   };
 

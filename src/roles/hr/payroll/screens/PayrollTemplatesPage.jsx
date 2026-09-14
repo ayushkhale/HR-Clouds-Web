@@ -120,7 +120,7 @@ export default function PayrollTemplatesPage() {
   };
 
   const handleDeactivate = async (id) => {
-    if (!window.confirm("Deactivate this template?")) return;
+    if (!(await window.confirm("Deactivate this template?"))) return;
     try {
       await payrollAPI.deactivateTemplate(id);
       showToast("Template deactivated");
@@ -242,7 +242,7 @@ export default function PayrollTemplatesPage() {
   };
 
   const handleRemoveComponent = async (compId) => {
-    if (!window.confirm("Remove this component?")) return;
+    if (!(await window.confirm("Remove this component?"))) return;
     try {
       await payrollAPI.removeTemplateComponent(managingTemplate.id, compId);
       showToast("Component removed");

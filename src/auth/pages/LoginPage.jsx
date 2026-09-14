@@ -4,6 +4,7 @@ import { HiEye, HiEyeOff } from "react-icons/hi";
 import { authAPI, tokenHelper } from "../../shared/api";
 import { useAuth } from "../../shared/contexts/AuthContext";
 import GoogleButton from "../components/GoogleButton";
+import { safeRedirect } from "../redirect";
 
 function LoginPage() {
   const [identifier, setIdentifier] = useState("");
@@ -14,10 +15,10 @@ function LoginPage() {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, startOrgSelection, getDashboardPath } = useAuth();
+  const { login, startOrgSelection, getDashboardPath, sessionExpired } = useAuth();
 
-  // Check for a redirect URL (e.g. from invitation flow)
-  const redirectUrl = searchParams.get("redirect");
+  // Check for a redirect URL (e.g. from invitation flow or an expired session)
+  const redirectUrl = safeRedirect(searchParams.get("redirect"));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -58,6 +59,12 @@ function LoginPage() {
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h2>
       <p className="text-sm text-gray-500 mb-7">Sign in to your HR Clouds account</p>
+
+      {sessionExpired && (
+        <p role="status" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 -mt-3 mb-5">
+          Your session has expired. Please sign in again{redirectUrl ? " to continue where you left off" : ""}.
+        </p>
+      )}
 
       <GoogleButton
         onSuccess={(res) => {

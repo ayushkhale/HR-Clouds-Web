@@ -28,16 +28,16 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
     return () => clearInterval(id);
   }, [isActive, clockInTime]);
 
-  if (!clockInTime) return <span className="text-xs text-slate-400 italic">—</span>;
+  if (!clockInTime) return <span className="text-xs text-slate-400">0m</span>;
 
   if (isStale) {
     return effectiveHours != null && effectiveHours !== ""
-      ? <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "—")}</span>
+      ? <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "0m")}</span>
       : <span className="text-[11px] font-bold text-amber-600" title="Clocked in but never clocked out. Hours are calculated after auto clock-out or a regularization.">No clock-out</span>;
   }
 
   if (!isActive) {
-    return <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "—")}</span>;
+    return <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "0m")}</span>;
   }
 
   const { workedMs, breaksKnown, onBreak } = computeWorkedMs({ clockIn: clockInTime, breaks, activeBreak, breakMinutes, now });

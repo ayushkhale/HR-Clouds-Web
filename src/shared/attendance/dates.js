@@ -120,17 +120,17 @@ function toDate(value) {
 }
 
 /** "15 Aug 2026" (or custom Intl options). */
-export function fmtDate(value, options = { day: "numeric", month: "short", year: "numeric" }, fallback = "—") {
+export function fmtDate(value, options = { day: "numeric", month: "short", year: "numeric" }, fallback = "N/A") {
   const d = toDate(value);
   return d ? d.toLocaleDateString("en-IN", options) : fallback;
 }
 
 /** "Fri, 15 Aug" */
-export const fmtDateShort = (value, fallback = "—") =>
+export const fmtDateShort = (value, fallback = "N/A") =>
   fmtDate(value, { weekday: "short", day: "numeric", month: "short" }, fallback);
 
 /** ISO instant → "09:05 am". */
-export function fmtTime(value, fallback = "—") {
+export function fmtTime(value, fallback = "N/A") {
   if (!value) return fallback;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return fallback;
@@ -138,7 +138,7 @@ export function fmtTime(value, fallback = "—") {
 }
 
 /** ISO instant → "15 Aug 2026, 09:05 am". */
-export function fmtDateTime(value, fallback = "—") {
+export function fmtDateTime(value, fallback = "N/A") {
   if (!value) return fallback;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return fallback;
@@ -146,13 +146,13 @@ export function fmtDateTime(value, fallback = "—") {
 }
 
 /** Shift wall-clock "HH:mm[:ss]" → "09:00" (no timezone conversion — it is a schedule). */
-export function fmtClock(hhmm, fallback = "—") {
+export function fmtClock(hhmm, fallback = "N/A") {
   const m = String(hhmm || "").match(/^(\d{1,2}):(\d{2})/);
   return m ? `${pad(Number(m[1]))}:${m[2]}` : fallback;
 }
 
 /** Minutes → "1h 5m" / "45m" / "0m". null/undefined → fallback. */
-export function fmtMinutes(value, fallback = "—") {
+export function fmtMinutes(value, fallback = "0m") {
   if (value === null || value === undefined || value === "") return fallback;
   const total = Math.round(Number(value));
   if (!Number.isFinite(total)) return fallback;
@@ -166,7 +166,7 @@ export function fmtMinutes(value, fallback = "—") {
 }
 
 /** Decimal hours (number or "8.50") → "8h 30m". null → fallback. */
-export function fmtHours(value, fallback = "—") {
+export function fmtHours(value, fallback = "0m") {
   if (value === null || value === undefined || value === "") return fallback;
   const n = parseFloat(value);
   if (!Number.isFinite(n)) return fallback;
@@ -193,9 +193,9 @@ export function browserTimeZone() {
 
 /** Format an instant in a specific IANA zone (falls back to browser zone). */
 export function formatInZone(iso, timeZone, options = { hour: "2-digit", minute: "2-digit" }) {
-  if (!iso) return "—";
+  if (!iso) return "N/A";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "N/A";
   try {
     return d.toLocaleString("en-IN", { ...options, timeZone: timeZone || undefined });
   } catch {

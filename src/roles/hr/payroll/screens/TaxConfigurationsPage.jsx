@@ -7,6 +7,60 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
+import { findIndianState, searchIndianStates } from "../../../../shared/data/indianStates";
+
+// State-code field for PT slabs: type a code or a state name, pick a
+// suggestion, and both the code and the state name are filled in.
+function StateCodePicker({ code, onSelect, onType }) {
+  const [open, setOpen] = React.useState(false);
+  const [active, setActive] = React.useState(0);
+  const matches = searchIndianStates(code);
+
+  const choose = (s) => {
+    onSelect(s);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={code}
+        onChange={(e) => { onType(e.target.value); setOpen(true); setActive(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(e) => {
+          if (!open || matches.length === 0) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(matches.length - 1, i + 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
+          else if (e.key === "Enter") { e.preventDefault(); choose(matches[active]); }
+          else if (e.key === "Escape") setOpen(false);
+        }}
+        placeholder="Type a code or state, e.g. KA or Karnataka"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none"
+      />
+      {open && matches.length > 0 && (
+        <ul role="listbox" className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-purple-100 rounded-xl shadow-xl max-h-60 overflow-y-auto py-1">
+          {matches.map((s, i) => (
+            <li
+              key={s.code}
+              role="option"
+              aria-selected={i === active}
+              onMouseDown={(e) => { e.preventDefault(); choose(s); }}
+              onMouseEnter={() => setActive(i)}
+              className={`flex items-center justify-between gap-3 px-3 py-2 cursor-pointer text-sm ${i === active ? "bg-purple-50 text-purple-800" : "text-slate-700"}`}
+            >
+              <span className="font-medium truncate">{s.name}</span>
+              <span className="font-mono text-[11px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">{s.code}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -291,7 +345,7 @@ function PtSlabsTab({ showToast }) {
   useEffect(() => { load(); }, [load]);
 
   const byState = slabs.reduce((acc, s) => {
-    const k = s.state_code || "—";
+    const k = s.state_code || "N/A";
     (acc[k] = acc[k] || { state_name: s.state_name, code: k, rows: [] }).rows.push(s);
     return acc;
   }, {});
@@ -325,7 +379,7 @@ function PtSlabsTab({ showToast }) {
   };
 
   const deactivate = async (code) => {
-    if (!window.confirm(`Deactivate all PT slabs for ${code}?`)) return;
+    if (!(await window.confirm(`Deactivate all PT slabs for ${code}?`))) return;
     try {
       await payrollAPI.deactivatePtSlabs(code);
       showToast("Slabs deactivated");
@@ -389,11 +443,35 @@ function PtSlabsTab({ showToast }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">State Code <span className="text-red-500">*</span></label>
-                  <input value={editorState.stateCode} onChange={(e) => setEditorState({ ...editorState, stateCode: e.target.value })} placeholder="KA" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm uppercase focus:bg-white focus:border-purple-400 outline-none" />
+                  <StateCodePicker
+                    code={editorState.stateCode}
+                    onSelect={(s) => setEditorState((st) => ({ ...st, stateCode: s.code, stateName: s.name }))}
+                    onType={(v) => setEditorState((st) => {
+                      // A typed code or an exact state name fills both fields.
+                      const byCode = findIndianState(v);
+                      if (byCode) return { ...st, stateCode: v.trim().toUpperCase(), stateName: byCode.name };
+                      const byName = searchIndianStates(v, 50).find((s) => s.name.toLowerCase() === v.trim().toLowerCase());
+                      if (byName) return { ...st, stateCode: byName.code, stateName: byName.name };
+                      // No match (custom code or still typing): drop a name that was
+                      // only auto-filled from the previous code, keep a hand-typed one.
+                      const autoName = findIndianState(st.stateCode)?.name;
+                      return { ...st, stateCode: v, stateName: autoName && st.stateName === autoName ? "" : st.stateName };
+                    })}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Pick from the list — the state name fills in automatically.</p>
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">State Name</label>
-                  <input value={editorState.stateName} onChange={(e) => setEditorState({ ...editorState, stateName: e.target.value })} placeholder="Karnataka" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                  <input
+                    value={editorState.stateName}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const byName = searchIndianStates(v, 50).find((s) => s.name.toLowerCase() === v.trim().toLowerCase());
+                      setEditorState((st) => ({ ...st, stateName: v, stateCode: byName && !st.stateCode ? byName.code : st.stateCode }));
+                    }}
+                    placeholder="Karnataka"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none"
+                  />
                 </div>
               </div>
               <div className="space-y-3">

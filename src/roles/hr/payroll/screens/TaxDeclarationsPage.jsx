@@ -135,7 +135,7 @@ export default function TaxDeclarationsPage() {
   };
 
   const reopen = async (row) => {
-    const reason = window.prompt("Reason for reopening this declaration to draft:");
+    const reason = window.prompt("Reason for reopening this declaration to draft:")?.trim();
     if (!reason) return;
     try {
       await payrollAPI.reopenDeclaration(row.id, { reason });

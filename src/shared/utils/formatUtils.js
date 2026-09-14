@@ -9,7 +9,7 @@ export const formatDecimalHours = (val) => {
 
 // "2026-09" → "September 2026". Payroll periods are always YYYY-MM strings.
 export const formatPeriod = (periodMonth) => {
-  if (!periodMonth) return "—";
+  if (!periodMonth) return "N/A";
   const [year, month] = String(periodMonth).split("-");
   const idx = parseInt(month, 10) - 1;
   if (Number.isNaN(idx) || idx < 0 || idx > 11) return periodMonth;
@@ -28,9 +28,9 @@ export const formatMoney = (val, { withSymbol = true } = {}) => {
 
 // Safe date rendering — payroll dates are YYYY-MM-DD strings (DATEONLY, no TZ).
 export const formatDate = (d) => {
-  if (!d) return "—";
+  if (!d) return "N/A";
   const date = new Date(d);
   return Number.isNaN(date.getTime())
-    ? "—"
+    ? "N/A"
     : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };

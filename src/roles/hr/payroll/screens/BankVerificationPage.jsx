@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
+import { payrollAPI } from "../../../../shared/api";
+import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
+import { settleWithLimit } from "../../../../shared/utils/promisePool";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiShieldCheck, HiSearch,
-  HiRefresh, HiClock, HiEye,
+  HiRefresh, HiClock, HiEye, HiLibrary, HiUser,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate } from "../../../../shared/utils/formatUtils";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -21,7 +24,10 @@ function Toast({ toast, onClose }) {
   );
 }
 
-const userId = (u) => u?.id || u?.user_id || u?._id;
+// Org employee rows carry `user_id` (the users.id every payroll route takes); they have no `id`.
+const userId = (u) => u?.user_id ?? u?.id ?? u?._id;
+// "No account yet" may come back as a 404 rather than an empty 200 — that is not a load failure.
+const isNotFound = (err) => err?.status === 404 || err?.data?.errorCode === "BANK_ACCOUNT_NOT_FOUND";
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
 const userDept = (u) => u?.department || u?.department_name || "N/A";
 
@@ -45,68 +51,72 @@ const accountState = (acct) => {
   return acct.is_verified ? "verified" : "unverified";
 };
 
-// A real, present account is the only thing that opens the detail drawer.
+// A real, present account is the only thing that has details to show.
 const hasAccount = (acct) => acct != null && acct !== LOAD_ERROR && typeof acct === "object";
 
 const initials = (name) =>
   name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "?";
 
-// ── Full account detail (masked; the raw number is never returned by #24) ──
-function AccountDrawer({ user, account, onClose, onVerify, verifying }) {
+// ── Full account preview (masked; the raw number is never returned by #24) ──
+function AccountPreview({ user, account, onClose, onVerify, verifying }) {
   const state = accountState(account);
-  const rows = account
-    ? [
-        ["Account holder", account.account_holder_name],
-        ["Account number", account.masked_account_number],
-        ["IFSC code", account.ifsc_code],
-        ["Bank", account.bank_name],
-        ["Branch", account.branch_name],
-        ["Account type", account.account_type],
-        ["Verified by", account.verified_by_name || account.verified_by],
-        ["Verified on", account.verified_at ? formatDate(account.verified_at) : null],
-      ].filter(([, v]) => v != null && v !== "")
-    : [];
+  const present = hasAccount(account);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Bank account</h2>
-            <p className="text-xs text-slate-500">{userName(user)}{userDept(user) !== "N/A" ? ` · ${userDept(user)}` : ""}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto space-y-4">
-          <div className="flex items-center justify-between">
-            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${STATE[state].pill}`}>{STATE[state].label}</span>
-          </div>
+    <DetailDialog
+      eyebrow="Bank account"
+      icon={HiLibrary}
+      title={userName(user)}
+      subtitle={userDept(user) !== "N/A" ? userDept(user) : undefined}
+      badge={<DetailPill tone="onDark">{STATE[state].label}</DetailPill>}
+      onClose={onClose}
+      footer={state === "unverified" && (
+        <>
+          <button onClick={onClose} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition">Close</button>
+          <button disabled={verifying} onClick={() => onVerify(user)} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5">
+            <HiShieldCheck className="w-4 h-4" /> {verifying ? "Verifying…" : "Verify account"}
+          </button>
+        </>
+      )}
+    >
+      <DetailSection title="Employee" icon={HiUser}>
+        <DetailGrid
+          cols={3}
+          items={[
+            ["Name", userName(user)],
+            ["Department", userDept(user)],
+            ["Employee code", user?.employee_code || user?.emp_id],
+          ]}
+        />
+      </DetailSection>
 
-          {state === "none" ? (
-            <p className="text-center text-slate-400 py-8 text-sm">
-              This employee hasn't added their bank details yet. They can add them from their own <span className="font-semibold text-slate-500">My Salary &amp; Bank</span> page.
-            </p>
-          ) : (
-            <dl className="divide-y divide-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-              {rows.map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between px-4 py-3">
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{k}</dt>
-                  <dd className="text-sm font-semibold text-slate-800 text-right capitalize">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
-        {state === "unverified" && (
-          <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition">Close</button>
-            <button disabled={verifying} onClick={() => onVerify(user)} className="px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5">
-              <HiShieldCheck className="w-4 h-4" /> {verifying ? "Verifying…" : "Verify account"}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+      {present ? (
+        <DetailSection title="Account details" icon={HiLibrary}>
+          <DetailGrid
+            items={[
+              ["Account holder", account.account_holder_name],
+              { label: "Account number", value: account.masked_account_number, mono: true },
+              { label: "IFSC code", value: account.ifsc_code, mono: true },
+              ["Bank", account.bank_name],
+              ["Branch", account.branch_name],
+              ["Account type", account.account_type ? String(account.account_type).replace(/_/g, " ") : null],
+              ["Verified by", account.verified_by_name || account.verified_by],
+              ["Verified on", account.verified_at ? formatDate(account.verified_at) : null],
+            ]}
+          />
+        </DetailSection>
+      ) : (
+        <DetailSection title="Account details" icon={HiLibrary}>
+          <p className="text-sm text-slate-600 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-4">
+            {state === "error"
+              ? "We couldn't load this employee's bank account. Refresh the page to try again."
+              : state === "loading"
+                ? "Checking for a bank account…"
+                : <>This employee hasn't added their bank details yet. They can add them from their own <span className="font-semibold text-purple-700">My Salary &amp; Bank</span> page.</>}
+          </p>
+        </DetailSection>
+      )}
+    </DetailDialog>
   );
 }
 
@@ -119,7 +129,7 @@ export default function BankVerificationPage() {
 
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "", verified, unverified, none
-  const [drawerUser, setDrawerUser] = useState(null);
+  const [previewUser, setPreviewUser] = useState(null);
   const [verifyingId, setVerifyingId] = useState(null);
 
   const showToast = useCallback((message, type = "success") => {
@@ -127,26 +137,46 @@ export default function BankVerificationPage() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Fan out one #24 per employee, failure-isolated (no list endpoint exists).
+  // One #24 per employee (no list endpoint exists), at most 6 in flight, applied
+  // in batches as they arrive. A newer load, or leaving the page, stops an older
+  // run from sending more requests and its results are dropped.
+  const enrichReq = useRef(0);
+  useEffect(() => () => { enrichReq.current += 1; }, []);
   const enrichAccounts = useCallback(async (list) => {
-    if (!list.length) { setAcctByUser({}); return; }
+    const reqId = ++enrichReq.current;
+    const stale = () => reqId !== enrichReq.current;
+    setAcctByUser({});
+    if (!list.length) { setEnriching(false); return; }
     setEnriching(true);
-    const results = await Promise.allSettled(
-      list.map((u) => payrollAPI.getEmployeeBankAccount(userId(u)))
+    let pending = {};
+    const flush = () => {
+      if (stale()) return;
+      const batch = pending;
+      pending = {};
+      setAcctByUser((m) => ({ ...m, ...batch }));
+    };
+    await settleWithLimit(
+      list,
+      (u) => (stale() ? Promise.resolve(undefined) : payrollAPI.getEmployeeBankAccount(userId(u))),
+      {
+        concurrency: 6,
+        onSettled: (i, r, settledCount) => {
+          pending[userId(list[i])] = r.status === "fulfilled"
+            ? (r.value?.data ?? null)
+            : isNotFound(r.reason) ? null : LOAD_ERROR;
+          if (settledCount % 25 === 0) flush();
+        },
+      },
     );
-    const map = {};
-    results.forEach((r, i) => {
-      map[userId(list[i])] = r.status === "fulfilled" ? (r.value.data ?? null) : LOAD_ERROR;
-    });
-    setAcctByUser(map);
-    setEnriching(false);
+    flush();
+    if (!stale()) setEnriching(false);
   }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const empRes = await organizationAPI.getEmployees({ purpose: "emp_report" });
-      const list = empRes.data?.records || empRes.data?.employees || empRes.data || [];
+      // Every page, current employees only: bank details are verified for people still being paid.
+      const list = await fetchAllOrgEmployees({ includeInactive: false });
       setEmployees(list);
       enrichAccounts(list);
     } catch (err) {
@@ -187,7 +217,7 @@ export default function BankVerificationPage() {
     return employees.filter((u) => {
       const acct = acctByUser[userId(u)];
       if (stateFilter && accountState(acct) !== stateFilter) return false;
-      if (q && !userName(u).toLowerCase().includes(q)) return false;
+      if (q && ![userName(u), u.employee_code].some((v) => String(v || "").toLowerCase().includes(q))) return false;
       return true;
     });
   }, [employees, acctByUser, search, stateFilter]);
@@ -198,9 +228,8 @@ export default function BankVerificationPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Bank Verification
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">Review and verify employee bank accounts before they receive salary payments.</p>
+            <h1 className="text-2xl font-bold text-slate-900">Bank Verification</h1>
+            <p className="text-sm text-slate-500 mt-1">Review and verify employee bank accounts before they receive salary payments. Click a row to see its details.</p>
           </div>
           <button onClick={loadData} className="h-[42px] px-4 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
             <HiRefresh className="w-4 h-4" /> Refresh
@@ -231,7 +260,7 @@ export default function BankVerificationPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name…"
+            placeholder="Search by name or code…"
             className="w-full h-[42px] pl-9 pr-4 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400"
           />
         </div>
@@ -255,7 +284,7 @@ export default function BankVerificationPage() {
                     const acct = acctByUser[id];
                     const state = accountState(acct);
                     return (
-                      <tr key={id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={id} {...rowPreviewProps(() => setPreviewUser(u), `View ${userName(u)}'s bank account`)}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <span className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-white text-xs font-bold flex items-center justify-center shrink-0">{initials(userName(u))}</span>
@@ -265,8 +294,8 @@ export default function BankVerificationPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-600">{acct?.bank_name || <span className="text-slate-300 font-medium">N/A</span>}</td>
-                        <td className="px-6 py-4 font-mono text-slate-600">{acct?.masked_account_number || <span className="font-sans text-slate-300 font-medium">N/A</span>}</td>
+                        <td className="px-6 py-4 text-slate-600">{acct?.bank_name || <span className="text-slate-400 font-medium">N/A</span>}</td>
+                        <td className="px-6 py-4 font-mono text-slate-600">{acct?.masked_account_number || <span className="font-sans text-slate-400 font-medium">N/A</span>}</td>
                         <td className="px-6 py-4">
                           {enriching && acct === undefined ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400"><HiClock className="w-3.5 h-3.5 animate-pulse" /> checking…</span>
@@ -276,9 +305,7 @@ export default function BankVerificationPage() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1.5">
-                            {hasAccount(acct) && (
-                              <button onClick={() => setDrawerUser(u)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
-                            )}
+                            <button onClick={() => setPreviewUser(u)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="View details"><HiEye className="w-4 h-4" /></button>
                             {state === "unverified" && (
                               <button
                                 disabled={verifyingId === id}
@@ -303,13 +330,13 @@ export default function BankVerificationPage() {
         )}
       </main>
 
-      {drawerUser && (
-        <AccountDrawer
-          user={drawerUser}
-          account={acctByUser[userId(drawerUser)]}
-          verifying={verifyingId === userId(drawerUser)}
+      {previewUser && (
+        <AccountPreview
+          user={previewUser}
+          account={acctByUser[userId(previewUser)]}
+          verifying={verifyingId === userId(previewUser)}
           onVerify={handleVerify}
-          onClose={() => setDrawerUser(null)}
+          onClose={() => setPreviewUser(null)}
         />
       )}
 

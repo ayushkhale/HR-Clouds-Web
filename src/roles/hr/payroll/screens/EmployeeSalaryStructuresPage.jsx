@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
+import { payrollAPI } from "../../../../shared/api";
+import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
+import { settleWithLimit } from "../../../../shared/utils/promisePool";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye,
 } from "react-icons/hi";
@@ -32,7 +34,15 @@ const STRUCT_STATUS = {
   cancelled: "bg-slate-100 text-slate-500",
 };
 
-const userId = (u) => u?.id || u?.user_id || u?._id;
+// Org employee rows carry `user_id` (the users.id every payroll route takes); they have no `id`.
+const userId = (u) => u?.user_id ?? u?.id ?? u?._id;
+// A failed lookup is not "no structure": showing "Not set" would invite a duplicate assignment.
+const LOAD_ERROR = Symbol("load_error");
+// Settled #18 result → structure, null (none yet, incl. a 404) or LOAD_ERROR.
+const currentStructureOf = (result) => {
+  if (result?.status === "fulfilled") return result.value?.data ?? null;
+  return result?.reason?.status === 404 ? null : LOAD_ERROR;
+};
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
 const userDept = (u) => u?.department || u?.department_name || "N/A";
 
@@ -331,28 +341,62 @@ export default function EmployeeSalaryStructuresPage() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Enrich the roster with each employee's current CTC (#18), in parallel and
-  // failure-isolated so one missing structure never blanks the table.
+  // Enrich the roster with each employee's current CTC (#18): at most 6 requests
+  // in flight, applied in batches, failure-isolated. A newer load or leaving the
+  // page stops an older run and drops its results.
+  const enrichReq = useRef(0);
+  // Employees re-fetched after an assignment while the full load was still
+  // running; the full load's older answer for them must not win.
+  const refreshedRef = useRef(new Set());
+  useEffect(() => () => { enrichReq.current += 1; }, []);
   const enrichCtc = useCallback(async (list) => {
-    if (!list.length) return;
-    const results = await Promise.allSettled(
-      list.map((u) => payrollAPI.getEmployeeCurrentStructure(userId(u)))
+    const reqId = ++enrichReq.current;
+    const stale = () => reqId !== enrichReq.current;
+    refreshedRef.current = new Set();
+    setCtcByUser({});
+    let pending = {};
+    const flush = () => {
+      if (stale()) return;
+      const batch = pending;
+      pending = {};
+      refreshedRef.current.forEach((id) => { delete batch[id]; });
+      setCtcByUser((m) => ({ ...m, ...batch }));
+    };
+    await settleWithLimit(
+      list,
+      (u) => (stale() ? Promise.resolve(undefined) : payrollAPI.getEmployeeCurrentStructure(userId(u))),
+      {
+        concurrency: 6,
+        onSettled: (i, r, settledCount) => {
+          pending[userId(list[i])] = currentStructureOf(r);
+          if (settledCount % 25 === 0) flush();
+        },
+      },
     );
-    const map = {};
-    results.forEach((r, i) => {
-      map[userId(list[i])] = r.status === "fulfilled" ? (r.value.data ?? null) : null;
+    flush();
+  }, []);
+
+  // After an assignment only that employee's figure can change; don't refetch everyone.
+  const refreshOne = useCallback(async (user) => {
+    const id = userId(user);
+    refreshedRef.current.add(id);
+    setCtcByUser((m) => {
+      const next = { ...m };
+      delete next[id];
+      return next;
     });
-    setCtcByUser(map);
+    const [result] = await settleWithLimit([user], (u) => payrollAPI.getEmployeeCurrentStructure(userId(u)));
+    setCtcByUser((m) => ({ ...m, [id]: currentStructureOf(result) }));
   }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [empRes, tplRes] = await Promise.all([
-        organizationAPI.getEmployees({ purpose: "emp_report" }),
+      // Every page, current employees only: structures are assigned to people still employed.
+      const [list, tplRes] = await Promise.all([
+        fetchAllOrgEmployees({ includeInactive: false }),
         payrollAPI.getTemplates(),
       ]);
-      const list = empRes.data?.records || empRes.data || [];
       setEmployees(list);
       setTemplates(tplRes.data?.records || tplRes.data || []);
       enrichCtc(list);
@@ -401,13 +445,15 @@ export default function EmployeeSalaryStructuresPage() {
                         <td className="px-6 py-4 text-right tabular-nums">
                           {cur === undefined ? (
                             <span className="inline-block w-16 h-4 rounded bg-slate-100 animate-pulse" />
+                          ) : cur === LOAD_ERROR ? (
+                            <span className="text-xs font-semibold text-red-500">Couldn&apos;t load</span>
                           ) : cur ? (
                             <span className="font-bold text-slate-800">{formatMoney(cur.annual_ctc)}</span>
                           ) : (
                             <span className="text-xs text-slate-400">Not set</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-slate-500">{cur ? formatDate(cur.effective_from) : "N/A"}</td>
+                        <td className="px-6 py-4 text-slate-500">{cur && cur !== LOAD_ERROR ? formatDate(cur.effective_from) : "N/A"}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-1.5">
                             <button onClick={() => setHistoryUser(user)} title="Salary history"
@@ -441,7 +487,7 @@ export default function EmployeeSalaryStructuresPage() {
           templates={templates}
           showToast={showToast}
           onClose={() => setAssignUser(null)}
-          onDone={() => { setAssignUser(null); loadData(); }}
+          onDone={() => { const assigned = assignUser; setAssignUser(null); refreshOne(assigned); }}
         />
       )}
 

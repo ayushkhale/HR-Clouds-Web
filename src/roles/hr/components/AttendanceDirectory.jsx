@@ -6,6 +6,11 @@ import { HiSearch, HiChevronLeft, HiChevronRight, HiUsers, HiBriefcase, HiShield
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import LiveEffectiveHours from "../../../shared/attendance/LiveEffectiveHours";
 import { departmentName, employeeCode, personName } from "../../../shared/attendance/normalize";
+import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
+
+// The HR list composes `name` server-side and sends the literal "Unknown" when a
+// user has no profile row (typically the HR who signed the organisation up).
+const PLACEHOLDER_NAME = "Unknown";
 import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, todayYMD } from "../../../shared/attendance/dates";
 import { RECORD_STATUS_FILTERS } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
@@ -55,6 +60,27 @@ function AttendanceDirectory() {
 
   const filtered = !!(search || status);
   const openProfile = (userId) => userId && navigate(`/dashboard/hr/employees/${userId}?tab=attendance`);
+
+  // Until the backend creates the missing profile rows, resolve "Unknown" names
+  // from the organisation list, whose name falls back to the login email.
+  const [orgNames, setOrgNames] = useState(null);
+  const hasPlaceholder = activeTab === "hr" && list.items.some((r) => r?.name === PLACEHOLDER_NAME && r.user_id);
+  useEffect(() => {
+    if (!hasPlaceholder || orgNames) return undefined;
+    let cancelled = false;
+    fetchAllOrgEmployees()
+      .then((rows) => {
+        if (cancelled) return;
+        const pairs = rows.map((e) => [e?.user_id, personName(e, "")]);
+        setOrgNames(new Map(pairs.filter(([id, name]) => id && name && name !== PLACEHOLDER_NAME)));
+      })
+      .catch(() => { if (!cancelled) setOrgNames(new Map()); });
+    return () => { cancelled = true; };
+  }, [hasPlaceholder, orgNames]);
+  const nameOf = (record) => {
+    const name = personName(record);
+    return name === PLACEHOLDER_NAME ? orgNames?.get(record.user_id) || name : name;
+  };
 
   return (
     <div className="space-y-6">
@@ -112,7 +138,7 @@ function AttendanceDirectory() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {list.items.map((record, idx) => {
-                    const name = personName(record);
+                    const name = nameOf(record);
                     return (
                       <tr
                         key={record.user_id || record.id || idx}
@@ -123,10 +149,10 @@ function AttendanceDirectory() {
                         aria-label={`Open ${name}'s attendance`}
                         className="hover:bg-slate-50/50 focus:bg-purple-50/40 outline-none transition-colors cursor-pointer"
                       >
-                        <td className="px-6 py-3.5 font-mono text-xs font-semibold text-slate-700">{employeeCode(record) || <span className="text-slate-300 font-normal">—</span>}</td>
+                        <td className="px-6 py-3.5 font-mono text-xs font-semibold text-slate-700">{employeeCode(record) || <span className="text-slate-400 font-sans font-semibold">N/A</span>}</td>
                         <td className="px-6 py-3.5"><p className="font-bold text-slate-800 text-sm truncate max-w-[200px]" title={name}>{name}</p></td>
                         <td className="px-6 py-3.5">
-                          <p className="font-semibold text-slate-700 text-sm">{departmentName(record) || "—"}</p>
+                          <p className={`font-semibold text-sm ${departmentName(record) ? "text-slate-700" : "text-slate-400"}`}>{departmentName(record) || "N/A"}</p>
                           {record.designation && <p className="text-xs text-slate-400 mt-0.5">{record.designation}</p>}
                         </td>
                         <td className="px-6 py-3.5">{record.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={record.status || "not_marked"} />}</td>
@@ -135,7 +161,7 @@ function AttendanceDirectory() {
                           {Number(record.late_minutes) > 0 && <p className="text-[10px] text-amber-600 font-bold mt-0.5">{fmtMinutes(record.late_minutes)} late</p>}
                         </td>
                         <td className="px-6 py-3.5">
-                          {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "—"}</span>}
+                          {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}
                         </td>
                         <td className="px-6 py-3.5 text-right text-sm">
                           <LiveEffectiveHours effectiveHours={record.effective_hours} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} breakMinutes={record.break_duration_minutes} />

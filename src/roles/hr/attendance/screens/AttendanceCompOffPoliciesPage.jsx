@@ -10,7 +10,8 @@ import { fmtHours } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { useTargetingOptions, withSelected, describeTargeting } from "../../../../shared/attendance/useTargetingOptions";
 import { EmptyState, ErrorState, FieldError, InlineAlert, LoadingRows, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
-import { HiPlus, HiX, HiOutlineTrash, HiDocumentText, HiPencil } from "react-icons/hi";
+import { HiPlus, HiX, HiOutlineTrash, HiDocumentText, HiPencil, HiScale, HiUserGroup } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 // Full field set per ATTENDANCE_API_CONTRACT.md §5.6.
@@ -149,7 +150,7 @@ function PolicyModal({ policy, onClose, onSaved }) {
             <input type="checkbox" checked={form.requires_approval} onChange={(e) => set("requires_approval", e.target.checked)} className="w-4 h-4 mt-0.5 rounded text-purple-600 focus:ring-purple-500 border-slate-300" />
             <span>
               <span className="block text-sm font-semibold text-slate-700">Requires manager approval</span>
-              <span className="block text-[11px] text-slate-400">When enabled, earned {TERM.toLowerCase()}s wait for a manager (or HR override) before they're credited to leave.</span>
+              <span className="block text-[11px] text-slate-400">When enabled, earned {TERM.toLowerCase()}s wait for a manager (or HR on their behalf) before they're credited to leave.</span>
             </span>
           </label>
 
@@ -185,6 +186,7 @@ function AttendanceCompOffPoliciesPage() {
   const [state, setState] = useState({ policies: [], loading: true, error: null });
   const [modal, setModal] = useState(null); // null | "create" | policy
   const [deleting, setDeleting] = useState(null);
+  const [preview, setPreview] = useState(null);
   const { toast, showToast, clearToast } = useToast();
   const targeting = useTargetingOptions();
 
@@ -253,20 +255,20 @@ function AttendanceCompOffPoliciesPage() {
                       <th className="px-6 py-3.5">Credit</th>
                       <th className="px-6 py-3.5">Applies to</th>
                       <th className="px-6 py-3.5">Approval</th>
-                      <th className="px-6 py-3.5 text-right"><span className="sr-only">Actions</span></th>
+                      <th className="px-6 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {state.policies.map((policy) => {
                       const scope = describeTargeting(policy, targeting);
                       return (
-                        <tr key={policy.id} className="hover:bg-slate-50/80 transition-colors align-top">
+                        <tr key={policy.id} {...rowPreviewProps(() => setPreview(policy), `View ${policy.name}`)} className="cursor-pointer hover:bg-purple-50/40 focus:bg-purple-50/60 outline-none transition-colors align-top">
                           <td className="px-6 py-4 font-bold text-slate-800">
                             {policy.name}
                             <span className="block text-[10px] font-semibold text-slate-400 mt-0.5">Priority {policy.priority ?? 0}</span>
                             {policy.is_active === false && <span className="text-[10px] font-bold text-slate-400">Inactive</span>}
                           </td>
-                          <td className="px-6 py-4 text-xs text-slate-600">{fmtHours(policy.min_hours_for_half_day)} / {fmtHours(policy.min_hours_for_full_day)}</td>
+                          <td className="px-6 py-4 text-xs text-slate-600">{policy.min_hours_for_half_day != null ? fmtHours(policy.min_hours_for_half_day) : "N/A"} / {policy.min_hours_for_full_day != null ? fmtHours(policy.min_hours_for_full_day) : "N/A"}</td>
                           <td className="px-6 py-4 text-xs text-slate-600">
                             ×{policy.multiplier ?? 1}
                             <span className="block text-[10px] text-slate-400">{policy.validity_days != null ? `Expires after ${policy.validity_days} days` : "No expiry"}</span>
@@ -312,6 +314,61 @@ function AttendanceCompOffPoliciesPage() {
           onSaved={(msg) => { setModal(null); showToast(msg); fetchPolicies(); }}
         />
       )}
+      {preview && (() => {
+        const p = preview;
+        const scope = describeTargeting(p, targeting);
+        const hoursOrNA = (v) => (v != null && v !== "" ? fmtHours(v) : null);
+        return (
+          <DetailDialog
+            eyebrow={`${TERM} policy`}
+            icon={HiDocumentText}
+            title={p.name}
+            subtitle={`Priority ${p.priority ?? 0}`}
+            badge={<DetailPill tone="onDark">{p.is_active === false ? "Inactive" : "Active"}</DetailPill>}
+            onClose={() => setPreview(null)}
+            footer={
+              <>
+                <button onClick={() => { setPreview(null); handleDelete(p); }} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
+                  <HiOutlineTrash className="w-4 h-4" /> Delete
+                </button>
+                <button onClick={() => { setPreview(null); setModal(p); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                  <HiPencil className="w-4 h-4" /> Edit policy
+                </button>
+              </>
+            }
+          >
+            <DetailSection title="How days are earned" icon={HiScale}>
+              <DetailGrid
+                items={[
+                  ["Hours for half day", hoursOrNA(p.min_hours_for_half_day)],
+                  ["Hours for full day", hoursOrNA(p.min_hours_for_full_day)],
+                  ["Multiplier", `×${p.multiplier ?? 1}`],
+                  ["Approval", p.requires_approval === false ? "Auto-credited" : "Manager approval"],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Limits" icon={HiDocumentText}>
+              <DetailGrid
+                cols={3}
+                items={[
+                  ["Valid for", p.validity_days != null ? `${p.validity_days} days` : "No expiry"],
+                  ["Maximum balance", p.max_accumulation != null ? p.max_accumulation : "No cap"],
+                  ["Priority", p.priority ?? 0],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Applies to" icon={HiUserGroup}>
+              {scope.length === 0 ? (
+                <DetailPill>Whole organisation</DetailPill>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {scope.map((line) => <p key={line} className="text-sm text-slate-700 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-2.5">{line}</p>)}
+                </div>
+              )}
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
       <Toast toast={toast} onClose={clearToast} />
     </>
   );

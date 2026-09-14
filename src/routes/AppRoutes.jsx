@@ -1,5 +1,5 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import { canAccessWorkspace, dashboardPathForRole } from "../shared/auth/permissions";
 import Skeleton from "../shared/components/Skeleton";
@@ -126,8 +126,34 @@ function CatchAll() {
    Waits for auth hydration before deciding to render or redirect.
    Prevents the catch-all from firing during the first render tick.
 ──────────────────────────────────────────────────────────────────────────── */
+// Login URL that brings the user back to where they were after signing in.
+const loginPathFrom = (location) =>
+  `/auth/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
+
+// Landing, auth and invitation pages don't need a session, so expiry leaves them alone.
+const PUBLIC_PATH = /^\/(about|services|pricing|auth|invitation)?(\/|$)/;
+
+/* ─── Session expiry ─────────────────────────────────────────────────────────
+   When the session ends on its own (401 from the API or token past its expiry),
+   send the user to login from any page that needs one, e.g. onboarding.
+──────────────────────────────────────────────────────────────────────────── */
+function SessionExpiryRedirect() {
+  const { sessionExpired } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (sessionExpired && !PUBLIC_PATH.test(location.pathname)) {
+      navigate(loginPathFrom(location), { replace: true });
+    }
+  }, [sessionExpired, location, navigate]);
+
+  return null;
+}
+
 function ProtectedRoute({ children, workspace }) {
   const { isAuthenticated, isLoading, role } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     // Auth still hydrating from localStorage — don't redirect yet
@@ -135,7 +161,7 @@ function ProtectedRoute({ children, workspace }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth/login" replace />;
+    return <Navigate to={loginPathFrom(location)} replace />;
   }
 
   // Role dimension: keep signed-in users out of workspaces their role can't use
@@ -153,6 +179,8 @@ function ProtectedRoute({ children, workspace }) {
 function AppRoutes() {
   
   return (
+    <>
+    <SessionExpiryRedirect />
     <Routes>
       {/* ─── PUBLIC LANDING WEBSITE ROUTES ─── */}
       <Route path="/" element={<LandingLayout />}>
@@ -289,6 +317,7 @@ function AppRoutes() {
       {/* ─── CATCH-ALL ─── */}
       <Route path="*" element={<CatchAll />} />
     </Routes>
+    </>
   );
 }
 

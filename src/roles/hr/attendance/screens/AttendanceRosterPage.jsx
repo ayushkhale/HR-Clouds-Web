@@ -9,7 +9,8 @@ import { listFrom, personName, personEmail, employeeCode, initials } from "../..
 import { fmtDate, fmtClock, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, Pagination, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
-import { HiUserGroup, HiPlus, HiX, HiSearch, HiDotsVertical, HiTrash } from "react-icons/hi";
+import { HiUserGroup, HiPlus, HiX, HiSearch, HiDotsVertical, HiTrash, HiClock, HiCalendar, HiUser } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 const PAGE_SIZE = 25;
 
@@ -134,7 +135,7 @@ function AssignModal({ onClose, onSaved }) {
                 <option value="">Select a shift…</option>
                 {shifts.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} · {s.start_time && s.end_time ? `${fmtClock(s.start_time)}–${fmtClock(s.end_time)}` : `min ${s.min_hours ?? "—"} hrs`} · {s.type || s.shift_type}
+                    {s.name} · {s.start_time && s.end_time ? `${fmtClock(s.start_time)}–${fmtClock(s.end_time)}` : `min ${s.min_hours ?? "N/A"} hrs`} · {s.type || s.shift_type}
                   </option>
                 ))}
               </select>
@@ -313,6 +314,7 @@ export default function AttendanceRosterPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const { toast, showToast, clearToast } = useToast();
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     const handleClick = () => setActiveMenuId(null);
@@ -412,12 +414,12 @@ export default function AttendanceRosterPage() {
                         const name = assignmentName(a);
                         const email = personEmail(a.user || a);
                         const state = assignmentState(a, today);
-                        const label = a.shift?.name || a.rotation_pattern?.name || "—";
+                        const label = a.shift?.name || a.rotation_pattern?.name || "N/A";
                         const times = a.shift?.start_time
                           ? `${fmtClock(a.shift.start_time)} – ${fmtClock(a.shift.end_time)}`
                           : a.rotation_pattern ? `Rotation · ${a.rotation_pattern.rotation_cycle_days ?? "?"}-day cycle` : null;
                         return (
-                          <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={a.id} {...rowPreviewProps(() => setPreview(a), `View ${name}'s schedule`)}>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">{initials(name)}</div>
@@ -427,7 +429,7 @@ export default function AttendanceRosterPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-xs text-slate-500">{assignmentCode(a) || "—"}</td>
+                            <td className="px-6 py-4 text-xs text-slate-500">{assignmentCode(a) || "N/A"}</td>
                             <td className="px-6 py-4">
                               <p className="text-xs font-semibold text-slate-800">{label}</p>
                               {times && <p className="text-[10px] text-slate-400">{times}</p>}
@@ -483,6 +485,65 @@ export default function AttendanceRosterPage() {
       {showModal && <AssignModal onClose={() => setShowModal(false)} onSaved={(msg) => onSaved(msg, () => setShowModal(false))} />}
       {endModalAssignment && <EndShiftModal assignment={endModalAssignment} onClose={() => setEndModalAssignment(null)} onSaved={(msg) => onSaved(msg, () => setEndModalAssignment(null))} />}
       {deleteModalAssignment && <DeleteShiftModal assignment={deleteModalAssignment} onClose={() => setDeleteModalAssignment(null)} onSaved={(msg) => onSaved(msg, () => setDeleteModalAssignment(null))} />}
+      {preview && (() => {
+        const a = preview;
+        const name = assignmentName(a);
+        const email = personEmail(a.user || a);
+        const state = assignmentState(a, today);
+        const stateLabel = { ongoing: "Ongoing", scheduled: "Upcoming", ended: "Ended" }[state];
+        const shift = a.shift;
+        const rot = a.rotation_pattern;
+        const secondaryBtn = "px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition";
+        return (
+          <DetailDialog
+            eyebrow="Shift assignment"
+            icon={HiUserGroup}
+            title={name}
+            subtitle={email && email !== name ? email : undefined}
+            badge={<DetailPill tone="onDark">{stateLabel}</DetailPill>}
+            onClose={() => setPreview(null)}
+            footer={
+              <>
+                <button onClick={() => { setPreview(null); setDeleteModalAssignment(a); }} className={secondaryBtn}>Delete</button>
+                {!a.effective_to && (
+                  <button onClick={() => { setPreview(null); setEndModalAssignment(a); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200">End assignment</button>
+                )}
+              </>
+            }
+          >
+            <DetailSection title="Employee" icon={HiUser}>
+              <DetailGrid cols={3} items={[["Name", name], { label: "Employee code", value: assignmentCode(a), mono: true }, ["Email", email]]} />
+            </DetailSection>
+            <DetailSection title="Schedule" icon={HiClock}>
+              <DetailGrid
+                items={shift
+                  ? [
+                    ["Shift", shift.name],
+                    ["Shift type", (shift.type || shift.shift_type || "").replace(/_/g, " ")],
+                    ["Starts", fmtClock(shift.start_time)],
+                    ["Ends", fmtClock(shift.end_time)],
+                  ]
+                  : [
+                    ["Rotation", rot?.name],
+                    ["Schedule type", rot ? "Rotation" : null],
+                    ["Repeats every", rot?.rotation_cycle_days != null ? `${rot.rotation_cycle_days} days` : null],
+                    ["Rotation status", rot ? (rot.is_active === false ? "Inactive" : "Active") : null],
+                  ]}
+              />
+            </DetailSection>
+            <DetailSection title="Dates" icon={HiCalendar}>
+              <DetailGrid
+                cols={3}
+                items={[
+                  ["Effective from", fmtDate(ymdOnly(a.effective_from))],
+                  ["Valid until", a.effective_to ? fmtDate(ymdOnly(a.effective_to)) : "Open-ended"],
+                  ["Status", stateLabel],
+                ]}
+              />
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
       <Toast toast={toast} onClose={clearToast} />
     </>
   );

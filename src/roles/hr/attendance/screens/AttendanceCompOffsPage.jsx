@@ -20,7 +20,7 @@ const expiryDate = (r) => ymdOnly(r.expiry_date || r.expires_on || r.valid_until
 
 const HR_ACTIONS = [
   { key: "reject", label: "Reject", tone: "rose", requireRemarks: true },
-  { key: "approve", label: "Approve (override)", tone: "emerald" },
+  { key: "approve", label: "Approve (as HR)", tone: "emerald" },
 ];
 
 function AttendanceCompOffsPage() {
@@ -59,7 +59,7 @@ function AttendanceCompOffsPage() {
   const handleBulkApprove = async () => {
     if (bulk || selected.length === 0) return;
     const rows = list.items.filter((r) => selected.includes(entityId(r)));
-    if (!(await window.confirm(`Approve ${rows.length} ${TERM.toLowerCase()}${rows.length === 1 ? "" : "s"} as an HR override? Each approval credits the employee's leave balance.`))) return;
+    if (!(await window.confirm(`Approve ${rows.length} ${TERM.toLowerCase()}${rows.length === 1 ? "" : "s"} on the manager's behalf? Each approval credits the employee's leave balance.`))) return;
 
     const failures = [];
     setBulk({ done: 0, total: rows.length, failures });
@@ -90,7 +90,7 @@ function AttendanceCompOffsPage() {
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{TERM}s</h1>
-          <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits as an override of the manager step.</p>
+          <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits on the manager's behalf.</p>
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-hidden">
@@ -179,7 +179,7 @@ function AttendanceCompOffsPage() {
       <DecisionDialog
         open={!!decision}
         entityKey={decision ? entityId(decision) : undefined}
-        title={`HR override · ${TERM}`}
+        title={`HR decision · ${TERM}`}
         subtitle={decision ? personName(decision, "Employee") : ""}
         actions={HR_ACTIONS}
         notice={<InlineAlert tone="amber">This decision bypasses the manager step. Approving credits the {TERM.toLowerCase()} to the employee's leave balance; rejecting moves it to Rejected / cancelled.</InlineAlert>}

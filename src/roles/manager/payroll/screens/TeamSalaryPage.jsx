@@ -188,7 +188,7 @@ export default function TeamSalaryPage() {
   };
 
   const cancelProposal = async (p) => {
-    if (!window.confirm("Cancel this proposal? HR will no longer see it.")) return;
+    if (!(await window.confirm("Cancel this proposal? HR will no longer see it."))) return;
     try {
       await payrollAPI.cancelMyProposal(p.id);
       showToast("Proposal cancelled");

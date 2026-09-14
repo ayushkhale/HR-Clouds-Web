@@ -35,29 +35,30 @@ function typeColor(val) {
 // shift to the previous day.
 function dayOfWeek(value) {
   const d = parseYMDLocal(ymdOnly(value));
-  return d ? d.toLocaleDateString("en-IN", { weekday: "long" }) : "—";
+  return d ? d.toLocaleDateString("en-IN", { weekday: "long" }) : "N/A";
 }
 function fmtDate(value) {
   const d = parseYMDLocal(ymdOnly(value));
-  return d ? d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  return d ? d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "N/A";
 }
 
+// Each holiday gets its own colour so the catalog is scannable at a glance.
 function getHolidayIconInfo(name) {
   const n = (name || "").toLowerCase();
-  const purpleTheme = "text-[#6D28D9] bg-purple-50 group-hover:bg-purple-100 transition-colors";
-  if (n.includes("independence") || n.includes("republic")) return { Icon: FaFlag, color: purpleTheme };
-  if (n.includes("diwali")) return { Icon: FaSun, color: purpleTheme };
-  if (n.includes("holi")) return { Icon: FaPalette, color: purpleTheme };
-  if (n.includes("christmas")) return { Icon: FaTree, color: purpleTheme };
-  if (n.includes("new year")) return { Icon: FaChampagneGlasses, color: purpleTheme };
-  if (n.includes("gandhi")) return { Icon: FaHandsPraying, color: purpleTheme };
-  if (n.includes("eid")) return { Icon: FaMoon, color: purpleTheme };
-  if (n.includes("dussehra")) return { Icon: FaCrown, color: purpleTheme };
-  if (n.includes("good friday")) return { Icon: FaCross, color: purpleTheme };
-  if (n.includes("shivratri")) return { Icon: FaOm, color: purpleTheme };
-  if (n.includes("guru nanak")) return { Icon: FaSun, color: purpleTheme };
-  if (n.includes("labour") || n.includes("may day")) return { Icon: FaWrench, color: purpleTheme };
-  return { Icon: HiCalendar, color: purpleTheme };
+  const tone = (text, bg, hover) => `${text} ${bg} ${hover} transition-colors`;
+  if (n.includes("independence") || n.includes("republic")) return { Icon: FaFlag, color: tone("text-orange-600", "bg-orange-50", "group-hover:bg-orange-100") };
+  if (n.includes("diwali")) return { Icon: FaSun, color: tone("text-amber-600", "bg-amber-50", "group-hover:bg-amber-100") };
+  if (n.includes("holi")) return { Icon: FaPalette, color: tone("text-pink-600", "bg-pink-50", "group-hover:bg-pink-100") };
+  if (n.includes("christmas")) return { Icon: FaTree, color: tone("text-emerald-600", "bg-emerald-50", "group-hover:bg-emerald-100") };
+  if (n.includes("new year")) return { Icon: FaChampagneGlasses, color: tone("text-sky-600", "bg-sky-50", "group-hover:bg-sky-100") };
+  if (n.includes("gandhi")) return { Icon: FaHandsPraying, color: tone("text-teal-600", "bg-teal-50", "group-hover:bg-teal-100") };
+  if (n.includes("eid")) return { Icon: FaMoon, color: tone("text-cyan-600", "bg-cyan-50", "group-hover:bg-cyan-100") };
+  if (n.includes("dussehra")) return { Icon: FaCrown, color: tone("text-red-600", "bg-red-50", "group-hover:bg-red-100") };
+  if (n.includes("good friday")) return { Icon: FaCross, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
+  if (n.includes("shivratri")) return { Icon: FaOm, color: tone("text-blue-600", "bg-blue-50", "group-hover:bg-blue-100") };
+  if (n.includes("guru nanak")) return { Icon: FaSun, color: tone("text-yellow-600", "bg-yellow-50", "group-hover:bg-yellow-100") };
+  if (n.includes("labour") || n.includes("may day")) return { Icon: FaWrench, color: tone("text-slate-600", "bg-slate-100", "group-hover:bg-slate-200") };
+  return { Icon: HiCalendar, color: tone("text-purple-600", "bg-purple-50", "group-hover:bg-purple-100") };
 }
 
 function getPresetHolidays(y) {

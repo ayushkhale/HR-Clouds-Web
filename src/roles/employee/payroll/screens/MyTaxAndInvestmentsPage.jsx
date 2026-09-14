@@ -212,7 +212,7 @@ function DeclarationsTab({ fy, showToast }) {
   };
 
   const submit = async () => {
-    if (!window.confirm("Submit to HR? You will no longer be able to edit the declared amounts.")) return;
+    if (!(await window.confirm("Submit to HR? You will no longer be able to edit the declared amounts."))) return;
     setBusy(true);
     try {
       await payrollAPI.submitMyDeclaration({ financial_year: fy });

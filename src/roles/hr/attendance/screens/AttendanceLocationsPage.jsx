@@ -32,8 +32,9 @@ function AttendanceLocationsPage() {
 
   useEffect(() => { fetchLocations(); }, []);
 
-  const fetchLocations = async () => {
-    setListLoading(true);
+  // `silent` refreshes in place (no skeleton) once cards are already on screen.
+  const fetchLocations = async ({ silent = false } = {}) => {
+    if (!silent) setListLoading(true);
     setListError("");
     try {
       const res = await attendanceAPI.getLocations();
@@ -252,7 +253,7 @@ function AttendanceLocationsPage() {
         await attendanceAPI.createLocation(payload);
       }
       closeModal();
-      fetchLocations();
+      fetchLocations({ silent: true });
     } catch (err) {
       console.error(err);
       setSaveError(err?.data?.message || err.message || "Failed to save location");
@@ -261,14 +262,35 @@ function AttendanceLocationsPage() {
     }
   };
 
+  // Flip the card in place. Refetching the list here swapped every card for a
+  // loading skeleton, so the whole page flashed and re-rendered on each toggle.
+  // Ids with a status request in flight. A second click before the first
+  // request settles would race it, and a failed first request could revert
+  // the second — so the toggle is locked per card until it settles.
+  const [togglingIds, setTogglingIds] = useState(() => new Set());
   const handleToggleActive = async (loc) => {
+    if (togglingIds.has(loc.id)) return;
     setListError("");
+    const setPending = (on) => setTogglingIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(loc.id);
+      else next.delete(loc.id);
+      return next;
+    });
+    const nextActive = !loc.is_active;
+    const patch = (fields) => setLocations((prev) => prev.map((l) => (l.id === loc.id ? { ...l, ...fields } : l)));
+    setPending(true);
+    patch({ is_active: nextActive });
     try {
-      await attendanceAPI.updateLocation(loc.id, { is_active: !loc.is_active });
-      fetchLocations();
+      const res = await attendanceAPI.updateLocation(loc.id, { is_active: nextActive });
+      const updated = res?.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : null;
+      if (updated && updated.id === loc.id) patch(updated);
     } catch (err) {
       console.error(err);
+      patch({ is_active: loc.is_active });
       setListError(err?.data?.message || err?.message || "Could not update the location status.");
+    } finally {
+      setPending(false);
     }
   };
 
@@ -383,7 +405,7 @@ function AttendanceLocationsPage() {
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Address</p>
                         <p className="text-xs font-medium text-slate-700 leading-relaxed line-clamp-2">
-                          {loc.address || "--"}
+                          {loc.address || "N/A"}
                         </p>
                       </div>
 
@@ -391,14 +413,14 @@ function AttendanceLocationsPage() {
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
                           <p className="text-xs font-semibold text-slate-700 truncate">
-                            {[loc.city, loc.state].filter(Boolean).join(", ") || "--"}
+                            {[loc.city, loc.state].filter(Boolean).join(", ") || "N/A"}
                           </p>
                         </div>
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
                           <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                             <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
-                            {loc.geofence_radius_meters != null ? `${loc.geofence_radius_meters} meters` : "--"}
+                            {loc.geofence_radius_meters != null ? `${loc.geofence_radius_meters} meters` : "N/A"}
                           </p>
                         </div>
                       </div>
@@ -408,7 +430,15 @@ function AttendanceLocationsPage() {
                     {/* Footer Area for Status Toggle */}
                     <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between shrink-0">
                       <span className="text-xs font-bold text-slate-600">Location Status</span>
-                      <button onClick={() => handleToggleActive(loc)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={!!loc.is_active}
+                        aria-label={`${loc.is_active ? "Deactivate" : "Activate"} ${loc.name}`}
+                        onClick={() => handleToggleActive(loc)}
+                        disabled={togglingIds.has(loc.id)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-wait ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}
+                      >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
                       </button>
                     </div>

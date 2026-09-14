@@ -68,7 +68,9 @@ export const payrollAPI = {
   includeRunItem: (id, itemId) => request(`/payroll/hr/runs/${id}/items/${itemId}/include`, { method: "POST" }),
   overrideRunItemPeriod: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/period`, { method: "PATCH", body: JSON.stringify(payload) }),
   approveRun: (id) => request(`/payroll/hr/runs/${id}/approve`, { method: "POST" }),
-  cancelRun: (id) => request(`/payroll/hr/runs/${id}/cancel`, { method: "POST" }),
+  // Cancel requires `cancellation_reason` (1–1000 chars, trimmed). Only an
+  // approved, unpaid run can be cancelled.
+  cancelRun: (id, reason) => request(`/payroll/hr/runs/${id}/cancel`, { method: "POST", body: JSON.stringify({ cancellation_reason: reason }) }),
   payRun: (id) => request(`/payroll/hr/runs/${id}/pay`, { method: "POST" }),
 
   // ─────────────────────────────────────────────────────────────────────────────

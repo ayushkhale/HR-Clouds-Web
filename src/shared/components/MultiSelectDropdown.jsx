@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { HiCheck, HiSelector, HiX } from "react-icons/hi";
-import Avatar, { genConfig } from "react-nice-avatar";
+import GenderAvatar from "./GenderAvatar";
 
 export default function MultiSelectDropdown({ 
   options = [], 
@@ -105,7 +105,7 @@ export default function MultiSelectDropdown({
                         {opt.avatar ? (
                           <img src={opt.avatar} alt={opt.label} className="w-full h-full object-cover" />
                         ) : (
-                          <Avatar className="w-full h-full" {...genConfig(opt.avatarIdentifier)} />
+                          <GenderAvatar gender={opt.gender} name={opt.label} />
                         )}
                       </div>
                     )}

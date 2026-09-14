@@ -3,8 +3,9 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
-  HiExclamation, HiBan, HiClipboardList,
+  HiExclamation, HiBan, HiClipboardList, HiUserGroup, HiAdjustments,
 } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 // Phase-6 demographic gating options. Empty selection ⇒ open to everyone (null).
 const GENDER_OPTIONS = [
@@ -22,6 +23,7 @@ const MARITAL_OPTIONS = [
 
 // A restriction array can arrive as null/[] (open) or a list of allowed values.
 function toArray(v) { return Array.isArray(v) ? v : []; }
+const labelFor = (options, value) => options.find((o) => o.value === value)?.label || value;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -112,13 +114,16 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
     }
   }
 
+  const inputClass = "w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition";
+  const labelClass = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 sm:p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100 shrink-0">
           <div>
-            <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit Leave Type" : "Add Leave Type"}</h2>
+            <h2 className="text-lg font-bold text-slate-800">{isEdit ? "Edit Leave Type" : "Add Leave Type"}</h2>
             <p className="text-xs text-slate-400 mt-0.5">Define the rules for this leave category.</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
@@ -126,141 +131,106 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Name + Code */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={e => set("name", e.target.value)}
-                placeholder="e.g. Sick Leave"
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Code <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.code}
-                onChange={e => set("code", e.target.value.toUpperCase())}
-                placeholder="e.g. SL"
-                maxLength={10}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition font-mono uppercase"
-              />
-              <p className="text-[10px] text-slate-400 mt-1">Unique, max 10 chars.</p>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Description</label>
-            <textarea
-              value={form.description}
-              onChange={e => set("description", e.target.value)}
-              rows={2}
-              placeholder="Optional description..."
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition resize-none"
-            />
-          </div>
-
-          {/* Document Threshold */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Document Required After (days)
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={form.requires_document_threshold}
-              onChange={e => set("requires_document_threshold", e.target.value)}
-              placeholder="e.g. 3  (leave blank to disable)"
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-            />
-            <p className="text-[10px] text-slate-400 mt-1">Employee must upload proof after this many days of leave.</p>
-          </div>
-
-          {/* Toggles */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-700">Paid Leave</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Employee gets salary during this leave</p>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6 space-y-5">
+            {error && (
+              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
               </div>
-              <Toggle checked={form.is_paid} onChange={v => set("is_paid", v)} />
-            </div>
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-700">Sandwich Rule</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Count weekends between leave days</p>
-              </div>
-              <Toggle checked={form.sandwich_rule_applies} onChange={v => set("sandwich_rule_applies", v)} />
-            </div>
-          </div>
+            )}
 
-          {/* Eligibility (Phase 6 demographic gating) */}
-          <div className="border border-slate-100 rounded-xl p-4 space-y-4">
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Eligibility (optional)</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Restrict who can apply (e.g. Maternity → Female). Leave everything unticked to allow all employees.</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-600 mb-1.5">Allowed genders</p>
-              <div className="flex flex-wrap gap-2">
-                {GENDER_OPTIONS.map(opt => {
-                  const on = form.allowed_genders.includes(opt.value);
-                  return (
-                    <button type="button" key={opt.value} onClick={() => toggleIn("allowed_genders", opt.value)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
-                      {opt.label}
-                    </button>
-                  );
-                })}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: basics */}
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-4">
+                  <div>
+                    <label className={labelClass}>Name <span className="text-red-400">*</span></label>
+                    <input type="text" value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Sick Leave" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Code <span className="text-red-400">*</span></label>
+                    <input type="text" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SL" maxLength={10} className={`${inputClass} font-mono uppercase`} />
+                    <p className="text-[10px] text-slate-400 mt-1">Unique, max 10 chars.</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Description</label>
+                  <textarea value={form.description} onChange={e => set("description", e.target.value)} rows={4} placeholder="Optional description..." className={`${inputClass} resize-none`} />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Document Required After (days)</label>
+                  <input type="number" min={0} value={form.requires_document_threshold} onChange={e => set("requires_document_threshold", e.target.value)} placeholder="e.g. 3  (leave blank to disable)" className={inputClass} />
+                  <p className="text-[10px] text-slate-400 mt-1">Employee must upload proof after this many days of leave.</p>
+                </div>
               </div>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-600 mb-1.5">Allowed marital statuses</p>
-              <div className="flex flex-wrap gap-2">
-                {MARITAL_OPTIONS.map(opt => {
-                  const on = form.allowed_marital_statuses.includes(opt.value);
-                  return (
-                    <button type="button" key={opt.value} onClick={() => toggleIn("allowed_marital_statuses", opt.value)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
-                      {opt.label}
-                    </button>
-                  );
-                })}
+
+              {/* Right: rules & eligibility */}
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Paid Leave</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Employee gets salary during this leave</p>
+                    </div>
+                    <Toggle checked={form.is_paid} onChange={v => set("is_paid", v)} />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Count Weekends In Between</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Weekends between leave days also count as leave</p>
+                    </div>
+                    <Toggle checked={form.sandwich_rule_applies} onChange={v => set("sandwich_rule_applies", v)} />
+                  </div>
+                </div>
+
+                <div className="border border-slate-100 rounded-xl p-4 space-y-4">
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Who can apply (optional)</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Restrict who can apply (e.g. Maternity → Female). Leave everything unticked to allow all employees.</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-600 mb-1.5">Allowed genders</p>
+                    <div className="flex flex-wrap gap-2">
+                      {GENDER_OPTIONS.map(opt => {
+                        const on = form.allowed_genders.includes(opt.value);
+                        return (
+                          <button type="button" key={opt.value} onClick={() => toggleIn("allowed_genders", opt.value)}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-600 mb-1.5">Allowed marital statuses</p>
+                    <div className="flex flex-wrap gap-2">
+                      {MARITAL_OPTIONS.map(opt => {
+                        const on = form.allowed_marital_statuses.includes(opt.value);
+                        return (
+                          <button type="button" key={opt.value} onClick={() => toggleIn("allowed_marital_statuses", opt.value)}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-1">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition"
-            >
-              {loading ? "Saving…" : isEdit ? "Update Leave Type" : "Create Leave Type"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
-            >
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-6 sm:px-8 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+            <button type="button" onClick={onClose} className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 transition">
               Cancel
+            </button>
+            <button type="submit" disabled={loading} className="sm:min-w-[220px] bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition">
+              {loading ? "Saving…" : isEdit ? "Update Leave Type" : "Create Leave Type"}
             </button>
           </div>
         </form>
@@ -270,7 +240,7 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
 }
 
 // ─── Delete Confirmation Modal ────────────────────────────────────────────────
-function DeleteModal({ leaveType, onClose, onDeleted, onForceDelete }) {
+function DeleteModal({ leaveType, onClose, onDeleted }) {
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState("confirm"); // confirm | balances_warn | pending_block
   const [errorMsg, setErrorMsg] = useState("");
@@ -295,7 +265,7 @@ function DeleteModal({ leaveType, onClose, onDeleted, onForceDelete }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-base text-slate-800">
@@ -312,8 +282,8 @@ function DeleteModal({ leaveType, onClose, onDeleted, onForceDelete }) {
                 <HiTrash className="w-6 h-6 text-amber-500" />
               </div>
               <p className="text-sm text-slate-600">
-                This will soft-deactivate <strong>{leaveType.name}</strong> ({leaveType.code}).
-                Employees will no longer be able to apply for this leave type. Historical records are preserved.
+                This will deactivate <strong>{leaveType.name}</strong> ({leaveType.code}).
+                Employees will no longer be able to apply for this leave type. Past records are kept.
               </p>
               {errorMsg && (
                 <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -338,10 +308,10 @@ function DeleteModal({ leaveType, onClose, onDeleted, onForceDelete }) {
               <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center">
                 <HiExclamation className="w-6 h-6 text-amber-500" />
               </div>
-              <p className="text-sm font-semibold text-slate-800">Employees still hold balances for this leave type.</p>
+              <p className="text-sm font-semibold text-slate-800">Employees still have leave days of this type.</p>
               <p className="text-sm text-slate-500">
-                Deactivating will prevent employees from applying for this leave. Their existing balances will be frozen.
-                Do you want to force deactivate?
+                Deactivating will stop employees from applying for this leave. Their existing days will be frozen.
+                Do you want to deactivate anyway?
               </p>
               <div className="flex gap-3">
                 <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
@@ -350,7 +320,7 @@ function DeleteModal({ leaveType, onClose, onDeleted, onForceDelete }) {
                   disabled={loading}
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50"
                 >
-                  {loading ? "Processing…" : "Force Deactivate"}
+                  {loading ? "Processing…" : "Deactivate Anyway"}
                 </button>
               </div>
             </>
@@ -395,6 +365,7 @@ export default function LeaveTypesPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | "create" | leaveType object
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [toast, setToast] = useState(null);
 
   function showToast(message, type = "success") {
@@ -424,9 +395,13 @@ export default function LeaveTypesPage() {
 
   function onDeleted(msg) {
     setDeleteTarget(null);
+    setPreview(null);
     showToast(msg);
     loadTypes();
   }
+
+  const genders = preview ? toArray(preview.allowed_genders) : [];
+  const maritals = preview ? toArray(preview.allowed_marital_statuses) : [];
 
   return (
     <>
@@ -438,7 +413,7 @@ export default function LeaveTypesPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Leave Types</h1>
               <p className="text-sm text-slate-500 mt-1">
-                Define the categories of leave your organisation offers (e.g. Sick Leave, Casual Leave).
+                Define the categories of leave your organisation offers (e.g. Sick Leave, Casual Leave). Click a row to see its details.
               </p>
             </div>
             <button
@@ -474,77 +449,126 @@ export default function LeaveTypesPage() {
                   </button>
                 </div>
               ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Code</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sandwich Rule</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Doc Threshold</th>
-                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {types.map(t => (
-                      <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors ${!t.is_active ? "opacity-60" : ""}`}>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-800">{t.name}</p>
-                            {(toArray(t.allowed_genders).length > 0 || toArray(t.allowed_marital_statuses).length > 0) && (
-                              <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded" title="Eligibility restricted by gender / marital status">
-                                Restricted
-                              </span>
-                            )}
-                          </div>
-                          {t.description && <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px]">{t.description}</p>}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-block font-mono text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{t.code}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${t.is_paid ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
-                            {t.is_paid ? "Paid" : "Unpaid (LWP)"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-xs font-semibold ${t.sandwich_rule_applies ? "text-amber-600" : "text-slate-400"}`}>
-                            {t.sandwich_rule_applies ? "✓ Applies" : "N/A"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-500">
-                          {t.requires_document_threshold > 0 ? `After ${t.requires_document_threshold} days` : "0"}
-                        </td>
-                        <td className="px-6 py-4"><StatusBadge active={t.is_active} /></td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 justify-end">
-                            <button
-                              onClick={() => setModal(t)}
-                              className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition"
-                              title="Edit"
-                            >
-                              <HiPencil className="w-4 h-4" />
-                            </button>
-                            {t.is_active && (
-                              <button
-                                onClick={() => setDeleteTarget(t)}
-                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition"
-                                title="Deactivate"
-                              >
-                                <HiTrash className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[820px]">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Code</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Weekends In Between</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document After</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {types.map(t => {
+                        const row = rowPreviewProps(() => setPreview(t), `View ${t.name}`);
+                        return (
+                          <tr key={t.id} {...row} className={`${row.className} ${!t.is_active ? "opacity-60" : ""}`}>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                                {(toArray(t.allowed_genders).length > 0 || toArray(t.allowed_marital_statuses).length > 0) && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded" title="Eligibility restricted by gender / marital status">
+                                    Restricted
+                                  </span>
+                                )}
+                              </div>
+                              {t.description && <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[260px]">{t.description}</p>}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-block font-mono text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{t.code}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${t.is_paid ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
+                                {t.is_paid ? "Paid" : "Unpaid (LWP)"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`text-xs font-semibold ${t.sandwich_rule_applies ? "text-amber-600" : "text-slate-400"}`}>
+                                {t.sandwich_rule_applies ? "✓ Counted" : "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-500">
+                              {t.requires_document_threshold > 0 ? `After ${t.requires_document_threshold} days` : "0"}
+                            </td>
+                            <td className="px-6 py-4"><StatusBadge active={t.is_active} /></td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2 justify-end">
+                                <button onClick={() => setModal(t)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit">
+                                  <HiPencil className="w-4 h-4" />
+                                </button>
+                                {t.is_active && (
+                                  <button onClick={() => setDeleteTarget(t)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition" title="Deactivate">
+                                    <HiTrash className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
         </main>
+
+      {preview && (
+        <DetailDialog
+          eyebrow="Leave type"
+          icon={HiClipboardList}
+          title={preview.name}
+          subtitle={preview.code}
+          badge={<DetailPill tone="onDark">{preview.is_active ? "Active" : "Inactive"}</DetailPill>}
+          onClose={() => setPreview(null)}
+          footer={
+            <>
+              {preview.is_active && (
+                <button onClick={() => setDeleteTarget(preview)} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
+                  <HiTrash className="w-4 h-4" /> Deactivate
+                </button>
+              )}
+              <button onClick={() => { const t = preview; setPreview(null); setModal(t); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                <HiPencil className="w-4 h-4" /> Edit leave type
+              </button>
+            </>
+          }
+        >
+          <DetailSection title="Rules" icon={HiAdjustments}>
+            <DetailGrid
+              items={[
+                ["Code", preview.code],
+                ["Pay", preview.is_paid ? "Paid" : "Unpaid (LWP)"],
+                ["Weekends in between", preview.sandwich_rule_applies ? "Counted as leave" : "Not counted"],
+                ["Document required after", preview.requires_document_threshold > 0 ? `${preview.requires_document_threshold} days` : "0 days"],
+              ]}
+            />
+            <div className="mt-3"><DetailText label="Description">{preview.description}</DetailText></div>
+          </DetailSection>
+
+          <DetailSection title="Who can apply" icon={HiUserGroup}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-xl bg-purple-50/70 border border-purple-100/80 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500/90 mb-2">Genders</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {genders.length === 0 ? <DetailPill tone="outline">Everyone</DetailPill> : genders.map((g) => <DetailPill key={g}>{labelFor(GENDER_OPTIONS, g)}</DetailPill>)}
+                </div>
+              </div>
+              <div className="rounded-xl bg-purple-50/70 border border-purple-100/80 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500/90 mb-2">Marital statuses</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {maritals.length === 0 ? <DetailPill tone="outline">Everyone</DetailPill> : maritals.map((m) => <DetailPill key={m}>{labelFor(MARITAL_OPTIONS, m)}</DetailPill>)}
+                </div>
+              </div>
+            </div>
+          </DetailSection>
+        </DetailDialog>
+      )}
 
       {/* Modals */}
       {modal && (

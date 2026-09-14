@@ -89,7 +89,7 @@ function DepartmentsPage() {
         const current = departments.find((d) => (d.id || d._id) === editingId);
         const prevHod = current?.head_of_department_id || "";
         if (prevHod && headOfDepartmentId && prevHod !== headOfDepartmentId) {
-          const ok = window.confirm(
+          const ok = await window.confirm(
             "Changing the Head of Department will transfer all direct reports to the new HOD. Continue?"
           );
           if (!ok) {

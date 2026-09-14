@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
-import { HiDownload, HiCalendar, HiUserGroup, HiUser } from "react-icons/hi";
+import { HiDownload, HiCalendar, HiUserGroup, HiUser, HiSearch } from "react-icons/hi";
 import EmployeePicker from "../../../../shared/attendance/EmployeePicker";
 import EmployeeAttendanceReport from "../../../../shared/attendance/EmployeeAttendanceReport";
 import { downloadCSV } from "../../../../shared/utils/csv";
@@ -9,6 +9,12 @@ import { employeeCode, listFrom, num, personName } from "../../../../shared/atte
 import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, todayYMD } from "../../../../shared/attendance/dates";
 import { RECORD_STATUS_FILTERS } from "../../../../shared/attendance/enums";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Spinner, StatusBadge } from "../../../../shared/attendance/ui";
+
+// One control height and label style for every report filter bar.
+const FIELD = "w-full h-10 px-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition";
+const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
+const PRIMARY_BTN = "h-10 px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-xl inline-flex items-center justify-center gap-2 disabled:opacity-60 transition";
+const SECONDARY_BTN = "h-10 px-5 border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold text-sm rounded-xl inline-flex items-center justify-center gap-2 transition";
 
 const TABS = [
   { value: "daily", label: "Daily report", icon: HiCalendar },
@@ -56,29 +62,36 @@ function DailyReport() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl p-6 shadow-2xs border border-slate-100 flex flex-col sm:flex-row sm:items-end gap-4">
-        <div>
-          <label htmlFor="daily-date" className="block text-xs font-semibold text-slate-500 mb-1">Date</label>
-          <input id="daily-date" type="date" max={todayYMD()} value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500" />
+      <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-2xs border border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[190px_210px_minmax(0,1fr)_auto] gap-4 items-end">
+          <div>
+            <label htmlFor="daily-date" className={LABEL}>Date</label>
+            <input id="daily-date" type="date" max={todayYMD()} value={date} onChange={(e) => setDate(e.target.value)} className={FIELD} />
+          </div>
+          <div>
+            <label htmlFor="daily-status" className={LABEL}>Status</label>
+            <select id="daily-status" value={status} onChange={(e) => setStatus(e.target.value)} className={FIELD}>
+              {RECORD_STATUS_FILTERS.map((s) => <option key={s.value || "all"} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label htmlFor="daily-search" className={LABEL}>Search</label>
+            <div className="relative">
+              <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input id="daily-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && date && !state.loading && generate()} placeholder="Name or employee code" className={`${FIELD} pl-9`} />
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:col-span-2 lg:col-span-1">
+            <button type="button" onClick={generate} disabled={!date || state.loading} className={`${PRIMARY_BTN} flex-1 lg:flex-none`}>
+              {state.loading && <Spinner />} Generate
+            </button>
+            {rows.length > 0 && (
+              <button type="button" onClick={exportCsv} className={`${SECONDARY_BTN} flex-1 lg:flex-none`}>
+                <HiDownload className="w-4 h-4" /> Export CSV
+              </button>
+            )}
+          </div>
         </div>
-        <div>
-          <label htmlFor="daily-status" className="block text-xs font-semibold text-slate-500 mb-1">Status</label>
-          <select id="daily-status" value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-purple-500">
-            {RECORD_STATUS_FILTERS.map((s) => <option key={s.value || "all"} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
-        <div className="sm:flex-1 sm:max-w-xs">
-          <label htmlFor="daily-search" className="block text-xs font-semibold text-slate-500 mb-1">Search</label>
-          <input id="daily-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && date && !state.loading && generate()} placeholder="Name or employee code" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500" />
-        </div>
-        <button type="button" onClick={generate} disabled={!date || state.loading} className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-lg inline-flex items-center justify-center gap-2 disabled:opacity-60">
-          {state.loading && <Spinner />} Generate
-        </button>
-        {rows.length > 0 && (
-          <button type="button" onClick={exportCsv} className="px-5 py-2 border border-slate-200 text-slate-600 font-bold text-sm rounded-lg inline-flex items-center justify-center gap-2 hover:bg-slate-50">
-            <HiDownload className="w-4 h-4" /> Export CSV
-          </button>
-        )}
       </div>
 
       {state.error ? (
@@ -114,8 +127,8 @@ function DailyReport() {
                       <td className="px-5 py-3"><StatusBadge status={d.status || "not_marked"} /></td>
                       <td className="px-5 py-3">{fmtTime(d.clock_in_time)}</td>
                       <td className="px-5 py-3">{fmtTime(d.clock_out_time)}</td>
-                      <td className="px-5 py-3">{num(d.late_minutes) > 0 ? <span className="text-amber-600 font-bold">{fmtMinutes(d.late_minutes)}</span> : "—"}</td>
-                      <td className="px-5 py-3">{num(d.overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(d.overtime_minutes)}</span> : "—"}</td>
+                      <td className="px-5 py-3">{num(d.late_minutes) > 0 ? <span className="text-amber-600 font-bold">{fmtMinutes(d.late_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
+                      <td className="px-5 py-3">{num(d.overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(d.overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       <td className="px-5 py-3">{d.is_anomaly ? <span className="text-rose-600 font-bold">Yes</span> : <span className="text-slate-400">No</span>}</td>
                     </tr>
                   ))}
@@ -155,31 +168,33 @@ function MonthlyReport() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl p-6 shadow-2xs border border-slate-100 flex flex-col sm:flex-row sm:items-end gap-4">
-        <div className="flex gap-3">
+      <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-2xs border border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[210px_150px_auto] gap-4 items-end">
           <div>
-            <label htmlFor="mr-month" className="block text-xs font-semibold text-slate-500 mb-1">Month</label>
-            <select id="mr-month" value={month} onChange={(e) => setMonth(Number(e.target.value))} className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-purple-500">
+            <label htmlFor="mr-month" className={LABEL}>Month</label>
+            <select id="mr-month" value={month} onChange={(e) => setMonth(Number(e.target.value))} className={FIELD}>
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m} disabled={isFutureMonth(year, m)}>{new Date(2000, m - 1, 1).toLocaleString("en-IN", { month: "long" })}</option>
               ))}
             </select>
           </div>
           <div>
-            <label htmlFor="mr-year" className="block text-xs font-semibold text-slate-500 mb-1">Year</label>
-            <select id="mr-year" value={year} onChange={(e) => { const y = Number(e.target.value); setYear(y); if (isFutureMonth(y, month)) setMonth(now.getMonth() + 1); }} className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-purple-500">
+            <label htmlFor="mr-year" className={LABEL}>Year</label>
+            <select id="mr-year" value={year} onChange={(e) => { const y = Number(e.target.value); setYear(y); if (isFutureMonth(y, month)) setMonth(now.getMonth() + 1); }} className={FIELD}>
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:col-span-2 lg:col-span-1">
+            <button type="button" onClick={generate} disabled={state.loading} className={`${PRIMARY_BTN} flex-1 lg:flex-none`}>
+              {state.loading && <Spinner />} Generate
+            </button>
+            {rows.length > 0 && (
+              <button type="button" onClick={exportCsv} className={`${SECONDARY_BTN} flex-1 lg:flex-none`}>
+                <HiDownload className="w-4 h-4" /> Export CSV
+              </button>
+            )}
+          </div>
         </div>
-        <button type="button" onClick={generate} disabled={state.loading} className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-lg inline-flex items-center justify-center gap-2 disabled:opacity-60">
-          {state.loading && <Spinner />} Generate
-        </button>
-        {rows.length > 0 && (
-          <button type="button" onClick={exportCsv} className="px-5 py-2 border border-slate-200 text-slate-600 font-bold text-sm rounded-lg inline-flex items-center justify-center gap-2 hover:bg-slate-50">
-            <HiDownload className="w-4 h-4" /> Export CSV
-          </button>
-        )}
       </div>
 
       {state.error ? (
@@ -226,8 +241,8 @@ function MonthlyReport() {
                         </td>
                         <td className="px-5 py-3 font-bold text-indigo-600">{num(e.total_present)}d</td>
                         <td className="px-5 py-3 font-bold text-slate-500">{num(e.total_absent)}d</td>
-                        <td className="px-5 py-3">{num(e.total_late_days) > 0 ? <span className="text-amber-600 font-bold">{num(e.total_late_days)}</span> : "—"}</td>
-                        <td className="px-5 py-3">{num(e.total_overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(e.total_overtime_minutes)}</span> : "—"}</td>
+                        <td className="px-5 py-3">{num(e.total_late_days) > 0 ? <span className="text-amber-600 font-bold">{num(e.total_late_days)}</span> : <span className="text-slate-400">0</span>}</td>
+                        <td className="px-5 py-3">{num(e.total_overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(e.total_overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       </tr>
                     ))}
                   </tbody>

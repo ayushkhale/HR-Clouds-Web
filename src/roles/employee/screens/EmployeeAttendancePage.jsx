@@ -2,50 +2,16 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
-import { HiClock, HiCalendar, HiChartBar, HiX, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiSparkles, HiCheckCircle, HiExclamationCircle } from "react-icons/hi";
+import { HiClock, HiChartBar, HiX, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
-import { listFrom, num, unwrap } from "../../../shared/attendance/normalize";
-import { addDaysYMD, fmtClock, fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { num, unwrap } from "../../../shared/attendance/normalize";
+import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyTypeLabel, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 
-const TREND_OPTIONS = [3, 6, 12];
-
-function CustomBarChart({ data }) {
-  if (!data || data.length === 0) return <div className="text-slate-400 text-sm text-center py-8">No trend data available</div>;
-  const maxValue = Math.max(...data.map((d) => d.value), 1);
-  return (
-    <div className="flex items-end justify-between h-48 gap-1.5 sm:gap-3 mt-6 px-1 sm:px-4">
-      {data.map((item) => {
-        const heightPct = Math.max((item.value / maxValue) * 100, 2);
-        const displayVal = item.value > 0 ? `${Math.round(item.value)}h` : "0";
-        return (
-          <div key={item.key} className="h-full flex flex-col items-center flex-1 gap-2 group min-w-0 justify-end">
-            <div className="w-full relative flex flex-col items-center justify-end flex-1 rounded-t-2xl transition-colors pb-1">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-400 mb-1.5 transition-colors group-hover:text-purple-600">{displayVal}</span>
-              <div className="w-full max-w-[40px] bg-gradient-to-t from-purple-500 to-purple-400 rounded-t-xl group-hover:from-purple-600 group-hover:to-purple-500 transition-all duration-300 relative shadow-sm" style={{ height: `${heightPct}%` }}>
-                <div className="opacity-0 group-hover:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1.5 px-3 rounded-lg font-bold whitespace-nowrap z-50 transition-all pointer-events-none shadow-xl shadow-slate-900/10">
-                  {item.tooltip}
-                </div>
-              </div>
-            </div>
-            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase truncate max-w-full">{item.label}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function trendLabel(t) {
-  if (t.month_label || t.label) return t.month_label || t.label;
-  const ym = String(t.month || t.period || "").match(/^(\d{4})-(\d{2})/);
-  if (ym) return new Date(Number(ym[1]), Number(ym[2]) - 1, 1).toLocaleString("en-IN", { month: "short" });
-  if (t.month && t.year) return new Date(Number(t.year), Number(t.month) - 1, 1).toLocaleString("en-IN", { month: "short" });
-  return String(t.month ?? "");
-}
+const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
 
 /* ─── Daily log (U16) ────────────────────────────────────────────────────── */
 function DailyLogModal({ date, onClose, onRequestCorrection }) {
@@ -90,7 +56,7 @@ function DailyLogModal({ date, onClose, onRequestCorrection }) {
           ) : state.error ? (
             <ErrorState error={state.error} onRetry={load} fallback="Couldn't load the daily log." />
           ) : empty ? (
-            <EmptyState icon={HiDocumentSearch, HiSparkles, HiCheckCircle, HiExclamationCircle} title="Nothing recorded" message="There are no punches or breaks for this date." />
+            <EmptyState icon={HiDocumentSearch} title="Nothing recorded" message="There are no punches or breaks for this date." />
           ) : (
             <>
               {record && (
@@ -103,9 +69,9 @@ function DailyLogModal({ date, onClose, onRequestCorrection }) {
                     ["Clock in", fmtTime(record.clock_in_time)],
                     ["Clock out", fmtTime(record.clock_out_time)],
                     ["Effective", fmtHours(record.effective_hours)],
-                    ["Breaks", fmtMinutes(record.break_duration_minutes, "0m")],
-                    ["Late", fmtMinutes(record.late_minutes, "0m")],
-                    ["Overtime", fmtMinutes(record.overtime_minutes, "0m")],
+                    ["Breaks", minutesOrZero(record.break_duration_minutes)],
+                    ["Late", minutesOrZero(record.late_minutes)],
+                    ["Overtime", minutesOrZero(record.overtime_minutes)],
                   ].map(([label, value]) => (
                     <div key={label} className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
                       <p className="text-[10px] font-bold uppercase text-slate-400">{label}</p>
@@ -143,7 +109,7 @@ function DailyLogModal({ date, onClose, onRequestCorrection }) {
                     {breaks.map((b, i) => (
                       <li key={b.id || i} className="flex justify-between text-xs text-slate-600">
                         <span>{fmtTime(b.start_time)} – {b.end_time ? fmtTime(b.end_time) : "ongoing"}</span>
-                        <span className="font-semibold">{b.duration_minutes != null ? fmtMinutes(b.duration_minutes) : ""}</span>
+                        <span className="font-semibold">{minutesOrZero(b.duration_minutes)}</span>
                       </li>
                     ))}
                   </ul>
@@ -185,10 +151,6 @@ export default function EmployeeAttendancePage() {
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [summary, setSummary] = useState({ data: null, loading: true, error: null });
-  const [weekDate, setWeekDate] = useState(todayYMD());
-  const [week, setWeek] = useState({ days: [], loading: true, error: null });
-  const [trendMonths, setTrendMonths] = useState(12);
-  const [trends, setTrends] = useState({ items: [], loading: true, error: null });
   const [viewLogDate, setViewLogDate] = useState(null);
 
   const history = usePagedList(
@@ -206,72 +168,23 @@ export default function EmployeeAttendancePage() {
     }
   }, [period.month, period.year]);
 
-  const loadWeek = useCallback(async () => {
-    setWeek((w) => ({ ...w, loading: true, error: null }));
-    try {
-      const res = await attendanceAPI.getWeeklyCalendar(weekDate);
-      setWeek({ days: listFrom(res, ["days", "calendar", "week"]), loading: false, error: null });
-    } catch (error) {
-      setWeek({ days: [], loading: false, error });
-    }
-  }, [weekDate]);
-
-  const loadTrends = useCallback(async () => {
-    setTrends((t) => ({ ...t, loading: true, error: null }));
-    try {
-      const res = await attendanceAPI.getTrends(trendMonths);
-      const items = res?.data?.months || res?.months || res?.data?.data?.months || listFrom(res, ["trends", "months"]) || [];
-      setTrends({ items, loading: false, error: null });
-    } catch (error) {
-      setTrends({ items: [], loading: false, error });
-    }
-  }, [trendMonths]);
-
   useEffect(() => { loadSummary(); }, [loadSummary]);
-  useEffect(() => { loadWeek(); }, [loadWeek]);
-  useEffect(() => { loadTrends(); }, [loadTrends]);
 
   useAttendanceChanged([ATTENDANCE_EVENTS.PUNCH, ATTENDANCE_EVENTS.REGULARIZATION], () => {
     loadSummary();
-    loadWeek();
     history.reload();
   });
 
   const next = shiftMonth(period.year, period.month, 1);
   const nextDisabled = isFutureMonth(next.year, next.month);
-  const s = summary.data || {};
+  // Summary may arrive flat or nested under `summary`.
+  const s = summary.data?.summary ?? summary.data ?? {};
   const cards = [
     { label: "Present Days", value: num(s.present_days), icon: HiCheckCircle, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Absent Days", value: num(s.absent_days), icon: HiExclamationCircle, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Late Arrivals", value: num(s.late_days), icon: HiClock, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Hours Worked", value: fmtHours(s.total_hours_worked, "0m"), icon: HiChartBar, color: "text-purple-600", bg: "bg-purple-50" },
   ];
-
-  const trendData = [...trends.items].reverse().map((t, i) => {
-    let hours = 0;
-    
-    // First try standard keys
-    const timeStr = t.total_hours_worked ?? t.total_effective_hours ?? t.total_hours ?? t.average_hours ?? t.avg_effective_hours;
-    if (typeof timeStr === 'string' && timeStr.includes(':')) {
-      const parts = timeStr.split(':');
-      hours = Number(parts[0] || 0) + (Number(parts[1] || 0) / 60);
-    } else {
-      hours = parseFloat(timeStr) || 0;
-    }
-
-    // If still 0, aggressively look for any HH:MM:SS string in the object
-    if (!hours) {
-      for (const val of Object.values(t)) {
-        if (typeof val === 'string' && /^\d+:\d{2}(:\d{2})?$/.test(val)) {
-          const parts = val.split(':');
-          hours = Number(parts[0] || 0) + (Number(parts[1] || 0) / 60);
-          break;
-        }
-      }
-    }
-
-    return { key: `${trendLabel(t)}-${i}`, label: trendLabel(t), value: hours || 0, tooltip: `${fmtHours(hours || 0, "0m")}${t.on_time_percentage != null ? ` · ${t.on_time_percentage}% on time` : ""}` };
-  });
 
   const requestCorrection = (date) => navigate(`${selfPath("regularizations")}?date=${encodeURIComponent(date)}`);
   const today = todayYMD();
@@ -282,8 +195,7 @@ export default function EmployeeAttendancePage() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-[1400px] mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">My Attendance
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-800">My Attendance</h1>
             <p className="text-sm text-slate-500 mt-1">Track your daily attendance, hours, and schedule patterns.</p>
           </div>
           <div className="flex items-center gap-2 bg-white rounded-2xl border border-slate-100 p-1.5 shadow-sm">
@@ -311,89 +223,72 @@ export default function EmployeeAttendancePage() {
           </div>
         )}
 
-        <div className="space-y-6 min-w-0">
-          {/* Trends (U18) */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between gap-4 mb-6">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center"><HiChartBar className="w-4 h-4" /></span>
-                Hours Trend
-              </h3>
-              <select value={trendMonths} onChange={(e) => setTrendMonths(Number(e.target.value))} className="text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none hover:bg-slate-100 transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100" aria-label="Trend period">
-                {TREND_OPTIONS.map((m) => <option key={m} value={m}>Last {m} months</option>)}
-              </select>
-            </div>
-            
-            {trends.loading ? <LoadingRows rows={3} /> : trends.error ? <ErrorState error={trends.error} onRetry={loadTrends} fallback="Couldn't load trends." /> : <CustomBarChart data={trendData} />}
+        {/* History (U11) */}
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-6 sm:px-8 py-6 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center"><HiClock className="w-4 h-4" /></span>
+              History · {monthLabel(period.year, period.month)}
+            </h3>
           </div>
-
-          {/* History (U11) */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-6 sm:px-8 py-6 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center"><HiClock className="w-4 h-4" /></span>
-                History · {monthLabel(period.year, period.month)}
-              </h3>
-            </div>
-            {history.error ? (
-              <ErrorState error={history.error} onRetry={history.reload} fallback="Couldn't load your attendance history." />
-            ) : (
-              <>
-                <div className="overflow-x-auto p-4 sm:p-6 pt-2">
-                  <table className="w-full text-left border-separate border-spacing-y-2 min-w-[760px]">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                        <th className="px-4 py-3 rounded-l-xl">Date</th>
-                        <th className="px-4 py-2">Status</th>
-                        <th className="px-4 py-2">In</th>
-                        <th className="px-4 py-2">Out</th>
-                        <th className="px-4 py-2">Effective</th>
-                        <th className="px-4 py-2">Late</th>
-                        <th className="px-4 py-2">Left early</th>
-                        <th className="px-4 py-2">Overtime</th>
-                        <th className="px-4 py-2 rounded-r-xl"><span className="sr-only">Actions</span></th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-xs font-semibold text-slate-700">
-                      {history.loading && history.items.length === 0 ? (
-                        <tr><td colSpan={9} className="px-4 py-2"><LoadingRows rows={4} /></td></tr>
-                      ) : history.items.length === 0 ? (
-                        <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for {monthLabel(period.year, period.month)}.</td></tr>
-                      ) : (
-                        history.items.map((record) => {
-                          const ymd = ymdOnly(record.date);
-                          return (
-                            <tr key={record.id || ymd} className={`hover:bg-slate-50/70 transition-colors ${history.loading ? "opacity-60" : ""}`}>
-                              <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{fmtDate(ymd, { weekday: "short", day: "numeric", month: "short" })}</td>
-                              <td className="px-4 py-3">
-                                <StatusBadge status={record.status} />
-                                {record.is_regularized && <span className="block mt-1 text-[9px] font-bold text-purple-500 uppercase tracking-wide">Corrected</span>}
-                              </td>
-                              <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
-                              <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
-                              <td className="px-4 py-3 text-slate-800 font-bold">{fmtHours(record.effective_hours)}</td>
-                              <td className="px-4 py-3 text-slate-500">{Number(record.late_minutes) > 0 ? fmtMinutes(record.late_minutes) : "0m"}</td>
-                              <td className="px-4 py-3 text-slate-500">{Number(record.early_exit_minutes) > 0 ? fmtMinutes(record.early_exit_minutes) : "0m"}</td>
-                              <td className="px-4 py-3 text-purple-600">{Number(record.overtime_minutes) > 0 ? fmtMinutes(record.overtime_minutes) : "0m"}</td>
-                              <td className="px-4 py-3 text-right whitespace-nowrap space-x-1.5">
-                                <button type="button" onClick={() => setViewLogDate(ymd)} className="text-[10px] font-bold uppercase text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1.5 rounded-lg transition">Log</button>
-                                {ymd && ymd < today && (
-                                  <button type="button" onClick={() => requestCorrection(ymd)} className="text-[10px] font-bold uppercase text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition">Correct</button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="px-6 pb-5">
-                  <Pagination page={history.page} totalPages={history.totalPages} total={history.total} limit={history.limit} onPageChange={history.setPage} disabled={history.loading} />
-                </div>
-              </>
-            )}
-          </div>
+          {history.error ? (
+            <ErrorState error={history.error} onRetry={history.reload} fallback="Couldn't load your attendance history." />
+          ) : (
+            <>
+              <div className="overflow-x-auto p-4 sm:p-6 pt-2">
+                <table className="w-full text-left border-separate border-spacing-y-2 min-w-[760px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                      <th className="px-4 py-3 rounded-l-xl">Date</th>
+                      <th className="px-4 py-2">Status</th>
+                      <th className="px-4 py-2">In</th>
+                      <th className="px-4 py-2">Out</th>
+                      <th className="px-4 py-2">Effective</th>
+                      <th className="px-4 py-2">Late</th>
+                      <th className="px-4 py-2">Left early</th>
+                      <th className="px-4 py-2">Overtime</th>
+                      <th className="px-4 py-2 rounded-r-xl text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs font-semibold text-slate-700">
+                    {history.loading && history.items.length === 0 ? (
+                      <tr><td colSpan={9} className="px-4 py-2"><LoadingRows rows={4} /></td></tr>
+                    ) : history.items.length === 0 ? (
+                      <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for {monthLabel(period.year, period.month)}.</td></tr>
+                    ) : (
+                      history.items.map((record) => {
+                        const ymd = ymdOnly(record.date);
+                        return (
+                          <tr key={record.id || ymd} className={`hover:bg-slate-50/70 transition-colors ${history.loading ? "opacity-60" : ""}`}>
+                            <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{fmtDate(ymd, { weekday: "short", day: "numeric", month: "short" })}</td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={record.status} />
+                              {record.is_regularized && <span className="block mt-1 text-[9px] font-bold text-purple-500 uppercase tracking-wide">Corrected</span>}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
+                            <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
+                            <td className="px-4 py-3 text-slate-800 font-bold">{fmtHours(record.effective_hours)}</td>
+                            <td className="px-4 py-3 text-slate-500">{minutesOrZero(record.late_minutes)}</td>
+                            <td className="px-4 py-3 text-slate-500">{minutesOrZero(record.early_exit_minutes)}</td>
+                            <td className="px-4 py-3 text-purple-600">{minutesOrZero(record.overtime_minutes)}</td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap space-x-1.5">
+                              <button type="button" onClick={() => setViewLogDate(ymd)} className="text-[10px] font-bold uppercase text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1.5 rounded-lg transition">Log</button>
+                              {ymd && ymd < today && (
+                                <button type="button" onClick={() => requestCorrection(ymd)} className="text-[10px] font-bold uppercase text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition">Correct</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 pb-5">
+                <Pagination page={history.page} totalPages={history.totalPages} total={history.total} limit={history.limit} onPageChange={history.setPage} disabled={history.loading} />
+              </div>
+            </>
+          )}
         </div>
       </main>
 

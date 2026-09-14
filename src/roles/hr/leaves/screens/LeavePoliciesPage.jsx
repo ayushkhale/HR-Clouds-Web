@@ -25,12 +25,12 @@ function Toast({ toast, onClose }) {
 function NoticePeriodField({ mode, days, onModeChange, onDaysChange }) {
   return (
     <div>
-      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Notice-Period Leave Cap</label>
+      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Leave During Notice Period</label>
       <div className="flex gap-2">
         {[
-          { v: "unrestricted", l: "Unrestricted" },
-          { v: "blocked", l: "Blocked" },
-          { v: "capped", l: "Capped" },
+          { v: "unrestricted", l: "No limit" },
+          { v: "blocked", l: "Not allowed" },
+          { v: "capped", l: "Limited" },
         ].map(opt => (
           <button type="button" key={opt.v} onClick={() => onModeChange(opt.v)}
             className={`flex-1 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${mode === opt.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
@@ -40,7 +40,7 @@ function NoticePeriodField({ mode, days, onModeChange, onDaysChange }) {
       </div>
       {mode === "capped" && (
         <input type="number" step="1" min="1" value={days} onChange={e => onDaysChange(e.target.value)}
-          placeholder="Max days during notice period"
+          placeholder="Most days allowed during notice period"
           className="mt-2 w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
       )}
       <p className="text-[10px] text-slate-400 mt-1">
@@ -55,8 +55,8 @@ function NoticePeriodField({ mode, days, onModeChange, onDaysChange }) {
 // ─── Accrual Pill ─────────────────────────────────────────────────────────────
 function AccrualPill({ type }) {
   return (
-    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${type === "upfront" ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"}`}>
-      {type === "upfront" ? "Upfront" : "Monthly"}
+    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${type === "upfront" ? "bg-purple-100 text-purple-700" : "bg-violet-50 text-violet-700"}`}>
+      {type === "upfront" ? "All at once" : "Every month"}
     </span>
   );
 }
@@ -249,7 +249,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Annual Quota (days) <span className="text-red-400">*</span>
+                Days Per Year <span className="text-red-400">*</span>
               </label>
               <input
                 type="number"
@@ -263,23 +263,23 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Accrual Type</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">How Leave Is Given</label>
               <div className="flex gap-2 mt-1">
                 {["upfront", "monthly"].map(t => (
                   <label key={t} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.accrual_type === t ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
                     <input type="radio" name="accrual_type" value={t} checked={form.accrual_type === t} onChange={() => set("accrual_type", t)} className="sr-only" />
-                    {t === "upfront" ? "Upfront" : "Monthly"}
+                    {t === "upfront" ? "All at once" : "Every month"}
                   </label>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">{form.accrual_type === "upfront" ? "Full quota credited at year start." : "Quota split and credited monthly."}</p>
+              <p className="text-[10px] text-slate-400 mt-1">{form.accrual_type === "upfront" ? "All days are given at the start of the year." : "Days are given a little every month."}</p>
             </div>
           </div>
 
           {/* Carry Forward + Probation */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Max Carry Forward (days)</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Unused Days Kept For Next Year</label>
               <input
                 type="number"
                 step="0.5"
@@ -291,7 +291,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
               <p className="text-[10px] text-slate-400 mt-1">Days that roll to next year. 0 = no carry.</p>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Probation Restriction (days)</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Wait After Joining (days)</label>
               <input
                 type="number"
                 step="1"
@@ -306,7 +306,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
 
           {/* Max Negative Balance */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Max Overdraft (days)</label>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Extra Days Allowed Below Zero</label>
             <input
               type="number"
               step="0.5"
@@ -354,7 +354,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
   }
 
   async function handleDeleteEntitlement(eid) {
-    if (!window.confirm("Remove this entitlement from the policy?")) return;
+    if (!(await window.confirm("Remove this leave type from the policy?"))) return;
     try {
       await leaveAPI.deleteEntitlement(policy.id, eid);
       showToast("Entitlement removed.");
@@ -403,7 +403,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
             <HiInformationCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700 font-medium">
               Editing this policy won't change anything for employees who are <strong>already assigned</strong> to it.
-              To change a specific employee's leave right now, go to their profile and use <strong>Override Config</strong>.
+              To change a specific employee's leave right now, open their profile and use <strong>Customise Leave Rules</strong>.
             </p>
           </div>
 
@@ -419,10 +419,10 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
               <thead>
                 <tr className="border-b border-slate-50">
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Annual Quota</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Accrual</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Carry Forward</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Probation</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Days Per Year</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">How Leave Is Given</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kept For Next Year</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wait After Joining</th>
                   <th className="px-6 py-3" />
                 </tr>
               </thead>
@@ -431,7 +431,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                   <tr key={ent.id} className="hover:bg-slate-50/40 transition-colors">
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{ent.leave_type?.name || "—"}</span>
+                        <span className="text-sm font-semibold text-slate-800">{ent.leave_type?.name || "N/A"}</span>
                         <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{ent.leave_type?.code}</span>
                       </div>
                     </td>
@@ -441,7 +441,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                       {ent.max_carry_forward > 0 ? `Max ${parseFloat(ent.max_carry_forward)} days` : "None"}
                     </td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {ent.probation_restriction_days > 0 ? `${ent.probation_restriction_days} days` : "—"}
+                      {ent.probation_restriction_days > 0 ? `${ent.probation_restriction_days} days` : "None"}
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-1 justify-end">
@@ -514,7 +514,7 @@ export default function LeavePoliciesPage() {
   }
 
   async function handleDeletePolicy(policy) {
-    if (!window.confirm(`Delete policy "${policy.name}"? All entitlements will be permanently removed. Assigned employees will lose their configuration.`)) return;
+    if (!(await window.confirm(`Delete policy "${policy.name}"? All its leave types will be removed, and assigned employees will lose these leave rules.`))) return;
     try {
       await leaveAPI.deleteTemplate(policy.id);
       showToast(`Policy "${policy.name}" deleted.`);

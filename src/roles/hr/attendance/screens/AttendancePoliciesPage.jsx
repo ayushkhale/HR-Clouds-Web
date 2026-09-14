@@ -8,7 +8,8 @@ import { validatePolicy, hasErrors, MISSING_PUNCH_ACTIONS, NAME_MAX } from "../.
 import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
-import { HiClipboardList, HiPlus, HiX, HiPencil, HiBadgeCheck, HiInformationCircle } from "react-icons/hi";
+import { HiClipboardList, HiPlus, HiX, HiPencil, HiBadgeCheck, HiInformationCircle, HiClock, HiPause, HiExclamationCircle, HiLightningBolt, HiRefresh } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 
@@ -277,6 +278,18 @@ export default function AttendancePoliciesPage() {
   const [editLoading, setEditLoading] = useState(null);
   const [deactivating, setDeactivating] = useState(null);
   const { toast, showToast, clearToast } = useToast();
+  const [preview, setPreview] = useState(null); // { policy, loading }
+
+  // Show the row immediately, then swap in the full record.
+  async function openPreview(policy) {
+    setPreview({ policy, loading: true });
+    try {
+      const res = await attendanceAPI.getPolicy(policy.id);
+      setPreview((p) => (p && p.policy.id === policy.id ? { policy: unwrap(res) || policy, loading: false } : p));
+    } catch {
+      setPreview((p) => (p && p.policy.id === policy.id ? { ...p, loading: false } : p));
+    }
+  }
 
   const loadPolicies = useCallback(async () => {
     setLoadError(null);
@@ -368,14 +381,14 @@ export default function AttendancePoliciesPage() {
                 <table className="w-full min-w-[920px]">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {["Policy Name", "Grace", "Full / Half Day", "Breaks", "Overtime", "Corrections", TERM, "Status", ""].map((h, i) => (
-                        <th key={h || i} className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                      {["Policy Name", "Grace", "Full / Half Day", "Breaks", "Overtime", "Corrections", TERM, "Status", "Actions"].map((h) => (
+                        <th key={h} className={`px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {policies.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={p.id} {...rowPreviewProps(() => openPreview(p), `View ${p.name}`)}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-slate-800">{p.name}</span>
@@ -387,8 +400,8 @@ export default function AttendancePoliciesPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.grace_minutes != null ? `${p.grace_minutes} mins` : "—"}</td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.full_day_min_hours ?? "—"} hrs / {p.half_day_min_hours ?? "—"} hrs</td>
+                        <td className="px-6 py-4 text-xs text-slate-600">{p.grace_minutes != null ? `${p.grace_minutes} mins` : "N/A"}</td>
+                        <td className="px-6 py-4 text-xs text-slate-600">{p.full_day_min_hours != null ? `${p.full_day_min_hours} hrs` : "N/A"} / {p.half_day_min_hours != null ? `${p.half_day_min_hours} hrs` : "N/A"}</td>
                         <td className="px-6 py-4 text-xs text-slate-600">
                           {p.max_break_duration_minutes != null ? `${p.max_break_duration_minutes} mins max` : "No limit"}
                           {p.max_breaks_per_day != null && <span className="block text-[10px] text-slate-400">{p.max_breaks_per_day} per day</span>}
@@ -397,7 +410,7 @@ export default function AttendancePoliciesPage() {
                           {p.overtime_enabled ? `After ${p.overtime_min_minutes ?? 0} mins` : "Off"}
                           {p.overtime_enabled && <span className="block text-[10px] text-slate-400">{p.overtime_requires_approval === false ? "Auto-approved" : "Needs approval"}</span>}
                         </td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.regularization_allowed ? `${p.regularization_window_days ?? "—"} days` : "Not allowed"}</td>
+                        <td className="px-6 py-4 text-xs text-slate-600">{p.regularization_allowed ? `${p.regularization_window_days ?? "N/A"} days` : "Not allowed"}</td>
                         <td className="px-6 py-4 text-xs text-slate-600">{p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"}</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${p.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
@@ -428,6 +441,87 @@ export default function AttendancePoliciesPage() {
       </main>
 
       {modal && <PolicyModal editPolicy={modal === "create" ? null : modal} onClose={() => setModal(null)} onSaved={onSaved} />}
+
+      {preview && (() => {
+        const p = preview.policy;
+        const mins = (v) => (v != null && v !== "" ? `${v} mins` : null);
+        const hrs = (v) => (v != null && v !== "" ? `${v} hrs` : null);
+        const missing = MISSING_PUNCH_ACTIONS.find((a) => a.value === p.missing_punch_action)?.label || p.missing_punch_action;
+        return (
+          <DetailDialog
+            eyebrow="Attendance policy"
+            icon={HiClipboardList}
+            title={p.name}
+            subtitle={p.is_default ? "Default policy · used by shifts without a linked policy" : undefined}
+            badge={<DetailPill tone="onDark">{p.is_active ? "Active" : "Inactive"}</DetailPill>}
+            loading={preview.loading}
+            onClose={() => setPreview(null)}
+            footer={
+              <>
+                {p.is_active && (
+                  <button onClick={() => { setPreview(null); handleDeactivate(p); }} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition">Deactivate</button>
+                )}
+                <button onClick={() => { setPreview(null); handleEditClick(p); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                  <HiPencil className="w-4 h-4" /> Edit policy
+                </button>
+              </>
+            }
+          >
+            <DetailSection title="Lateness & day thresholds" icon={HiClock}>
+              <DetailGrid
+                cols={5}
+                items={[
+                  ["Grace period", mins(p.grace_minutes)],
+                  ["Late threshold", mins(p.late_threshold_minutes)],
+                  ["Early exit threshold", mins(p.early_exit_threshold_minutes)],
+                  ["Hours for half day", hrs(p.half_day_min_hours)],
+                  ["Hours for full day", hrs(p.full_day_min_hours)],
+                ]}
+              />
+            </DetailSection>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <DetailSection title="Late arrival penalties" icon={HiExclamationCircle}>
+                <DetailGrid
+                  cols={2}
+                  items={[
+                    ["Late arrivals per half day", p.late_count_half_day_threshold ?? "Off"],
+                    ["Consecutive late days", p.consecutive_late_penalty_days != null ? `${p.consecutive_late_penalty_days} days` : "Off"],
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title="Breaks" icon={HiPause}>
+                <DetailGrid
+                  cols={2}
+                  items={[
+                    ["Max break duration", p.max_break_duration_minutes != null ? `${p.max_break_duration_minutes} mins` : "No limit"],
+                    ["Max breaks per day", p.max_breaks_per_day ?? "No limit"],
+                  ]}
+                />
+              </DetailSection>
+            </div>
+            <DetailSection title="Missing punches" icon={HiRefresh}>
+              <DetailGrid
+                cols={3}
+                items={[
+                  ["When a punch is missing", missing],
+                  ["Auto clock-out", p.auto_clock_out_enabled ? `After ${p.auto_clock_out_after_hours ?? 0} hrs` : "Off"],
+                  ["Auto-detect shift", p.auto_detect_shift ? "On" : "Off"],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title={`Overtime, corrections & ${TERM}`} icon={HiLightningBolt}>
+              <DetailGrid
+                items={[
+                  ["Overtime", p.overtime_enabled ? `After ${p.overtime_min_minutes ?? 0} mins` : "Off"],
+                  ["Overtime approval", p.overtime_enabled ? (p.overtime_requires_approval === false ? "Auto-approved" : "Needs approval") : null],
+                  ["Corrections", p.regularization_allowed ? `Within ${p.regularization_window_days ?? 0} days` : "Not allowed"],
+                  [TERM, p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"],
+                ]}
+              />
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
 
       <Toast toast={toast} onClose={clearToast} />
     </>

@@ -1,335 +1,489 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiPlay, HiCalculator,
-  HiCheck, HiCash, HiArrowRight, HiUserGroup, HiLockClosed,
+  HiExclamationCircle, HiX, HiPlay, HiCalculator, HiCheck, HiCash, HiUserGroup, HiLockClosed,
+  HiRefresh, HiChevronLeft, HiChevronRight, HiBan, HiClock, HiArrowRight, HiShieldCheck,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { formatPeriod, formatMoney } from "../../../../shared/utils/formatUtils";
+import { payrollErrorMessage, payrollErrorCode, runFailureAdvice } from "../../../../shared/utils/payrollErrors";
+import { formatPeriod, formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { normalizePaginated } from "../../../../shared/attendance/normalize";
+import PayrollToast from "../PayrollToast";
+import useToast from "../useToast";
+import PeriodPicker from "../PeriodPicker";
+import {
+  runStatusMeta, runActions, runNextStep, RUN_STATUS_FILTERS, RUN_ACTION_SUCCESS, RUN_ACTION_FAILURE,
+  statutoryReadinessNotes, payoutReadinessNotes, taxTablesMissing, alreadyRunText, toCount, plural,
+} from "../runMeta";
+import { currentPeriod } from "../variablePayMeta";
 
-function Toast({ toast, onClose }) {
-  if (!toast) return null;
-  const isError = toast.type === "error";
+const PAGE_SIZE = 10;
+const INTERACTIVE = "button, a, input, select, textarea, label";
+const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
+
+function Spinner({ light = false }) {
+  return <span className={`inline-block w-4 h-4 border-2 rounded-full animate-spin ${light ? "border-white/30 border-t-white" : "border-purple-200 border-t-purple-600"}`} />;
+}
+
+function ReadinessStat({ label, value, tone = "neutral" }) {
+  const n = toCount(value);
+  const toneCls = tone === "bad" && n > 0 ? "text-rose-600" : tone === "warn" && n > 0 ? "text-amber-600" : "text-slate-800";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
-      <span>{toast.message}</span>
-      <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
+    <div className="rounded-xl bg-white border border-purple-100/70 px-3 py-2.5">
+      <p className={`text-lg font-bold tabular-nums ${toneCls}`}>{n}</p>
+      <p className="text-[11px] text-slate-500 font-medium leading-tight">{label}</p>
     </div>
   );
 }
 
-const STATUS_STYLES = {
-  draft: "bg-slate-50 text-slate-600 border-slate-200",
-  calculating: "bg-slate-50 text-slate-700 border-slate-300",
-  calculated: "bg-purple-50 text-purple-700 border-purple-200",
-  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  paid: "bg-slate-800 text-white border-slate-800",
-  cancelled: "bg-rose-50 text-rose-700 border-rose-200",
+// ── Start a run: month picker + pre-flight readiness (#37) ──────────────────
+function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
+  const [period, setPeriod] = useState(currentPeriod);
+  const [notes, setNotes] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [elig, setElig] = useState({ loading: true, data: null, error: "" });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const closeRef = useRef(onClose);
+  closeRef.current = creating ? () => {} : onClose;
+
+  useEffect(() => {
+    let cancelled = false;
+    setElig({ loading: true, data: null, error: "" });
+    payrollAPI.getRunEligibility({ period_month: period })
+      .then((res) => { if (!cancelled) setElig({ loading: false, data: res?.data ?? res ?? null, error: "" }); })
+      .catch((err) => { if (!cancelled) setElig({ loading: false, data: null, error: payrollErrorMessage(err, "Couldn't check readiness for this month.") }); });
+    return () => { cancelled = true; };
+  }, [period, reloadKey]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const data = elig.data || {};
+  // `already_run` is `{ id, status }` or null.
+  const alreadyRun = data.already_run && typeof data.already_run === "object" ? data.already_run : null;
+  const missing = Array.isArray(data.missing_structure) ? data.missing_structure : [];
+  const exitDates = Array.isArray(data.exit_date_required) ? data.exit_date_required : [];
+  const lockedRanges = Array.isArray(data.locked_ranges) ? data.locked_ranges : [];
+  const readinessNotes = [...statutoryReadinessNotes(data.statutory), ...payoutReadinessNotes(data.payouts)];
+  // Creating would fail with TAX_TABLES_MISSING; the readiness note says why.
+  const blockedByTax = taxTablesMissing(data.statutory);
+  const canCreate = !elig.loading && !alreadyRun && !blockedByTax && !creating;
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!canCreate) return;
+    setCreating(true);
+    setCreateError("");
+    try {
+      const payload = { period_month: period, run_type: "regular" };
+      if (notes.trim()) payload.notes = notes.trim();
+      const res = await payrollAPI.createRun(payload);
+      onCreated(res?.data ?? res, period);
+    } catch (err) {
+      setCreateError(payrollErrorMessage(err, "Couldn't start the run."));
+      if (payrollErrorCode(err) === "DUPLICATE_RUN") setReloadKey((k) => k + 1);
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
+      <form onSubmit={handleCreate} role="dialog" aria-modal="true" aria-label="Start a payroll run" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-purple-100">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Start a payroll run</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Pick the month. We check who is ready to be paid before you start.</p>
+          </div>
+          <button type="button" onClick={() => closeRef.current()} disabled={creating} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition disabled:opacity-40" aria-label="Close">
+            <HiX className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5 overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="run-period-month" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Pay month</label>
+              <PeriodPicker value={period} onChange={(v) => { setPeriod(v); setCreateError(""); }} idPrefix="run-period" selectClassName={fieldCls} yearsBack={3} yearsAhead={1} disabled={creating} />
+            </div>
+            <div>
+              <label htmlFor="run-notes" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Notes <span className="font-medium text-slate-400 normal-case">(optional)</span></label>
+              <input id="run-notes" type="text" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Regular monthly salary" className={fieldCls} />
+            </div>
+          </div>
+
+          <section className="rounded-2xl border border-purple-100 bg-purple-50/40 p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <span className="flex items-center gap-2 text-[11px] font-bold text-purple-700 uppercase tracking-wide">
+                <HiUserGroup className="w-4 h-4" /> Readiness for {formatPeriod(period)}
+              </span>
+              {!elig.loading && (
+                <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="text-[11px] font-bold text-purple-600 hover:underline flex items-center gap-1">
+                  <HiRefresh className="w-3.5 h-3.5" /> Check again
+                </button>
+              )}
+            </div>
+
+            {elig.loading ? (
+              <div className="h-28 rounded-xl bg-purple-100/50 animate-pulse" />
+            ) : elig.error ? (
+              <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5">
+                {elig.error} You can still start the run. Payroll checks everyone again when it calculates.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <ReadinessStat label="Employees to pay" value={data.headcount} />
+                  <ReadinessStat label="Joined this month" value={data.joiners_count} />
+                  <ReadinessStat label="Left this month" value={data.leavers_count} />
+                  <ReadinessStat label="No salary structure" value={data.missing_structure_count} tone="bad" />
+                  <ReadinessStat label="Need a last working day" value={data.exit_date_required_count} tone="bad" />
+                  <ReadinessStat label="No bank account" value={data.missing_bank_account_count} tone="warn" />
+                </div>
+
+                {/* Eligibility lists carry `user_id` and `employee_code` only — no names. */}
+                {[["Without a salary structure", missing], ["Need a last working day", exitDates]].map(([title, rows]) => rows.length > 0 && (
+                  <div key={title}>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase mb-1.5">{title}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {rows.slice(0, 10).map((m, i) => (
+                        <span key={m.user_id || i} title={m.reason || undefined} className="text-[11px] font-semibold text-rose-700 bg-white border border-rose-200 rounded-md px-2 py-0.5">
+                          {m.employee_code || "No employee code"}
+                        </span>
+                      ))}
+                      {rows.length > 10 && <span className="text-[11px] text-slate-500 px-1 py-0.5">+{rows.length - 10} more</span>}
+                    </div>
+                  </div>
+                ))}
+
+                {(toCount(data.missing_structure_count) > 0 || toCount(data.exit_date_required_count) > 0) && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    These employees will show up as problems after calculating. You can start now and fix or exclude them before approving.
+                  </p>
+                )}
+                {data.period_locked && (
+                  <p className="flex items-start gap-1.5 text-xs text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                    <HiLockClosed className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      Attendance for this month is already locked
+                      {lockedRanges.length > 0 && ` (${lockedRanges.map((r) => `${formatDate(r.start_date || r.start)} to ${formatDate(r.end_date || r.end)}`).join(", ")})`}.
+                      {" "}If the lock covers only part of the month, approval will be blocked.
+                    </span>
+                  </p>
+                )}
+                {readinessNotes.length > 0 && (
+                  <div className="rounded-xl bg-white border border-purple-100 px-3 py-2.5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-bold text-purple-700 uppercase mb-1.5"><HiShieldCheck className="w-3.5 h-3.5" /> Tax, reimbursements & benefits</p>
+                    <ul className="space-y-1">
+                      {readinessNotes.map((note) => (
+                        <li key={note.text} className={`text-xs leading-relaxed ${note.tone === "bad" ? "text-rose-700 font-semibold" : note.tone === "warn" ? "text-amber-800" : "text-slate-600"}`}>{note.text}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {alreadyRun && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-purple-800 bg-purple-100/70 border border-purple-200 rounded-xl px-3 py-2.5">
+                    <span className="font-semibold">{alreadyRunText(alreadyRun)}</span>
+                    {alreadyRun.id && (
+                      <button type="button" onClick={() => onOpenExisting(alreadyRun.id)} className="font-bold underline shrink-0">Open it</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {createError && <p role="alert" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-2.5">{createError}</p>}
+        </div>
+
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-6 py-4 border-t border-purple-100 bg-purple-50/40 rounded-b-2xl">
+          <button type="button" onClick={() => closeRef.current()} disabled={creating} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 transition disabled:opacity-50">Close</button>
+          <button type="submit" disabled={!canCreate} className="sm:min-w-[170px] px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+            {creating ? <Spinner light /> : <><HiPlay className="w-4 h-4" /> Start run</>}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ── One run in the list ─────────────────────────────────────────────────────
+const STEP_ICON = {
+  clock: HiClock, calculator: HiCalculator, refresh: HiRefresh, error: HiExclamationCircle,
+  approve: HiCheck, pay: HiCash, open: HiArrowRight,
 };
 
-// A single readiness stat in the pre-flight panel.
-function ReadinessStat({ label, value, tone = "neutral" }) {
-  const toneCls = {
-    neutral: "text-slate-800",
-    warn: value > 0 ? "text-amber-600" : "text-slate-800",
-    bad: value > 0 ? "text-red-600" : "text-slate-800",
-  }[tone];
+// Every card has exactly one button: the next step (see runNextStep). Cancel
+// lives on the run page only.
+function RunCard({ run, busy, onOpen, onCalculate }) {
+  const meta = runStatusMeta(run.status);
+  const acts = runActions(run);
+  const excluded = toCount(run.excluded_count);
+  const calculatingHere = busy?.id === run.id;
+
+  const primary = runNextStep(run);
+  const PrimaryIcon = STEP_ICON[primary.icon] || HiArrowRight;
+  const handlePrimary = () => {
+    if (primary.key === "calculate") onCalculate();
+    else if (primary.key === "open") onOpen(primary.query);
+  };
+
+  const onCardClick = (e) => {
+    if (e.target.closest(INTERACTIVE)) return;
+    if (window.getSelection?.()?.toString()) return;
+    onOpen();
+  };
+
   return (
-    <div className="flex flex-col">
-      <span className={`text-lg font-bold tabular-nums ${toneCls}`}>{value}</span>
-      <span className="text-[11px] text-slate-500 font-medium leading-tight">{label}</span>
-    </div>
+    <article
+      onClick={onCardClick}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
+      tabIndex={0}
+      aria-label={`Payroll run for ${formatPeriod(run.period_month)}, ${meta.label}`}
+      className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col xl:flex-row xl:items-center gap-5 cursor-pointer transition hover:border-purple-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-purple-300"
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2.5 mb-1">
+          <h3 className="font-bold text-slate-800 text-lg">{formatPeriod(run.period_month)}</h3>
+          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${meta.pill}`}>{meta.label}</span>
+        </div>
+        <p className="text-sm text-slate-500 line-clamp-1">{run.notes || meta.hint}</p>
+
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {acts.errorCount > 0 && (
+            <button type="button" onClick={() => onOpen("status=error")} className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 border border-rose-200 bg-rose-50 hover:bg-rose-100 rounded-lg px-2.5 py-1 transition">
+              <HiExclamationCircle className="w-4 h-4" /> {plural(acts.errorCount, "employee")} need{acts.errorCount === 1 ? "s" : ""} attention · View
+            </button>
+          )}
+          {excluded > 0 && (
+            <button type="button" onClick={() => onOpen("status=excluded")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-lg px-2.5 py-1 transition">
+              <HiBan className="w-3.5 h-3.5" /> {excluded} excluded
+            </button>
+          )}
+          {acts.stale && run.status === "calculated" && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 border border-purple-200 bg-purple-50 rounded-lg px-2.5 py-1">
+              <HiRefresh className="w-3.5 h-3.5" /> Needs recalculating
+            </span>
+          )}
+          {acts.stuck && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 border border-amber-200 bg-amber-50 rounded-lg px-2.5 py-1">
+              <HiClock className="w-3.5 h-3.5" /> Calculation seems stuck
+            </span>
+          )}
+          {run.status === "paid" && run.paid_at && <span className="text-xs text-slate-500">Paid on {formatDate(run.paid_at)}</span>}
+          {run.status === "approved" && run.approved_at && <span className="text-xs text-slate-500">Approved on {formatDate(run.approved_at)}</span>}
+        </div>
+
+        {run.status === "failed" && (
+          <p className="mt-3 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 line-clamp-2">
+            <b>Why it failed:</b> {run.failure_reason || "No reason was recorded."}
+            {runFailureAdvice(run) && <> <b>What to do:</b> {runFailureAdvice(run)}</>}
+          </p>
+        )}
+        {run.status === "cancelled" && (
+          <p className="mt-3 text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 line-clamp-2">
+            <b>Cancelled{run.cancelled_at ? ` on ${formatDate(run.cancelled_at)}` : ""}:</b> {run.cancellation_reason || "No reason was recorded."}
+          </p>
+        )}
+      </div>
+
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 shrink-0 py-4 xl:py-0 border-y border-slate-100 xl:border-y-0 xl:border-l xl:pl-8">
+        <div>
+          <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Employees</dt>
+          <dd className="text-base font-semibold text-slate-800 tabular-nums">{toCount(run.total_employees)}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gross pay</dt>
+          <dd className="text-base font-semibold text-slate-700 tabular-nums">{formatMoney(run.total_gross)}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Deductions</dt>
+          <dd className="text-base font-semibold text-slate-700 tabular-nums">{formatMoney(run.total_deductions)}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Net pay</dt>
+          <dd className="text-base font-bold text-purple-700 tabular-nums">{formatMoney(run.total_net)}</dd>
+        </div>
+      </dl>
+
+      <div className="shrink-0 xl:w-52">
+        <button
+          type="button"
+          onClick={handlePrimary}
+          // Opening a run never waits on another card's calculation.
+          disabled={primary.key === "wait" || (primary.key === "calculate" && !!busy)}
+          aria-label={`${primary.label}: ${formatPeriod(run.period_month)}`}
+          className={`w-full h-10 flex justify-center items-center gap-1.5 px-4 text-xs font-bold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed ${primary.attention ? "text-white bg-purple-600 hover:bg-purple-700 shadow-sm shadow-purple-200" : "text-purple-700 bg-white border border-purple-200 hover:bg-purple-50"}`}
+        >
+          {calculatingHere ? <Spinner light /> : <PrimaryIcon className="w-4 h-4" />} {calculatingHere ? "Calculating…" : primary.label}
+        </button>
+      </div>
+    </article>
   );
 }
 
 export default function PayrollRunDashboard() {
   const navigate = useNavigate();
-  const [runs, setRuns] = useState([]);
+  const { toast, showToast, hideToast } = useToast();
+
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [list, setList] = useState({ items: [], total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const requestRef = useRef(0);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const now = new Date();
-  const [form, setForm] = useState({ month: now.getMonth() + 1, year: now.getFullYear(), notes: "" });
-  const [eligibility, setEligibility] = useState(null);
-  const [eligLoading, setEligLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(null); // { id } of the run being calculated
+  const busyRef = useRef(false);
+  const [startOpen, setStartOpen] = useState(false);
 
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
-
-  const periodMonth = `${form.year}-${String(form.month).padStart(2, "0")}`;
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadRuns = useCallback(async ({ silent = false } = {}) => {
+    const reqId = ++requestRef.current;
+    if (!silent) setLoading(true);
     try {
-      const res = await payrollAPI.getRuns();
-      setRuns(res.data?.records || res.data || []);
+      const params = { page, limit: PAGE_SIZE };
+      if (statusFilter) params.status = statusFilter;
+      const res = await payrollAPI.getRuns(params);
+      if (reqId !== requestRef.current) return;
+      const norm = normalizePaginated(res, ["runs", "records", "items"], params);
+      setList({ items: norm.items, total: norm.total, totalPages: norm.totalPages });
+      setLoadError("");
+      // The last run on a page can move to another status filter — step back.
+      if (norm.items.length === 0 && page > 1) setPage((p) => Math.max(1, p - 1));
     } catch (err) {
-      showToast(payrollErrorMessage(err, "Failed to load runs"), "error");
+      if (reqId !== requestRef.current) return;
+      setLoadError(payrollErrorMessage(err, "Couldn't load payroll runs."));
     } finally {
-      setLoading(false);
+      if (reqId === requestRef.current) setLoading(false);
     }
-  }, []);
+  }, [page, statusFilter]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadRuns(); }, [loadRuns]);
 
-  // Pre-flight readiness check — runs whenever the chosen month changes while the modal is open.
+  // Keep a calculating run's card current without a manual refresh.
+  const hasCalculating = list.items.some((r) => r.status === "calculating");
   useEffect(() => {
-    if (!isModalOpen) return;
-    let cancelled = false;
-    setEligLoading(true);
-    setEligibility(null);
-    payrollAPI.getRunEligibility({ period_month: periodMonth })
-      .then((res) => { if (!cancelled) setEligibility(res.data || res); })
-      .catch((err) => { if (!cancelled) showToast(payrollErrorMessage(err, "Couldn't check readiness for this month"), "error"); })
-      .finally(() => { if (!cancelled) setEligLoading(false); });
-    return () => { cancelled = true; };
-  }, [isModalOpen, periodMonth]);
+    if (!hasCalculating) return undefined;
+    const timer = setInterval(() => loadRuns({ silent: true }), 10000);
+    return () => clearInterval(timer);
+  }, [hasCalculating, loadRuns]);
 
-  const openModal = () => {
-    const d = new Date();
-    setForm({ month: d.getMonth() + 1, year: d.getFullYear(), notes: "" });
-    setIsModalOpen(true);
-  };
+  const openRun = (id, query = "") => navigate(`/dashboard/hr/payroll/runs/${id}${query ? `?${query}` : ""}`);
 
-  const alreadyRun = eligibility?.already_run;
-  const canCreate = !eligLoading && !alreadyRun;
-
-  const handleCreateRun = async (e) => {
-    e.preventDefault();
-    if (!canCreate) return;
-    setCreating(true);
+  // The only action taken from the list (see RunCard).
+  const calculate = async (run) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy({ id: run.id });
     try {
-      await payrollAPI.createRun({ period_month: periodMonth, run_type: "regular", notes: form.notes });
-      showToast("Run created successfully");
-      setIsModalOpen(false);
-      loadData();
+      await payrollAPI.calculateRun(run.id);
+      showToast(RUN_ACTION_SUCCESS.calculate);
     } catch (err) {
-      showToast(payrollErrorMessage(err, "Failed to create run"), "error");
+      showToast(payrollErrorMessage(err, RUN_ACTION_FAILURE.calculate), "error");
     } finally {
-      setCreating(false);
+      busyRef.current = false;
+      setBusy(null);
+      // The server state may have moved even on failure (e.g. a claim by another tab).
+      loadRuns({ silent: true });
     }
   };
 
-  const CONFIRM_PROMPTS = {
-    approve: "Approve this run? This freezes the calculated pay for every employee and locks attendance for the period. You won't be able to recalculate afterwards.",
-    pay: "Mark this run as paid? This is the final step and cannot be undone.",
-    cancel: "Cancel this run? This releases the attendance lock and reopens the period. Any calculated figures will be discarded.",
+  const changeFilter = (value) => {
+    setStatusFilter(value);
+    setPage(1);
   };
-
-  const handleAction = async (id, action) => {
-    const prompt = CONFIRM_PROMPTS[action];
-    if (prompt && !window.confirm(prompt)) return;
-    try {
-      if (action === "calculate") await payrollAPI.calculateRun(id);
-      if (action === "approve") await payrollAPI.approveRun(id);
-      if (action === "pay") await payrollAPI.payRun(id);
-      if (action === "cancel") await payrollAPI.cancelRun(id);
-      showToast(`Run ${action}d successfully`);
-      loadData();
-    } catch (err) {
-      showToast(payrollErrorMessage(err, `Failed to ${action} run`), "error");
-    }
-  };
-
-  const openRun = (id) => navigate(`/dashboard/hr/payroll/runs/${id}`);
 
   return (
     <>
-        <DashboardTopBar title="Payroll Run Engine" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
+      <DashboardTopBar title="Payroll Runs" />
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Payroll Runs</h1>
+            <p className="text-sm text-slate-500 mt-1">Work out, check, approve and pay each month’s salaries. Click a run to open it.</p>
+          </div>
+          <button type="button" onClick={() => setStartOpen(true)} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+            <HiPlay className="w-5 h-5" /> Start new run
+          </button>
+        </div>
 
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Payroll Runs
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">Command center to execute and finalize monthly payroll.</p>
-            </div>
-            <button onClick={openModal}
-              className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
-              <HiPlay className="w-5 h-5" /> Start New Run
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-2">
+            <label htmlFor="run-status-filter" className="text-xs font-bold text-slate-500 uppercase">Show</label>
+            <select id="run-status-filter" value={statusFilter} onChange={(e) => changeFilter(e.target.value)} className="h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
+              {RUN_STATUS_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-3">
+            {!loading && !loadError && <span className="text-xs font-semibold text-slate-500">{plural(list.total, "run")}</span>}
+            <button type="button" onClick={() => loadRuns()} className="h-10 px-3 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition flex items-center gap-1.5">
+              <HiRefresh className="w-4 h-4" /> Refresh
             </button>
           </div>
-
-          {loading ? <Skeleton type="dashboard" /> : (
-            <div className="flex flex-col gap-4">
-              {runs.map((run) => (
-                <div key={run.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col xl:flex-row xl:items-center gap-6 p-5 sm:p-6 transition-all hover:border-slate-300 group">
-                  
-                  {/* Left: Period & Status & Errors */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-bold text-slate-800 text-lg group-hover:text-purple-700 transition cursor-pointer" onClick={() => openRun(run.id)}>
-                        {formatPeriod(run.period_month)}
-                      </h3>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${STATUS_STYLES[run.status] || STATUS_STYLES.draft}`}>
-                        {run.status}
-                      </span>
-                    </div>
-                    {run.notes
-                      ? <p className="text-sm text-slate-500 line-clamp-1 mb-3">{run.notes}</p>
-                      : <p className="text-sm text-slate-400 mb-3 cursor-pointer hover:text-purple-600 transition" onClick={() => openRun(run.id)}>View details</p>}
-                    
-                    {run.error_count > 0 && (
-                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 border border-rose-100 bg-rose-50/50 rounded-lg px-2.5 py-1">
-                        <HiExclamationCircle className="w-4 h-4 shrink-0 opacity-70" /> {run.error_count} item{run.error_count === 1 ? "" : "s"} need attention
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Middle: Stats */}
-                  <div className="flex flex-wrap items-center gap-6 xl:gap-8 shrink-0 py-4 xl:py-0 border-y border-slate-50 xl:border-y-0 xl:border-l xl:pl-8">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Employees</p>
-                      <p className="text-base font-semibold text-slate-800 tabular-nums">{run.total_employees || 0}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gross Payout</p>
-                      <p className="text-base font-semibold text-slate-700 tabular-nums">{formatMoney(run.total_gross)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Net Payout</p>
-                      <p className="text-base font-semibold text-slate-800 tabular-nums">{formatMoney(run.total_net)}</p>
-                    </div>
-                  </div>
-
-                  {/* Right: Actions */}
-                  <div className="flex flex-col gap-2 shrink-0 xl:w-48 justify-end mt-2 xl:mt-0">
-                    {/* Primary next action */}
-                    {run.status === "draft" ? (
-                      <button onClick={() => handleAction(run.id, "calculate")} className="flex-1 flex justify-center items-center gap-1.5 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 hover:bg-purple-100 rounded-lg transition shadow-sm">
-                        <HiCalculator className="w-3.5 h-3.5" /> Calculate
-                      </button>
-                    ) : run.status === "calculated" ? (
-                      <button onClick={() => handleAction(run.id, "approve")} className="flex-1 flex justify-center items-center gap-1.5 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 hover:bg-purple-100 rounded-lg transition shadow-sm">
-                        <HiCheck className="w-3.5 h-3.5" /> Approve
-                      </button>
-                    ) : run.status === "approved" ? (
-                      <button onClick={() => handleAction(run.id, "pay")} className="flex-1 flex justify-center items-center gap-1.5 px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 rounded-lg transition shadow-sm">
-                        <HiCash className="w-3.5 h-3.5" /> Finalize
-                      </button>
-                    ) : (
-                      <button onClick={() => openRun(run.id)} className="flex-1 flex justify-center items-center px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition shadow-sm">
-                        Review Details
-                      </button>
-                    )}
-
-                    {/* Secondary actions row */}
-                    {run.status !== "paid" && run.status !== "cancelled" && (
-                      <div className="flex gap-2">
-                        <button onClick={() => openRun(run.id)} className="flex-1 flex justify-center items-center px-2 py-2 text-[11px] font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition shadow-sm" title="Review">
-                          Review
-                        </button>
-                        {run.status === "calculated" && (
-                          <button onClick={() => handleAction(run.id, "calculate")} className="flex justify-center items-center px-3 py-2 text-[11px] text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition shadow-sm" title="Recalculate">
-                            <HiCalculator className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button onClick={() => handleAction(run.id, "cancel")} className="flex justify-center items-center px-3 py-2 text-[11px] text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-lg transition shadow-sm" title="Cancel Run">
-                          <HiX className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                </div>
-              ))}
-              {runs.length === 0 && (
-                <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 border-dashed">
-                  <p className="text-slate-500 font-medium">No payroll runs found. Start a new run to begin.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </main>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800">Start Payroll Run</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleCreateRun} className="p-6 space-y-5 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
-                  <select value={form.month} onChange={(e) => setForm({ ...form, month: parseInt(e.target.value, 10) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                    {Array.from({ length: 12 }).map((_, i) => <option key={i} value={i + 1}>{new Date(0, i).toLocaleString("default", { month: "long" })}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Year</label>
-                  <input type="number" value={form.year} onChange={(e) => setForm({ ...form, year: parseInt(e.target.value, 10) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-                </div>
-              </div>
-
-              {/* ── Pre-flight readiness ── */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <HiUserGroup className="w-4 h-4 text-purple-600" />
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Readiness — {formatPeriod(periodMonth)}</span>
-                </div>
-
-                {eligLoading ? (
-                  <div className="h-16 rounded-lg bg-slate-100 animate-pulse" />
-                ) : eligibility ? (
-                  <>
-                    <div className="grid grid-cols-3 gap-3">
-                      <ReadinessStat label="In payroll" value={eligibility.headcount ?? 0} />
-                      <ReadinessStat label="Joiners" value={eligibility.joiners_count ?? 0} />
-                      <ReadinessStat label="Leavers" value={eligibility.leavers_count ?? 0} />
-                      <ReadinessStat label="Missing structure" value={eligibility.missing_structure_count ?? 0} tone="bad" />
-                      <ReadinessStat label="Missing bank a/c" value={eligibility.missing_bank_account_count ?? 0} tone="warn" />
-                      <ReadinessStat label="Needs exit date" value={eligibility.exit_date_required_count ?? 0} tone="bad" />
-                    </div>
-
-                    {(eligibility.missing_structure_count > 0 || eligibility.exit_date_required_count > 0) && (
-                      <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        Some employees can't be calculated yet. You can still create the run and resolve them before approval.
-                      </p>
-                    )}
-                    {eligibility.period_locked && (
-                      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">
-                        <HiLockClosed className="w-3.5 h-3.5 shrink-0" /> This period has an attendance lock in place.
-                      </p>
-                    )}
-                    {alreadyRun && (
-                      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-                        <span>A run already exists for this month.</span>
-                        <button type="button" onClick={() => { setIsModalOpen(false); openRun(alreadyRun.id || alreadyRun); }} className="font-bold underline shrink-0">Open it</button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-400">Readiness details unavailable for this month.</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Notes <span className="font-medium text-slate-400 normal-case">(optional)</span></label>
-                <input type="text" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="e.g. Regular monthly payroll" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" disabled={!canCreate || creating} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
-                  {creating ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Start Run"}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
+
+        {loading ? (
+          <Skeleton type="dashboard" />
+        ) : loadError ? (
+          <div className="py-12 px-6 text-center bg-white rounded-2xl border border-rose-200">
+            <HiExclamationCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-rose-700">{loadError}</p>
+            <button type="button" onClick={() => loadRuns()} className="mt-4 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition">Try again</button>
+          </div>
+        ) : list.items.length === 0 ? (
+          <div className="py-16 px-6 text-center bg-white rounded-2xl border border-slate-200 border-dashed">
+            <p className="text-slate-600 font-semibold">{statusFilter ? "No runs with this status." : "No payroll runs yet."}</p>
+            <p className="text-sm text-slate-400 mt-1">{statusFilter ? "Try another filter." : "Start a run to pay this month's salaries."}</p>
+            {!statusFilter && (
+              <button type="button" onClick={() => setStartOpen(true)} className="mt-5 px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition inline-flex items-center gap-2">
+                <HiPlay className="w-4 h-4" /> Start new run
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {list.items.map((run) => (
+              <RunCard
+                key={run.id}
+                run={run}
+                busy={busy}
+                onOpen={(query) => openRun(run.id, query)}
+                onCalculate={() => calculate(run)}
+              />
+            ))}
+          </div>
+        )}
+
+        {!loading && !loadError && list.totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-500">Page {page} of {list.totalPages}</p>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page" className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"><HiChevronLeft className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setPage((p) => Math.min(list.totalPages, p + 1))} disabled={page >= list.totalPages} aria-label="Next page" className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"><HiChevronRight className="w-4 h-4" /></button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {startOpen && (
+        <StartRunDialog
+          onClose={() => setStartOpen(false)}
+          onOpenExisting={(id) => { setStartOpen(false); openRun(id); }}
+          onCreated={(created, period) => {
+            setStartOpen(false);
+            showToast(`Run started for ${formatPeriod(created?.period_month || period)}. Calculate it next.`);
+            if (created?.id) openRun(created.id);
+            else loadRuns();
+          }}
+        />
       )}
 
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      <PayrollToast toast={toast} onClose={hideToast} />
     </>
   );
 }

@@ -22,7 +22,7 @@ const TABS = [
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
 ];
 
-import Avatar, { genConfig } from 'react-nice-avatar';
+import GenderAvatar, { genderOf } from "../../../shared/components/GenderAvatar";
 
 function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   const [departments, setDepartments] = useState([]);
@@ -509,7 +509,7 @@ export default function EmployeeProfilePage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <Avatar className="w-full h-full" {...genConfig(employee?.email || displayName || String(userId))} />
+                        <GenderAvatar gender={genderOf(employee)} name={displayName} />
                       )}
                     </div>
                   )}
@@ -525,7 +525,7 @@ export default function EmployeeProfilePage() {
                   <div className="w-full">
                     <h2 className="text-xl font-bold text-slate-900 truncate w-full max-w-[260px] mx-auto">{displayName}</h2>
                     <p className="text-sm font-medium text-slate-500 mt-1">
-                      #{employee?.employee_code || employee?.emp_id || "EMP000"}
+                      {employee?.employee_code || employee?.emp_id ? `#${employee.employee_code || employee.emp_id}` : "N/A"}
                     </p>
                   </div>
                 )}
@@ -540,26 +540,26 @@ export default function EmployeeProfilePage() {
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Department</span>
-                        <span className="font-medium text-slate-900">{employee.department || "—"}</span>
+                        <span className="font-medium text-slate-900">{employee.department || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Designation</span>
-                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.designation}>{employee.designation || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.designation}>{employee.designation || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Role</span>
-                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded capitalize">{employee.role || employeeRole || "—"}</span>
+                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded capitalize">{employee.role || employeeRole || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Manager</span>
                         <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={managerName || undefined}>
-                          {managerName || "—"}
+                          {managerName || "N/A"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Dept. Head</span>
                         <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.department_head_details?.name || undefined}>
-                          {employee.department_head_details?.name || "—"}
+                          {employee.department_head_details?.name || "N/A"}
                         </span>
                       </div>
                     </div>
@@ -573,11 +573,11 @@ export default function EmployeeProfilePage() {
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Phone</span>
-                        <span className="font-medium text-slate-900">{employee.contact || employee.phone_number || "—"}</span>
+                        <span className="font-medium text-slate-900">{employee.contact || employee.phone_number || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Email</span>
-                        <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={employee.email}>{employee.email || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={employee.email}>{employee.email || "N/A"}</span>
                       </div>
                     </div>
                   </div>

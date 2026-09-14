@@ -9,7 +9,13 @@ import {
   HiMail, HiPhone, HiPaperAirplane, HiCheckCircle, HiChevronDown
 } from "react-icons/hi";
 
-import Avatar, { genConfig } from 'react-nice-avatar';
+import GenderAvatar, { genderOf, normalizeGender } from "../../../shared/components/GenderAvatar";
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Others" },
+];
 
 function EmployeesPage() {
   const { user } = useAuth();
@@ -27,6 +33,7 @@ function EmployeesPage() {
   const [contact, setContact] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
   const [dob, setDob] = useState("");
+  const [gender, setGender] = useState("");
 
   // Optional Organization
   const [joiningDate, setJoiningDate] = useState("");
@@ -213,7 +220,27 @@ function EmployeesPage() {
 
   async function handleInvite(e) {
     e.preventDefault();
-    if (!email) return;
+
+    // Collapsed sections unmount their inputs, so the browser's `required`
+    // check never sees them. Validate every required field here and open the
+    // section that holds the first missing one.
+    const missing = [
+      ["section1", "Full name", name],
+      ["section1", "Email address", email],
+      ["section1", "Gender", gender],
+      ["section2", "Primary contact", contact],
+      ["section3", "Department", department],
+      ["section3", "Reporting person", reportingManager],
+      ["section3", "Job status", jobStatus],
+      ["section3", "Employment type", employmentType],
+      ["section3", "Work mode", workMode],
+      ["section4", "Permanent address", permanentAddress],
+    ].filter(([, , value]) => !String(value ?? "").trim());
+    if (missing.length > 0) {
+      setCollapsedSections((prev) => ({ ...prev, [missing[0][0]]: false }));
+      setInviteResult({ type: "error", message: `Please fill in: ${missing.map(([, label]) => label).join(", ")}.` });
+      return;
+    }
 
     setInviteLoading(true);
     setInviteResult({ type: "", message: "" });
@@ -229,6 +256,7 @@ function EmployeesPage() {
       if (contact) payload.contact = contact;
       if (bloodGroup) payload.blood_group = bloodGroup;
       if (dob) payload.dob = dob;
+      if (gender) payload.gender = gender;
       if (joiningDate) payload.joining_date = joiningDate;
 
       if (workLocation) payload.location_id = workLocation;
@@ -271,13 +299,14 @@ function EmployeesPage() {
           contact,
           empId,
           status: "Pending",
+          gender,
           sentAt: new Date().toLocaleDateString(),
         },
         ...prev,
       ]);
 
       setName(""); setEmail(""); setRole("employee"); setEmpId(""); setContact(""); 
-      setBloodGroup(""); setDob(""); setMakeHod(false); setMaritalStatus(""); setPersonalEmail("");
+      setBloodGroup(""); setDob(""); setGender(""); setMakeHod(false); setMaritalStatus(""); setPersonalEmail("");
       setWorkLocation(""); setDepartment(""); setDesignation(""); setReportingManager("");
       setJobStatus(""); setEmploymentType(""); setWorkMode(""); setJoiningDate("");
       setPanNumber(""); setUanNumber(""); setCurrentAddress("");
@@ -308,6 +337,7 @@ function EmployeesPage() {
       contact: emp.contact || emp.phone_number || "",
       empId: emp.employee_code || emp.emp_id || "",
       isOwner: emp.role === 'owner',
+      gender: genderOf(emp),
     })),
     ...invitations.map((inv, idx) => ({
       id: `inv-${idx}`,
@@ -319,6 +349,7 @@ function EmployeesPage() {
       contact: inv.contact,
       empId: inv.empId,
       sentAt: inv.sentAt,
+      gender: normalizeGender(inv.gender),
     })),
   ];
 
@@ -417,7 +448,7 @@ function EmployeesPage() {
                         {member.empId ? (
                           <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">{member.empId}</span>
                         ) : (
-                          <span className="text-[10px] font-semibold text-slate-400">—</span>
+                          <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200" title="No employee code on file">N/A</span>
                         )}
                       </div>
 
@@ -432,7 +463,7 @@ function EmployeesPage() {
                                 className="w-full h-full object-cover"
                               />
                             ) : (
-                              <Avatar className="w-full h-full" {...genConfig(member.email || member.name || String(member.id))} />
+                              <GenderAvatar gender={member.gender} name={member.name} />
                             )}
                           </div>
                           {member.status === "Active" && (
@@ -441,7 +472,7 @@ function EmployeesPage() {
                         </div>
                         <h3 className="text-[17px] font-bold text-slate-900 leading-tight group-hover:text-purple-700 transition-colors px-2 truncate w-full">{member.name}</h3>
                         <p className="text-xs font-semibold text-slate-400 mt-1 uppercase">
-                          {member.role || "—"}
+                          {member.role || "N/A"}
                         </p>
                       </div>
                     </div>
@@ -482,7 +513,7 @@ function EmployeesPage() {
                 </button>
                 {!collapsedSections.section1 && (
                   <div className="p-5 border-t border-slate-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
                         <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="e.g. EMP001 (Optional)" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
@@ -501,6 +532,13 @@ function EmployeesPage() {
                           <option value="employee">Employee</option>
                           <option value="manager">Manager</option>
                           <option value="hr">HR Admin</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender <span className="text-red-400">*</span></label>
+                        <select value={gender} onChange={(e) => setGender(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
+                          <option value="">---Select---</option>
+                          {GENDER_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
                         </select>
                       </div>
                     </div>

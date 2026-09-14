@@ -213,7 +213,7 @@ export default function ManagerAdjustmentsPage() {
   };
 
   const cancelAdj = async (id) => {
-    if (!window.confirm("Cancel this proposal?")) return;
+    if (!(await window.confirm("Cancel this proposal?"))) return;
     try {
       await payrollAPI.cancelTeamAdjustment(id);
       showToast("Proposal cancelled");

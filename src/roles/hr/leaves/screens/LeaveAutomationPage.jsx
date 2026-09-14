@@ -35,7 +35,7 @@ function RunSummary({ result, stats }) {
                 : "bg-slate-50 text-slate-600 border-slate-200"
             }`}
           >
-            {label}: {result[key] ?? "—"}
+            {label}: {result[key] ?? (key === "period" ? "N/A" : 0)}
           </span>
         ))}
       </div>
@@ -58,7 +58,7 @@ export default function LeaveAutomationPage() {
   }
 
   async function handleRunAccrual() {
-    if (!window.confirm("Run the Monthly Leave accrual now? It safely credits leaves to anyone who hasn't received them for the target month (already-credited employees are skipped).")) return;
+    if (!(await window.confirm("Add this month's leave days now? Employees who already received them for the month are skipped."))) return;
     setLoadingAccrual(true);
     setAccrualResult(null);
     try {
@@ -74,7 +74,7 @@ export default function LeaveAutomationPage() {
   }
 
   async function handleRunRollover() {
-    if (!window.confirm("Run the Year-End Rollover now? This carries forward leftover leaves (up to each policy's limit), lapses the rest, and seeds the new year. Run this BEFORE the January accrual.")) return;
+    if (!(await window.confirm("Run the Year-End Rollover now? Unused leave is moved to next year (up to each policy's limit), the rest expires, and the new year is set up. Run this BEFORE adding January's leave days."))) return;
     setLoadingRollover(true);
     setRolloverResult(null);
     try {
@@ -112,7 +112,7 @@ export default function LeaveAutomationPage() {
                   <HiLightningBolt className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-slate-800 truncate">Monthly Leaves (Accruals)</h2>
+                  <h2 className="text-base font-bold text-slate-800 truncate">Monthly Leave Credit</h2>
                   <p className="text-sm text-slate-500 mt-1 leading-relaxed pr-4">
                     Deposits one month's worth of leaves into employees' accounts on the 1st of every month.
                   </p>
@@ -148,7 +148,7 @@ export default function LeaveAutomationPage() {
                   {loadingAccrual ? (
                     <><div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-purple-600 rounded-full animate-spin" /> Running...</>
                   ) : (
-                    <><HiPlay className="w-4 h-4 text-purple-500" /> Trigger Accrual</>
+                    <><HiPlay className="w-4 h-4 text-purple-500" /> Add Leave Days Now</>
                   )}
                 </button>
               </div>

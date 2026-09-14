@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { HiUserGroup, HiClock, HiSparkles, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
@@ -8,7 +8,7 @@ import { attendanceAPI } from "../../../shared/api";
 import AttendanceDirectory from "../components/AttendanceDirectory";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { employeeCode, initials, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, parseYMDLocal, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
@@ -16,6 +16,41 @@ import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared
 const CHART_PAGE_SIZE = 15;
 const LIVE_REFRESH_MS = 60_000;
 const MODE_COLORS = { office: "#7C3AED", remote: "#38BDF8", field: "#F59E0B", hybrid: "#10B981" };
+
+const isSunday = (ymd) => parseYMDLocal(ymd)?.getDay() === 0;
+
+const SUNDAY_LETTERS = "SUNDAY".split("");
+const SUNDAY_EDGE = 16; // padding above the first letter and below the last
+
+/** Vertical "SUNDAY", letters spread evenly from the top of the plot to the baseline. */
+function SundayLabel({ viewBox }) {
+  if (!viewBox) return null;
+  const { x, y, height } = viewBox;
+  const step = Math.max(height - SUNDAY_EDGE * 2, 0) / (SUNDAY_LETTERS.length - 1);
+  return (
+    <g pointerEvents="none">
+      {SUNDAY_LETTERS.map((ch, i) => (
+        <text key={i} x={x} y={y + SUNDAY_EDGE + i * step} textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize={9} fontWeight={700}>
+          {ch}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+/**
+ * Symmetric department grid: 1–3 cards sit in one row, 4 become a 2×2, and
+ * larger sets use the column count that divides evenly (3, else 4, else 3).
+ */
+function deptGridCols(count) {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-1 md:grid-cols-2";
+  if (count === 3) return "grid-cols-1 md:grid-cols-3";
+  if (count === 4) return "grid-cols-1 md:grid-cols-2";
+  if (count % 3 === 0) return "grid-cols-1 md:grid-cols-3";
+  if (count % 4 === 0) return "grid-cols-1 md:grid-cols-2 xl:grid-cols-4";
+  return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+}
 
 /** Generic async widget state. */
 function useWidget(fetcher, deps) {
@@ -66,7 +101,7 @@ function DepartmentSummaryCard() {
       ) : depts.length === 0 ? (
         <EmptyState icon={HiUserGroup} title="No department data" message="Assign employees to departments to see this breakdown." />
       ) : (
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className={`grid gap-6 ${deptGridCols(depts.length)}`}>
           {depts.map((dept, i) => {
             const total = num(dept.total_employees);
             const denom = total || 1;
@@ -222,7 +257,7 @@ function HRDashboard() {
                 <MonthStepper period={period} onChange={setPeriod} />
               </div>
             </div>
-            <div className="relative w-full h-56 mt-auto" onWheel={handleChartWheel}>
+            <div className="relative w-full h-72 mt-auto pt-4 pb-3" onWheel={handleChartWheel}>
               {graph.loading ? (
                 <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
               ) : graph.error ? (
@@ -234,10 +269,14 @@ function HRDashboard() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 8, left: -20, bottom: 12 }} barGap={2} barCategoryGap="25%">
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} tickFormatter={(val) => fmtDate(val, { day: "numeric" }, "")} interval="preserveStartEnd" />
                     <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
+                    {/* zIndex below bars (300) so the label never hides data. */}
+                    {chartData.filter((d) => isSunday(d.date)).map((d) => (
+                      <ReferenceLine key={d.date} x={d.date} stroke="transparent" zIndex={250} label={SundayLabel} />
+                    ))}
                     <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
                     <Bar dataKey="on_time_count" name="On time" fill="#8B5CF6" maxBarSize={8} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="late_count" name="Late" fill="#F59E0B" maxBarSize={8} radius={[3, 3, 0, 0]} />

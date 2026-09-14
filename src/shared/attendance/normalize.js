@@ -47,14 +47,17 @@ export function toList(payload, keys = []) {
 export const listFrom = (res, keys = []) => toList(unwrap(res), keys);
 
 /**
- * Normalise a paginated response. Accepts `pagination.totalPages` (documented)
- * and `total_pages` (legacy).
+ * Normalise a paginated response. `pagination` may sit inside `data` (attendance
+ * HR lists: `{ data: { pagination, records } }`) or next to it (payroll and
+ * organisation lists: `{ data: [], pagination }`), with `totalPages` or
+ * `total_pages`.
  * @returns {{items: any[], total: number, page: number, limit: number, totalPages: number}}
  */
 export function normalizePaginated(res, keys = [], requested = {}) {
   const payload = unwrap(res);
   const items = toList(payload, keys);
-  const meta = (payload && !Array.isArray(payload) && (payload.pagination || payload.meta)) || (Array.isArray(payload) ? {} : payload) || {};
+  const sibling = res && typeof res === "object" && !Array.isArray(res) && res !== payload ? res.pagination || res.meta : null;
+  const meta = (payload && !Array.isArray(payload) && (payload.pagination || payload.meta)) || sibling || (Array.isArray(payload) ? {} : payload) || {};
   const rawTotal = meta.total ?? meta.totalItems ?? meta.total_count ?? meta.totalCount ?? meta.count;
   const rawPages = meta.totalPages ?? meta.total_pages ?? meta.pages;
   const requestedLimit = num(requested.limit, 0);
@@ -99,6 +102,19 @@ const joinName = (obj) => {
   return [first, last].filter(Boolean).join(" ");
 };
 
+// Only the person's OWN role profile. A generic /profile$/ match would also pick
+// up e.g. `approver_profile` / `reporting_manager_profile` and show someone
+// else's name when the record's own name is missing.
+const OWN_PROFILE_KEY = /^(profile|user_?profile|employee_?profile|manager_?profile|hr_?profile)$/i;
+
+/** Nested own-role profile objects on an entity, e.g. `hr_profile`, `HrProfile`, `employee_profile`. */
+function profileObjects(obj) {
+  if (!obj || typeof obj !== "object") return [];
+  return Object.keys(obj)
+    .filter((k) => OWN_PROFILE_KEY.test(k) && obj[k] && typeof obj[k] === "object" && !Array.isArray(obj[k]))
+    .map((k) => obj[k]);
+}
+
 /**
  * Human name for any attendance entity (record, request, anomaly, user).
  * Order: flat name → nested user/employee → profile first/last → email.
@@ -106,9 +122,12 @@ const joinName = (obj) => {
  */
 export function personName(entity, fallback = "Unknown employee") {
   if (!entity || typeof entity !== "object") return fallback;
-  const nested = [entity.user, entity.employee, entity.User, entity.Employee, entity.requester].filter(
-    (x) => x && typeof x === "object"
-  );
+  const nested = [
+    entity.user, entity.employee, entity.User, entity.Employee, entity.requester,
+    // Role profiles (hr_profile / manager_profile / employee_profile / HrProfile…)
+    // carry first_name for HR staff rows that have no flat name.
+    ...profileObjects(entity), ...profileObjects(entity.user), ...profileObjects(entity.User),
+  ].filter((x) => x && typeof x === "object");
 
   const direct = pickString(entity.name, entity.employee_name, entity.full_name, entity.user_name, entity.fullName, entity.display_name, entity.profile?.display_name);
   if (direct) return direct;
@@ -127,7 +146,10 @@ export function personName(entity, fallback = "Unknown employee") {
 /** Employee code if present (never a UUID). */
 export function employeeCode(entity) {
   if (!entity || typeof entity !== "object") return "";
-  const nested = [entity.user, entity.employee, entity.profile, entity.user?.profile, entity.employee?.profile];
+  const nested = [
+    entity.user, entity.employee, entity.profile, entity.user?.profile, entity.employee?.profile,
+    ...profileObjects(entity), ...profileObjects(entity.user),
+  ];
   return pickString(
     entity.employee_code,
     entity.emp_code,
@@ -159,6 +181,9 @@ export function departmentName(entity) {
     entity.department_name,
     typeof entity.department === "string" ? entity.department : entity.department?.name,
     entity.user?.department_name,
+    // Payroll rows with an embedded employee (backend gap G-2, `?include=employee`).
+    entity.employee?.department_name,
+    typeof entity.employee?.department === "string" ? entity.employee.department : entity.employee?.department?.name,
     entity.profile?.department?.name
   );
 }

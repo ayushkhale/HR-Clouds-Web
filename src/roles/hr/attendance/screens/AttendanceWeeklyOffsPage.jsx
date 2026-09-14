@@ -11,7 +11,8 @@ import { validateWeeklyOff, hasErrors } from "../../../../shared/attendance/vali
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { useTargetingOptions, withSelected, describeTargeting } from "../../../../shared/attendance/useTargetingOptions";
 import { EmptyState, ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
-import { HiTemplate, HiPlus, HiX, HiTrash, HiPencil } from "react-icons/hi";
+import { HiTemplate, HiPlus, HiX, HiTrash, HiPencil, HiCalendar, HiUserGroup } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 const dayName = (v) => WEEKDAYS.find((d) => d.value === Number(v))?.label || "Unknown day";
 const sortDays = (days) => [...new Set(days.map(Number))].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b);
@@ -179,6 +180,7 @@ export default function AttendanceWeeklyOffsPage() {
   const [loadError, setLoadError] = useState(null);
   const [modalRule, setModalRule] = useState(null); // null | "create" | rule
   const [deleting, setDeleting] = useState(null);
+  const [preview, setPreview] = useState(null);
   const { toast, showToast, clearToast } = useToast();
 
   const load = useCallback(async () => {
@@ -235,8 +237,8 @@ export default function AttendanceWeeklyOffsPage() {
             <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {["Rule", "Days Off", "Priority", "Effective", "Applies To", "Status", ""].map((h) => (
-                    <th key={h} className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                  {["Rule", "Days Off", "Priority", "Effective", "Applies To", "Status", "Actions"].map((h) => (
+                    <th key={h} className={`px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -244,9 +246,9 @@ export default function AttendanceWeeklyOffsPage() {
                 {rows.map((r) => {
                   const lines = describeTargeting(r, targeting);
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={r.id} {...rowPreviewProps(() => setPreview(r), `View ${r.name || "rule"}`)}>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-800">{r.name || "Untitled rule"}</td>
-                      <td className="px-6 py-4 text-xs font-semibold text-slate-600">{ruleDays(r).map(dayName).join(", ") || "—"}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-600">{ruleDays(r).map(dayName).join(", ") || "N/A"}</td>
                       <td className="px-6 py-4 text-xs text-slate-500">{r.priority ?? 0}</td>
                       <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{fmtDate(ymdOnly(r.effective_from))}{r.effective_to ? ` – ${fmtDate(ymdOnly(r.effective_to))}` : " onwards"}</td>
                       <td className="px-6 py-4 max-w-xs">
@@ -323,6 +325,60 @@ export default function AttendanceWeeklyOffsPage() {
           onSaved={(msg) => { setModalRule(null); showToast(msg); load(); }}
         />
       )}
+
+      {preview && (() => {
+        const r = preview;
+        const lines = describeTargeting(r, targeting);
+        const days = ruleDays(r);
+        const active = r.is_active !== false;
+        return (
+          <DetailDialog
+            eyebrow="Weekly off rule"
+            icon={HiTemplate}
+            title={r.name || "Untitled rule"}
+            subtitle={hasTargeting(r) ? "Targeted rule" : "Organisation-wide rule"}
+            badge={<DetailPill tone="onDark">{active ? "Active" : "Inactive"}</DetailPill>}
+            onClose={() => setPreview(null)}
+            footer={
+              <>
+                <button onClick={() => { setPreview(null); handleDelete(r); }} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
+                  <HiTrash className="w-4 h-4" /> Delete
+                </button>
+                <button onClick={() => { setPreview(null); setModalRule(r); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                  <HiPencil className="w-4 h-4" /> Edit rule
+                </button>
+              </>
+            }
+          >
+            <DetailSection title="Days off" icon={HiCalendar}>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {WEEKDAYS.map((d) => (
+                  <span key={d.value} className={`px-3.5 py-2 rounded-xl text-xs font-bold border ${days.includes(d.value) ? "bg-purple-600 text-white border-purple-600" : "bg-white text-purple-300 border-purple-100"}`}>
+                    {d.short}
+                  </span>
+                ))}
+              </div>
+              <DetailGrid
+                items={[
+                  ["Days off", days.map(dayName).join(", ")],
+                  ["Priority", r.priority ?? 0],
+                  ["Effective from", fmtDate(ymdOnly(r.effective_from))],
+                  ["Effective until", r.effective_to ? fmtDate(ymdOnly(r.effective_to)) : "Ongoing"],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Applies to" icon={HiUserGroup}>
+              {lines.length === 0 ? (
+                <DetailPill>Whole organisation</DetailPill>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {lines.map((line) => <p key={line} className="text-sm text-slate-700 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-2.5">{line}</p>)}
+                </div>
+              )}
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
 
       <Toast toast={toast} onClose={clearToast} />
     </>

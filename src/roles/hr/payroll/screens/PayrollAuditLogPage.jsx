@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
+import { payrollAPI } from "../../../../shared/api";
+import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDatabase,
-  HiChevronLeft, HiChevronRight, HiChevronDown, HiFilter,
+  HiChevronLeft, HiChevronRight, HiFilter, HiCode, HiDocumentText,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -20,8 +22,6 @@ function Toast({ toast, onClose }) {
   );
 }
 
-const userId = (u) => u?.id || u?.user_id || u?._id;
-const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
 
 // The append-only trail spans every payroll entity. Offer the common ones as a
 // dropdown; "All" leaves the filter off entirely.
@@ -45,8 +45,6 @@ const ENTITY_TYPES = [
 
 const ENTITY_LABEL = Object.fromEntries(ENTITY_TYPES.map(([v, l]) => [v, l]));
 
-const actionTone = () => "bg-slate-50 text-slate-600 border-slate-200";
-
 const fmtWhen = (d) => {
   if (!d) return "N/A";
   const date = new Date(d);
@@ -60,9 +58,13 @@ const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "N/A");
 const emptyFilters = { entity_type: "", action: "", target_user_id: "", from: "", to: "" };
 const PAGE_SIZE = 20; // fixed request size — the user never changes it, so it must not depend on the response
 
+const logWhen = (log) => log.created_at || log.timestamp || log.performed_at;
+const logMeta = (log) => log.changes ?? log.metadata ?? log.details ?? log.diff ?? null;
+
 export default function PayrollAuditLogPage() {
   const [logs, setLogs] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // Every employee, leavers included: the trail names people who have since left.
+  const { directory, nameOf } = useEmployeeDirectory();
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -70,17 +72,15 @@ export default function PayrollAuditLogPage() {
   const [draft, setDraft] = useState(emptyFilters);        // form state, applied on submit
   const [page, setPage] = useState(1);
   const [pageInfo, setPageInfo] = useState({ total: null, pages: null }); // derived from the response only
-  const [expanded, setExpanded] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  const empName = useCallback(
-    (id) => employees.find((e) => userId(e) === id)?.name || id || "N/A",
-    [employees]
-  );
+  // Never show a raw UUID: unresolved ids read "Unknown user" (e.g. a system actor).
+  const empName = useCallback((id) => nameOf(id, "Unknown user"), [nameOf]);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -88,10 +88,13 @@ export default function PayrollAuditLogPage() {
       const params = { page, limit: PAGE_SIZE };
       Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
       const res = await payrollAPI.getAuditLogs(params);
-      const body = res.data || {};
-      setLogs(body.records || body.logs || (Array.isArray(body) ? body : []));
-      const total = body.total ?? body.pagination?.total ?? null;
-      const pages = body.pages ?? body.pagination?.pages ?? (total != null ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null);
+      const body = res?.data;
+      setLogs(Array.isArray(body) ? body : body?.records || body?.logs || []);
+      // Payroll lists send `pagination` next to `data`; older shapes nested it.
+      const meta = res?.pagination || body?.pagination || null;
+      const total = meta?.total ?? body?.total ?? null;
+      const pages = meta?.total_pages ?? meta?.totalPages ?? body?.pages
+        ?? (total != null ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null);
       setPageInfo({ total, pages });
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to load audit logs"), "error");
@@ -103,23 +106,14 @@ export default function PayrollAuditLogPage() {
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
-  // Employee directory for the target filter + resolving ids to names.
-  useEffect(() => {
-    organizationAPI.getEmployees({ purpose: "emp_report" })
-      .then((res) => setEmployees(res.data?.records || res.data?.employees || res.data || []))
-      .catch(() => setEmployees([]));
-  }, []);
-
   const applyFilters = (e) => {
     e?.preventDefault();
-    setExpanded(null);
     setPage(1);
     setFilters(draft);
   };
 
   const resetFilters = () => {
     setDraft(emptyFilters);
-    setExpanded(null);
     setPage(1);
     setFilters(emptyFilters);
   };
@@ -129,14 +123,15 @@ export default function PayrollAuditLogPage() {
   const canPrev = page > 1;
   const canNext = pageInfo.pages != null ? page < pageInfo.pages : logs.length >= PAGE_SIZE;
 
+  const actorOf = (log) => log.actor_name || log.performed_by_name || empName(log.actor_id || log.actor_user_id || log.performed_by || log.user_id);
+
   return (
     <>
       <DashboardTopBar title="Audit Log" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Payroll Audit Log
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">An append-only record of every payroll change — who did what, and when.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Payroll Audit Log</h1>
+          <p className="text-sm text-slate-500 mt-1">An append-only record of every payroll change — who did what, and when. Click a row to see the full entry.</p>
         </div>
 
         {/* Filter bar */}
@@ -156,7 +151,7 @@ export default function PayrollAuditLogPage() {
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Employee</label>
               <select value={draft.target_user_id} onChange={(e) => setDraft({ ...draft, target_user_id: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
                 <option value="">Anyone</option>
-                {employees.map((e) => <option key={userId(e)} value={userId(e)}>{userName(e)}</option>)}
+                {directory.options.map((e) => <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ""}{e.active ? "" : " (inactive)"}</option>)}
               </select>
             </div>
             <div>
@@ -186,7 +181,6 @@ export default function PayrollAuditLogPage() {
               <table className="w-full text-left text-sm min-w-[760px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    <th className="px-6 py-4 w-8"></th>
                     <th className="px-6 py-4">When</th>
                     <th className="px-6 py-4">Actor</th>
                     <th className="px-6 py-4">Action</th>
@@ -195,45 +189,19 @@ export default function PayrollAuditLogPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {logs.map((log, i) => {
-                    const key = log.id || i;
-                    const isOpen = expanded === key;
-                    const meta = log.changes ?? log.metadata ?? log.details ?? log.diff ?? null;
-                    const actor = log.actor_name || log.performed_by_name || empName(log.actor_id || log.actor_user_id || log.performed_by || log.user_id);
-                    const target = log.target_user_id ? empName(log.target_user_id) : null;
-                    return (
-                      <React.Fragment key={key}>
-                        <tr className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => setExpanded(isOpen ? null : key)}>
-                          <td className="px-6 py-4 text-slate-300">
-                            <HiChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180 text-purple-500" : ""}`} />
-                          </td>
-                          <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{fmtWhen(log.created_at || log.timestamp || log.performed_at)}</td>
-                          <td className="px-6 py-4 font-semibold text-slate-800">{actor}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${actionTone(log.action)}`}>{prettify(log.action)}</span>
-                          </td>
-                          <td className="px-6 py-4 text-slate-600 capitalize">{ENTITY_LABEL[log.entity_type] || prettify(log.entity_type)}</td>
-                          <td className="px-6 py-4 text-slate-600">{target || <span className="text-slate-300 font-medium">N/A</span>}</td>
-                        </tr>
-                        {isOpen && (
-                          <tr className="bg-slate-50/60">
-                            <td colSpan={6} className="px-6 py-4">
-                              {log.reason && <div className="text-xs mb-3"><span className="font-bold text-slate-400 uppercase mr-2">Reason</span><span className="text-slate-600">{log.reason}</span></div>}
-                              {meta ? (
-                                <pre className="bg-white border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 overflow-x-auto whitespace-pre-wrap break-words">
-                                  {typeof meta === "string" ? meta : JSON.stringify(meta, null, 2)}
-                                </pre>
-                              ) : (
-                                <p className="text-xs text-slate-400 italic">No additional detail recorded for this event.</p>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                  {logs.map((log, i) => (
+                    <tr key={log.id || i} {...rowPreviewProps(() => setPreview(log), "View audit entry")}>
+                      <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{fmtWhen(logWhen(log))}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-800">{actorOf(log)}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border-purple-100">{prettify(log.action)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 capitalize">{ENTITY_LABEL[log.entity_type] || prettify(log.entity_type)}</td>
+                      <td className="px-6 py-4 text-slate-600">{log.target_user_id ? empName(log.target_user_id) : <span className="text-slate-400 font-medium">N/A</span>}</td>
+                    </tr>
+                  ))}
                   {logs.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-500">{hasFilters ? "No audit entries match these filters." : "No audit entries recorded yet."}</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-500">{hasFilters ? "No audit entries match these filters." : "No audit entries recorded yet."}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -254,6 +222,45 @@ export default function PayrollAuditLogPage() {
           </div>
         )}
       </main>
+
+      {preview && (() => {
+        const meta = logMeta(preview);
+        return (
+          <DetailDialog
+            eyebrow="Audit entry"
+            icon={HiDatabase}
+            title={`${prettify(preview.action)} · ${ENTITY_LABEL[preview.entity_type] || prettify(preview.entity_type)}`}
+            subtitle={fmtWhen(logWhen(preview))}
+            badge={<DetailPill tone="onDark">{prettify(preview.action)}</DetailPill>}
+            onClose={() => setPreview(null)}
+          >
+            <DetailSection title="What happened" icon={HiDocumentText}>
+              <DetailGrid
+                cols={3}
+                items={[
+                  ["When", fmtWhen(logWhen(preview))],
+                  ["Done by", actorOf(preview)],
+                  ["Action", prettify(preview.action)],
+                  ["Entity", ENTITY_LABEL[preview.entity_type] || prettify(preview.entity_type)],
+                  { label: "Entity ID", value: preview.entity_id, mono: true },
+                  ["Affected employee", preview.target_user_id ? empName(preview.target_user_id) : null],
+                ]}
+              />
+              {preview.reason && <div className="mt-3"><DetailText label="Reason">{preview.reason}</DetailText></div>}
+            </DetailSection>
+
+            <DetailSection title="Recorded details" icon={HiCode}>
+              {meta ? (
+                <pre className="bg-purple-950 text-purple-100 rounded-xl p-4 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words max-h-[50vh]">
+                  {typeof meta === "string" ? meta : JSON.stringify(meta, null, 2)}
+                </pre>
+              ) : (
+                <p className="text-sm text-slate-500 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">No additional detail recorded for this event.</p>
+              )}
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </>

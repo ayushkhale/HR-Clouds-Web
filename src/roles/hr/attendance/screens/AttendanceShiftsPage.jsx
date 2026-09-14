@@ -8,7 +8,10 @@ import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import { todayYMD, ymdOnly, fmtDate } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import {
+  HiAdjustments,
+  HiClipboardList,
   HiClock,
   HiPlus,
   HiX,
@@ -40,7 +43,7 @@ const shiftType = (s) => s?.type || s?.shift_type || "fixed";
 
 function fmt12(t) {
   const m = String(t || "").match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return "—";
+  if (!m) return "N/A";
   const h = Number(m[1]);
   return `${h % 12 || 12}:${m[2]} ${h >= 12 ? "PM" : "AM"}`;
 }
@@ -445,6 +448,7 @@ export default function AttendanceShiftsPage() {
   const [deleting, setDeleting] = useState(null);
   const [deletingRotation, setDeletingRotation] = useState(null);
   const { toast, showToast, clearToast } = useToast();
+  const [preview, setPreview] = useState(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -515,10 +519,10 @@ export default function AttendanceShiftsPage() {
 
   function timingLabel(s) {
     const type = shiftType(s);
-    if (type === "flexible") return `Min ${s.min_hours ?? "—"} hrs / day${s.core_start_time ? ` · core ${fmt12(s.core_start_time)}–${fmt12(s.core_end_time)}` : ""}`;
+    if (type === "flexible") return s.min_hours == null ? "N/A" : `Min ${s.min_hours} hrs / day${s.core_start_time ? ` · core ${fmt12(s.core_start_time)}–${fmt12(s.core_end_time)}` : ""}`;
     if (type === "split" && s.split_start_time_2) return `${fmt12(s.start_time)}–${fmt12(s.end_time)}, ${fmt12(s.split_start_time_2)}–${fmt12(s.split_end_time_2)}`;
     if (s.start_time && s.end_time) return `${fmt12(s.start_time)} – ${fmt12(s.end_time)}${s.is_overnight ? " (+1 day)" : ""}`;
-    return "—";
+    return "N/A";
   }
 
   function policyLabel(s) {
@@ -536,7 +540,7 @@ export default function AttendanceShiftsPage() {
 
   function phaseSummary(r) {
     const entries = [...(r.entries || r.rotation_entries || [])].sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
-    if (entries.length === 0) return "—";
+    if (entries.length === 0) return "N/A";
     return entries
       .map((e) => `${e.duration_days}d ${e.shift?.name || shiftById[e.shift_id]?.name || "Shift"}`)
       .join(" → ");
@@ -596,7 +600,7 @@ export default function AttendanceShiftsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {shifts.map((s) => (
-                        <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={s.id} {...rowPreviewProps(() => setPreview(s), `View ${s.name}`)}>
                           <td className="px-6 py-4 text-sm font-semibold text-slate-800">{s.name}</td>
                           <td className="px-6 py-4">
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${TYPE_COLORS[shiftType(s)] || "bg-slate-100 text-slate-600"}`}>{shiftType(s)}</span>
@@ -706,6 +710,62 @@ export default function AttendanceShiftsPage() {
           onSaved={(msg) => { setShowRotationModal(false); showToast(msg); load(); }}
         />
       )}
+
+      {preview && (() => {
+        const p = preview;
+        const type = shiftType(p);
+        const pid = p.policy_id || p.policy?.id;
+        const pol = pid ? policyById[pid] || p.policy : null;
+        const hours = (v) => (v != null && v !== "" ? `${v} hrs` : null);
+        return (
+          <DetailDialog
+            eyebrow="Shift template"
+            icon={HiClock}
+            title={p.name}
+            subtitle={SHIFT_TYPE_OPTIONS.find((t) => t.value === type)?.desc}
+            badge={<DetailPill tone="onDark">{p.is_active ? "Active" : "Inactive"}</DetailPill>}
+            onClose={() => setPreview(null)}
+            footer={
+              <button onClick={() => { const s = p; setPreview(null); handleEditShift(s); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                <HiPencil className="w-4 h-4" /> Edit shift
+              </button>
+            }
+          >
+            <DetailSection title="Working hours" icon={HiClock}>
+              <DetailGrid
+                items={[
+                  ["Shift type", type.charAt(0).toUpperCase() + type.slice(1)],
+                  ["Working hours", timingLabel(p)],
+                  ...(type === "flexible"
+                    ? [["Minimum hours / day", hours(p.min_hours)], ["Core hours", p.core_start_time ? `${fmt12(p.core_start_time)} – ${fmt12(p.core_end_time)}` : "Not set"]]
+                    : [["Starts", fmt12(p.start_time)], ["Ends", fmt12(p.end_time)]]),
+                  ...(type === "split" ? [["Second block starts", fmt12(p.split_start_time_2)], ["Second block ends", fmt12(p.split_end_time_2)]] : []),
+                  ["Ends next day", p.is_overnight ? "Yes" : "No"],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Clock-in window" icon={HiAdjustments}>
+              <DetailGrid
+                cols={2}
+                items={[
+                  ["Early entry allowed", `${p.buffer_minutes_before ?? 0} mins before start`],
+                  ["Late entry allowed", `${p.buffer_minutes_after ?? 0} mins after start`],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Attendance policy" icon={HiClipboardList}>
+              <DetailGrid
+                items={[
+                  ["Policy", pol?.name || (pid ? "Linked policy" : "Organisation default")],
+                  ["Grace period", pol?.grace_minutes != null ? `${pol.grace_minutes} mins` : null],
+                  ["Hours for full day", hours(pol?.full_day_min_hours)],
+                  ["Hours for half day", hours(pol?.half_day_min_hours)],
+                ]}
+              />
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
 
       <Toast toast={toast} onClose={clearToast} />
     </>
