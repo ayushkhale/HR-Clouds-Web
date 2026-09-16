@@ -180,11 +180,24 @@ export function validatePolicy(form) {
   return { errors, payload };
 }
 
-// ── §5.2 Shift template ─────────────────────────────────────────────────────
+// ── Shift template (update_shift_templates_2026_09_14.md §3) ────────────────
+// The engine reads four fields off a shift — start_time, end_time, timezone,
+// is_overnight — and takes every threshold from the attendance policy.
+// min_hours, core_*, split_*_2 and buffer_minutes_* no longer exist.
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/** Per-type time requirements are not enforced by the backend (§5.2). */
-export function validateShift(form, { isEdit = false, hadPolicy = false } = {}) {
+/** Types that need both times. `split` is calculated exactly like `fixed`. */
+export const TIMED_SHIFT_TYPES = ["fixed", "night", "split"];
+
+/**
+ * The backend checks "timed types need both times" on POST only; PUT skips it,
+ * and a timed shift saved without times silently stops lateness for everyone
+ * on it (§5.4). So the rule is enforced here for create and edit alike.
+ * @param {{ name: string, type: string, policy_id: string, start_time: string, end_time: string }} form
+ * @param {{ isEdit?: boolean, hadPolicy?: boolean, hadTimes?: boolean }} [context]
+ *   `hadTimes`: the saved shift has a start or end time.
+ */
+export function validateShift(form, { isEdit = false, hadPolicy = false, hadTimes = false } = {}) {
   const errors = {};
   const type = form.type || "fixed";
   const name = requiredName(errors, form.name, "Shift name");
@@ -198,48 +211,25 @@ export function validateShift(form, { isEdit = false, hadPolicy = false } = {}) 
   if (form.policy_id) payload.policy_id = form.policy_id;
   else if (isEdit && hadPolicy) payload.policy_id = null;
 
-  if (type === "fixed" || type === "night" || type === "split") {
-    const start = time("start_time", type === "split" ? "First block start" : "Start time");
-    const end = time("end_time", type === "split" ? "First block end" : "End time");
+  if (TIMED_SHIFT_TYPES.includes(type)) {
+    const start = time("start_time", "Start time");
+    const end = time("end_time", "End time");
     if (!errors.start_time && !errors.end_time && start === end) errors.end_time = "End time must differ from the start time.";
     payload.start_time = start;
     payload.end_time = end;
-    if (type === "night" || (type === "fixed" && end < start)) payload.is_overnight = true;
-    else payload.is_overnight = false;
-    if (type === "split" && !errors.start_time && !errors.end_time && end < start) {
-      errors.end_time = "Each split block must end on the same day it starts.";
+    // The backend never infers this, and the engine reads it to place the end
+    // on the next day. HH:mm strings compare correctly as text.
+    payload.is_overnight = !errors.start_time && !errors.end_time && end < start;
+  } else if (type === "flexible") {
+    // "No fixed start/end": clear times left from an earlier type, or the
+    // engine keeps judging lateness against them.
+    if (isEdit && hadTimes) {
+      payload.start_time = null;
+      payload.end_time = null;
     }
-  }
-
-  if (type === "split") {
-    const s2 = time("split_start_time_2", "Second block start");
-    const e2 = time("split_end_time_2", "Second block end");
-    if (!errors.split_start_time_2 && !errors.split_end_time_2 && e2 <= s2) errors.split_end_time_2 = "Second block must end after it starts.";
-    if (!errors.end_time && !errors.split_start_time_2 && s2 < form.end_time) errors.split_start_time_2 = "Second block must start after the first block ends.";
-    payload.split_start_time_2 = s2;
-    payload.split_end_time_2 = e2;
-  }
-
-  if (type === "flexible") {
-    payload.min_hours = decimalInRange(errors, "min_hours", form.min_hours, { min: 0, max: 24, exclusiveMin: true, label: "Minimum hours" });
     payload.is_overnight = false;
-    const hasCore = form.core_start_time || form.core_end_time;
-    if (hasCore) {
-      const cs = time("core_start_time", "Core start");
-      const ce = time("core_end_time", "Core end");
-      if (!errors.core_start_time && !errors.core_end_time && ce <= cs) errors.core_end_time = "Core hours must end after they start.";
-      payload.core_start_time = cs;
-      payload.core_end_time = ce;
-    } else if (isEdit) {
-      payload.core_start_time = null;
-      payload.core_end_time = null;
-    }
   }
-
-  const before = intInRange(errors, "buffer_minutes_before", form.buffer_minutes_before, { min: 0, max: 480, label: "Early entry buffer", required: false });
-  const after = intInRange(errors, "buffer_minutes_after", form.buffer_minutes_after, { min: 0, max: 480, label: "Late entry buffer", required: false });
-  payload.buffer_minutes_before = before ?? 0;
-  payload.buffer_minutes_after = after ?? 0;
+  // `rotational`: each day's shift comes from the rotation pattern; times are left as saved.
 
   return { errors, payload };
 }

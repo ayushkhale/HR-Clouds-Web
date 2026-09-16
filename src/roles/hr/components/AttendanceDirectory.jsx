@@ -10,6 +10,9 @@ import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 
 // The HR list composes `name` server-side and sends the literal "Unknown" when a
 // user has no profile row (typically the HR who signed the organisation up).
+// Gap G-8 creates those rows and backfills existing organisations; after that
+// `name` is the real name or the login email, never "Unknown". Remove this
+// fallback once the backend confirms the backfill ran in every environment.
 const PLACEHOLDER_NAME = "Unknown";
 import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, todayYMD } from "../../../shared/attendance/dates";
 import { RECORD_STATUS_FILTERS } from "../../../shared/attendance/enums";
@@ -158,7 +161,7 @@ function AttendanceDirectory() {
                         <td className="px-6 py-3.5">{record.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={record.status || "not_marked"} />}</td>
                         <td className="px-6 py-3.5">
                           {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">Not clocked in</span>}
-                          {Number(record.late_minutes) > 0 && <p className="text-[10px] text-amber-600 font-bold mt-0.5">{fmtMinutes(record.late_minutes)} late</p>}
+                          {Number(record.late_minutes) > 0 && <p className="text-[10px] text-fuchsia-600 font-bold mt-0.5">{fmtMinutes(record.late_minutes)} late</p>}
                         </td>
                         <td className="px-6 py-3.5">
                           {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}

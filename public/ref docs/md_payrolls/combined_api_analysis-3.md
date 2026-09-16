@@ -1,6 +1,6 @@
-# Combined API Analysis: Payroll Module (Phases 1–4: Foundation, Run Engine, Variable Pay & Statutory/Tax)
+# Combined API Analysis: Payroll Module (Phases 1–5: Foundation, Run Engine, Variable Pay, Statutory/Tax & Reimbursements/Benefits)
 
-This document is the request/response contract for **every endpoint shipped across Phases 1, 2, 3, and 4** of the Payroll module: the salary-component catalog, salary-structure templates, per-employee versioned effective-dated salary structures (with the D-13 maker-checker chain), org payroll settings, encrypted bank accounts, the append-only audit trail, the core calculation and run execution engine, the complete variable-pay suite (bonuses, ad-hoc adjustments, bulk CSV batches, employee loans, EMI schedules, foreclosures, and shortfall carry-forwards), and the **Phase 4 statutory & tax layer** (the `statutory_configs` singleton, professional-tax slabs, income-tax regimes/slabs, investment declarations, per-employee tax summaries & Form 16, and the self-service tax surface).
+This document is the request/response contract for **every endpoint shipped across Phases 1, 2, 3, 4, and 5** of the Payroll module: the salary-component catalog, salary-structure templates, per-employee versioned effective-dated salary structures (with the D-13 maker-checker chain), org payroll settings, encrypted bank accounts, the append-only audit trail, the core calculation and run execution engine, the complete variable-pay suite (bonuses, ad-hoc adjustments, bulk CSV batches, employee loans, EMI schedules, foreclosures, and shortfall carry-forwards), the **Phase 4 statutory & tax layer** (the `statutory_configs` singleton, professional-tax slabs, income-tax regimes/slabs, investment declarations, per-employee tax summaries & Form 16, and the self-service tax surface), and the **Phase 5 suite** covering expense reimbursement categories, live budget headroom, claims authoring, multi-tier approvals with line-item trimming, out-of-pocket payout protection (Step 8f injection), corporate benefit plans and enrollments (Step 8a' deductions without proration), Form 16 Part A distribution, and the binary-free pre-signed S3 document vault.
 
 > **Global envelope.** Success: `{ "success": true, "message": "...", "data": ... }`. Error: `{ "success": false, "message": "...", "errorCode": "..." }` via `AppError(status, message, errorCode)`. Every handler is `async (req, res, next)` with `try/catch → next(error)`.
 
@@ -13,6 +13,12 @@ This document is the request/response contract for **every endpoint shipped acro
 > **`ctc_cost` semantic change in Phase 4 (engine 4).** On a run item, `ctc_cost` is the true employer cost of employment for the period. Through engine 3 it was earnings plus employer variable-pay contributions; from **engine 4 it additionally includes the employer statutory contributions** — PF-employer, EPS, EDLI, the PF admin charge, and ESI-employer — because those are real employer outlays. Frozen engine-2/-3 runs are unaffected (D-12); their `ctc_cost` keeps the old meaning, and the item's `engine_version` disambiguates which definition applies. Consumers aggregating employer cost across mixed-engine periods must not assume a single formula — read `engine_version`.
 
 > **Honesty guard on every payslip/figure endpoint.** Each run item carries `statutory_status` (`applied` | `disabled` | `not_applied`) and its run carries `engine_version`, so a reader can never mistake a pre-statutory `net_pay` for a real post-withholding take-home. Engine-4 items are `applied` (org withholds) or `disabled` (org opted out); engine-2/-3 items are `not_applied`. The self/manager payslip exposes the employee's own statutory heads and wage bases but **never** `statutory_snapshot` (HR-only diagnostics carrying declaration-derived figures — D-28).
+
+> **Reimbursement Payout Invariant (D-31).** A reimbursement payout is **not an earning**. It never appears in `gross_earnings`, `taxable_earnings`, `pf_wage`, `esi_wage`, the Professional Tax (PT) base, or `ctc_cost`. It sits outside the negative-net wage clamp (**Step 8f**), entering only `net_pay` and the new `reimbursement_amount` column. Emitting a reimbursement as an earning line is strictly prevented because it would corrupt statutory withholdings and violate labor law by treating an expense reimbursement as taxable income.
+
+> **Benefit Deduction & Contribution Invariant (D-33, D-36, D-37).** Benefit plans carry flat monthly contributions for employee deductions (**Step 8a′**, prioritized before discretionary loan EMI recovery) and/or employer contributions (**Step 6c**, factored into CTC). Benefits carry no mid-month proration (**D-36**); an active enrollment charges a full month's premium if it touches any calendar day of the month. Dual-layer month-overlap protection (PostgreSQL `btree_gist` EXCLUDE constraint + serialised service assertion under `payroll:benefit:{userId}`) guarantees an employee is never double-deducted.
+
+> **Binary-Free Polymorphic S3 Storage (D-30).** The API process never buffers, parses, or streams document binaries. Attachment lifecycles operate strictly through short-lived pre-signed AWS S3 URLs: pre-signed `PUT` (10-minute TTL) binding exact `Content-Type` and `Content-Length`, `HeadObject` verification prior to confirmation, and pre-signed `GET` (5-minute TTL) with inline browser rendering or download disposition. Serves reimbursement receipts, Chapter VI-A investment declaration proofs, and Form 16 Part A certificates under a unified schema.
 
 > **Component-evaluation definitional note (§5.2 — must not be re-derived differently).** When a structure is evaluated (on assignment, revision, and **preview**), components resolve in a fixed, deterministic order — within each tier by `display_order`, then `code` as a stable tiebreak:
 > 1. `flat` — the given amount.
@@ -1023,3 +1029,569 @@ This document is the request/response contract for **every endpoint shipped acro
 * **Detailed API Function**: Records proof references for specific items and transitions their status to `submitted`. Executed without reopening the entire declaration. Allowed while status is `submitted` or `under_review`, provided the item is not `rejected`. Cannot touch `declared_amount`.
 * **Error Handling**: `404 DECLARATION_NOT_FOUND`, `409 DECLARATION_NOT_SUBMITTED` (only allowed while submitted or under_review), `403 DECLARATION_ITEM_FORBIDDEN` (item must belong to declaration), `422 INVALID_DECLARATION_ITEM`.
 * **What This API Gives/Does**: Updates specific proof references in the declaration.
+
+---
+
+# Phase 5: Reimbursements, Benefits & Secure Documents
+
+## 1. HR Administration APIs — `/api/v1/payroll/hr` (Phase 5)
+
+*Auth stack for every route below: `authenticate` → `authorize(['hr'])` → `requireFeature('payroll.access')`.*
+
+### 128. Create Reimbursement Category
+* **API Name / Purpose**: Define an organizational expense reimbursement category with limits and tax treatment.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/categories`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "code": "TRAVEL",
+    "name": "Travel & Conveyance",
+    "description": "Client site travel, airfare, local transit",
+    "max_claim_amount": 1500000,
+    "monthly_limit": 3000000,
+    "annual_limit": 15000000,
+    "requires_receipt": true,
+    "is_taxable": false,
+    "is_active": true
+  }
+  ```
+* **Request Fields**:
+  * `code` (String, Required): Unique category identifier (`^[A-Z0-9_]+$`, max 50 chars).
+  * `name` (String, Required): Category display name (max 100 chars).
+  * `description` (String, Optional): Operational policy description.
+  * `max_claim_amount` (Money, Optional): Maximum amount per single line item.
+  * `monthly_limit` (Money, Optional): Monthly budget cap per employee.
+  * `annual_limit` (Money, Optional): Annual financial year budget cap per employee.
+  * `requires_receipt` (Boolean, Optional, default `true`): Mandatory receipt attachment flag.
+  * `is_taxable` (Boolean, Optional, default `false`): Non-taxable reimbursement vs. taxable perquisite.
+  * `is_active` (Boolean, Optional, default `true`): Active status flag.
+* **Detailed API Function**: Inserts a new reimbursement category for the tenant. Validates uniqueness of `code` and verifies the limit hierarchy constraint (`max_claim_amount <= monthly_limit <= annual_limit`). Audit-logged.
+* **Error Handling**: `409 REIMBURSEMENT_CATEGORY_EXISTS`, `422 INVALID_LIMIT_HIERARCHY`, `400/422` validation errors.
+* **What This API Gives/Does**: Returns the created category record (201 Created).
+
+### 129. List Reimbursement Categories
+* **API Name / Purpose**: Retrieve all reimbursement categories for the organization.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/categories`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `is_active` (Boolean, Optional), `is_taxable` (Boolean, Optional), `requires_receipt` (Boolean, Optional), `search` (String, Optional).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Lists all reimbursement categories scoped to the authenticated tenant, with optional filtering.
+* **Error Handling**: Standard auth errors; `422` validation for invalid query parameters.
+* **What This API Gives/Does**: Array of category objects.
+
+### 130. Get Reimbursement Category
+* **API Name / Purpose**: Fetch detailed configuration of a single reimbursement category.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/categories/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns the category entity matching `:id` within the organization.
+* **Error Handling**: `404 CATEGORY_NOT_FOUND`.
+* **What This API Gives/Does**: Single category object.
+
+### 131. Update Reimbursement Category
+* **API Name / Purpose**: Update an existing reimbursement category's parameters.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/categories/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: Accepts any subset of `name`, `description`, `max_claim_amount`, `monthly_limit`, `annual_limit`, `requires_receipt`, `is_taxable`, `is_active` (`code` is immutable). Min 1 field required.
+* **Detailed API Function**: Partially updates the category. Re-evaluates limit hierarchy assertions against new and existing limits. Affects subsequent claim authoring and validations. Audit-logged.
+* **Error Handling**: `404 CATEGORY_NOT_FOUND`, `409 IMMUTABLE_CATEGORY_CODE`, `422 INVALID_LIMIT_HIERARCHY`.
+* **What This API Gives/Does**: Returns the updated category entity.
+
+### 132. Deactivate Reimbursement Category
+* **API Name / Purpose**: Soft-delete / deactivate a reimbursement category.
+* **HTTP Method**: `DELETE`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/categories/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Sets `is_active = false`. Rejects deactivation if there are active, unfinalized claims currently referencing this category. Never hard-deletes.
+* **Error Handling**: `404 CATEGORY_NOT_FOUND`, `409 CATEGORY_HAS_ACTIVE_CLAIMS`.
+* **What This API Gives/Does**: Returns the deactivated category record.
+
+### 133. List Organization Reimbursement Claims
+* **API Name / Purpose**: List all employee reimbursement claims across the organization.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/claims`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `status` (Enum: `draft`, `submitted`, `under_review`, `approved`, `rejected`, `paid`, `cancelled`), `user_id` (UUID), `period_month` (`YYYY-MM`), `payout_period_month` (`YYYY-MM`), `page` (Integer, default 1), `limit` (Integer, default 20).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Retrieves paginated list of claims with eager-loaded claimant summaries, line-item counts, total amounts, and current approval statuses.
+* **Error Handling**: Standard auth errors; `422` on invalid query filters.
+* **What This API Gives/Does**: Paginated `{ rows: [...], count, page, total_pages }`.
+
+### 134. Get Claim Details (HR View)
+* **API Name / Purpose**: View full details, items, receipts, and audit trail of a reimbursement claim.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/claims/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns full claim record: line items, expense dates, merchants, receipt references, attached document IDs, complete approval history with reviewer names, timestamps, trimming notes, and linked payroll run ID.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`.
+* **What This API Gives/Does**: Full claim object with nested items, approvals, and attachments.
+
+### 135. Approve Reimbursement Claim (HR Level 2 / Final)
+* **API Name / Purpose**: Grant final Level 2 approval, trim line items, and schedule claim into a payroll run.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/claims/:id/approve`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**:
+  ```json
+  {
+    "notes": "Verified invoices and approved for October payroll",
+    "payout_period_month": "2026-10",
+    "item_approvals": [
+      {
+        "item_id": "c7a8b9d0-1234-4567-89ab-cdef01234567",
+        "approved_amount": 750000,
+        "remarks": "Approved in full"
+      }
+    ]
+  }
+  ```
+* **Detailed API Function**: Acquires Rank-1 run advisory lock on target payout month, followed by Rank-3 claim advisory lock (`payroll:claim:{claimId}`). Blocks self-approval (`acted_by !== claimant`). Validates trimming (`0 <= approved_amount <= claimed_amount`). If all lines trimmed to ₹0.00, auto-transitions claim to `rejected`. Automatically looks ahead up to `reimbursement_payout_lookahead_months` (default 2) to find the earliest open regular payroll run if `payout_period_month` is omitted. Marks target run as `requires_recalculation = true` (D-18). Transitions claim status to `approved`.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `409 CLAIM_NOT_SUBMITTED`, `403 SELF_APPROVAL_FORBIDDEN`, `422 INVALID_TRIMMED_AMOUNT`, `422 NO_OPEN_PAYOUT_PERIOD`, `409 RUN_CALCULATION_IN_PROGRESS`.
+* **What This API Gives/Does**: Returns the approved claim with stamped `payout_period_month` and finalized `approved_amount`.
+
+### 136. Reject Reimbursement Claim (HR Review)
+* **API Name / Purpose**: Reject a reimbursement claim with a mandatory justification.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/claims/:id/reject`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: `{ "rejection_reason": "Receipts do not comply with company travel policy" }` (Required, min 5 chars).
+* **Detailed API Function**: Transitions claim to `rejected`. Restores claimant's monthly/annual category headroom budget. Prohibits self-approval/rejection. Records reviewer identity and timestamp.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `409 CLAIM_NOT_ACTIONABLE` (if already approved/paid/cancelled), `403 SELF_APPROVAL_FORBIDDEN`, `422 REJECTION_REASON_REQUIRED`.
+* **What This API Gives/Does**: Returns claim in `rejected` status.
+
+### 137. Mark Reimbursement Claim Paid (Direct Payout)
+* **API Name / Purpose**: Disburse reimbursement directly off-cycle outside regular payroll.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/reimbursements/claims/:id/mark-paid`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**:
+  ```json
+  {
+    "payment_method": "bank_transfer",
+    "payment_reference": "NEFT-HDFC-994827104",
+    "paid_at": "2026-10-15T10:30:00Z",
+    "notes": "Off-cycle direct disbursement via treasury"
+  }
+  ```
+* **Detailed API Function**: Transitions an `approved` claim to `paid` status without waiting for monthly payroll execution. Records payment method, reference number, and disbursement timestamp. Prevents payroll run from double-injecting the claim into payslips.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `409 CLAIM_NOT_APPROVED`, `422 INVALID_PAYMENT_METHOD`.
+* **What This API Gives/Does**: Stamped claim in `paid` terminal status.
+
+### 138. Create Benefit Plan
+* **API Name / Purpose**: Create a corporate benefit, health, or life insurance plan.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/plans`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "code": "GMC_500K",
+    "name": "Group Medical Cover ₹5L",
+    "benefit_type": "health_insurance",
+    "provider_name": "Star Health Insurance",
+    "policy_number": "SH-CORP-2026-001",
+    "employee_monthly_deduction": 150000,
+    "employer_monthly_contribution": 300000,
+    "coverage_details": {
+      "sum_insured": 500000,
+      "room_rent_cap": 5000,
+      "copay": 0
+    },
+    "is_active": true
+  }
+  ```
+* **Request Fields**:
+  * `code` (String, Required): Unique identifier (`^[A-Z0-9_]+$`).
+  * `name` (String, Required): Plan title.
+  * `benefit_type` (Enum, Required): `health_insurance` | `life_insurance` | `accidental_insurance` | `wellness` | `retirement` | `other`.
+  * `provider_name` (String, Required): Insurance company or carrier name.
+  * `policy_number` (String, Optional): Master agreement policy number.
+  * `employee_monthly_deduction` (Money, Required, default 0): Fixed monthly amount deducted from employee net pay (Step 8a').
+  * `employer_monthly_contribution` (Money, Required, default 0): Fixed monthly subsidy paid by employer (tracked in CTC).
+  * `coverage_details` (Object, Optional): JSON metadata of policy rules.
+  * `is_active` (Boolean, Optional, default `true`).
+* **Detailed API Function**: Inserts new corporate benefit plan. Asserts code uniqueness within tenant. Validates non-negative amounts. Audit-logged.
+* **Error Handling**: `409 BENEFIT_PLAN_EXISTS`, `422 INVALID_BENEFIT_TYPE`, `400/422` validation.
+* **What This API Gives/Does**: Returns created benefit plan object (201 Created).
+
+### 139. List Benefit Plans
+* **API Name / Purpose**: Retrieve organizational benefit and insurance catalog.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/plans`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `benefit_type` (Enum, Optional), `is_active` (Boolean, Optional), `search` (String, Optional).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Lists all benefit plans configured for the organization with active enrollment counts.
+* **What This API Gives/Does**: Array of benefit plan objects.
+
+### 140. Get Benefit Plan
+* **API Name / Purpose**: View details of a specific benefit plan.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/plans/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns single benefit plan with full coverage metadata.
+* **Error Handling**: `404 PLAN_NOT_FOUND`.
+* **What This API Gives/Does**: Benefit plan object.
+
+### 141. Update Benefit Plan
+* **API Name / Purpose**: Update parameters of an existing benefit plan.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/plans/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: Accepts any subset of `name`, `provider_name`, `policy_number`, `employee_monthly_deduction`, `employer_monthly_contribution`, `coverage_details`, `is_active`. (`code` and `benefit_type` are immutable). Min 1 field required.
+* **Detailed API Function**: Partially updates the benefit plan. Rate modifications take effect in future payroll runs. Audit-logged.
+* **Error Handling**: `404 PLAN_NOT_FOUND`, `409 IMMUTABLE_PLAN_FIELD`.
+* **What This API Gives/Does**: Updated benefit plan object.
+
+### 142. Deactivate Benefit Plan
+* **API Name / Purpose**: Soft-delete / deactivate a benefit plan.
+* **HTTP Method**: `DELETE`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/plans/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Sets `is_active = false`. Rejects deactivation if active employee enrollments exist.
+* **Error Handling**: `404 PLAN_NOT_FOUND`, `409 PLAN_HAS_ACTIVE_ENROLLMENTS`.
+* **What This API Gives/Does**: Deactivated plan record.
+
+### 143. Enroll Employee in Benefit Plan
+* **API Name / Purpose**: Enroll an employee in a corporate benefit plan with coverage tier and dependents.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/enrollments`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "user_id": "c7a8b9d0-1234-4567-89ab-cdef01234567",
+    "plan_id": "b1a2c3d4-5678-90ab-cdef-1234567890ab",
+    "policy_number": "IND-MBR-9842",
+    "start_date": "2026-10-01",
+    "end_date": null,
+    "coverage_tier": "family_floater",
+    "dependents": [
+      { "name": "Pooja Sharma", "relationship": "spouse", "dob": "1992-05-14" }
+    ]
+  }
+  ```
+* **Detailed API Function**: Creates employee enrollment. Acquires advisory lock `payroll:benefit:{userId}`. Validates plan is active. Enforces PostgreSQL `btree_gist` EXCLUDE constraint and service assertion to prevent concurrent overlapping enrollments in the same plan. Triggers full monthly premium in any month touching the enrollment window (no mid-month proration, D-36).
+* **Error Handling**: `404 PLAN_NOT_FOUND`, `404 USER_NOT_FOUND`, `409 ENROLLMENT_PERIOD_OVERLAP`, `422 INVALID_COVERAGE_TIER`.
+* **What This API Gives/Does**: Created enrollment entity (201 Created).
+
+### 144. List Organization Benefit Enrollments
+* **API Name / Purpose**: List employee benefit enrollments across the organization.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/enrollments`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `user_id` (UUID), `plan_id` (UUID), `status` (`active`, `cancelled`, `expired`), `page`, `limit`.
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns paginated list of enrollments with employee details, plan codes, deduction amounts, and status.
+* **What This API Gives/Does**: Paginated `{ rows, count, page, total_pages }`.
+
+### 145. Get Benefit Enrollment Details
+* **API Name / Purpose**: Fetch full details of an employee's benefit enrollment.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/enrollments/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns enrollment record including policy number, coverage tier, full dependent roster, and historical payroll deduction timestamps.
+* **Error Handling**: `404 ENROLLMENT_NOT_FOUND`.
+* **What This API Gives/Does**: Enrollment object with nested plan and dependents.
+
+### 146. Update Benefit Enrollment
+* **API Name / Purpose**: Update an existing benefit enrollment (tier, policy ID, dependents, end date).
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/enrollments/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: Accepts any subset of `policy_number`, `end_date`, `coverage_tier`, `dependents`, `status`.
+* **Detailed API Function**: Updates enrollment parameters. If `end_date` is updated, verifies no overlap with sibling enrollments. Does not retroactively alter closed payroll runs.
+* **Error Handling**: `404 ENROLLMENT_NOT_FOUND`, `409 ENROLLMENT_PERIOD_OVERLAP`, `422 INVALID_DATE_RANGE`.
+* **What This API Gives/Does**: Updated enrollment object.
+
+### 147. Cancel Benefit Enrollment
+* **API Name / Purpose**: Cancel / terminate an employee's benefit enrollment.
+* **HTTP Method**: `DELETE`
+* **Endpoint / Route**: `/api/v1/payroll/hr/benefits/enrollments/:id`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Sets status to `cancelled`. Premium deductions cease in subsequent payroll runs. Historical deductions remain intact.
+* **Error Handling**: `404 ENROLLMENT_NOT_FOUND`, `409 ENROLLMENT_ALREADY_INACTIVE`.
+* **What This API Gives/Does**: Cancelled enrollment entity.
+
+### 148. Request Pre-Signed Document Upload URL (HR Context)
+* **API Name / Purpose**: Obtain a pre-signed S3 PUT URL for uploading attachments (Form 16 Part A, tax proofs, receipts).
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/documents/upload-url`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "entity_type": "form16_part_a",
+    "entity_id": "c7a8b9d0-1234-4567-89ab-cdef01234567",
+    "file_name": "FORM16A_2025-26.pdf",
+    "mime_type": "application/pdf",
+    "file_size_bytes": 1048576
+  }
+  ```
+* **Detailed API Function**: Generates pre-signed S3 `PUT` URL with 10-minute expiration. Validates allowed MIME types (PDF, JPEG, PNG, WebP; SVG and executables strictly rejected, D-30). Size capped at 10 MB. Pre-registers document row in `pending` status.
+* **Error Handling**: `422 DISALLOWED_FILE_TYPE`, `422 FILE_SIZE_EXCEEDED`, `422 INVALID_ENTITY_TYPE`.
+* **What This API Gives/Does**: Returns `{ upload_url, document_id, key, expires_in_seconds }`.
+
+### 149. Confirm Document Upload (HR Context)
+* **API Name / Purpose**: Confirm an uploaded document after client successfully transmits to S3.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/hr/documents/confirm`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request JSON Payload**: `{ "document_id": "uuid" }`
+* **Detailed API Function**: Performs S3 `HeadObject` check to verify the object exists in the storage bucket with expected Content-Length. Transitions document status from `pending` to `active`.
+* **Error Handling**: `404 DOCUMENT_NOT_FOUND`, `422 S3_OBJECT_MISSING`, `409 DOCUMENT_ALREADY_CONFIRMED`.
+* **What This API Gives/Does**: Confirmed document object with active status.
+
+### 150. Get Pre-Signed Document Download/View URL (HR Context)
+* **API Name / Purpose**: Generate an expiring pre-signed S3 GET URL to download or view an attachment.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/hr/documents/:id/url`
+* **Authentication / Authorization**: Token. Roles: `hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required). Query: `disposition` (`inline` | `attachment`, default `inline`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Generates secure pre-signed S3 `GET` URL valid for 5 minutes. Binaries never flow through the application server.
+* **Error Handling**: `404 DOCUMENT_NOT_FOUND`.
+* **What This API Gives/Does**: `{ download_url, expires_at }`.
+
+---
+
+## 2. Manager APIs — `/api/v1/payroll/manager` (Phase 5)
+
+*Auth stack for every route below: `authenticate` → `authorize(['manager', 'hr'])` → `requireFeature('payroll.access')`.*
+
+### 151. List Team Reimbursement Claims
+* **API Name / Purpose**: View pending reimbursement claims submitted by direct reports.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/manager/reimbursements/claims`
+* **Authentication / Authorization**: Token. Roles: `manager, hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `status` (Enum), `period_month` (`YYYY-MM`), `page`, `limit`.
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Enforces BOLA boundary. Only returns claims where `claimant.reporting_person_id == manager.user_id`.
+* **What This API Gives/Does**: Paginated list of team claims.
+
+### 152. Get Team Claim Details
+* **API Name / Purpose**: Review items, receipts, and justification of a direct report's claim.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/manager/reimbursements/claims/:id`
+* **Authentication / Authorization**: Token. Roles: `manager, hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: BOLA verification. Returns full line items, merchant details, bill references, and attached document IDs for review.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `403 FORBIDDEN_NOT_TEAM_MEMBER`.
+* **What This API Gives/Does**: Team claim object with nested items.
+
+### 153. Approve Team Reimbursement Claim (Manager Level 1)
+* **API Name / Purpose**: Grant Level 1 approval on a direct report's claim with optional line-item trimming.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/manager/reimbursements/claims/:id/approve`
+* **Authentication / Authorization**: Token. Roles: `manager, hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**:
+  ```json
+  {
+    "notes": "Verified client travel bills. Approved minus non-compliant dinner.",
+    "item_approvals": [
+      {
+        "item_id": "c7a8b9d0-1234-4567-89ab-cdef01234567",
+        "approved_amount": 350000,
+        "remarks": "Approved taxi travel"
+      }
+    ]
+  }
+  ```
+* **Detailed API Function**: BOLA check. Prohibits self-approval (`acted_by !== claimant`). Supports line item trimming downward. If all lines trimmed to ₹0.00, transitions claim to `rejected`. Otherwise, transitions claim to `under_review` (Level 1 Approved) and routes to HR Level 2.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `403 SELF_APPROVAL_FORBIDDEN`, `403 FORBIDDEN_NOT_TEAM_MEMBER`, `409 CLAIM_NOT_IN_LEVEL1`, `422 INVALID_TRIMMED_AMOUNT`.
+* **What This API Gives/Does**: Claim updated to `under_review` status.
+
+### 154. Reject Team Reimbursement Claim
+* **API Name / Purpose**: Reject a direct report's claim with mandatory justification.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/manager/reimbursements/claims/:id/reject`
+* **Authentication / Authorization**: Token. Roles: `manager, hr`. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: `{ "rejection_reason": "Travel was not pre-authorized by department director" }` (Required, min 5 chars).
+* **Detailed API Function**: BOLA check. Transitions claim to `rejected`. Restores employee's budget headroom. Logs manager comments.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `403 FORBIDDEN_NOT_TEAM_MEMBER`, `409 CLAIM_NOT_ACTIONABLE`, `422 REJECTION_REASON_REQUIRED`.
+* **What This API Gives/Does**: Claim transitioned to `rejected`.
+
+### 155. List Team Benefit Enrollments
+* **API Name / Purpose**: View active insurance and benefit enrollments of direct reports.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/manager/benefits/enrollments`
+* **Authentication / Authorization**: Token. Roles: `manager, hr`. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `status` (Optional).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: BOLA check. Lists benefit coverages for direct reports. If `manager_can_view_team_compensation` is disabled, monetary deduction amounts are masked (`****`), but policy numbers and coverage tiers remain visible for emergency reference.
+* **What This API Gives/Does**: Array of team benefit enrollment objects.
+
+---
+
+## 3. Employee Self-Service APIs — `/api/v1/payroll/me` (Phase 5)
+
+*Auth stack for every route below: `authenticate` → `authorize(['employee', 'manager', 'hr'])` → `requireFeature('payroll.access')`.*
+
+### 156. Get Category Limit Headroom (Employee Self-Service)
+* **API Name / Purpose**: Calculate real-time remaining spending budget in a category before claiming.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/headroom`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `category_id` (UUID, Required), `period_month` (`YYYY-MM`, Optional, default current month).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Aggregates all submitted, under_review, and approved claims for the employee. Returns remaining monthly limit, remaining annual limit, per-claim cap, and count of active claims.
+* **Error Handling**: `404 CATEGORY_NOT_FOUND`, `422 INVALID_PERIOD_MONTH`.
+* **What This API Gives/Does**: `{ remaining_monthly_limit, remaining_annual_limit, max_claim_amount, active_claims_count }`.
+
+### 157. Create Reimbursement Claim (Draft)
+* **API Name / Purpose**: Author an expense reimbursement claim draft with line items.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/claims`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "title": "Mumbai Client Meeting - Oct 2026",
+    "period_month": "2026-10",
+    "notes": "Flights, hotel stay, and client business lunch",
+    "items": [
+      {
+        "category_id": "c7a8b9d0-1234-4567-89ab-cdef01234567",
+        "description": "Flight BLR to BOM",
+        "expense_date": "2026-10-02",
+        "amount": 650000,
+        "merchant_name": "IndiGo Airlines",
+        "receipt_reference": "INV-66291"
+      }
+    ]
+  }
+  ```
+* **Detailed API Function**: Inserts claim header in `draft` status and nested claim items. Drafts do not consume budget headroom until submitted.
+* **Error Handling**: `422 INVALID_PERIOD_MONTH`, `422 EMPTY_CLAIM_ITEMS`, `404 CATEGORY_NOT_FOUND`.
+* **What This API Gives/Does**: Returns created draft claim object (201 Created).
+
+### 158. List My Reimbursement Claims
+* **API Name / Purpose**: View personal reimbursement claims history and progress.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/claims`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: Query parameters: `status` (Optional), `period_month` (`YYYY-MM`, Optional), `page`, `limit`.
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns paginated claims authored by the authenticated employee with item counts, approved amounts, and payout status.
+* **What This API Gives/Does**: Paginated `{ rows, count, page, total_pages }`.
+
+### 159. Get My Claim Details
+* **API Name / Purpose**: View detailed line items, receipts, and approval timeline of own claim.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/claims/:id`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Ownership validation (`claim.user_id == req.user.id`). Returns items, receipts, approval progress, and scheduled payout run information.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `403 FORBIDDEN`.
+* **What This API Gives/Does**: Full claim entity with nested items and timeline.
+
+### 160. Update My Reimbursement Claim (Draft)
+* **API Name / Purpose**: Modify an unsubmitted reimbursement claim draft.
+* **HTTP Method**: `PUT`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/claims/:id`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: Accepts any subset of `title`, `period_month`, `notes`, `items`.
+* **Detailed API Function**: Modifies claim while in `draft` status. Replaces or updates items. Blocked if claim has been submitted or processed.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `409 CLAIM_NOT_DRAFT`, `403 FORBIDDEN`.
+* **What This API Gives/Does**: Updated draft claim entity.
+
+### 161. Submit My Reimbursement Claim
+* **API Name / Purpose**: Submit a draft claim into the multi-tier review queue.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/claims/:id/submit`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Verifies claim has at least one item, amounts are positive, category limits and headroom are respected, and receipts are attached for mandatory categories. Materializes approval chain (Level 1 Manager + Level 2 HR, or direct HR). Assigns human reference number `RC-YYYYMM-NNNN`. Transitions status from `draft` to `submitted`.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `409 CLAIM_NOT_DRAFT`, `422 CATEGORY_LIMIT_EXCEEDED`, `422 RECEIPT_REQUIRED`.
+* **What This API Gives/Does**: Submitted claim object.
+
+### 162. Cancel My Reimbursement Claim
+* **API Name / Purpose**: Withdraw an expense claim.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/me/reimbursements/claims/:id/cancel`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Claimant cancellation rights (§7.4a). Permitted while in `draft`, `submitted`, or `under_review` (even after Level 1 Manager approval, provided HR has not granted final approval). Forbidden once `approved` or `paid`. Releases budget headroom. Transitions status to `cancelled`.
+* **Error Handling**: `404 CLAIM_NOT_FOUND`, `409 CLAIM_CANNOT_BE_CANCELLED`, `403 FORBIDDEN`.
+* **What This API Gives/Does**: Cancelled claim record.
+
+### 163. List My Active & Past Benefit Enrollments
+* **API Name / Purpose**: View personal group insurance plans, policy IDs, and covered dependents.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/benefits/enrollments`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: None.
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Returns caller's benefit coverages, policy numbers, dependent roster, coverage tier, employee monthly deduction, and employer subsidy.
+* **What This API Gives/Does**: Array of personal benefit enrollments.
+
+### 164. Request Pre-Signed Document Upload URL (Employee Self-Service)
+* **API Name / Purpose**: Obtain a pre-signed S3 PUT URL for uploading receipts or tax proofs.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/me/documents/upload-url`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request JSON Payload**:
+  ```json
+  {
+    "entity_type": "reimbursement_receipt",
+    "entity_id": "c7a8b9d0-1234-4567-89ab-cdef01234567",
+    "file_name": "taxi_bill.pdf",
+    "mime_type": "application/pdf",
+    "file_size_bytes": 524288
+  }
+  ```
+* **Detailed API Function**: S3 pre-signed `PUT` URL (10-minute TTL). Validates caller owns the target entity (`entity_id`). Blocks SVG/executables. Max 10 MB. Pre-registers document in `pending` status.
+* **Error Handling**: `403 FORBIDDEN_NOT_ENTITY_OWNER`, `422 DISALLOWED_FILE_TYPE`, `422 FILE_SIZE_EXCEEDED`.
+* **What This API Gives/Does**: `{ upload_url, document_id, key, expires_in_seconds }`.
+
+### 165. Confirm Document Upload (Employee Self-Service)
+* **API Name / Purpose**: Finalize uploaded receipt or proof after browser transmits to S3.
+* **HTTP Method**: `POST`
+* **Endpoint / Route**: `/api/v1/payroll/me/documents/confirm`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request JSON Payload**: `{ "document_id": "uuid" }`
+* **Detailed API Function**: Verifies S3 `HeadObject` for uploaded file. Ownership check. Transitions document record to `active`.
+* **Error Handling**: `404 DOCUMENT_NOT_FOUND`, `403 FORBIDDEN`, `422 S3_OBJECT_MISSING`.
+* **What This API Gives/Does**: Confirmed document object.
+
+### 166. Get Pre-Signed Document Download/View URL (Employee Self-Service)
+* **API Name / Purpose**: Generate a temporary pre-signed URL to view own receipt, tax proof, or Form 16 Part A.
+* **HTTP Method**: `GET`
+* **Endpoint / Route**: `/api/v1/payroll/me/documents/:id/url`
+* **Authentication / Authorization**: Token. Feature: `payroll.access`.
+* **Request Parameters**: `id` (Path, UUID, Required). Query: `disposition` (`inline` | `attachment`).
+* **Request JSON Payload**: None.
+* **Detailed API Function**: Generates expiring pre-signed S3 `GET` URL (5-minute TTL). Caller must be owner of the document or have authorized role.
+* **Error Handling**: `404 DOCUMENT_NOT_FOUND`, `403 FORBIDDEN`.
+* **What This API Gives/Does**: `{ download_url, expires_at }`.

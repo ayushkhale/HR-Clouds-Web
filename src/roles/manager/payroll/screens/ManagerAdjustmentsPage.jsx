@@ -10,8 +10,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -26,9 +26,9 @@ const fmtPeriod = (pm) => {
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
 };
 const STATUS_PILL = {
-  pending: "bg-amber-100 text-amber-700",
-  approved: "bg-emerald-100 text-emerald-700",
-  active: "bg-emerald-100 text-emerald-700",
+  pending: "bg-fuchsia-100 text-fuchsia-700",
+  approved: "bg-violet-100 text-violet-700",
+  active: "bg-violet-100 text-violet-700",
   rejected: "bg-red-100 text-red-700",
   cancelled: "bg-slate-100 text-slate-600",
 };
@@ -64,9 +64,9 @@ function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Principal</p><p className="text-sm font-black text-slate-800">{money(loan.principal_amount)}</p></div>
-                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Recovered</p><p className="text-sm font-black text-emerald-600">{money(loan.recovered_amount)}</p></div>
+                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Recovered</p><p className="text-sm font-black text-violet-600">{money(loan.recovered_amount)}</p></div>
                 <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Outstanding</p><p className="text-sm font-black text-purple-700">{money(outstanding)}</p></div>
-                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Tenure</p><p className="text-sm font-black text-slate-800">{loan.tenure_months ?? "—"} mo</p></div>
+                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Tenure</p><p className="text-sm font-black text-slate-800">{loan.tenure_months ?? "N/A"} mo</p></div>
               </div>
               <h3 className="text-sm font-bold text-slate-800 mb-2">Installment schedule</h3>
               {installments.length === 0 ? (
@@ -282,8 +282,10 @@ export default function ManagerAdjustmentsPage() {
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(a.amount)}</td>
                           <td className="px-6 py-4"><Pill s={a.status} /></td>
                           <td className="px-6 py-4 text-right">
-                            {a.status === "pending" && (
-                              <button onClick={() => cancelAdj(a.id)} className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel"><HiTrash className="w-4 h-4" /></button>
+                            {a.status === "pending" ? (
+                              <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
+                            ) : (
+                              <span className="text-xs text-slate-400">N/A</span>
                             )}
                           </td>
                         </tr>

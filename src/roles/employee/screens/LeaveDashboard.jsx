@@ -27,8 +27,8 @@ function Toast({ toast, onClose }) {
   const ok = toast.type === "success";
   const info = toast.type === "info";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : info ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-blue-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : info ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -75,13 +75,13 @@ function StatusBadge({ status }) {
     approved: "bg-purple-100 text-purple-800",
     rejected: "bg-slate-100 text-slate-500",
     cancelled: "bg-slate-50 text-slate-400 border border-slate-100",
-    cancellation_pending: "bg-amber-50 text-amber-700 border border-amber-200",
+    cancellation_pending: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
     terminated_cancelled: "bg-slate-100 text-slate-500 border border-slate-200",
   };
   const cls = map[status] || "bg-slate-100 text-slate-500";
   return (
     <span className={`inline-block text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${cls}`}>
-      {status?.replace(/_/g, " ") || "—"}
+      {status?.replace(/_/g, " ") || "N/A"}
     </span>
   );
 }
@@ -148,9 +148,9 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
                   <p className="text-2xl font-extrabold text-slate-900">{parseFloat(details.total_days).toFixed(1)}</p>
                   <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">Total</p>
                 </div>
-                <div className="bg-emerald-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-emerald-700">{parseFloat(details.paid_days || 0).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-emerald-500 mt-1">Paid</p>
+                <div className="bg-violet-50 rounded-xl p-4">
+                  <p className="text-2xl font-extrabold text-violet-700">{parseFloat(details.paid_days || 0).toFixed(1)}</p>
+                  <p className="text-[10px] uppercase font-bold text-violet-500 mt-1">Paid</p>
                 </div>
                 <div className="bg-rose-50 rounded-xl p-4">
                   <p className="text-2xl font-extrabold text-rose-600">{parseFloat(details.unpaid_days || 0).toFixed(1)}</p>
@@ -429,8 +429,8 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <HiCheckCircle className="w-5 h-5 text-emerald-500" />
+            <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
+              <HiCheckCircle className="w-5 h-5 text-violet-500" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-800">Leave Request Submitted!</h2>
@@ -443,9 +443,9 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                 <p className="text-2xl font-extrabold text-slate-900">{parseFloat(req.total_days).toFixed(1)}</p>
                 <p className="text-xs text-slate-400 mt-1">total days</p>
               </div>
-              <div className="bg-emerald-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-emerald-700">{parseFloat(req.paid_days || 0).toFixed(1)}</p>
-                <p className="text-xs text-emerald-500 mt-1">paid days</p>
+              <div className="bg-violet-50 rounded-xl p-4">
+                <p className="text-2xl font-extrabold text-violet-700">{parseFloat(req.paid_days || 0).toFixed(1)}</p>
+                <p className="text-xs text-violet-500 mt-1">paid days</p>
               </div>
               <div className="bg-rose-50 rounded-xl p-4">
                 <p className="text-2xl font-extrabold text-rose-600">{parseFloat(req.unpaid_days || 0).toFixed(1)}</p>
@@ -458,14 +458,14 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                 {bk.map((d, i) => (
                   <div key={i} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg ${d.is_working_day ? "bg-slate-50" : "bg-slate-50/40 text-slate-400"}`}>
                     <span className={d.is_working_day ? "font-medium text-slate-700" : "line-through"}>{d.date}</span>
-                    <span className={`text-[10px] font-semibold ${d.is_working_day ? "text-emerald-600" : "text-slate-400"}`}>{d.reason || (d.is_working_day ? "Leave Day" : "Skipped")}</span>
+                    <span className={`text-[10px] font-semibold ${d.is_working_day ? "text-violet-600" : "text-slate-400"}`}>{d.reason || (d.is_working_day ? "Leave Day" : "Skipped")}</span>
                   </div>
                 ))}
               </div>
             </div>
             {req.escalated_to_role && (
-              <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <div className="flex items-start gap-2 text-xs text-fuchsia-700 bg-fuchsia-50 border border-fuchsia-100 rounded-xl px-4 py-3">
+                <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-fuchsia-500" />
                 No direct manager found — your request was escalated to <strong>{req.escalated_to_role}</strong>.
               </div>
             )}
@@ -530,7 +530,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                       <p className="text-[10px] uppercase font-bold text-slate-400">Available</p>
                     </div>
                     <div>
-                      <p className="text-sm font-extrabold text-amber-600">{pendingHold ? (Number.isInteger(pendingHold) ? pendingHold : pendingHold.toFixed(1)) : "0"}</p>
+                      <p className="text-sm font-extrabold text-fuchsia-600">{pendingHold ? (Number.isInteger(pendingHold) ? pendingHold : pendingHold.toFixed(1)) : "0"}</p>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Pending hold</p>
                     </div>
                     <div>
@@ -548,7 +548,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                   </p>
                 )}
                 {docMayBeRequired && (
-                  <p className="flex items-start gap-1.5 text-[11px] text-amber-600">
+                  <p className="flex items-start gap-1.5 text-[11px] text-fuchsia-600">
                     <HiInformationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                     Leaves longer than {docThreshold} day{docThreshold > 1 ? "s" : ""} may require a supporting document — add a link below.
                   </p>
@@ -753,7 +753,7 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={() => onView(r.id)} className="text-sm font-semibold text-purple-600 hover:text-purple-700 hover:underline text-left">
-                        {r.leave_type?.name || "—"}
+                        {r.leave_type?.name || "N/A"}
                       </button>
                       {r.is_half_day && (
                         <span className="text-[9px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
@@ -931,9 +931,6 @@ export default function LeaveDashboard() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-slate-800">
-                <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
-                  <HiCalendar className="w-5 h-5" />
-                </div>
                 My Leave Dashboard
               </h1>
               <p className="text-sm text-slate-500 mt-1">View your leave balances and manage your requests.</p>

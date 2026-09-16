@@ -9,13 +9,14 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
-import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, RowOpenButton, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage, runFailureAdvice } from "../../../../shared/utils/payrollErrors";
 import { formatPeriod, formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated, personName, employeeCode, departmentName } from "../../../../shared/attendance/normalize";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
 import useEmployeeDirectory from "../useEmployeeDirectory";
+import { embeddedEmployee } from "../variablePayMeta";
 import {
   runStatusMeta, runActions, RUN_CONFIRM, RUN_ACTION_SUCCESS, RUN_ACTION_FAILURE, cancelRunDescription,
   itemErrorMeta, parseWarnings, periodBounds, inferredExitDate, COMPONENT_SOURCE_LABEL, ENGINE_COMPONENT_LABEL,
@@ -40,7 +41,7 @@ const ITEM_STATUS = {
   pending: { label: "Waiting", cls: "bg-slate-50 text-slate-600 border-slate-200" },
   calculated: { label: "Calculated", cls: "bg-purple-50 text-purple-700 border-purple-200" },
   error: { label: "Needs attention", cls: "bg-rose-50 text-rose-700 border-rose-200" },
-  excluded: { label: "Excluded", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  excluded: { label: "Excluded", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
 };
 
 const dayCount = (v) => String(toCount(v));
@@ -94,9 +95,16 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
   const errorMeta = item.status === "error" ? itemErrorMeta(item.error_code) : null;
 
   const byType = (type) => components.filter((c) => c.component_type === type);
-  const earnings = [...byType("earning"), ...byType("reimbursement")];
+  // D-31: a reimbursement is paid on top of net pay and is NOT part of gross, so
+  // it must not sit under Earnings (else "gross − deductions" stops equalling net).
+  // A taxable reimbursement is emitted as an `earning` and stays in Earnings.
+  const earnings = byType("earning");
+  const reimbursements = byType("reimbursement");
   const deductions = byType("deduction");
   const employer = byType("employer_contribution");
+  const reimbursementAmount = Number.parseFloat(item.reimbursement_amount) || 0;
+  const benefitEmployeeAmount = Number.parseFloat(item.benefit_employee_amount) || 0;
+  const benefitEmployerAmount = Number.parseFloat(item.benefit_employer_amount) || 0;
 
   const lineColumns = (tone) => [
     { header: "Component", render: (c) => <span className="font-semibold text-slate-700">{ENGINE_COMPONENT_LABEL[c.component_code] || c.component_name || prettifyCode(c.component_code)}</span> },
@@ -165,9 +173,9 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
         <DetailSection title={`Heads-up (${warnings.length})`} icon={HiLightBulb}>
           <ul className="space-y-2">
             {warnings.map((w, i) => (
-              <li key={`${w.code}-${i}`} className="rounded-xl bg-amber-50/70 border border-amber-100 px-3.5 py-2.5">
-                <p className="text-sm font-bold text-amber-900">{w.title}</p>
-                {w.explain && <p className="text-xs text-amber-800 mt-0.5">{w.explain}</p>}
+              <li key={`${w.code}-${i}`} className="rounded-xl bg-fuchsia-50/70 border border-fuchsia-100 px-3.5 py-2.5">
+                <p className="text-sm font-bold text-fuchsia-900">{w.title}</p>
+                {w.explain && <p className="text-xs text-fuchsia-800 mt-0.5">{w.explain}</p>}
               </li>
             ))}
           </ul>
@@ -199,6 +207,12 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
         </p>
       )}
 
+      {hasFigures && reimbursementAmount > 0 && (
+        <p className="flex items-start gap-2 text-xs text-purple-800 bg-purple-50 border border-purple-200 rounded-xl px-3.5 py-2.5">
+          <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5" /> Net pay includes {formatMoney(reimbursementAmount)} of reimbursements, which aren&apos;t part of gross pay.
+        </p>
+      )}
+
       <DetailSection title="Pay period & days" icon={HiCalendar}>
         <DetailGrid
           items={[
@@ -214,6 +228,9 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
               ["Overtime", `${minutesLabel(item.overtime_minutes)} · ${formatMoney(item.overtime_amount)}`],
               ["Shortfall recovered", formatMoney(item.carry_forward_in)],
               ["Shortfall carried forward", formatMoney(item.carry_forward_out)],
+              ...(reimbursementAmount > 0 ? [["Reimbursements (paid on top)", formatMoney(item.reimbursement_amount)]] : []),
+              ...(benefitEmployeeAmount > 0 ? [["Benefits (employee share)", formatMoney(item.benefit_employee_amount)]] : []),
+              ...(benefitEmployerAmount > 0 ? [["Benefits (company share)", formatMoney(item.benefit_employer_amount)]] : []),
               ["Calculated on", item.calculated_at ? formatDate(item.calculated_at) : null],
             ] : []),
           ]}
@@ -232,6 +249,12 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
             <DetailTable columns={lineColumns("text-rose-600")} rows={deductions} empty="No deductions in this payslip." />
           </DetailSection>
         </div>
+      )}
+
+      {hasFigures && reimbursements.length > 0 && (
+        <DetailSection title="Reimbursements (added to net pay, not part of gross)" icon={HiCurrencyRupee}>
+          <DetailTable columns={lineColumns("text-purple-700")} rows={reimbursements} />
+        </DetailSection>
       )}
 
       {hasFigures && employer.length > 0 && (
@@ -310,7 +333,9 @@ export default function PayrollRunDetailPage() {
   const [header, setHeader] = useState({ loading: true, error: "" });
   const [preview, setPreview] = useState(null);
   // Every employee, leavers included: someone who left this month is still in the run.
-  const people = useEmployeeDirectory();
+  // Fetched only once a row arrives without an embedded employee (gap G-2).
+  const [needDirectory, setNeedDirectory] = useState(false);
+  const people = useEmployeeDirectory({ enabled: needDirectory });
 
   const rawStatus = searchParams.get("status") || "";
   const statusFilter = ITEM_FILTERS.some(([v]) => v === rawStatus) ? rawStatus : "";
@@ -334,10 +359,13 @@ export default function PayrollRunDetailPage() {
   const lookup = people.directory.byId;
   const lookupName = people.nameOf;
   const who = useCallback((item) => {
+    // The backend's embedded employee (gap G-2) resolves leavers, so it wins.
+    const embedded = embeddedEmployee(item);
+    if (embedded) return { name: embedded.name, code: embedded.code, department: embedded.department };
     // Payroll rows carry `user_id` (a users.id); never the role-profile `employee_id`.
     const emp = lookup.get(item?.user_id);
     return {
-      // Directory name, an embedded name (backend gap G-2), then "Loading…" / "Employee not found".
+      // Directory name, any other name on the row, then "Loading…" / "Employee not found".
       name: emp?.name || personName(item, "") || employeeCode(item) || lookupName(item?.user_id),
       code: emp?.code || employeeCode(item),
       department: emp?.department || departmentName(item),
@@ -409,17 +437,29 @@ export default function PayrollRunDetailPage() {
 
   useEffect(() => { loadItems(); }, [loadItems]);
 
+  // Every row shown by name comes from these three lists. One row without an
+  // embedded employee means the backend hasn't shipped G-2: load the directory.
+  useEffect(() => {
+    if (needDirectory) return;
+    const warningRows = Array.isArray(preview?.variable_pay?.warning_items) ? preview.variable_pay.warning_items : [];
+    if ([...items.list, ...problems.list, ...warningRows].some((r) => r && !embeddedEmployee(r))) setNeedDirectory(true);
+  }, [needDirectory, items.list, problems.list, preview]);
+
   // While the engine is working, poll the header; reload the lists when it finishes.
   useEffect(() => {
     if (run?.status !== "calculating") return undefined;
-    const timer = setInterval(async () => {
+    // Only while the tab is watched; returning to it checks immediately.
+    const tick = async () => {
+      if (document.visibilityState !== "visible") return;
       const data = await loadHeader();
       if (data && data.status !== "calculating") {
         loadItems();
         loadProblems(toCount(data.error_count));
       }
-    }, 8000);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(tick, 8000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
   }, [run?.status, loadHeader, loadItems, loadProblems]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -479,7 +519,7 @@ export default function PayrollRunDetailPage() {
 
   const openPeriod = (item) => {
     const inRange = (d) => (d && (!bounds.start || d >= bounds.start) && (!bounds.end || d <= bounds.end) ? d : "");
-    // The inferred day can be the literal "unknown"; then the run's last day stays.
+    // No inferred day (G-4 `null`, or "unknown" in older reasons): the run's last day stays.
     const inferred = item.error_code === "EXIT_DATE_REQUIRED" ? inferredExitDate(item) : "";
     setPeriodDraft({
       start: inRange(String(item.period_start || "").slice(0, 10)) || bounds.start,
@@ -645,8 +685,8 @@ export default function PayrollRunDetailPage() {
           </div>
         )}
         {acts.stuck && (
-          <div className="mb-5 flex items-start gap-2.5 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <HiClock className="w-5 h-5 shrink-0 text-amber-600" />
+          <div className="mb-5 flex items-start gap-2.5 text-sm text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-4 py-3">
+            <HiClock className="w-5 h-5 shrink-0 text-fuchsia-600" />
             <span><b>The calculation seems stuck.</b> It started over 30 minutes ago. Use “Retry calculation” to start it again.</span>
           </div>
         )}
@@ -675,9 +715,9 @@ export default function PayrollRunDetailPage() {
         )}
 
         {status === "calculated" && acts.approveBlockers.length > 0 && (
-          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="flex items-center gap-2 text-sm font-bold text-amber-900"><HiExclamationCircle className="w-5 h-5 text-amber-600" /> Before you can approve</p>
-            <ul className="mt-1.5 space-y-1 text-sm text-amber-800 list-disc pl-6">
+          <div className="mb-5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-bold text-fuchsia-900"><HiExclamationCircle className="w-5 h-5 text-fuchsia-600" /> Before you can approve</p>
+            <ul className="mt-1.5 space-y-1 text-sm text-fuchsia-800 list-disc pl-6">
               {acts.approveBlockers.map((b) => <li key={b}>{b}</li>)}
             </ul>
             <div className="flex flex-wrap gap-2 mt-3">
@@ -685,7 +725,7 @@ export default function PayrollRunDetailPage() {
                 <button type="button" onClick={() => runAction("calculate")} disabled={busy} className="px-3 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition disabled:opacity-50">Recalculate now</button>
               )}
               {acts.errorCount > 0 && (
-                <button type="button" onClick={scrollToProblems} className="px-3 py-1.5 text-xs font-bold text-amber-900 bg-white border border-amber-200 hover:bg-amber-100 rounded-lg transition">Show the problems</button>
+                <button type="button" onClick={scrollToProblems} className="px-3 py-1.5 text-xs font-bold text-fuchsia-900 bg-white border border-fuchsia-200 hover:bg-fuchsia-100 rounded-lg transition">Show the problems</button>
               )}
             </div>
           </div>
@@ -752,8 +792,7 @@ export default function PayrollRunDetailPage() {
                     <li
                       key={item.id || item.user_id || i}
                       {...rowPreviewProps(() => setDetail(item), reviewLabel)}
-                      tabIndex={-1}
-                      className="px-5 py-4 grid grid-cols-1 lg:grid-cols-[220px_1fr_auto] gap-3 lg:gap-5 items-start cursor-pointer hover:bg-rose-50/40 transition-colors"
+                      className="px-5 py-4 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-3 lg:gap-5 items-start cursor-pointer hover:bg-rose-50/40 transition-colors"
                     >
                       <div className="min-w-0">
                         <p className="font-bold text-slate-800 truncate">{person.name}</p>
@@ -764,9 +803,6 @@ export default function PayrollRunDetailPage() {
                         <p className="text-sm text-slate-600 mt-0.5">{em.explain}</p>
                         <p className="text-xs text-slate-500 mt-1"><b className="text-slate-700">How to fix:</b> {em.fix}</p>
                         {item.error_reason && <p className="text-xs text-slate-500 mt-1"><b className="text-slate-700">Details from payroll:</b> {item.error_reason}</p>}
-                      </div>
-                      <div className="flex lg:justify-end">
-                        <RowOpenButton onClick={() => setDetail(item)} label={reviewLabel} attention className="w-36">Review & fix</RowOpenButton>
                       </div>
                     </li>
                   );
@@ -783,14 +819,14 @@ export default function PayrollRunDetailPage() {
 
         {/* ── Heads-up: warnings that don't block approval ── */}
         {hasHeadsUp && (
-          <section className="bg-white rounded-2xl border border-amber-200 shadow-sm mb-5 overflow-hidden">
-            <div className="px-5 py-4 border-b border-amber-100 bg-amber-50/60">
-              <h2 className="text-sm font-bold text-amber-900 flex items-center gap-2"><HiLightBulb className="w-5 h-5" /> Worth checking before you approve</h2>
-              <p className="text-xs text-amber-800/90 mt-0.5">These don’t stop approval, but they change what some employees receive.</p>
+          <section className="bg-white rounded-2xl border border-fuchsia-200 shadow-sm mb-5 overflow-hidden">
+            <div className="px-5 py-4 border-b border-fuchsia-100 bg-fuchsia-50/60">
+              <h2 className="text-sm font-bold text-fuchsia-900 flex items-center gap-2"><HiLightBulb className="w-5 h-5" /> Worth checking before you approve</h2>
+              <p className="text-xs text-fuchsia-800/90 mt-0.5">These don’t stop approval, but they change what some employees receive.</p>
             </div>
             <div className="px-5 py-4 space-y-3">
               {missingBank > 0 && (
-                <p className="flex items-start gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
+                <p className="flex items-start gap-2 text-sm text-fuchsia-900 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-3.5 py-2.5">
                   <HiCash className="w-4 h-4 shrink-0 mt-0.5" />
                   <span><b>{plural(missingBank, "employee")} will be paid but {missingBank === 1 ? "has" : "have"} no verified bank account.</b> Verify their bank details before salaries are sent.</span>
                 </p>
@@ -799,12 +835,12 @@ export default function PayrollRunDetailPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-slate-500">Behind the problems:</span>
                   {warningCounts.map(([key, value]) => (
-                    <span key={key} className="text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1">{PREVIEW_WARNING_LABEL[key] || prettifyCode(key)}: {toCount(value)}</span>
+                    <span key={key} className="text-xs font-semibold text-fuchsia-900 bg-fuchsia-50 border border-fuchsia-200 rounded-lg px-2.5 py-1">{PREVIEW_WARNING_LABEL[key] || prettifyCode(key)}: {toCount(value)}</span>
                   ))}
                 </div>
               )}
               {warningItems.length > 0 && (
-                <ul className="divide-y divide-amber-50 border border-amber-100 rounded-xl">
+                <ul className="divide-y divide-fuchsia-50 border border-fuchsia-100 rounded-xl">
                   {warningItems.slice(0, 50).map((w, i) => {
                     const person = who(w);
                     const parsed = parseWarnings(w.warnings);
@@ -812,7 +848,7 @@ export default function PayrollRunDetailPage() {
                       <li key={w.user_id || i} className="px-4 py-3 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2">
                         <p className="text-sm font-bold text-slate-800 truncate">{person.name}</p>
                         <ul className="space-y-1">
-                          {parsed.map((p, j) => <li key={`${p.code}-${j}`} className="text-xs text-slate-600"><b className="text-amber-900">{p.title}:</b> {p.explain}</li>)}
+                          {parsed.map((p, j) => <li key={`${p.code}-${j}`} className="text-xs text-slate-600"><b className="text-fuchsia-900">{p.title}:</b> {p.explain}</li>)}
                         </ul>
                       </li>
                     );
@@ -910,19 +946,18 @@ export default function PayrollRunDetailPage() {
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right">Days paid / unpaid</th>
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right">Gross</th>
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right">Net</th>
-                  <th className="px-5 py-3.5 w-px"><span className="sr-only">Open</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {itemsState.loading ? (
-                  <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400">Loading employees…</td></tr>
+                  <tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400">Loading employees…</td></tr>
                 ) : itemsState.error ? (
-                  <tr><td colSpan={6} className="px-5 py-10 text-center">
+                  <tr><td colSpan={5} className="px-5 py-10 text-center">
                     <p className="text-sm text-rose-700">{itemsState.error}</p>
                     <button type="button" onClick={loadItems} className="mt-3 text-xs font-bold text-purple-700 underline">Try again</button>
                   </td></tr>
                 ) : visibleItems.length === 0 ? (
-                  <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                  <tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400">
                     {items.list.length === 0
                       ? statusFilter ? "No employees with this status." : status === "draft" ? "Calculate the run to list everyone's pay." : "No employees in this run."
                       : "No employees on this page match your filter."}
@@ -934,8 +969,7 @@ export default function PayrollRunDetailPage() {
                   const needsFix = it.status === "error";
                   const openLabel = `${needsFix ? "Review" : "View"} payslip for ${person.name}`;
                   return (
-                    // The open button is the keyboard stop; the row itself only takes clicks.
-                    <tr key={it.id || it.user_id} {...rowPreviewProps(() => setDetail(it), openLabel)} tabIndex={-1}>
+                    <tr key={it.id || it.user_id} {...rowPreviewProps(() => setDetail(it), openLabel)}>
                       <td className="px-5 py-3.5">
                         <p className="font-bold text-slate-800">{person.name}</p>
                         <p className="text-xs text-slate-400">{[person.department, person.code].filter(Boolean).join(" · ") || "N/A"}</p>
@@ -943,9 +977,9 @@ export default function PayrollRunDetailPage() {
                       <td className="px-5 py-3.5">
                         <ItemStatusPill status={it.status} />
                         {it.status === "error" && <p className="text-xs font-semibold text-rose-600 mt-1">{itemErrorMeta(it.error_code).title}</p>}
-                        {it.status === "excluded" && <p className="text-xs text-amber-700 mt-1 max-w-[240px] truncate" title={it.exclusion_reason || undefined}>{it.exclusion_reason || "No reason recorded"}</p>}
+                        {it.status === "excluded" && <p className="text-xs text-fuchsia-700 mt-1 max-w-[240px] truncate" title={it.exclusion_reason || undefined}>{it.exclusion_reason || "No reason recorded"}</p>}
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {warningsCount > 0 && <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">{plural(warningsCount, "heads-up", "heads-ups")}</span>}
+                          {warningsCount > 0 && <span className="text-[10px] font-bold text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-200 rounded px-1.5 py-0.5">{plural(warningsCount, "heads-up", "heads-ups")}</span>}
                           {it.period_override_reason && <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 rounded px-1.5 py-0.5">Pay period changed</span>}
                         </div>
                       </td>
@@ -953,9 +987,6 @@ export default function PayrollRunDetailPage() {
                       <td className="px-5 py-3.5 text-right tabular-nums text-slate-600">{it.status === "calculated" ? `${dayCount(it.payable_days)} / ${dayCount(it.lop_days)}` : <span className="text-slate-400">N/A</span>}</td>
                       <td className="px-5 py-3.5 text-right tabular-nums font-semibold text-slate-800">{it.status === "calculated" ? formatMoney(it.gross_earnings) : <span className="font-medium text-slate-400">N/A</span>}</td>
                       <td className="px-5 py-3.5 text-right tabular-nums font-bold text-purple-700">{it.status === "calculated" ? formatMoney(it.net_pay) : <span className="font-medium text-slate-400">N/A</span>}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        <RowOpenButton onClick={() => setDetail(it)} label={openLabel} attention={needsFix} />
-                      </td>
                     </tr>
                   );
                 })}

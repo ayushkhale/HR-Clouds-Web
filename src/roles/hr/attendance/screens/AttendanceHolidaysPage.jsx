@@ -9,6 +9,7 @@ import { parseYMDLocal, ymdOnly } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { useTargetingOptions, withSelected, describeTargeting } from "../../../../shared/attendance/useTargetingOptions";
 import { ErrorState, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
+import { settleWithLimit } from "../../../../shared/utils/promisePool";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle,
   HiExclamationCircle, HiTrash, HiPencil, HiChevronDown, HiSparkles,
@@ -20,7 +21,7 @@ import {
 
 const HOLIDAY_TYPES = [
   { value: "public", label: "National Holiday", color: "bg-rose-50 text-rose-700" },
-  { value: "optional", label: "Optional Holiday", color: "bg-amber-50 text-amber-700" },
+  { value: "optional", label: "Optional Holiday", color: "bg-fuchsia-50 text-fuchsia-700" },
   { value: "restricted", label: "Restricted Holiday", color: "bg-slate-100 text-slate-600" },
 ];
 
@@ -46,17 +47,17 @@ function fmtDate(value) {
 function getHolidayIconInfo(name) {
   const n = (name || "").toLowerCase();
   const tone = (text, bg, hover) => `${text} ${bg} ${hover} transition-colors`;
-  if (n.includes("independence") || n.includes("republic")) return { Icon: FaFlag, color: tone("text-orange-600", "bg-orange-50", "group-hover:bg-orange-100") };
-  if (n.includes("diwali")) return { Icon: FaSun, color: tone("text-amber-600", "bg-amber-50", "group-hover:bg-amber-100") };
-  if (n.includes("holi")) return { Icon: FaPalette, color: tone("text-pink-600", "bg-pink-50", "group-hover:bg-pink-100") };
-  if (n.includes("christmas")) return { Icon: FaTree, color: tone("text-emerald-600", "bg-emerald-50", "group-hover:bg-emerald-100") };
-  if (n.includes("new year")) return { Icon: FaChampagneGlasses, color: tone("text-sky-600", "bg-sky-50", "group-hover:bg-sky-100") };
-  if (n.includes("gandhi")) return { Icon: FaHandsPraying, color: tone("text-teal-600", "bg-teal-50", "group-hover:bg-teal-100") };
-  if (n.includes("eid")) return { Icon: FaMoon, color: tone("text-cyan-600", "bg-cyan-50", "group-hover:bg-cyan-100") };
+  if (n.includes("independence") || n.includes("republic")) return { Icon: FaFlag, color: tone("text-fuchsia-600", "bg-fuchsia-50", "group-hover:bg-fuchsia-100") };
+  if (n.includes("diwali")) return { Icon: FaSun, color: tone("text-fuchsia-600", "bg-fuchsia-50", "group-hover:bg-fuchsia-100") };
+  if (n.includes("holi")) return { Icon: FaPalette, color: tone("text-fuchsia-600", "bg-fuchsia-50", "group-hover:bg-fuchsia-100") };
+  if (n.includes("christmas")) return { Icon: FaTree, color: tone("text-violet-600", "bg-violet-50", "group-hover:bg-violet-100") };
+  if (n.includes("new year")) return { Icon: FaChampagneGlasses, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
+  if (n.includes("gandhi")) return { Icon: FaHandsPraying, color: tone("text-violet-600", "bg-violet-50", "group-hover:bg-violet-100") };
+  if (n.includes("eid")) return { Icon: FaMoon, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
   if (n.includes("dussehra")) return { Icon: FaCrown, color: tone("text-red-600", "bg-red-50", "group-hover:bg-red-100") };
   if (n.includes("good friday")) return { Icon: FaCross, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
-  if (n.includes("shivratri")) return { Icon: FaOm, color: tone("text-blue-600", "bg-blue-50", "group-hover:bg-blue-100") };
-  if (n.includes("guru nanak")) return { Icon: FaSun, color: tone("text-yellow-600", "bg-yellow-50", "group-hover:bg-yellow-100") };
+  if (n.includes("shivratri")) return { Icon: FaOm, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
+  if (n.includes("guru nanak")) return { Icon: FaSun, color: tone("text-fuchsia-600", "bg-fuchsia-50", "group-hover:bg-fuchsia-100") };
   if (n.includes("labour") || n.includes("may day")) return { Icon: FaWrench, color: tone("text-slate-600", "bg-slate-100", "group-hover:bg-slate-200") };
   return { Icon: HiCalendar, color: tone("text-purple-600", "bg-purple-50", "group-hover:bg-purple-100") };
 }
@@ -344,13 +345,18 @@ export default function AttendanceHolidaysPage() {
 
     setImportingHoliday("ALL");
     const failed = [];
-    for (const preset of toAdd) {
-      try {
-        await attendanceAPI.createHoliday({ name: preset.name, type: preset.type || "public", date: preset.date });
-      } catch {
-        failed.push(preset.name);
-      }
-    }
+    // A few at a time; importing a full catalog one by one took one round trip
+    // per holiday. Each create is independent of the others.
+    await settleWithLimit(
+      toAdd,
+      (preset) => attendanceAPI.createHoliday({ name: preset.name, type: preset.type || "public", date: preset.date }),
+      {
+        concurrency: 4,
+        onSettled: (index, result) => {
+          if (result.status === "rejected") failed.push(toAdd[index].name);
+        },
+      },
+    );
     setImportingHoliday(null);
     const added = toAdd.length - failed.length;
     if (added > 0) emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "holiday" });
@@ -503,8 +509,8 @@ export default function AttendanceHolidaysPage() {
                               <HolidayIcon className="w-4 h-4" />
                             </div>
                             {added ? (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200">
-                                <HiCheckCircle className="w-3 h-3 text-emerald-500" /> Added
+                              <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-violet-200">
+                                <HiCheckCircle className="w-3 h-3 text-violet-500" /> Added
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -611,7 +617,7 @@ export default function AttendanceHolidaysPage() {
                         {(() => {
                           const lines = describeTargeting(h, targeting);
                           return lines.length === 0 ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Whole organisation</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-100">Whole organisation</span>
                           ) : (
                             <div className="space-y-0.5">
                               {lines.map((line) => (

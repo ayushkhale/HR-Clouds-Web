@@ -9,8 +9,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -105,7 +105,7 @@ export default function PayrollApprovalsPage() {
                       <td className="px-6 py-4 text-slate-500">{prop.proposer?.name || prop.proposed_by}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => handleApprove(prop.id)} className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition flex items-center gap-1">
+                          <button onClick={() => handleApprove(prop.id)} className="px-3 py-1.5 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition flex items-center gap-1">
                             <HiCheck className="w-3.5 h-3.5" /> Approve
                           </button>
                           <button onClick={() => setRejectingId(prop.id)} className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition flex items-center gap-1">

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
-import { HiFilter, HiClock, HiUser } from "react-icons/hi";
+import { HiFilter, HiClock, HiUser, HiPencil } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { useOrgEmployees } from "../../../shared/attendance/EmployeePicker";
 import { humanize } from "../../../shared/attendance/enums";
@@ -117,21 +117,20 @@ function ManagerTeamHistoryPage() {
                           const early = Number(r.early_exit_minutes) || 0;
                           return (
                             <tr key={r.id || `${r.date}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="px-5 py-3 text-xs font-medium whitespace-nowrap">{fmtDate(ymdOnly(r.date), { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</td>
+                              <td className="px-5 py-3 text-xs font-medium whitespace-nowrap">{fmtDate(ymdOnly(r.date), { weekday: "short", day: "numeric", month: "short", year: "numeric" })}{r.is_regularized && <span title="Corrected through a regularization request" className="ml-1.5 inline-flex items-center justify-center w-4 h-4 align-middle rounded-full bg-purple-100 text-purple-600"><HiPencil className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only">Corrected</span></span>}</td>
                               <td className="px-5 py-3">
                                 <StatusBadge status={r.status} />
-                                {r.is_regularized && <span className="block mt-1 text-[9px] font-bold text-amber-600 uppercase tracking-wide">Corrected</span>}
                               </td>
                               <td className="px-5 py-3 text-xs">{fmtTime(r.clock_in_time)}</td>
                               <td className="px-5 py-3 text-xs">{fmtTime(r.clock_out_time)}</td>
                               <td className="px-5 py-3 text-xs font-semibold">{fmtHours(r.effective_hours)}</td>
                               <td className="px-5 py-3 text-xs">
                                 {late > 0 && <span className="block text-rose-600 font-bold">{fmtMinutes(late)} late</span>}
-                                {early > 0 && <span className="block text-amber-600 font-bold">{fmtMinutes(early)} early</span>}
-                                {late === 0 && early === 0 && <span className="text-slate-400">—</span>}
+                                {early > 0 && <span className="block text-fuchsia-600 font-bold">{fmtMinutes(early)} early</span>}
+                                {late === 0 && early === 0 && <span className="text-violet-600 font-semibold">On time</span>}
                               </td>
-                              <td className="px-5 py-3 text-xs">{Number(r.overtime_minutes) > 0 ? <span className="text-emerald-600 font-bold">+{fmtMinutes(r.overtime_minutes)}</span> : <span className="text-slate-400">—</span>}</td>
-                              <td className="px-5 py-3 text-xs text-slate-500">{r.work_mode ? humanize(r.work_mode) : "—"}</td>
+                              <td className="px-5 py-3 text-xs">{Number(r.overtime_minutes) > 0 ? <span className="text-violet-600 font-bold">+{fmtMinutes(r.overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
+                              <td className="px-5 py-3 text-xs text-slate-500">{r.work_mode ? humanize(r.work_mode) : "N/A"}</td>
                             </tr>
                           );
                         })}

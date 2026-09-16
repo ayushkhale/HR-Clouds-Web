@@ -5,13 +5,15 @@ import { DICTIONARY } from "../../../../shared/config/dictionary";
 import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import { COMP_OFF_FILTERS } from "../../../../shared/attendance/enums";
-import { employeeCode, entityId, initials, personName } from "../../../../shared/attendance/normalize";
+import { employeeCode, entityId, personName } from "../../../../shared/attendance/normalize";
 import { fmtDate, fmtHours, ymdOnly } from "../../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "../../../../shared/attendance/events";
 import DecisionDialog from "../../../../shared/attendance/DecisionDialog";
 import { DecisionDetails } from "../../../../shared/attendance/AttendanceApprovalQueue";
 import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, StatusBadge, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiCheckCircle, HiGift } from "react-icons/hi";
+import GenderAvatar from "../../../../shared/components/GenderAvatar";
+import { settleWithLimit } from "../../../../shared/utils/promisePool";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 const workedDate = (r) => ymdOnly(r.earned_date || r.worked_date || r.date);
@@ -63,15 +65,21 @@ function AttendanceCompOffsPage() {
 
     const failures = [];
     setBulk({ done: 0, total: rows.length, failures });
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      try {
-        await attendanceAPI.approveCompOff(entityId(row));
-      } catch (err) {
-        failures.push({ name: personName(row, "Employee"), message: attendanceErrorMessage(err, "Failed") });
-      }
-      setBulk({ done: i + 1, total: rows.length, failures: [...failures] });
-    }
+    // A few at a time instead of one after another: approving 50 took 50 round
+    // trips end to end. Each approval is independent, so order doesn't matter.
+    await settleWithLimit(
+      rows,
+      (row) => attendanceAPI.approveCompOff(entityId(row)),
+      {
+        concurrency: 4,
+        onSettled: (index, result, done) => {
+          if (result.status === "rejected") {
+            failures.push({ name: personName(rows[index], "Employee"), message: attendanceErrorMessage(result.reason, "Failed") });
+          }
+          setBulk({ done, total: rows.length, failures: [...failures] });
+        },
+      },
+    );
     const approved = rows.length - failures.length;
     if (approved > 0) emitAttendanceChanged(ATTENDANCE_EVENTS.COMPOFF, { action: "bulk_approve", scope: "hr" });
     setSelected([]);
@@ -143,7 +151,7 @@ function AttendanceCompOffsPage() {
                           )}
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold shrink-0">{initials(name)}</div>
+                              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 text-xs"><GenderAvatar person={co} name={name} /></div>
                               <div className="min-w-0">
                                 <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
                                 {code && <p className="text-[10px] text-slate-400">{code}</p>}
@@ -151,9 +159,9 @@ function AttendanceCompOffsPage() {
                             </div>
                           </td>
                           <td className="px-5 py-3 text-xs whitespace-nowrap">{fmtDate(workedDate(co))}</td>
-                          <td className="px-5 py-3 text-xs">{co.worked_hours != null ? fmtHours(co.worked_hours) : "—"}</td>
-                          <td className="px-5 py-3 text-xs font-bold text-emerald-600">{creditDays(co) != null ? `${creditDays(co)} day(s)` : "—"}</td>
-                          <td className="px-5 py-3 text-xs">{expiryDate(co) ? fmtDate(expiryDate(co)) : "—"}</td>
+                          <td className="px-5 py-3 text-xs">{co.worked_hours != null ? fmtHours(co.worked_hours) : "N/A"}</td>
+                          <td className="px-5 py-3 text-xs font-bold text-violet-600">{creditDays(co) != null ? `${creditDays(co)} day(s)` : "N/A"}</td>
+                          <td className="px-5 py-3 text-xs">{expiryDate(co) ? fmtDate(expiryDate(co)) : "N/A"}</td>
                           <td className="px-5 py-3"><StatusBadge kind="compoff" status={co.status} /></td>
                           {actionable && (
                             <td className="px-5 py-3 text-right">

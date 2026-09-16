@@ -61,7 +61,7 @@ function LoginPage() {
       <p className="text-sm text-gray-500 mb-7">Sign in to your HR Clouds account</p>
 
       {sessionExpired && (
-        <p role="status" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 -mt-3 mb-5">
+        <p role="status" className="text-xs text-fuchsia-700 bg-fuchsia-50 border border-fuchsia-200 rounded-lg px-3 py-2 -mt-3 mb-5">
           Your session has expired. Please sign in again{redirectUrl ? " to continue where you left off" : ""}.
         </p>
       )}

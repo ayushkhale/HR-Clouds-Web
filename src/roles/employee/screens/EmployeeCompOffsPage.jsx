@@ -66,7 +66,7 @@ function EmployeeCompOffsPage() {
           <p className="text-sm text-slate-500 mt-1">Days credited for working on holidays or weekly offs.</p>
         </div>
 
-        <div className="flex items-start gap-2 text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded-xl px-4 py-3">
+        <div className="flex items-start gap-2 text-xs text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
           <HiInformationCircle className="w-4 h-4 shrink-0 mt-px" />
           <span>
             Approved {TERM.toLowerCase()} days are added to your leave balance and must be used before they expire.
@@ -121,11 +121,11 @@ function EmployeeCompOffsPage() {
                       return (
                         <tr key={record.id || idx} className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 whitespace-nowrap">{fmtDate(workedDate(record))}</td>
-                          <td className="px-4 py-3">{record.worked_hours != null ? fmtHours(record.worked_hours) : "—"}</td>
-                          <td className="px-4 py-3 font-bold text-emerald-600">{credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : "—"}</td>
+                          <td className="px-4 py-3">{record.worked_hours != null ? fmtHours(record.worked_hours) : "N/A"}</td>
+                          <td className="px-4 py-3 font-bold text-violet-600">{credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : "N/A"}</td>
                           <td className="px-4 py-3"><StatusBadge kind="compoff" status={record.status || "earned"} /></td>
-                          <td className={`px-4 py-3 whitespace-nowrap ${expiringSoon ? "text-amber-600 font-bold" : ""}`}>{expiry ? fmtDate(expiry) : "—"}</td>
-                          <td className="px-4 py-3 truncate max-w-xs text-slate-500 font-medium" title={remarks}>{remarks || "—"}</td>
+                          <td className={`px-4 py-3 whitespace-nowrap ${expiringSoon ? "text-fuchsia-600 font-bold" : ""}`}>{expiry ? fmtDate(expiry) : "N/A"}</td>
+                          <td className="px-4 py-3 truncate max-w-xs text-slate-500 font-medium" title={remarks}>{remarks || "N/A"}</td>
                         </tr>
                       );
                     })}

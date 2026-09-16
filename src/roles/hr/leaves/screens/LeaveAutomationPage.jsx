@@ -8,8 +8,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -29,8 +29,8 @@ function RunSummary({ result, stats }) {
           <span
             key={key}
             className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${
-              tone === "good" ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                : tone === "warn" ? "bg-amber-50 text-amber-700 border-amber-100"
+              tone === "good" ? "bg-violet-50 text-violet-700 border-violet-100"
+                : tone === "warn" ? "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100"
                 : tone === "bad" ? "bg-rose-50 text-rose-700 border-rose-100"
                 : "bg-slate-50 text-slate-600 border-slate-200"
             }`}
@@ -158,7 +158,7 @@ export default function LeaveAutomationPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col xl:flex-row xl:items-start gap-6 transition-all hover:border-slate-300">
               {/* Left Side: Info */}
               <div className="flex items-start gap-4 flex-1 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/50">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100/50">
                   <HiRefresh className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
@@ -188,18 +188,18 @@ export default function LeaveAutomationPage() {
                     type="date"
                     value={rolloverDate}
                     onChange={e => setRolloverDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition"
+                    className="w-full px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition"
                   />
                 </div>
                 <button
                   onClick={handleRunRollover}
                   disabled={loadingRollover}
-                  className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:text-blue-700 hover:border-blue-200 hover:bg-blue-50 disabled:opacity-50 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm"
+                  className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-700 hover:border-indigo-200 hover:bg-indigo-50 disabled:opacity-50 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm"
                 >
                   {loadingRollover ? (
-                    <><div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin" /> Running...</>
+                    <><div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin" /> Running...</>
                   ) : (
-                    <><HiPlay className="w-4 h-4 text-blue-500" /> Trigger Rollover</>
+                    <><HiPlay className="w-4 h-4 text-indigo-500" /> Trigger Rollover</>
                   )}
                 </button>
               </div>

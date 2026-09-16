@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  HiCheckCircle, HiXCircle, HiClock, HiTrendingUp, HiCalendar, HiChevronLeft, HiChevronRight,
-  HiAdjustments, HiSun, HiMoon, HiChartBar, HiPause, HiLightningBolt, HiBadgeCheck,
+  HiCheckCircle, HiExclamationCircle, HiClock, HiTrendingUp, HiCalendar, HiChevronLeft, HiChevronRight,
+  HiLightningBolt, HiRefresh,
 } from "react-icons/hi";
 import { memberAttendanceApi } from "../../../../shared/attendance/memberAttendance";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
@@ -10,43 +10,30 @@ import { statusMeta } from "../../../../shared/attendance/enums";
 import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
 import { ErrorState, StatusBadge } from "../../../../shared/attendance/ui";
 
-// Distinct, purple-friendly colours per day status — no two statuses share a
-// hue, and "absent" is a solid fill so it never reads as an empty day.
+const LIVE_REFRESH_MS = 60_000;
+
+// Purple-only day colours, from strongest (worked) to lightest (nothing due).
+// Absent and "no data" are dark fills so a missed day never reads as blank;
+// only days still to come stay light.
 const HEAT = {
-  present: "bg-violet-600 border-violet-600 text-white",
-  late: "bg-amber-400 border-amber-400 text-amber-950",
-  half_day: "bg-sky-400 border-sky-400 text-white",
-  on_leave: "bg-fuchsia-400 border-fuchsia-400 text-white",
-  absent: "bg-rose-500 border-rose-500 text-white",
-  holiday: "bg-teal-400 border-teal-400 text-white",
-  weekly_off: "bg-slate-300 border-slate-300 text-slate-700",
-  in_progress: "bg-indigo-200 border-indigo-300 text-indigo-800",
+  present: "bg-purple-700 border-purple-700 text-white",
+  late: "bg-purple-400 border-purple-400 text-white",
+  half_day: "bg-purple-300 border-purple-300 text-purple-950",
+  on_leave: "bg-violet-200 border-violet-300 text-violet-900",
+  absent: "bg-purple-950 border-purple-950 text-white",
+  holiday: "bg-purple-100 border-purple-300 text-purple-700",
+  weekly_off: "bg-slate-200 border-slate-200 text-slate-600",
+  in_progress: "bg-white border-purple-400 text-purple-700",
 };
-const NO_RECORD = "bg-white border-dashed border-slate-200 text-slate-300";
+const NO_DATA = "bg-slate-700 border-slate-700 text-slate-100";
+const UPCOMING = "bg-slate-50 border-slate-200 text-slate-400";
 const LEGEND = ["present", "late", "half_day", "on_leave", "absent", "holiday", "weekly_off"];
-
-const ICON_TONES = [
-  "bg-purple-600 text-white",
-  "bg-purple-100 text-purple-700",
-  "bg-violet-100 text-violet-700",
-];
-
-function StatCard({ label, value, icon: Icon, tone }) {
-  return (
-    <div className="bg-white rounded-2xl border border-purple-100/70 p-5 shadow-xs flex items-center gap-4 hover:border-purple-200 hover:shadow-sm transition">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${tone}`}><Icon className="w-5 h-5" /></div>
-      <div className="min-w-0">
-        <p className="text-2xl font-bold text-slate-800 leading-none">{value}</p>
-        <p className="text-xs font-semibold text-slate-500 mt-1.5 truncate">{label}</p>
-      </div>
-    </div>
-  );
-}
 
 export default function OverviewTab({ userId, employeeRole }) {
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [state, setState] = useState({ summary: null, history: [], loading: true, error: null });
+  const [updatedAt, setUpdatedAt] = useState(null);
   const reqId = useRef(0);
 
   const load = useCallback(async () => {
@@ -62,19 +49,32 @@ export default function OverviewTab({ userId, employeeRole }) {
     if (id !== reqId.current) return;
     // Response: { data: { user_id, month, year, summary: { present_days, … } } }
     const payload = sum.status === "fulfilled" ? unwrap(sum.value) : null;
+    const failed = sum.status === "rejected" && hist.status === "rejected";
     setState({
       summary: payload?.summary ?? payload ?? null,
       history: hist.status === "fulfilled" ? listFrom(hist.value, ["records"]) : [],
       loading: false,
-      error: sum.status === "rejected" && hist.status === "rejected" ? sum.reason : null,
+      error: failed ? sum.reason : null,
     });
+    if (!failed) setUpdatedAt(new Date());
   }, [userId, employeeRole, period.month, period.year]);
 
   useEffect(() => { load(); }, [load]);
 
+  const isCurrentMonth = period.year === now.getFullYear() && period.month === now.getMonth() + 1;
+
+  // The current month is live, like the HR dashboard: poll while the tab is
+  // visible and refresh when it comes back into view.
+  useEffect(() => {
+    if (!isCurrentMonth) return undefined;
+    const refresh = () => document.visibilityState === "visible" && load();
+    const id = setInterval(refresh, LIVE_REFRESH_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", refresh); };
+  }, [isCurrentMonth, load]);
+
   const byDate = useMemo(() => Object.fromEntries(state.history.map((r) => [ymdOnly(r.date), r])), [state.history]);
   const today = todayYMD();
-  const isCurrentMonth = period.year === now.getFullYear() && period.month === now.getMonth() + 1;
   const todayRecord = isCurrentMonth ? byDate[today] : null;
   const s = state.summary || {};
   const next = shiftMonth(period.year, period.month, 1);
@@ -82,19 +82,17 @@ export default function OverviewTab({ userId, employeeRole }) {
   const label = monthLabel(period.year, period.month);
 
   const stats = [
-    { label: "Days present", value: num(s.present_days), icon: HiCheckCircle },
-    { label: "Half days", value: num(s.half_days), icon: HiAdjustments },
-    { label: "Days absent", value: num(s.absent_days), icon: HiXCircle },
-    { label: "Late arrivals", value: num(s.late_days), icon: HiClock },
-    { label: "On leave", value: num(s.on_leave_days), icon: HiCalendar },
-    { label: "Holidays", value: num(s.holiday_days), icon: HiSun },
-    { label: "Weekly offs", value: num(s.weekly_off_days), icon: HiMoon },
-    { label: "Hours worked", value: fmtHours(s.total_hours_worked, "0m"), icon: HiTrendingUp },
-    { label: "Avg. hours / day", value: fmtHours(s.average_hours_per_day, "0m"), icon: HiChartBar },
+    { label: "Days present", value: num(s.present_days), icon: HiCheckCircle, tag: "Present" },
+    { label: "Days absent", value: num(s.absent_days), icon: HiExclamationCircle, tag: "Absent" },
+    { label: "Late arrivals", value: num(s.late_days), icon: HiClock, tag: `${num(s.punctuality_percentage)}% on time` },
+    { label: "Days on leave", value: num(s.on_leave_days), icon: HiCalendar, tag: "Leave" },
+    { label: "Hours worked", value: fmtHours(s.total_hours_worked, "0m"), icon: HiTrendingUp, tag: `${fmtHours(s.average_hours_per_day, "0m")} / day` },
     { label: "Overtime", value: fmtMinutes(s.total_overtime_minutes, "0m"), icon: HiLightningBolt },
-    { label: "Break time", value: fmtMinutes(s.total_break_minutes, "0m"), icon: HiPause },
-    { label: "Punctuality", value: `${num(s.punctuality_percentage)}%`, icon: HiBadgeCheck },
   ];
+
+  const statusLine = isCurrentMonth
+    ? (updatedAt ? `Live · updated ${fmtTime(updatedAt)}` : "Live")
+    : `${label} · final figures`;
 
   return (
     <div className="space-y-6">
@@ -107,15 +105,31 @@ export default function OverviewTab({ userId, employeeRole }) {
         </div>
       </div>
 
-      {state.error ? (
-        <div className="bg-white rounded-2xl border border-slate-100"><ErrorState error={state.error} onRetry={load} fallback="Couldn't load this month's attendance." /></div>
-      ) : state.loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">{[...Array(12)].map((_, i) => <div key={i} className="bg-slate-100 rounded-2xl h-24 animate-pulse" />)}</div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {stats.map((stat, i) => <StatCard key={stat.label} {...stat} tone={ICON_TONES[i % ICON_TONES.length]} />)}
+      {/* Same card as the HR dashboard's live counts. */}
+      <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100">
+        <div className="flex items-center justify-between mb-5">
+          <p className="text-[11px] font-semibold text-slate-400">{statusLine}</p>
+          <button type="button" onClick={load} disabled={state.loading} className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh monthly overview">
+            <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
-      )}
+        {state.error ? (
+          <ErrorState error={state.error} onRetry={load} fallback="Couldn't load this month's attendance." />
+        ) : (
+          <div className={`grid grid-cols-2 md:grid-cols-3 gap-6 ${state.loading && !state.summary ? "opacity-50" : ""}`}>
+            {stats.map(({ label: statLabel, value, icon: Icon, tag }) => (
+              <div key={statLabel}>
+                <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-3 bg-slate-50"><Icon className="w-4 h-4" /></div>
+                <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
+                  <span className="text-3xl font-bold tracking-tight text-slate-800 leading-none">{value}</span>
+                  {tag && <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full w-max">{tag}</span>}
+                </div>
+                <div className="text-[11px] sm:text-sm font-semibold text-slate-500 mt-1">{statLabel}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
         <div className="md:col-span-4 bg-white rounded-3xl border border-slate-100 p-4 shadow-xs">
@@ -137,7 +151,7 @@ export default function OverviewTab({ userId, employeeRole }) {
               <span className="text-purple-600 font-bold uppercase tracking-wider text-[9px]">Hours</span>
               <LiveEffectiveHours effectiveHours={todayRecord?.effective_hours} clockInTime={todayRecord?.clock_in_time} clockOutTime={todayRecord?.clock_out_time} breaks={todayRecord?.breaks} className="text-purple-700 text-sm" />
             </div>
-            {!isCurrentMonth && <p className="text-[10px] text-slate-400">Switch to the current month to see today's status.</p>}
+            {!isCurrentMonth && <p className="text-[10px] text-slate-400">Switch to the current month to see today&apos;s status.</p>}
           </div>
         </div>
 
@@ -150,7 +164,10 @@ export default function OverviewTab({ userId, employeeRole }) {
               </span>
             ))}
             <span className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-              <span className={`w-3 h-3 rounded-[3px] border ${NO_RECORD}`} /> No record
+              <span className={`w-3 h-3 rounded-[3px] border ${NO_DATA}`} /> No data
+            </span>
+            <span className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
+              <span className={`w-3 h-3 rounded-[3px] border ${UPCOMING}`} /> Upcoming
             </span>
           </div>
           <div className="grid gap-1.5 sm:gap-2 w-full grid-cols-7 sm:grid-cols-10 lg:grid-cols-[repeat(15,minmax(0,1fr))]">
@@ -162,11 +179,13 @@ export default function OverviewTab({ userId, employeeRole }) {
               // minutes is what the Late legend colour represents.
               const baseKey = statusMeta("record", record?.status).key;
               const key = baseKey === "present" && (num(record?.late_minutes) > 0 || record?.is_late === true) ? "late" : baseKey;
-              const cls = (record && HEAT[key]) || NO_RECORD;
+              const known = record && HEAT[key];
+              const upcoming = !known && ymd > today;
+              const cls = known ? HEAT[key] : upcoming ? UPCOMING : NO_DATA;
               return (
                 <div
                   key={day}
-                  title={`${fmtDate(ymd, { weekday: "long", day: "numeric", month: "short" })}: ${record ? statusMeta("record", key).label : ymd > today ? "Upcoming" : "No record"}`}
+                  title={`${fmtDate(ymd, { weekday: "long", day: "numeric", month: "short" })}: ${known ? statusMeta("record", key).label : upcoming ? "Upcoming" : "No data"}`}
                   className={`w-full aspect-square rounded-md border flex items-center justify-center text-[10px] sm:text-xs font-bold ${cls}`}
                 >
                   {day}

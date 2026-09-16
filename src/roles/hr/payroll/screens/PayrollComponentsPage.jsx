@@ -9,8 +9,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -167,10 +167,10 @@ export default function PayrollComponentsPage() {
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap gap-1">
                               {!comp.is_active && <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[9px] font-bold rounded">INACTIVE</span>}
-                              {comp.is_basic && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-bold rounded">BASIC</span>}
+                              {comp.is_basic && <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-bold rounded">BASIC</span>}
                               {comp.is_part_of_ctc && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[9px] font-bold rounded">CTC</span>}
                               {comp.is_taxable && <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold rounded">TAX</span>}
-                              {comp.pf_applicable && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[9px] font-bold rounded">PF</span>}
+                              {comp.pf_applicable && <span className="px-1.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold rounded">PF</span>}
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">

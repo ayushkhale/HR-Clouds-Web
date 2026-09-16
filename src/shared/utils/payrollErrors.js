@@ -4,9 +4,11 @@
 // `err.data.errorCode`) to actionable, human-readable messages.
 //
 // Error contract (PAYROLL_BACKEND_RESPONSES.md §1): `{ success: false, message,
-// errorCode, details? }`. `message` is always safe to show. A VALIDATION_ERROR
-// carries only the FIRST Joi message and no field list. `details.errors` exists
-// only on CSV_PARSE_FAILED and BULK_VALIDATION_FAILED. Codes not listed here
+// errorCode, details? }`. `message` is always safe to show. A VALIDATION_ERROR's
+// `message` is the first Joi problem; gap G-1 (PAYROLL_BACKEND_GAPS_RESPONSE.md)
+// adds `details: [{ path, message }]` with all of them. `details.errors` (an
+// object, not an array) exists only on CSV_PARSE_FAILED and
+// BULK_VALIDATION_FAILED, so always branch on `errorCode`. Codes not listed here
 // fall back to the server's own `message`, then to a generic line.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -101,6 +103,47 @@ const PAYROLL_ERROR_MESSAGES = {
   FINANCIAL_YEAR_FINALIZED: "This financial year is finalised and locked. Tax details can no longer be changed for it.",
   FINANCIAL_YEAR_INCOMPLETE: "Some months in this financial year don't have a closed payroll run. Acknowledge the missing months with a reason to proceed anyway.",
 
+  // Phase 5 — Reimbursement categories & claims
+  CATEGORY_CODE_EXISTS: "A category with this code already exists. Choose a different code.",
+  CATEGORY_NOT_FOUND: "This category no longer exists. Refresh the list.",
+  CATEGORY_IN_USE: "Some claims using this category are still open, so it can't be switched off yet. Try again once they are paid, rejected or withdrawn.",
+  CATEGORY_NOT_FOUND_OR_INACTIVE: "One of the categories was switched off or removed. Choose another category for that item.",
+  COMPONENT_NOT_FOUND: "That salary component no longer exists. Choose another one or leave it empty.",
+  CLAIM_NOT_FOUND: "This claim no longer exists. Refresh the list.",
+  INVALID_CLAIM_AMOUNT: "Each amount must be more than zero.",
+  CLAIM_NOT_DRAFT: "This claim was already submitted, so it can't be changed. Refresh to see where it stands.",
+  CLAIM_HAS_NO_ITEMS: "Add at least one expense before submitting.",
+  RECEIPT_REQUIRED: "A receipt is needed for one of the items before you can submit.",
+  CATEGORY_LIMIT_EXCEEDED: "This goes over a spending limit for the category. Lower the amount and try again.",
+  CLAIM_NOT_ACTIONABLE: "This claim has already been decided or withdrawn. Refresh to see its current state.",
+  NOT_YOUR_APPROVAL_LEVEL: "This claim is waiting for a different approver right now.",
+  SELF_APPROVAL_FORBIDDEN: "You can't approve or reject your own claim. Another approver has to. If you're the only HR user, invite a second HR user.",
+  APPROVED_EXCEEDS_CLAIMED: "An approved amount can't be more than what was claimed.",
+  CLAIM_NOT_CANCELLABLE: "This claim can't be withdrawn any more. It may already be approved. Contact HR.",
+  NO_OPEN_PAYOUT_PERIOD: "No open payroll month was found in the look-ahead window, so this claim can't be scheduled yet.",
+  REJECTION_REASON_REQUIRED: "Write a reason for rejecting it.",
+
+  // Phase 5 — Benefit plans & enrollments
+  PLAN_CODE_EXISTS: "A benefit plan with this code already exists. Choose a different code.",
+  PLAN_NOT_FOUND: "This benefit plan no longer exists. Refresh the list.",
+  PLAN_NOT_ENROLLABLE: "This plan is switched off or isn't valid on that date.",
+  PLAN_HAS_ACTIVE_ENROLLMENTS: "People are still enrolled in this plan. End their cover before switching it off.",
+  ALREADY_ENROLLED: "This person already has active cover in this plan.",
+  ENROLLMENT_PERIOD_OVERLAP: "This person already has cover in this plan for that month. Start from a later month.",
+  ENROLLMENT_NOT_FOUND: "This enrollment no longer exists. Refresh the list.",
+  ENROLLMENT_NOT_ACTIVE: "This cover has already ended.",
+  INVALID_ENROLLMENT_DATES: "The end date can't be before the start date.",
+
+  // Phase 5 — Attachments & documents
+  ATTACHMENT_NOT_FOUND: "This file isn't available any more.",
+  ATTACHMENT_TYPE_NOT_ALLOWED: "Use a PDF, JPG, PNG or WebP file.",
+  ATTACHMENT_VERIFICATION_FAILED: "The upload didn't finish. Choose the file and upload it again.",
+  ATTACHMENT_STORAGE_UNAVAILABLE: "File storage isn't reachable right now. Nothing else was changed. Try again shortly.",
+  ATTACHMENT_NOT_DELETABLE: "This file can't be removed any more.",
+  DECLARATION_NOT_OPEN_FOR_PROOF: "Proofs can't be added once the declaration is verified, rejected or closed.",
+  INVALID_FINANCIAL_YEAR: "Choose a valid financial year.",
+  INVALID_ATTACHMENT_REFERENCE_URL: "Paste a full link that starts with https://.",
+
   // Generic
   VALIDATION_ERROR: "Some details are missing or invalid. Check the form and try again.",
   FORBIDDEN: "You don't have permission to do this.",
@@ -130,10 +173,8 @@ export function payrollErrorMessage(err, fallback = "Something went wrong. Pleas
 
   // The one Joi message names the field; it is more useful than a generic line.
   if (code === "VALIDATION_ERROR") {
-    // Gap G-1 (proposed): `details: [{ path, message }]` listing every invalid field.
-    const every = Array.isArray(err?.data?.details)
-      ? [...new Set(err.data.details.map((d) => humanizeValidation(d?.message)).filter(Boolean))]
-      : [];
+    // Gap G-1: `details: [{ path, message }]` lists every invalid field.
+    const every = [...new Set(validationProblems(err).map((p) => p.message))];
     if (every.length > 0) return every.join(" ");
     return humanizeValidation(serverMessage) || PAYROLL_ERROR_MESSAGES.VALIDATION_ERROR;
   }
@@ -143,7 +184,9 @@ export function payrollErrorMessage(err, fallback = "Something went wrong. Pleas
   }
   // The server message lists the conflicting lock ranges.
   if (code === "PERIOD_PARTIALLY_LOCKED" && serverMessage) return `${PAYROLL_ERROR_MESSAGES.PERIOD_PARTIALLY_LOCKED} Details: ${serverMessage}`;
-  if (code && PAYROLL_ERROR_MESSAGES[code]) return PAYROLL_ERROR_MESSAGES[code];
+  // The server message names the months payroll tried and couldn't schedule into.
+  if (code === "NO_OPEN_PAYOUT_PERIOD" && serverMessage) return `${PAYROLL_ERROR_MESSAGES.NO_OPEN_PAYOUT_PERIOD} ${serverMessage}`;
+  if (code && Object.prototype.hasOwnProperty.call(PAYROLL_ERROR_MESSAGES, code)) return PAYROLL_ERROR_MESSAGES[code];
 
   // fetch() rejects with a TypeError (no HTTP status) when the server is unreachable.
   if (err && err.status === undefined && err.name === "TypeError") {
@@ -171,6 +214,8 @@ export function bulkErrorLines(err) {
 const JOI_WORDING = [
   // Only quoted keys are de-underscored; the bracketed list keeps its underscores.
   [/^value must contain at least one of \[period[ _]start, period[ _]end\]\.?$/i, "Choose a first or last paid day"],
+  // Gap G-5: percentage bonuses are capped at 100 server-side (`"value"` is the rule's value).
+  [/^value must be less than or equal to 100$/i, "A percentage can't be more than 100%"],
   [/length must be less than or equal to (\d+) characters long/i, "must be $1 characters or fewer"],
   [/length must be at least (\d+) characters long/i, "must be at least $1 characters"],
   [/is not allowed to be empty/i, "can't be empty"],
@@ -194,13 +239,101 @@ function humanizeValidation(message) {
 }
 
 /**
- * What to do about a failed run. `failure_reason` is a sentence and is always
- * shown; `failure_code` is proposed as backend gap G-3 and, once sent, maps to
- * a fix here. "" until then.
+ * Per-limit violation lines for CATEGORY_LIMIT_EXCEEDED, read defensively from
+ * `details.violations` / `details.errors` (keys unconfirmed, Q-6). Every other
+ * error returns []. Each entry is passed through untouched for the caller to
+ * format; the screen falls back to the server `message` when this is empty.
+ */
+export function limitViolationLines(err) {
+  if (payrollErrorCode(err) !== "CATEGORY_LIMIT_EXCEEDED") return [];
+  const details = err?.data?.details;
+  const list = Array.isArray(details?.violations)
+    ? details.violations
+    : Array.isArray(details?.errors)
+      ? details.errors
+      : Array.isArray(details)
+        ? details
+        : [];
+  return list.filter((e) => e && typeof e === "object");
+}
+
+/**
+ * Every problem on a VALIDATION_ERROR (gap G-1), as `[{ path, message }]` with
+ * the message humanised. `details` is an array only under VALIDATION_ERROR; the
+ * CSV codes carry `details` as an object `{ errors }`, so branch on the code
+ * (PAYROLL_BACKEND_GAPS_RESPONSE.md §G-1). [] for every other error, and until
+ * the backend ships G-1.
+ */
+export function validationProblems(err) {
+  if (payrollErrorCode(err) !== "VALIDATION_ERROR") return [];
+  const details = err?.data?.details;
+  if (!Array.isArray(details)) return [];
+  return details
+    .filter((d) => d && typeof d === "object")
+    .map((d) => ({ path: typeof d.path === "string" ? d.path : "", message: humanizeValidation(d.message) }))
+    .filter((d) => d.message);
+}
+
+/**
+ * Split a rejected save into per-field messages and a leftover banner line.
+ * `fieldFor(path)` returns the form's error key for a dot-joined server path,
+ * or "" when the form has no input for it. The first message per field wins.
+ * With no G-1 details, `fields` is empty and `banner` is the usual message.
+ * @returns {{ fields: Record<string, string>, banner: string }}
+ */
+export function formErrorsFrom(err, fieldFor, fallback) {
+  const problems = validationProblems(err);
+  if (problems.length === 0) return { fields: {}, banner: payrollErrorMessage(err, fallback) };
+  const fields = {};
+  const unplaced = [];
+  for (const p of problems) {
+    const key = p.path ? fieldFor(p.path) : "";
+    if (key && !fields[key]) fields[key] = p.message;
+    else if (!key) unplaced.push(p.message);
+  }
+  const rest = [...new Set(unplaced)].join(" ");
+  const banner = Object.keys(fields).length > 0
+    ? `Check the highlighted ${Object.keys(fields).length === 1 ? "field" : "fields"}.${rest ? ` ${rest}` : ""}`
+    : rest || payrollErrorMessage(err, fallback);
+  return { fields, banner };
+}
+
+/**
+ * Drop the server field errors a form edit may have fixed. `keyOf` maps a
+ * form-state key to its error key (defaults to the same name). Returns the
+ * same object when nothing changed, so React skips the re-render.
+ */
+export function clearFieldErrors(fields, patch, keyOf = {}) {
+  const keys = Object.keys(patch || {}).map((k) => keyOf[k] ?? k).filter((k) => fields[k]);
+  if (keys.length === 0) return fields;
+  const next = { ...fields };
+  keys.forEach((k) => { delete next[k]; });
+  return next;
+}
+
+// A run fails as a whole; these say what to do about the run, not one employee.
+// `failure_code` is open-ended (§G-3), so unknown codes get no line and the
+// screen keeps showing `failure_reason` on its own.
+const RUN_FAILURE_ADVICE = {
+  CALCULATION_FAILED: "Retry the calculation. If it fails again with the same reason, contact support.",
+  ITEM_PERSIST_FAILED: "The figures were worked out but couldn't be saved. Retry the calculation.",
+  NO_SALARY_STRUCTURE: "Assign an approved salary structure to the employee named in the reason, or exclude them, then retry.",
+  INVALID_LOP_DIVISOR: "The unpaid-leave day count in Payroll Settings isn't usable for this month. Correct it, then retry.",
+  NEGATIVE_NET_PAY: "Someone's deductions are higher than their pay and your settings block negative pay. Reduce the deductions or exclude them, then retry.",
+  INVALID_COMPONENT_AMOUNT: "A salary component worked out to an invalid amount. Check the formula or amount of the component named in the reason, then retry.",
+  CTC_RECONCILIATION_FAILED: "A salary structure's components don't add up to its CTC. Fix that structure, then retry.",
+  OVERTIME_BASIS_UNRESOLVED: "Overtime pay couldn't find the salary figure it is based on. Check the overtime settings in the attendance policy and Payroll Settings, then retry.",
+  TAX_TABLES_MISSING: "Income tax is switched on but there are no tax slabs for this financial year. Add them under Statutory & Tax, then retry.",
+};
+
+/**
+ * What to do about a failed run, from `failure_code` (gap G-3). "" when the
+ * code is absent or has no advice; `failure_reason` is always shown anyway.
  */
 export function runFailureAdvice(run) {
-  const code = run?.failure_code;
-  return (code && PAYROLL_ERROR_MESSAGES[code]) || "";
+  const code = typeof run?.failure_code === "string" ? run.failure_code : "";
+  // Own keys only: an unexpected code like "toString" must not match Object.prototype.
+  return code && Object.prototype.hasOwnProperty.call(RUN_FAILURE_ADVICE, code) ? RUN_FAILURE_ADVICE[code] : "";
 }
 
 export { PAYROLL_ERROR_MESSAGES };

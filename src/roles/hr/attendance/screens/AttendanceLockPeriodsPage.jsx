@@ -214,9 +214,9 @@ function AttendanceLockPeriodsPage() {
                     return (
                       <tr key={lock.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-6 py-4 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(ymdOnly(lock.start_date))} — {fmtDate(ymdOnly(lock.end_date))}</td>
-                        <td className="px-6 py-4 text-slate-500 max-w-xs truncate" title={lock.reason}>{lock.reason || "—"}</td>
+                        <td className="px-6 py-4 text-slate-500 max-w-xs truncate" title={lock.reason}>{lock.reason || "N/A"}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${payroll ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-purple-50 text-purple-700 border-purple-200"}`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${payroll ? "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" : "bg-purple-50 text-purple-700 border-purple-200"}`}>
                             {payroll ? "Payroll run" : "Manual"}
                           </span>
                         </td>

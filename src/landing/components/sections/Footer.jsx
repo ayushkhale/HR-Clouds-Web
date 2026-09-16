@@ -142,7 +142,7 @@ function Footer() {
                 </button>
               </div>
               {subscribed && (
-                <span className="text-xs text-green-400 font-medium animate-pulse">
+                <span className="text-xs text-violet-400 font-medium animate-pulse">
                   Subscribed successfully!
                 </span>
               )}

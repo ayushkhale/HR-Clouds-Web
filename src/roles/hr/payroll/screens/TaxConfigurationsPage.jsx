@@ -66,8 +66,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -222,7 +222,7 @@ function ConfigTab({ showToast }) {
   return (
     <div className="space-y-6">
       {affected.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+        <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 text-sm text-fuchsia-800">
           <span className="font-bold">{affected.length} live run(s)</span> use an older snapshot — cancel and recreate them to adopt the new config.
         </div>
       )}
@@ -621,14 +621,14 @@ function RegimesTab({ showToast }) {
                   <h3 className="font-bold text-slate-800 capitalize">{r.name || r.code}</h3>
                   <p className="text-[11px] text-slate-400">{r.slab_count ?? r.slabs_count ?? "?"} slabs {r.is_default && <span className="text-purple-600 font-bold">· DEFAULT</span>}</p>
                 </div>
-                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${r.is_active === false ? "bg-slate-100 text-slate-500" : "bg-emerald-100 text-emerald-700"}`}>{r.is_active === false ? "inactive" : "active"}</span>
+                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${r.is_active === false ? "bg-slate-100 text-slate-500" : "bg-violet-100 text-violet-700"}`}>{r.is_active === false ? "inactive" : "active"}</span>
               </div>
               <div className="p-5 space-y-2 text-sm">
                 <Row k="Standard Deduction" v={money(r.standard_deduction)} />
                 <Row k="87A income limit" v={money(r.rebate_87a_income_limit)} />
                 <Row k="87A max rebate" v={money(r.rebate_87a_max_amount)} />
-                <Row k="HRA exemption" v={r.allows_hra_exemption ? "Allowed" : "—"} />
-                <Row k="Chapter VI-A" v={r.allows_chapter_via ? "Allowed" : "—"} />
+                <Row k="HRA exemption" v={r.allows_hra_exemption ? "Allowed" : "N/A"} />
+                <Row k="Chapter VI-A" v={r.allows_chapter_via ? "Allowed" : "N/A"} />
               </div>
               <div className="p-4 border-t border-slate-50 flex gap-2">
                 <button onClick={() => setEditing({ ...r })} className="flex-1 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition">Edit Params</button>

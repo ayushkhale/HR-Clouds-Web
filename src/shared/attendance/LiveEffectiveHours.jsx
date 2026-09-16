@@ -33,7 +33,7 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
   if (isStale) {
     return effectiveHours != null && effectiveHours !== ""
       ? <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "0m")}</span>
-      : <span className="text-[11px] font-bold text-amber-600" title="Clocked in but never clocked out. Hours are calculated after auto clock-out or a regularization.">No clock-out</span>;
+      : <span className="text-[11px] font-bold text-fuchsia-600" title="Clocked in but never clocked out. Hours are calculated after auto clock-out or a regularization.">No clock-out</span>;
   }
 
   if (!isActive) {
@@ -50,7 +50,7 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
     >
       {label}
       {!breaksKnown && <span className="ml-1 text-[10px] font-semibold text-slate-400">elapsed</span>}
-      <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${onBreak ? "bg-amber-400" : "bg-emerald-400 animate-pulse"}`} aria-hidden="true" />
+      <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${onBreak ? "bg-fuchsia-400" : "bg-violet-400 animate-pulse"}`} aria-hidden="true" />
     </span>
   );
 }

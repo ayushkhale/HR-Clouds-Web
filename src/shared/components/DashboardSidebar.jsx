@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 
 import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -9,24 +9,21 @@ import OrgSwitcher from "./OrgSwitcher";
 import { listFrom } from "../attendance/normalize";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
 import { SELF_SERVICE_BASE } from "../attendance/paths";
+import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import {
   HiTemplate,
   HiChatAlt2,
   HiCalendar,
   HiUserGroup,
   HiClock,
-  HiLogout,
   HiOfficeBuilding,
   HiMail,
   HiClipboardList,
   HiChevronDown,
   HiChevronRight,
-  HiDeviceMobile,
   HiViewGrid,
   HiQuestionMarkCircle,
   HiCog,
-  HiSun,
-  HiMoon,
   HiExclamationCircle,
   HiGift,
   HiLocationMarker,
@@ -39,7 +36,14 @@ import {
   HiAdjustments,
   HiPlay,
   HiShieldCheck,
-  HiDatabase
+  HiDatabase,
+  HiReceiptRefund,
+  HiHeart,
+  HiScale,
+  HiChartBar,
+  HiCash,
+  HiDocumentText,
+  HiUserCircle,
 } from "react-icons/hi";
 
 let cachedInboxCount = 0;
@@ -93,7 +97,11 @@ function DashboardSidebar({ role = "guest" }) {
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar } = useSidebar();
-  const [inboxCount, setInboxCount] = useState(role === "manager" && inboxCacheToken === tokenHelper.get() ? cachedInboxCount : 0);
+  const [inboxCount, setInboxCount] = useState(() => {
+    if (role === "manager") return inboxCacheToken === tokenHelper.get() ? cachedInboxCount : 0;
+    if (role === "hr") return inboxTotal(peekHrInboxCounts());
+    return 0;
+  });
 
   useEffect(() => {
     if (role !== "manager") return undefined;
@@ -104,17 +112,25 @@ function DashboardSidebar({ role = "guest" }) {
     };
   }, [role]);
 
+  // Counted once per session window, not per navigation: nine queues cost ten
+  // requests, and firing them on every page change flooded every HR screen.
+  // Decisions refresh the badge through the attendance events below.
+  useEffect(() => {
+    if (role !== "hr") return undefined;
+    let alive = true;
+    fetchHrInboxCounts().then((counts) => alive && setInboxCount(inboxTotal(counts))).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [role]);
+
   // Approvals, rejections and resolutions anywhere in the app refresh the badge.
   useAttendanceChanged(INBOX_EVENT_KINDS, () => {
     if (role === "manager") fetchInboxCount(true).then(setInboxCount).catch(() => {});
+    else if (role === "hr") fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
   });
 
-  const [openSubMenus, setOpenSubMenus] = useState({
-    shifts: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
-    attendanceSettings: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods") || location.pathname.includes("/dashboard/hr/attendance/comp-off-policies"),
-    offDays: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
-    leaveConfig: location.pathname.includes("/dashboard/hr/leaves/types") || location.pathname.includes("/dashboard/hr/leaves/policies"),
-  });
+  const [openSubMenus, setOpenSubMenus] = useState({});
 
   const toggleSubMenu = (key) => {
     setOpenSubMenus(prev => ({ ...prev, [key]: !prev[key] }));
@@ -168,91 +184,116 @@ function DashboardSidebar({ role = "guest" }) {
     }
 
     if (role === "hr") {
+      // `nested`: also active on child routes (an employee profile, a payroll run).
+      const link = (label, path, icon, extra = {}) => ({
+        label,
+        path,
+        icon,
+        ...extra,
+        active: location.pathname === path || (!!extra.nested && location.pathname.startsWith(`${path}/`)),
+      });
+      const heading = (text) => ({ heading: text });
+      const COMP_OFF = DICTIONARY.TERMS.COMP_OFF;
+
+      // Ordered by how often HR needs each area: daily approvals first,
+      // the monthly payroll cycle in order, seasonal tax work, then one-time setup.
       return [
         {
-          title: "ORGANIZATION OVERVIEW",
-          icon: HiTemplate,
+          title: "MAIN",
+          flat: true,
           items: [
-            { label: "Dashboard", path: "/dashboard/hr", icon: HiViewGrid, active: location.pathname === "/dashboard/hr" },
-            { label: DICTIONARY.NAV.EMPLOYEES, path: "/dashboard/hr/employees", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/employees" },
-            { label: "Departments", path: "/dashboard/hr/departments", icon: HiOfficeBuilding, active: location.pathname === "/dashboard/hr/departments" },
-            { label: "Office Locations", path: "/dashboard/hr/attendance/locations", icon: HiLocationMarker, active: location.pathname === "/dashboard/hr/attendance/locations" },
+            link("Dashboard", "/dashboard/hr", HiViewGrid),
+            link("HR Inbox", "/dashboard/hr/inbox", HiInboxIn, { badge: inboxCount > 0 ? inboxCount : null }),
           ],
         },
-        selfServiceSection("hr"),
         {
-          title: "ATTENDANCE & TIME",
+          title: "PEOPLE",
+          icon: HiUserGroup,
+          items: [
+            link(DICTIONARY.NAV.EMPLOYEES, "/dashboard/hr/employees", HiUserGroup, { nested: true }),
+            link("Departments", "/dashboard/hr/departments", HiOfficeBuilding),
+          ],
+        },
+        {
+          title: "TIME & LEAVE",
           icon: HiClock,
           items: [
-            { label: "Live Attendance", path: "/dashboard/hr/attendance/directory", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/attendance/directory" },
-            {
-              label: "Shift Management", icon: HiClock, key: "shifts",
-              active: location.pathname.includes("/dashboard/hr/attendance/shifts") || location.pathname.includes("/dashboard/hr/attendance/roster"),
-              subItems: [
-                { label: "Work Shifts", path: "/dashboard/hr/attendance/shifts", active: location.pathname === "/dashboard/hr/attendance/shifts" },
-                { label: "Assign Shifts", path: "/dashboard/hr/attendance/roster", active: location.pathname === "/dashboard/hr/attendance/roster" }
-              ]
-            },
-            {
-              label: "Attendance Settings", icon: HiCog, key: "attendanceSettings",
-              active: location.pathname.includes("/dashboard/hr/attendance/policies") || location.pathname.includes("/dashboard/hr/attendance/lock-periods") || location.pathname.includes("/dashboard/hr/attendance/comp-off-policies"),
-              subItems: [
-                { label: "Attendance Policies", path: "/dashboard/hr/attendance/policies", active: location.pathname === "/dashboard/hr/attendance/policies" },
-                { label: `${DICTIONARY.TERMS.COMP_OFF} Policies`, path: "/dashboard/hr/attendance/comp-off-policies", active: location.pathname === "/dashboard/hr/attendance/comp-off-policies" },
-                { label: "Lock Attendance", path: "/dashboard/hr/attendance/lock-periods", active: location.pathname === "/dashboard/hr/attendance/lock-periods" }
-              ]
-            },
-            // { label: "Biometric Devices", path: "/dashboard/hr/attendance/devices", icon: HiDeviceMobile, active: location.pathname === "/dashboard/hr/attendance/devices" },
-            { label: "Regularizations", path: "/dashboard/hr/attendance/regularizations", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/attendance/regularizations" },
-            { label: "Reports", path: "/dashboard/hr/reports", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/reports" },
+            link("Live Attendance", "/dashboard/hr/attendance/directory", HiClock),
+            link("Leave Requests", "/dashboard/hr/leaves/requests", HiInboxIn),
+            link("Regularizations", "/dashboard/hr/attendance/regularizations", HiClipboardList),
+            link(`${COMP_OFF}s`, "/dashboard/hr/attendance/comp-offs", HiGift),
+            link("Shift Roster", "/dashboard/hr/attendance/roster", HiCalendar),
           ],
         },
         {
-          title: "HOLIDAYS",
-          icon: HiCalendar,
-          items: [
-            { label: "Holidays", path: "/dashboard/hr/attendance/holidays", icon: HiCalendar, active: location.pathname === "/dashboard/hr/attendance/holidays" },
-            {
-              label: "Off Days", icon: HiTemplate, key: "offDays",
-              active: location.pathname.includes("/dashboard/hr/attendance/weekly-offs") || location.pathname.includes("/dashboard/hr/attendance/comp-offs"),
-              subItems: [
-                { label: "Weekly Offs", path: "/dashboard/hr/attendance/weekly-offs", active: location.pathname === "/dashboard/hr/attendance/weekly-offs" },
-                { label: `${DICTIONARY.TERMS.COMP_OFF}s`, path: "/dashboard/hr/attendance/comp-offs", active: location.pathname === "/dashboard/hr/attendance/comp-offs" }
-              ]
-            },
-          ],
-        },
-        {
-          title: "LEAVES",
-          icon: HiClipboardList,
-          items: [
-            { label: "Leave Requests", path: "/dashboard/hr/leaves/requests", icon: HiInboxIn, active: location.pathname === "/dashboard/hr/leaves/requests" },
-            { label: "Leave Types", path: "/dashboard/hr/leaves/types", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/leaves/types" },
-            { label: "Leave Policies", path: "/dashboard/hr/leaves/policies", icon: HiTemplate, active: location.pathname === "/dashboard/hr/leaves/policies" },
-            { label: "Automation Engine", path: "/dashboard/hr/leaves/automation", icon: HiLightningBolt, active: location.pathname === "/dashboard/hr/leaves/automation" },
-          ],
-        },
-        {
-          title: "PAYROLL & COMP",
+          title: "PAYROLL",
           icon: HiCurrencyRupee,
           items: [
-            { label: "Salary Components", path: "/dashboard/hr/payroll/components", icon: HiTemplate, active: location.pathname === "/dashboard/hr/payroll/components" },
-            { label: "Structure Templates", path: "/dashboard/hr/payroll/templates", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/payroll/templates" },
-            { label: "Employee Structures", path: "/dashboard/hr/payroll/employee-structures", icon: HiUserGroup, active: location.pathname === "/dashboard/hr/payroll/employee-structures" },
-            { label: "Salary Approvals", path: "/dashboard/hr/payroll/approvals", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/payroll/approvals" },
-            { label: "Payroll Runs", path: "/dashboard/hr/payroll/runs", icon: HiPlay, active: location.pathname === "/dashboard/hr/payroll/runs" },
-            { label: "Adjustments", path: "/dashboard/hr/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/hr/payroll/adjustments" },
-            { label: "Bonus Rules", path: "/dashboard/hr/payroll/bonus-rules", icon: HiGift, active: location.pathname === "/dashboard/hr/payroll/bonus-rules" },
-            { label: "Loans & Advances", path: "/dashboard/hr/payroll/loans", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/hr/payroll/loans" },
-            { label: "Bank Verification", path: "/dashboard/hr/payroll/bank-verification", icon: HiShieldCheck, active: location.pathname === "/dashboard/hr/payroll/bank-verification" },
-            { label: "Statutory & Tax", path: "/dashboard/hr/payroll/statutory", icon: HiCog, active: location.pathname === "/dashboard/hr/payroll/statutory" },
-            { label: "Tax Declarations", path: "/dashboard/hr/payroll/tax-declarations", icon: HiClipboardList, active: location.pathname === "/dashboard/hr/payroll/tax-declarations" },
-            { label: "Year-End & Form 16", path: "/dashboard/hr/payroll/year-end", icon: HiDocumentReport, active: location.pathname === "/dashboard/hr/payroll/year-end" },
-            { label: "Audit Log", path: "/dashboard/hr/payroll/audit-log", icon: HiDatabase, active: location.pathname === "/dashboard/hr/payroll/audit-log" },
+            link("Lock Attendance", "/dashboard/hr/attendance/lock-periods", HiLockClosed),
+            link("Adjustments", "/dashboard/hr/payroll/adjustments", HiAdjustments),
+            link("Bonus Rules", "/dashboard/hr/payroll/bonus-rules", HiGift),
+            link("Claims", "/dashboard/hr/payroll/reimbursements", HiReceiptRefund),
+            link("Loans & Advances", "/dashboard/hr/payroll/loans", HiCash),
+            link("Bank Verification", "/dashboard/hr/payroll/bank-verification", HiShieldCheck),
+            link("Payroll Runs", "/dashboard/hr/payroll/runs", HiPlay, { nested: true }),
+            link("Employee Salaries", "/dashboard/hr/payroll/employee-structures", HiCurrencyRupee),
           ],
         },
-
-
+        {
+          title: "TAX & COMPLIANCE",
+          icon: HiScale,
+          items: [
+            link("Tax Declarations", "/dashboard/hr/payroll/tax-declarations", HiDocumentText),
+            link("Statutory & Tax", "/dashboard/hr/payroll/statutory", HiScale),
+            link("Year-End & Form 16", "/dashboard/hr/payroll/year-end", HiDocumentReport),
+          ],
+        },
+        {
+          title: "INSIGHTS",
+          icon: HiChartBar,
+          items: [
+            link("Attendance Reports", "/dashboard/hr/reports", HiChartBar),
+            link("Payroll Reports", "/dashboard/hr/payroll/reports", HiDocumentReport),
+            link("Audit Log", "/dashboard/hr/payroll/audit-log", HiDatabase),
+          ],
+        },
+        {
+          title: "SETUP",
+          icon: HiCog,
+          defaultCollapsed: true,
+          items: [
+            heading("Organization"),
+            link("Office Locations", "/dashboard/hr/attendance/locations", HiLocationMarker),
+            heading("Time"),
+            link("Work Shifts", "/dashboard/hr/attendance/shifts", HiClock),
+            link("Attendance Policies", "/dashboard/hr/attendance/policies", HiClipboardList),
+            link(`${COMP_OFF} Policies`, "/dashboard/hr/attendance/comp-off-policies", HiGift),
+            link("Holidays", "/dashboard/hr/attendance/holidays", HiCalendar),
+            link("Weekly Offs", "/dashboard/hr/attendance/weekly-offs", HiTemplate),
+            heading("Leave"),
+            link("Leave Types", "/dashboard/hr/leaves/types", HiClipboardList),
+            link("Leave Policies", "/dashboard/hr/leaves/policies", HiTemplate),
+            link("Automation", "/dashboard/hr/leaves/automation", HiLightningBolt),
+            heading("Pay"),
+            link("Salary Components", "/dashboard/hr/payroll/components", HiTemplate),
+            link("Structure Templates", "/dashboard/hr/payroll/templates", HiDocumentReport),
+            link("Benefit Plans", "/dashboard/hr/payroll/benefits", HiHeart),
+            link("Payroll Settings", "/dashboard/hr/payroll/settings", HiCog),
+          ],
+        },
+        {
+          title: "ME",
+          icon: HiUserCircle,
+          defaultCollapsed: true,
+          items: [
+            link("My Attendance", SELF_SERVICE_BASE.hr, HiClock),
+            link("My Regularizations", `${SELF_SERVICE_BASE.hr}/regularizations`, HiClipboardList),
+            link("My Flags", `${SELF_SERVICE_BASE.hr}/anomalies`, HiExclamationCircle),
+            link("My Overtime", `${SELF_SERVICE_BASE.hr}/overtime`, HiLightningBolt),
+            link(`My ${COMP_OFF}s`, `${SELF_SERVICE_BASE.hr}/comp-offs`, HiGift),
+            link("My Claims", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
+          ],
+        },
       ];
     }
 
@@ -286,17 +327,17 @@ function DashboardSidebar({ role = "guest" }) {
           { label: "My Payslips", path: "/dashboard/employee/payroll/my-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/my-payslips" },
           { label: "Loans & Variable Pay", path: "/dashboard/employee/payroll/loans", icon: HiAdjustments, active: location.pathname === "/dashboard/employee/payroll/loans" },
           { label: "Tax & Investments", path: "/dashboard/employee/payroll/tax", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/tax" },
-          { label: "Reimbursements", path: "/dashboard/employee/payroll/reimbursements", icon: HiGift, active: location.pathname === "/dashboard/employee/payroll/reimbursements" },
+          { label: "Claims & Benefits", path: "/dashboard/employee/payroll/reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/employee/payroll/reimbursements" },
         ],
       }] : []),
       ...(role === "manager" ? [selfServiceSection("manager"), {
         title: "REQUESTS",
         icon: HiClipboardList,
         items: [
-          { 
-            label: "Approvals Inbox", 
-            path: "/dashboard/manager/requests/inbox", 
-            icon: HiInboxIn, 
+          {
+            label: "Approvals Inbox",
+            path: "/dashboard/manager/requests/inbox",
+            icon: HiInboxIn,
             active: location.pathname === "/dashboard/manager/requests/inbox",
             badge: inboxCount > 0 ? inboxCount : null
           },
@@ -324,7 +365,8 @@ function DashboardSidebar({ role = "guest" }) {
           { label: "Team Compensation", path: "/dashboard/manager/payroll/team-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/payroll/team-salary" },
           { label: "Team Payslips", path: "/dashboard/manager/payroll/team-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/team-payslips" },
           { label: "Team Variable Pay", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
-          { label: "Team Reimbursements", path: "/dashboard/manager/payroll/reimbursements", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
+          { label: "Team Claims & Benefits", path: "/dashboard/manager/payroll/reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
+          { label: "My Claims & Benefits", path: "/dashboard/manager/my-reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/my-reimbursements" },
         ],
       }] : [])
     ];
@@ -332,10 +374,9 @@ function DashboardSidebar({ role = "guest" }) {
 
   const navSections = getNavSections();
 
-  const [openSections, setOpenSections] = useState({
-    "ATTENDANCE & TIME": true,
-    "ORGANIZATION OVERVIEW": true,
-  });
+  // Sections are open unless the user collapsed them; `defaultCollapsed`
+  // sections (HR Setup, Me) start closed until opened or visited.
+  const [openSections, setOpenSections] = useState({});
 
   useEffect(() => {
     navSections.forEach((section) => {
@@ -346,11 +387,89 @@ function DashboardSidebar({ role = "guest" }) {
     });
   }, [location.pathname]);
 
-  const toggleSection = (title) => {
+  const isSectionOpen = (section) => openSections[section.title] ?? !section.defaultCollapsed;
+
+  const toggleSection = (section) => {
     setOpenSections((prev) => ({
       ...prev,
-      [title]: !prev[title],
+      [section.title]: !(prev[section.title] ?? !section.defaultCollapsed),
     }));
+  };
+
+  const closeOnMobile = () => { if (window.innerWidth < 1024) closeSidebar(); };
+
+  const renderItem = (item) => {
+    if (item.heading) {
+      return (
+        <p key={`heading-${item.heading}`} className="px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider first:pt-1">
+          {item.heading}
+        </p>
+      );
+    }
+
+    const Icon = item.icon;
+    const isActive = item.active;
+
+    if (item.subItems) {
+      const isSubOpen = openSubMenus[item.key];
+      return (
+        <div key={item.key} className="space-y-1">
+          <button
+            onClick={() => toggleSubMenu(item.key)}
+            className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+              ? "bg-[#F3E8FF]/60 text-[#7E22CE] font-bold"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+          >
+            <div className="flex items-center gap-3">
+              <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+              {item.label}
+            </div>
+            <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${isSubOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isSubOpen && (
+            <div className="pl-9 space-y-1 mt-1 border-l-2 border-slate-100 ml-4">
+              {item.subItems.map((sub) => (
+                <Link
+                  key={sub.path}
+                  to={sub.path}
+                  onClick={closeOnMobile}
+                  className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${sub.active
+                    ? "text-[#7E22CE] bg-[#F3E8FF]/40"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                    }`}
+                >
+                  {sub.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        key={item.label}
+        to={item.path}
+        onClick={closeOnMobile}
+        aria-current={isActive ? "page" : undefined}
+        className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+          ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
+          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+      >
+        <div className="flex items-center gap-3">
+          <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+          {item.label}
+        </div>
+        {item.badge && (
+          <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+            {item.badge}
+          </span>
+        )}
+      </Link>
+    );
   };
 
   return (
@@ -389,6 +508,15 @@ function DashboardSidebar({ role = "guest" }) {
           {/* Navigation Section */}
           <div className="px-4 py-4 space-y-4">
             {navSections.map((section) => {
+              // Headerless group (HR Dashboard + Inbox).
+              if (section.flat) {
+                return (
+                  <div key={section.title} className="space-y-1">
+                    {section.items.map(renderItem)}
+                  </div>
+                );
+              }
+
               const isSingle = section.items.length === 1 && !section.forceDropdown;
 
               // Single item section — render directly as a link
@@ -413,14 +541,15 @@ function DashboardSidebar({ role = "guest" }) {
               }
 
               // Multi-item section — render with collapsible header
-              const isOpen = openSections[section.title] !== false;
+              const isOpen = isSectionOpen(section);
 
               return (
                 <div key={section.title} className="space-y-1">
                   {/* Section Header */}
                   <button
                     type="button"
-                    onClick={() => toggleSection(section.title)}
+                    onClick={() => toggleSection(section)}
+                    aria-expanded={isOpen}
                     className="w-full flex items-center justify-between px-4 py-2 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
                   >
                     <span>{section.title}</span>
@@ -434,70 +563,7 @@ function DashboardSidebar({ role = "guest" }) {
                   {/* Sub-items list */}
                   {isOpen && (
                     <div className="space-y-1 pl-2">
-                      {section.items.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = item.active;
-
-                        if (item.subItems) {
-                          const isSubOpen = openSubMenus[item.key];
-                          return (
-                            <div key={item.key} className="space-y-1">
-                              <button
-                                onClick={() => toggleSubMenu(item.key)}
-                                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
-                                  ? "bg-[#F3E8FF]/60 text-[#7E22CE] font-bold"
-                                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                                  }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                                  {item.label}
-                                </div>
-                                <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${isSubOpen ? 'rotate-180' : ''}`} />
-                              </button>
-                              {isSubOpen && (
-                                <div className="pl-9 space-y-1 mt-1 border-l-2 border-slate-100 ml-4">
-                                  {item.subItems.map((sub) => (
-                                    <Link
-                                      key={sub.path}
-                                      to={sub.path}
-                                      onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                                      className={`block w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${sub.active
-                                        ? "text-[#7E22CE] bg-[#F3E8FF]/40"
-                                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                        }`}
-                                    >
-                                      {sub.label}
-                                    </Link>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <Link
-                            key={item.label}
-                            to={item.path}
-                            onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
-                            className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
-                              ? "text-[#7E22CE] font-bold bg-[#F3E8FF]/60"
-                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                              }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                              {item.label}
-                            </div>
-                            {item.badge && (
-                              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                                {item.badge}
-                              </span>
-                            )}
-                          </Link>
-                        );
-                      })}
+                      {section.items.map(renderItem)}
                     </div>
                   )}
                 </div>

@@ -13,8 +13,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -329,7 +329,7 @@ export default function PayrollTemplatesPage() {
     const calc = componentFormData.calculation_type;
     const balancingName = budget.balancing?.meta.name || "balancing";
     if (calc === "balancing") {
-      if (budget.balancing) return { tone: "text-amber-600", text: `Template already has a balancing component (${balancingName})` };
+      if (budget.balancing) return { tone: "text-fuchsia-600", text: `Template already has a balancing component (${balancingName})` };
       return budget.remaining >= 0
         ? { tone: "text-slate-500", text: `Fills up what's left: ≈ ${moYr(budget.remaining)} · calculated automatically` }
         : { tone: "text-red-600", text: `Nothing left to absorb · already over by ${formatINR(-budget.remaining)}` };
@@ -564,7 +564,7 @@ export default function PayrollTemplatesPage() {
                           <td className="px-4 py-3 text-right">
                             {isEditing ? (
                               <div className="flex justify-end gap-1.5">
-                                <button disabled={savingComp} onClick={() => handleUpdateComponent(c.id, editFill)} className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition disabled:opacity-50" title="Save"><HiCheck className="w-4 h-4" /></button>
+                                <button disabled={savingComp} onClick={() => handleUpdateComponent(c.id, editFill)} className="p-1.5 text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition disabled:opacity-50" title="Save"><HiCheck className="w-4 h-4" /></button>
                                 <button disabled={savingComp} onClick={cancelEditComponent} className="p-1.5 text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-50" title="Cancel"><HiX className="w-4 h-4" /></button>
                               </div>
                             ) : (

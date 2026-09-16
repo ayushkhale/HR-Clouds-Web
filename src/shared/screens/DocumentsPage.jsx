@@ -150,21 +150,21 @@ function DocumentsPage() {
                             
                             <ul className="space-y-2.5 m-0 list-none pl-0">
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                                 <span>
                                   Late Grace Period: <strong>{policy.grace_minutes} minutes</strong>
                                 </span>
                               </li>
                               
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                                 <span>
                                   Early Exit Allowance: <strong>{policy.early_exit_threshold_minutes} minutes</strong>
                                 </span>
                               </li>
 
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-fuchsia-500 mt-0.5 shrink-0" />
                                 <span>
                                   Late Mark Threshold: <strong>{policy.late_threshold_minutes} minutes</strong> (marked as half-day if exceeded)
                                 </span>

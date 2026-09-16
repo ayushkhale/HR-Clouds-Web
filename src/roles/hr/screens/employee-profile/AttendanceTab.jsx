@@ -206,7 +206,7 @@ export default function AttendanceTab({ userId, employeeRole }) {
                         <td className="px-6 py-3.5"><StatusBadge status={record.status} /></td>
                         <td className="px-6 py-3.5 text-slate-600 font-medium">{fmtTime(record.clock_in_time)}</td>
                         <td className="px-6 py-3.5 text-slate-600 font-medium">{fmtTime(record.clock_out_time)}</td>
-                        <td className="px-6 py-3.5 text-xs">{Number(record.late_minutes) > 0 ? <span className="text-amber-600 font-bold">{fmtMinutes(record.late_minutes)}</span> : <span className="text-slate-500">0m</span>}</td>
+                        <td className="px-6 py-3.5 text-xs">{Number(record.late_minutes) > 0 ? <span className="text-fuchsia-600 font-bold">{fmtMinutes(record.late_minutes)}</span> : <span className="text-slate-500">0m</span>}</td>
                         <td className="px-6 py-3.5 text-right">
                           <LiveEffectiveHours effectiveHours={record.effective_hours} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />
                         </td>

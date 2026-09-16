@@ -30,8 +30,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -278,8 +278,8 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
         <div className="p-6 space-y-4">
           {stage === "confirm" && (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center">
-                <HiTrash className="w-6 h-6 text-amber-500" />
+              <div className="w-12 h-12 rounded-2xl bg-fuchsia-50 flex items-center justify-center">
+                <HiTrash className="w-6 h-6 text-fuchsia-500" />
               </div>
               <p className="text-sm text-slate-600">
                 This will deactivate <strong>{leaveType.name}</strong> ({leaveType.code}).
@@ -305,8 +305,8 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
 
           {stage === "balances_warn" && (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center">
-                <HiExclamation className="w-6 h-6 text-amber-500" />
+              <div className="w-12 h-12 rounded-2xl bg-fuchsia-50 flex items-center justify-center">
+                <HiExclamation className="w-6 h-6 text-fuchsia-500" />
               </div>
               <p className="text-sm font-semibold text-slate-800">Employees still have leave days of this type.</p>
               <p className="text-sm text-slate-500">
@@ -318,7 +318,7 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
                 <button
                   onClick={() => handleDelete(true)}
                   disabled={loading}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-fuchsia-500 text-white hover:bg-fuchsia-600 transition disabled:opacity-50"
                 >
                   {loading ? "Processing…" : "Deactivate Anyway"}
                 </button>
@@ -352,8 +352,8 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ active }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400"}`} />
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${active ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500"}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-violet-500" : "bg-slate-400"}`} />
       {active ? "Active" : "Inactive"}
     </span>
   );
@@ -471,7 +471,7 @@ export default function LeaveTypesPage() {
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-semibold text-slate-800">{t.name}</p>
                                 {(toArray(t.allowed_genders).length > 0 || toArray(t.allowed_marital_statuses).length > 0) && (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded" title="Eligibility restricted by gender / marital status">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 px-1.5 py-0.5 rounded" title="Eligibility restricted by gender / marital status">
                                     Restricted
                                   </span>
                                 )}
@@ -482,12 +482,12 @@ export default function LeaveTypesPage() {
                               <span className="inline-block font-mono text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{t.code}</span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${t.is_paid ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
+                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${t.is_paid ? "bg-violet-50 text-violet-700" : "bg-rose-50 text-rose-600"}`}>
                                 {t.is_paid ? "Paid" : "Unpaid (LWP)"}
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`text-xs font-semibold ${t.sandwich_rule_applies ? "text-amber-600" : "text-slate-400"}`}>
+                              <span className={`text-xs font-semibold ${t.sandwich_rule_applies ? "text-fuchsia-600" : "text-slate-400"}`}>
                                 {t.sandwich_rule_applies ? "✓ Counted" : "N/A"}
                               </span>
                             </td>

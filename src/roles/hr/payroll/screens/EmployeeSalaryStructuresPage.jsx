@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
-import { settleWithLimit } from "../../../../shared/utils/promisePool";
+import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye,
 } from "react-icons/hi";
@@ -14,8 +14,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -28,8 +28,8 @@ const REVISION_LABELS = {
 };
 
 const STRUCT_STATUS = {
-  approved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  proposed: "bg-amber-50 text-amber-700 border border-amber-200",
+  approved: "bg-violet-50 text-violet-700 border border-violet-200",
+  proposed: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
   rejected: "bg-red-50 text-red-700 border border-red-200",
   cancelled: "bg-slate-100 text-slate-500",
 };
@@ -38,11 +38,33 @@ const STRUCT_STATUS = {
 const userId = (u) => u?.user_id ?? u?.id ?? u?._id;
 // A failed lookup is not "no structure": showing "Not set" would invite a duplicate assignment.
 const LOAD_ERROR = Symbol("load_error");
-// Settled #18 result → structure, null (none yet, incl. a 404) or LOAD_ERROR.
-const currentStructureOf = (result) => {
-  if (result?.status === "fulfilled") return result.value?.data ?? null;
-  return result?.reason?.status === 404 ? null : LOAD_ERROR;
-};
+
+const STRUCTURE_KEYS = ["structures", "records"];
+const PAGE_LIMIT = 100; // backend maximum
+const MAX_PAGES = 50;
+
+/**
+ * Every employee's active structure as `user_id -> structure`, from the bulk
+ * list endpoint. This grid used to fire one request per employee (N+1); it is
+ * now one request per 100. Rows arrive with `employee` and `components`
+ * embedded, so nothing secondary is needed to show the CTC.
+ */
+async function fetchAllCurrentStructures() {
+  const first = await payrollAPI.getCurrentSalaryStructures({ page: 1, limit: PAGE_LIMIT });
+  const firstPage = normalizePaginated(first, STRUCTURE_KEYS, { page: 1, limit: PAGE_LIMIT });
+  const pages = Math.min(MAX_PAGES, firstPage.totalPages);
+  const rest = pages > 1
+    ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) => payrollAPI.getCurrentSalaryStructures({ page: i + 2, limit: PAGE_LIMIT })))
+    : [];
+
+  const map = {};
+  for (const row of [firstPage.items, ...rest.map((res) => normalizePaginated(res, STRUCTURE_KEYS).items)].flat()) {
+    const id = row?.user_id;
+    // Sorted created_at DESC, so the first row for a person is their latest.
+    if (id && !map[id]) map[id] = row;
+  }
+  return map;
+}
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
 const userDept = (u) => u?.department || u?.department_name || "N/A";
 
@@ -226,7 +248,7 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
               <option value="">-- Select template --</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.code})</option>)}
             </select>
-            {templates.length === 0 && <p className="text-xs text-amber-600 mt-1">No templates exist yet. Create one under Structure Templates first.</p>}
+            {templates.length === 0 && <p className="text-xs text-fuchsia-600 mt-1">No templates exist yet. Create one under Structure Templates first.</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -303,7 +325,7 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
                     </tr>
                   </tfoot>
                 </table>
-                <div className={`mt-3 text-xs font-semibold rounded-lg px-3 py-2 flex items-center gap-1.5 ${preview.reconciled ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"}`}>
+                <div className={`mt-3 text-xs font-semibold rounded-lg px-3 py-2 flex items-center gap-1.5 ${preview.reconciled ? "text-violet-700 bg-violet-50" : "text-red-700 bg-red-50"}`}>
                   {preview.reconciled ? <HiCheckCircle className="w-4 h-4" /> : <HiExclamationCircle className="w-4 h-4" />}
                   {preview.reconciled ? "Reconciles to the CTC exactly." : "Does not reconcile to the CTC — check the template."}
                 </div>
@@ -341,71 +363,53 @@ export default function EmployeeSalaryStructuresPage() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Enrich the roster with each employee's current CTC (#18): at most 6 requests
-  // in flight, applied in batches, failure-isolated. A newer load or leaving the
-  // page stops an older run and drops its results.
-  const enrichReq = useRef(0);
-  // Employees re-fetched after an assignment while the full load was still
-  // running; the full load's older answer for them must not win.
-  const refreshedRef = useRef(new Set());
-  useEffect(() => () => { enrichReq.current += 1; }, []);
-  const enrichCtc = useCallback(async (list) => {
-    const reqId = ++enrichReq.current;
-    const stale = () => reqId !== enrichReq.current;
-    refreshedRef.current = new Set();
-    setCtcByUser({});
-    let pending = {};
-    const flush = () => {
-      if (stale()) return;
-      const batch = pending;
-      pending = {};
-      refreshedRef.current.forEach((id) => { delete batch[id]; });
-      setCtcByUser((m) => ({ ...m, ...batch }));
-    };
-    await settleWithLimit(
-      list,
-      (u) => (stale() ? Promise.resolve(undefined) : payrollAPI.getEmployeeCurrentStructure(userId(u))),
-      {
-        concurrency: 6,
-        onSettled: (i, r, settledCount) => {
-          pending[userId(list[i])] = currentStructureOf(r);
-          if (settledCount % 25 === 0) flush();
-        },
-      },
-    );
-    flush();
-  }, []);
+  // A newer load (or leaving the page) discards an older one's results.
+  const loadReq = useRef(0);
+  useEffect(() => () => { loadReq.current += 1; }, []);
 
-  // After an assignment only that employee's figure can change; don't refetch everyone.
+  // After an assignment only that employee's figure changes; read just that row.
   const refreshOne = useCallback(async (user) => {
     const id = userId(user);
-    refreshedRef.current.add(id);
-    setCtcByUser((m) => {
-      const next = { ...m };
-      delete next[id];
-      return next;
-    });
-    const [result] = await settleWithLimit([user], (u) => payrollAPI.getEmployeeCurrentStructure(userId(u)));
-    setCtcByUser((m) => ({ ...m, [id]: currentStructureOf(result) }));
+    setCtcByUser((m) => ({ ...m, [id]: undefined }));
+    try {
+      const res = await payrollAPI.getEmployeeCurrentStructure(id);
+      setCtcByUser((m) => ({ ...m, [id]: res?.data ?? null }));
+    } catch (err) {
+      setCtcByUser((m) => ({ ...m, [id]: err?.status === 404 ? null : LOAD_ERROR }));
+    }
   }, []);
 
   const loadData = useCallback(async () => {
+    const reqId = ++loadReq.current;
     setLoading(true);
-    try {
-      // Every page, current employees only: structures are assigned to people still employed.
-      const [list, tplRes] = await Promise.all([
-        fetchAllOrgEmployees({ includeInactive: false }),
-        payrollAPI.getTemplates(),
-      ]);
-      setEmployees(list);
-      setTemplates(tplRes.data?.records || tplRes.data || []);
-      enrichCtc(list);
-    } catch (err) {
-      showToast(payrollErrorMessage(err, "Failed to load data"), "error");
-    } finally {
-      setLoading(false);
+    // The roster names everyone (including people with no structure yet), the
+    // bulk list carries the CTCs. Either can fail without blanking the screen.
+    const [listRes, tplRes, ctcRes] = await Promise.allSettled([
+      fetchAllOrgEmployees({ includeInactive: false }), // current employees only
+      payrollAPI.getTemplates(),
+      fetchAllCurrentStructures(),
+    ]);
+    if (reqId !== loadReq.current) return;
+
+    const list = listRes.status === "fulfilled" ? listRes.value : [];
+    if (listRes.status === "fulfilled") setEmployees(list);
+    else showToast(payrollErrorMessage(listRes.reason, "Failed to load employees"), "error");
+
+    if (tplRes.status === "fulfilled") setTemplates(tplRes.value.data?.records || tplRes.value.data || []);
+
+    // Every employee gets an explicit entry: their structure, null (none yet) or
+    // LOAD_ERROR. "Not set" must never stand in for a read that failed, or HR
+    // would assign a second structure to someone who already has one.
+    const next = {};
+    if (ctcRes.status === "fulfilled") {
+      list.forEach((u) => { next[userId(u)] = ctcRes.value[userId(u)] ?? null; });
+    } else {
+      list.forEach((u) => { next[userId(u)] = LOAD_ERROR; });
+      showToast(payrollErrorMessage(ctcRes.reason, "Failed to load salary structures"), "error");
     }
-  }, [enrichCtc, showToast]);
+    setCtcByUser(next);
+    setLoading(false);
+  }, [showToast]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

@@ -218,7 +218,7 @@ function BiometricDevicesPage() {
                             {device.ip_address || "N/A"}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${device.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${device.status === 'active' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                               {device.status === 'active' ? <HiStatusOnline className="w-3.5 h-3.5" /> : <HiStatusOffline className="w-3.5 h-3.5" />}
                               {device.status === 'active' ? 'Online' : 'Offline'}
                             </span>

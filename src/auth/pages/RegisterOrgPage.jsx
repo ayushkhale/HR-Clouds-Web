@@ -208,8 +208,8 @@ function RegisterOrgPage() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4 font-sans">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-10 max-w-sm w-full text-center animate-fade-in">
-          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
-            <HiCheck className="w-8 h-8 text-emerald-600" />
+          <div className="w-16 h-16 bg-violet-50 rounded-full flex items-center justify-center mx-auto mb-5">
+            <HiCheck className="w-8 h-8 text-violet-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome aboard! 🎉</h1>
           <p className="text-sm text-gray-500 mb-4">
@@ -291,7 +291,7 @@ function RegisterOrgPage() {
                   }`}
                 >
                   Yearly billing
-                  <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">
+                  <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-bold">
                     Save ~15%
                   </span>
                 </button>

@@ -283,7 +283,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
             <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-100" />
             {progress > 0 && (
-              <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} className={`${onBreak ? "text-amber-400" : "text-purple-600"} transition-all duration-700`} strokeLinecap="round" />
+              <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} className={`${onBreak ? "text-fuchsia-400" : "text-purple-600"} transition-all duration-700`} strokeLinecap="round" />
             )}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
@@ -307,14 +307,14 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
             <p className="font-medium mt-1">Punches without location may be flagged for your manager to review.</p>
             <div className="flex flex-wrap gap-2 mt-2">
               {geoIssue.status !== GEO_STATUS.UNSUPPORTED && geoIssue.status !== GEO_STATUS.INSECURE && (
-                <button type="button" onClick={() => punch(geoIssue.kind)} disabled={disabled} className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold disabled:opacity-50">
+                <button type="button" onClick={() => punch(geoIssue.kind)} disabled={disabled} className="px-3 py-1.5 rounded-lg bg-white border border-fuchsia-300 text-fuchsia-800 font-bold disabled:opacity-50">
                   Try again
                 </button>
               )}
-              <button type="button" onClick={() => punch(geoIssue.kind, { skipLocation: true })} disabled={disabled} className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold disabled:opacity-50">
+              <button type="button" onClick={() => punch(geoIssue.kind, { skipLocation: true })} disabled={disabled} className="px-3 py-1.5 rounded-lg bg-fuchsia-600 text-white font-bold disabled:opacity-50">
                 {geoIssue.kind === "clock-in" ? "Clock in without location" : "Clock out without location"}
               </button>
-              <button type="button" onClick={() => setGeoIssue(null)} disabled={disabled} className="px-3 py-1.5 rounded-lg text-amber-800 font-bold disabled:opacity-50">
+              <button type="button" onClick={() => setGeoIssue(null)} disabled={disabled} className="px-3 py-1.5 rounded-lg text-fuchsia-800 font-bold disabled:opacity-50">
                 Cancel
               </button>
             </div>

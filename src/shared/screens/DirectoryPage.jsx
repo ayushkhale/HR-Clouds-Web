@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { organizationAPI } from "../api";
+import GenderAvatar from "../components/GenderAvatar";
 import { 
   HiOutlineSearch, 
   HiOutlineMail, 
@@ -104,17 +105,9 @@ export default function DirectoryPage() {
                 <div key={emp.user_id || emp.id || emp._id || emp.email} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
                   <div className="h-20 bg-gradient-to-r from-purple-500 to-indigo-600 relative">
                     <div className="absolute -bottom-10 inset-x-0 flex justify-center">
-                      {(emp.avatar || emp.avatar_url) ? (
-                        <img
-                          src={emp.avatar || emp.avatar_url}
-                          alt={emp.name}
-                          className="w-20 h-20 rounded-full border-4 border-white object-cover bg-white"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full border-4 border-white bg-slate-100 flex items-center justify-center text-xl font-bold text-slate-400 uppercase">
-                          {emp.name?.charAt(0) || '?'}
-                        </div>
-                      )}
+                      <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden bg-white text-xl">
+                        <GenderAvatar person={emp} name={emp.name} />
+                      </div>
                     </div>
                   </div>
                   

@@ -276,15 +276,15 @@ function AttendanceCompOffPoliciesPage() {
                           </td>
                           <td className="px-6 py-4 max-w-xs">
                             {scope.length === 0 ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Whole organisation</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-100">Whole organisation</span>
                             ) : (
                               scope.map((line) => <p key={line} className="text-[10px] font-semibold text-slate-500 truncate" title={line}>{line}</p>)
                             )}
                           </td>
                           <td className="px-6 py-4 text-xs">
                             {policy.requires_approval === false
-                              ? <span className="font-bold text-emerald-600">Auto-credited</span>
-                              : <span className="font-bold text-amber-600">Manager approval</span>}
+                              ? <span className="font-bold text-violet-600">Auto-credited</span>
+                              : <span className="font-bold text-fuchsia-600">Manager approval</span>}
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { uuid } from '../utils/uuid';
 
 const API_URL = import.meta.env.VITE_DOCMIND_API_URL || 'https://api.codewithrishi.fun/api/public';
 const API_KEY = import.meta.env.VITE_DOCMIND_API_KEY;
@@ -39,7 +40,7 @@ export function useDocMindChat() {
 
   // Keep limits in ref for use inside callbacks without stale closure issues
   const limitsRef = useRef(DEFAULT_CONFIG.limits);
-  const sessionIdRef = useRef(crypto.randomUUID());
+  const sessionIdRef = useRef(uuid());
 
   // Initialization
   useEffect(() => {
@@ -98,7 +99,7 @@ export function useDocMindChat() {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setError(null);
-    sessionIdRef.current = crypto.randomUUID(); // Fresh session
+    sessionIdRef.current = uuid(); // Fresh session
   }, []);
 
   const sendMessage = useCallback(async (query) => {
@@ -121,8 +122,8 @@ export function useDocMindChat() {
     const historyPayload = validHistory.slice(-maxTurns);
 
     // Optimistically add the user message and a placeholder for the assistant
-    const userMessage = { id: crypto.randomUUID(), role: 'user', content: currentQuery, sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-    const assistantMessageId = crypto.randomUUID();
+    const userMessage = { id: uuid(), role: 'user', content: currentQuery, sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+    const assistantMessageId = uuid();
 
     setMessages(prev => [
       ...prev,
@@ -247,7 +248,7 @@ export function useDocMindChat() {
       // Or just append an error message
       setMessages(prev => {
         const filtered = prev.filter(msg => msg.id !== assistantMessageId);
-        return [...filtered, { id: crypto.randomUUID(), role: 'assistant', content: `**Error:** ${err.message}`, isError: true }];
+        return [...filtered, { id: uuid(), role: 'assistant', content: `**Error:** ${err.message}`, isError: true }];
       });
     } finally {
       setIsLoading(false);

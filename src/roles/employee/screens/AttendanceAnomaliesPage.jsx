@@ -55,10 +55,10 @@ function AttendanceAnomaliesPage() {
                         <tr key={anom.id || idx} className="hover:bg-slate-50/80 transition-colors align-top">
                           <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(anom.date || anom.record_date || anom.created_at))}</td>
                           <td className="px-6 py-3.5">{anomalyTypeLabel(anom.type || anom.anomaly_type)}</td>
-                          <td className="px-6 py-3.5">{anom.severity ? <StatusBadge kind="severity" status={anom.severity} /> : <span className="text-slate-400">—</span>}</td>
+                          <td className="px-6 py-3.5">{anom.severity ? <StatusBadge kind="severity" status={anom.severity} /> : <span className="text-slate-400">N/A</span>}</td>
                           <td className="px-6 py-3.5"><StatusBadge kind="anomaly" status={anomalyStatusKey(anom)} /></td>
                           <td className="px-6 py-3.5 max-w-sm">
-                            <p className="truncate" title={anom.description}>{anom.description || "—"}</p>
+                            <p className="truncate" title={anom.description}>{anom.description || "N/A"}</p>
                             {remarks && <p className="text-[11px] text-slate-400 truncate mt-0.5" title={remarks}>Resolution: {remarks}</p>}
                             {anom.resolved_at && <p className="text-[10px] text-slate-400">Resolved {fmtDateTime(anom.resolved_at)}</p>}
                           </td>

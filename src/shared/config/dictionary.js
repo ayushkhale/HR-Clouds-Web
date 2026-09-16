@@ -22,7 +22,7 @@ export const DICTIONARY = {
     present: {
       label: "Present",
       icon: HiCheckCircle,
-      className: "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs"
+      className: "bg-violet-50 text-violet-700 border border-violet-200 shadow-xs"
     },
     absent: {
       label: "Absent",
@@ -32,12 +32,12 @@ export const DICTIONARY = {
     late: {
       label: "Late",
       icon: HiClock,
-      className: "bg-amber-50 text-amber-700 border border-amber-200 shadow-xs"
+      className: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 shadow-xs"
     },
     half_day: {
       label: "Half Day",
       icon: HiClock,
-      className: "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+      className: "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
     },
     on_leave: {
       label: "On Leave",
@@ -47,7 +47,7 @@ export const DICTIONARY = {
     in_progress: {
       label: "In Progress",
       icon: HiClock,
-      className: "bg-sky-50 text-sky-700 border border-sky-200 shadow-xs"
+      className: "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
     },
     weekly_off: {
       label: "Weekly Off",
@@ -62,7 +62,7 @@ export const DICTIONARY = {
     overtime: {
       label: "Overtime",
       icon: HiClock,
-      className: "bg-orange-50 text-orange-700 border border-orange-200 shadow-xs"
+      className: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 shadow-xs"
     },
     not_marked: {
       label: "Not Marked",

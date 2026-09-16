@@ -100,7 +100,7 @@ export default function EmployeeAttendanceReport({ userId, employeeLabel = "empl
       ) : state.data && (
         <>
           {state.generated && (state.generated.from !== range.from || state.generated.to !== range.to) && (
-            <p className="text-[11px] font-semibold text-amber-600">Showing {fmtDate(state.generated.from)} – {fmtDate(state.generated.to)}. Generate again to apply the new dates.</p>
+            <p className="text-[11px] font-semibold text-fuchsia-600">Showing {fmtDate(state.generated.from)} – {fmtDate(state.generated.to)}. Generate again to apply the new dates.</p>
           )}
           {summary && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -140,7 +140,7 @@ export default function EmployeeAttendanceReport({ userId, employeeLabel = "empl
                       <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
                       <td className="px-5 py-3">{fmtTime(r.clock_in_time)}</td>
                       <td className="px-5 py-3">{fmtTime(r.clock_out_time)}</td>
-                      <td className="px-5 py-3">{num(r.late_minutes) > 0 ? <span className="text-amber-600 font-bold">{fmtMinutes(r.late_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
+                      <td className="px-5 py-3">{num(r.late_minutes) > 0 ? <span className="text-fuchsia-600 font-bold">{fmtMinutes(r.late_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       <td className="px-5 py-3">{num(r.overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(r.overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       <td className="px-5 py-3">{r.is_anomaly ? <span className="text-rose-600 font-bold">Yes</span> : <span className="text-slate-400">No</span>}</td>
                     </tr>

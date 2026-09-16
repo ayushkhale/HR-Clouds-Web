@@ -23,12 +23,12 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
     } else if (budget.balancing) {
       status = { tone: "text-slate-600", text: `${moYr(budget.remaining)} goes to ${balancingName}` };
     } else if (budget.remaining > 0.5) {
-      if (ratio >= 0.95) barTone = "bg-amber-500";
+      if (ratio >= 0.95) barTone = "bg-fuchsia-500";
       status = isCtcDriven
-        ? { tone: "text-amber-600", text: `${moYr(budget.remaining)} not allocated · add a balancing component` }
-        : { tone: "text-emerald-600", text: `${moYr(budget.remaining)} left to allocate` };
+        ? { tone: "text-fuchsia-600", text: `${moYr(budget.remaining)} not allocated · add a balancing component` }
+        : { tone: "text-violet-600", text: `${moYr(budget.remaining)} left to allocate` };
     } else {
-      status = { tone: "text-emerald-600", text: "Target fully allocated" };
+      status = { tone: "text-violet-600", text: "Target fully allocated" };
     }
   }
 
@@ -87,7 +87,7 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
             {status && <span className={`font-semibold tabular-nums ${status.tone}`}>{status.text}</span>}
           </div>
           {budget.estimate && error && !loading && (
-            <p className="flex items-start gap-1.5 mt-2 text-[11px] text-amber-600" title={error}>
+            <p className="flex items-start gap-1.5 mt-2 text-[11px] text-fuchsia-600" title={error}>
               <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
               <span>{friendlyPreviewNote(error)}</span>
             </p>

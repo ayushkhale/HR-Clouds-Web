@@ -7,27 +7,30 @@
 // Tailwind class strings are literal so the JIT compiler can see them.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Tone keys are semantic names (emerald = success, amber = pending, …); every
+// tone renders as a purple-family shade so badges stay on theme but remain
+// distinguishable from each other. Rose stays red for errors/absence.
 export const TONE_CLASSES = {
-  emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  emerald: "bg-violet-50 text-violet-700 border-violet-200",
   rose: "bg-rose-50 text-rose-700 border-rose-200",
-  amber: "bg-amber-50 text-amber-700 border-amber-200",
-  blue: "bg-blue-50 text-blue-700 border-blue-200",
+  amber: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  blue: "bg-indigo-50 text-indigo-700 border-indigo-200",
   purple: "bg-purple-50 text-purple-700 border-purple-200",
-  sky: "bg-sky-50 text-sky-700 border-sky-200",
-  indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  orange: "bg-orange-50 text-orange-700 border-orange-200",
+  sky: "bg-white text-indigo-600 border-indigo-300",
+  indigo: "bg-indigo-100 text-indigo-800 border-indigo-300",
+  orange: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
   slate: "bg-slate-50 text-slate-600 border-slate-200",
 };
 
 export const TONE_DOT = {
-  emerald: "bg-emerald-500",
+  emerald: "bg-violet-500",
   rose: "bg-rose-500",
-  amber: "bg-amber-500",
-  blue: "bg-blue-500",
+  amber: "bg-fuchsia-500",
+  blue: "bg-indigo-500",
   purple: "bg-purple-500",
-  sky: "bg-sky-500",
-  indigo: "bg-indigo-500",
-  orange: "bg-orange-500",
+  sky: "bg-indigo-300",
+  indigo: "bg-indigo-700",
+  orange: "bg-fuchsia-700",
   slate: "bg-slate-300",
 };
 
@@ -146,11 +149,13 @@ export const SEVERITY = {
 };
 
 // ── Shift templates ──────────────────────────────────────────────────────────
+// Descriptive tags only: every type is calculated from start/end time and the
+// policy (update_shift_templates_2026_09_14.md §3.3).
 export const SHIFT_TYPES = {
   fixed: { label: "Fixed", description: "Same start and end time every day" },
-  flexible: { label: "Flexible", description: "Duration-based; employees choose their hours" },
-  split: { label: "Split", description: "Two working blocks in one day" },
-  night: { label: "Night", description: "Crosses midnight" },
+  flexible: { label: "Flexible", description: "No set start or end time" },
+  split: { label: "Split", description: "Worked out like Fixed; no second work block" },
+  night: { label: "Night", description: "Starts one day, ends the next" },
   rotational: { label: "Rotational", description: "Cycles through shifts via a rotation pattern" },
 };
 

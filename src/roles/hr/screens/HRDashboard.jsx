@@ -12,10 +12,11 @@ import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, parseYMDLocal,
 import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
+import DetailDialog from "../../../shared/components/DetailDialog";
 
 const CHART_PAGE_SIZE = 15;
 const LIVE_REFRESH_MS = 60_000;
-const MODE_COLORS = { office: "#7C3AED", remote: "#38BDF8", field: "#F59E0B", hybrid: "#10B981" };
+const MODE_COLORS = { office: "#7C3AED", remote: "#818CF8", field: "#D946EF", hybrid: "#C4B5FD" };
 
 const isSunday = (ymd) => parseYMDLocal(ymd)?.getDay() === 0;
 
@@ -36,20 +37,6 @@ function SundayLabel({ viewBox }) {
       ))}
     </g>
   );
-}
-
-/**
- * Symmetric department grid: 1–3 cards sit in one row, 4 become a 2×2, and
- * larger sets use the column count that divides evenly (3, else 4, else 3).
- */
-function deptGridCols(count) {
-  if (count <= 1) return "grid-cols-1";
-  if (count === 2) return "grid-cols-1 md:grid-cols-2";
-  if (count === 3) return "grid-cols-1 md:grid-cols-3";
-  if (count === 4) return "grid-cols-1 md:grid-cols-2";
-  if (count % 3 === 0) return "grid-cols-1 md:grid-cols-3";
-  if (count % 4 === 0) return "grid-cols-1 md:grid-cols-2 xl:grid-cols-4";
-  return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
 }
 
 /** Generic async widget state. */
@@ -83,16 +70,79 @@ function MonthStepper({ period, onChange }) {
 }
 
 /* ─── Department summary (H61) ─────────────────────────────────── */
+// First field the payload actually carries. `final_*` counts are the settled
+// figures (not-marked people count as absent), so they win over the raw ones.
+const countOf = (dept, keys) => num(dept[keys.find((k) => dept[k] != null)]);
+
+function DepartmentCard({ dept }) {
+  const total = num(dept.total_employees);
+  const denom = total || 1;
+  const present = countOf(dept, ["final_present_count", "present", "present_count"]);
+  const absent = countOf(dept, ["final_absent_count", "absent", "absent_count"]);
+  const late = countOf(dept, ["late", "late_count"]);
+  const onLeave = countOf(dept, ["on_leave", "on_leave_count"]);
+  const pct = (n) => Math.min(100, Math.round((n / denom) * 100));
+  // The API reports 100% for a department with nobody in it.
+  const presentPct = total === 0 ? null : dept.attendance_percentage != null ? Math.round(num(dept.attendance_percentage)) : pct(present);
+  const deptName = deptNameOf(dept);
+  return (
+    <div className="border border-slate-100 rounded-2xl p-5 hover:shadow-md hover:border-purple-200 transition-all flex flex-col bg-white">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-600 to-purple-800 text-white flex items-center justify-center font-bold text-sm shrink-0">{initials(deptName)}</div>
+          <div className="min-w-0">
+            <h4 className="font-bold text-slate-800 truncate text-sm" title={deptName}>{deptName}</h4>
+            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">{total} {total === 1 ? "member" : "members"}</p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className={`text-xl font-bold leading-none ${presentPct == null ? "text-slate-400" : "text-slate-800"}`}>{presentPct == null ? "N/A" : `${presentPct}%`}</div>
+          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mt-1">Present</div>
+        </div>
+      </div>
+      <div className="flex w-full h-2 rounded-full overflow-hidden bg-slate-100 mb-4">
+        {pct(present) > 0 && <div className="bg-purple-600 h-full" style={{ width: `${pct(present)}%` }} />}
+        {pct(onLeave) > 0 && <div className="bg-fuchsia-300 h-full" style={{ width: `${pct(onLeave)}%` }} />}
+        {pct(absent) > 0 && <div className="bg-purple-200 h-full" style={{ width: `${pct(absent)}%` }} />}
+      </div>
+      {[["Present", present, "bg-purple-600"], ["Late (of present)", late, "bg-purple-400"], ["On leave", onLeave, "bg-fuchsia-300"], ["Absent", absent, "bg-purple-200"]].map(([label, value, dot]) => (
+        <div key={label} className="flex items-center gap-2 mt-1.5">
+          <span className={`w-2 h-2 rounded-full ${dot}`} />
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+          <span className="text-sm font-bold text-slate-800 ml-auto">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const deptNameOf = (dept) => dept.department || dept.department_name || "Unassigned";
+const deptKey = (dept, i) => dept.department_id || `${deptNameOf(dept)}-${i}`;
+
+// The dashboard shows one row of departments; the rest open in a popup.
+const DEPT_PREVIEW = 3;
+const DEPT_ROW_COLS = { 1: "md:grid-cols-1", 2: "md:grid-cols-2", 3: "md:grid-cols-3" };
+
 function DepartmentSummaryCard() {
   const [date, setDate] = useState(todayYMD());
+  const [showAll, setShowAll] = useState(false);
   const [state, reload] = useWidget(() => attendanceAPI.getDepartmentSummary(date), [date]);
   const depts = listFrom(state.data, ["departments"]);
+  const preview = depts.slice(0, DEPT_PREVIEW);
+  const dateLabel = fmtDate(date, { day: "numeric", month: "short" });
 
   return (
     <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-100">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h3 className="text-lg font-bold text-slate-800">Department overview · {fmtDate(date, { day: "numeric", month: "short" })}</h3>
-        <input type="date" value={date} max={todayYMD()} onChange={(e) => e.target.value && setDate(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600" aria-label="Department summary date" />
+        <h3 className="text-lg font-bold text-slate-800">Department overview · {dateLabel}</h3>
+        <div className="flex items-center gap-2">
+          <input type="date" value={date} max={todayYMD()} onChange={(e) => e.target.value && setDate(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600" aria-label="Department summary date" />
+          {!state.loading && !state.error && depts.length > DEPT_PREVIEW && (
+            <button type="button" onClick={() => setShowAll(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors">
+              View all ({depts.length}) <HiChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       {state.error ? (
         <ErrorState error={state.error} onRetry={reload} fallback="Couldn't load department data." />
@@ -101,46 +151,17 @@ function DepartmentSummaryCard() {
       ) : depts.length === 0 ? (
         <EmptyState icon={HiUserGroup} title="No department data" message="Assign employees to departments to see this breakdown." />
       ) : (
-        <div className={`grid gap-6 ${deptGridCols(depts.length)}`}>
-          {depts.map((dept, i) => {
-            const total = num(dept.total_employees);
-            const denom = total || 1;
-            const present = num(dept.present_count);
-            const absent = num(dept.absent_count);
-            const late = num(dept.late_count);
-            const pct = (n) => Math.min(100, Math.round((n / denom) * 100));
-            const presentPct = dept.attendance_percentage != null ? Math.round(num(dept.attendance_percentage)) : pct(present);
-            const deptName = dept.department || dept.department_name || "Unassigned";
-            return (
-              <div key={dept.department_id || deptName || i} className="border border-slate-100 rounded-2xl p-5 hover:shadow-md hover:border-purple-200 transition-all flex flex-col">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-600 to-purple-800 text-white flex items-center justify-center font-bold text-sm shrink-0">{initials(deptName)}</div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-slate-800 truncate text-sm" title={deptName}>{deptName}</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5 font-medium">{total} {total === 1 ? "member" : "members"}</p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-xl font-bold text-slate-800 leading-none">{presentPct}%</div>
-                    <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mt-1">Present</div>
-                  </div>
-                </div>
-                <div className="flex w-full h-2 rounded-full overflow-hidden bg-slate-100 mb-4">
-                  {pct(present) > 0 && <div className="bg-purple-600 h-full" style={{ width: `${pct(present)}%` }} />}
-                  {pct(absent) > 0 && <div className="bg-purple-200 h-full" style={{ width: `${pct(absent)}%` }} />}
-                </div>
-                {[["Present", present, "bg-purple-600"], ["Late (of present)", late, "bg-purple-400"], ["Absent", absent, "bg-purple-200"]].map(([label, value, dot]) => (
-                  <div key={label} className="flex items-center gap-2 mt-1.5">
-                    <span className={`w-2 h-2 rounded-full ${dot}`} />
-                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
-                    <span className="text-sm font-bold text-slate-800 ml-auto">{value}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
+        <div className={`grid gap-6 grid-cols-1 ${DEPT_ROW_COLS[preview.length]}`}>
+          {preview.map((dept, i) => <DepartmentCard key={deptKey(dept, i)} dept={dept} />)}
         </div>
+      )}
+
+      {showAll && (
+        <DetailDialog title="All departments" subtitle={`${depts.length} departments · ${dateLabel}`} icon={HiUserGroup} onClose={() => setShowAll(false)}>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {depts.map((dept, i) => <DepartmentCard key={deptKey(dept, i)} dept={dept} />)}
+          </div>
+        </DetailDialog>
       )}
     </div>
   );
@@ -242,7 +263,7 @@ function HRDashboard() {
                 <h3 className="text-lg font-bold text-slate-800">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
                 <div className="flex items-center gap-4 mt-2">
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#8B5CF6]" /> On time</span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#F59E0B]" /> Late</span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#D946EF]" /> Late</span>
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#DDD6FE]" /> {DICTIONARY.STATUS.ABSENT}</span>
                 </div>
               </div>
@@ -279,7 +300,7 @@ function HRDashboard() {
                     ))}
                     <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
                     <Bar dataKey="on_time_count" name="On time" fill="#8B5CF6" maxBarSize={8} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="late_count" name="Late" fill="#F59E0B" maxBarSize={8} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="late_count" name="Late" fill="#D946EF" maxBarSize={8} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill="#DDD6FE" maxBarSize={8} radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

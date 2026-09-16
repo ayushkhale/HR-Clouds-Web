@@ -446,7 +446,7 @@ const featureHighlights = [
       "Single sign-on (SSO) support",
       "Automated data sync across platforms",
     ],
-    gradient: "from-purple-600 to-pink-500",
+    gradient: "from-purple-600 to-fuchsia-500",
   },
 ];
 

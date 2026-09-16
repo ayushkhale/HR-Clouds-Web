@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { organizationAPI, tokenHelper } from "../api";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { useMayaVisibility } from "../hooks/useMayaVisibility";
+import GenderAvatar from "../components/GenderAvatar";
 
 import {
     HiUser,
@@ -281,8 +282,8 @@ function MyProfilePage() {
                         <div className="xl:sticky xl:top-24 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                             <div className="p-6 sm:p-8 flex flex-col items-center text-center">
                                 <div className="mb-4">
-                                    <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-purple-50 shrink-0 flex items-center justify-center text-purple-700 font-bold text-3xl uppercase">
-                                        {(profile.name || profile.email || "U").charAt(0)}
+                                    <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-purple-50 shrink-0 text-3xl">
+                                        <GenderAvatar person={profile} name={profile.name || profile.email} />
                                     </div>
                                 </div>
                                 <div className="w-full">
@@ -310,14 +311,14 @@ function MyProfilePage() {
                                     <div className="space-y-2.5">
                                         <div className="flex justify-between items-center text-sm px-2">
                                             <span className="text-slate-500">Department</span>
-                                            <span className="font-medium text-slate-900 truncate max-w-[140px]" title={profile.department ? (typeof profile.department === "object" ? profile.department.name : profile.department) : "—"}>
-                                                {profile.department ? (typeof profile.department === "object" ? profile.department.name : profile.department) : "—"}
+                                            <span className="font-medium text-slate-900 truncate max-w-[140px]" title={profile.department ? (typeof profile.department === "object" ? profile.department.name : profile.department) : "N/A"}>
+                                                {profile.department ? (typeof profile.department === "object" ? profile.department.name : profile.department) : "N/A"}
                                             </span>
                                         </div>
                                         <div className="flex justify-between items-center text-sm px-2">
                                             <span className="text-slate-500">Designation</span>
-                                            <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={profile.designation || "—"}>
-                                                {profile.designation || "—"}
+                                            <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={profile.designation || "N/A"}>
+                                                {profile.designation || "N/A"}
                                             </span>
                                         </div>
                                     </div>
@@ -331,11 +332,11 @@ function MyProfilePage() {
                                     <div className="space-y-2.5">
                                         <div className="flex justify-between items-center text-sm px-2">
                                             <span className="text-slate-500">Phone</span>
-                                            <span className="font-medium text-slate-900 truncate max-w-[150px]">{profile.contact || profile.phone_number || "—"}</span>
+                                            <span className="font-medium text-slate-900 truncate max-w-[150px]">{profile.contact || profile.phone_number || "N/A"}</span>
                                         </div>
                                         <div className="flex justify-between items-center text-sm px-2">
                                             <span className="text-slate-500">Email</span>
-                                            <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={profile.email}>{profile.email || "—"}</span>
+                                            <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={profile.email}>{profile.email || "N/A"}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -409,7 +410,7 @@ function MyProfilePage() {
                             </div>
 
                             {notice && (
-                                <div className={`px-4 py-3 rounded-xl text-sm font-semibold border ${notice.type === "success" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                                <div className={`px-4 py-3 rounded-xl text-sm font-semibold border ${notice.type === "success" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-red-50 text-red-700 border-red-200"}`}>
                                     {notice.message}
                                 </div>
                             )}

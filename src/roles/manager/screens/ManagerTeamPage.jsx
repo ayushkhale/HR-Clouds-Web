@@ -11,7 +11,7 @@ function ManagerTeamPage() {
           <h1 className="text-2xl font-bold text-slate-900">Team Status Today</h1>
           <p className="text-sm text-slate-500 mt-1">Live attendance for everyone in your reporting line.</p>
         </div>
-        <TeamDirectoryTable />
+        <TeamDirectoryTable hideTitle />
       </main>
     </>
   );

@@ -1,12 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// DetailDialog.jsx — Viewport-wide, purple-themed read-only preview used when a
-// table row is clicked. Compose the body from DetailSection / DetailGrid /
-// DetailStats / DetailTable so every preview in the app reads the same way.
+// DetailDialog.jsx — Read-only preview opened by clicking a table row. Same
+// size, header, section cards and label/field look as the Invite Team Member
+// dialog, so previews read like the rest of the app: one titled section after
+// another, each a grid of labelled values. Compose the body from DetailSection /
+// DetailGrid / DetailStats / DetailTable / DetailText.
 // Empty values always render as "N/A" (never "—" or "-").
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef } from "react";
-import { HiX, HiChevronRight, HiInformationCircle } from "react-icons/hi";
+import { HiX, HiInformationCircle } from "react-icons/hi";
 
 /** null / undefined / "" / NaN → "N/A". Numbers (including 0) are kept. */
 export function displayValue(value, fallback = "N/A") {
@@ -17,6 +19,10 @@ export function displayValue(value, fallback = "N/A") {
 }
 
 const isEmpty = (v) => v === null || v === undefined || (typeof v === "string" && !v.trim()) || (typeof v === "number" && !Number.isFinite(v));
+
+// Same label and read-only "field" look as the invite form inputs.
+const LABEL = "block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5";
+const FIELD = "min-h-10 flex items-center bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2 text-xs";
 
 // Several previews can be open at once (e.g. a cost preview stacked on a rule).
 // Only the topmost reacts to Escape, and the body scroll lock is released only
@@ -65,92 +71,91 @@ export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, bad
 
   return (
     <div
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-3 sm:p-6"
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onCloseRef.current?.()}
     >
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bg-white rounded-3xl shadow-2xl shadow-purple-900/20 w-full max-h-[94vh] flex flex-col overflow-hidden outline-none animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col outline-none animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Details"}
       >
-        <div className="relative bg-gradient-to-r from-[#5B21B6] via-[#6D28D9] to-[#7C3AED] px-5 sm:px-8 py-5 text-white shrink-0">
-          <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_top_right,_#ffffff_0%,_transparent_45%)]" />
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
-              {Icon && (
-                <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-              )}
-              <div className="min-w-0">
-                {eyebrow && <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-purple-200 mb-0.5">{eyebrow}</p>}
-                <h2 className="text-lg sm:text-xl font-bold leading-tight truncate">{displayValue(title)}</h2>
-                {subtitle && <p className="text-xs sm:text-sm text-purple-100/90 mt-0.5 truncate">{subtitle}</p>}
+        <div className="flex items-center justify-between gap-4 px-6 py-5 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {Icon && (
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                <Icon className="w-5 h-5" />
               </div>
+            )}
+            <div className="min-w-0">
+              {eyebrow && <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600">{eyebrow}</p>}
+              <h3 className="font-bold text-slate-900 text-base truncate">{displayValue(title)}</h3>
+              {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              {badge}
-              <button type="button" onClick={() => onCloseRef.current?.()} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition" aria-label="Close">
-                <HiX className="w-5 h-5" />
-              </button>
-            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {badge}
+            <button type="button" onClick={() => onCloseRef.current?.()} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer" aria-label="Close">
+              <HiX className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-purple-50/40 px-4 sm:px-8 py-6 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 space-y-6">
           {loading && (
             <div className="flex items-center gap-2 text-xs font-semibold text-purple-600">
-              <span className="inline-block w-3.5 h-3.5 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin" /> Loading full details…
+              <span className="inline-block w-3.5 h-3.5 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" /> Loading full details…
             </div>
           )}
           {children}
         </div>
 
-        {footer && <div className="shrink-0 px-4 sm:px-8 py-4 border-t border-purple-100 bg-white flex flex-wrap items-center justify-end gap-3">{footer}</div>}
+        {footer && <div className="shrink-0 flex flex-wrap items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">{footer}</div>}
       </div>
     </div>
   );
 }
 
+/** A titled card, styled like the invite form's sections. */
 export function DetailSection({ title, icon: Icon, action, children, className = "" }) {
   return (
-    <section className={`bg-white border border-purple-100 rounded-2xl p-4 sm:p-5 shadow-xs ${className}`}>
+    <section className={`border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs ${className}`}>
       {(title || action) && (
-        <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="px-5 py-3.5 flex items-center justify-between gap-3 bg-slate-50/80 border-b border-slate-100">
           {title && (
-            <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-purple-700">
-              {Icon && <span className="w-6 h-6 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center"><Icon className="w-3.5 h-3.5" /></span>}
+            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+              {Icon && <Icon className="w-4 h-4 text-purple-600 shrink-0" />}
               {title}
-            </h3>
+            </h4>
           )}
           {action}
         </div>
       )}
-      {children}
+      <div className="p-5">{children}</div>
     </section>
   );
 }
 
 const GRID_COLS = {
+  1: "grid-cols-1",
   2: "grid-cols-1 sm:grid-cols-2",
-  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
-  5: "grid-cols-2 md:grid-cols-3 xl:grid-cols-5",
-  6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+  3: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3",
+  4: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
 };
 
-/** items: [{ label, value, mono?, wide? }] or [label, value] tuples. */
+/** items: [{ label, value, mono?, wide? }] or [label, value] tuples. Labels sit above their values, like form fields. */
 export function DetailGrid({ items, cols = 4 }) {
   const rows = items.map((it) => (Array.isArray(it) ? { label: it[0], value: it[1] } : it));
   return (
-    <dl className={`grid gap-3 ${GRID_COLS[cols] || GRID_COLS[4]}`}>
+    <dl className={`grid gap-4 ${GRID_COLS[Math.min(cols, 4)] || GRID_COLS[4]}`}>
       {rows.map(({ label, value, mono, wide }, i) => (
-        <div key={`${label}-${i}`} className={`rounded-xl bg-purple-50/70 border border-purple-100/80 px-3.5 py-3 min-w-0 ${wide ? "sm:col-span-2" : ""}`}>
-          <dt className="text-[10px] font-bold uppercase tracking-wider text-purple-500/90 mb-1">{label}</dt>
-          <dd className={`text-sm font-semibold break-words ${isEmpty(value) ? "text-slate-400" : "text-slate-800"} ${mono ? "font-mono" : ""}`}>{displayValue(value)}</dd>
+        <div key={`${label}-${i}`} className={`min-w-0 ${wide ? "sm:col-span-2" : ""}`}>
+          <dt className={LABEL}>{label}</dt>
+          <dd className={`${FIELD} break-words ${isEmpty(value) ? "text-slate-400" : "text-slate-800 font-semibold"} ${mono ? "font-mono" : ""}`}>
+            <span className="min-w-0 break-words">{displayValue(value)}</span>
+          </dd>
         </div>
       ))}
     </dl>
@@ -159,15 +164,15 @@ export function DetailGrid({ items, cols = 4 }) {
 
 /** Headline numbers. items: [{ label, value, icon?, hint? }] */
 export function DetailStats({ items }) {
-  const cols = items.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : items.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
+  const cols = items.length >= 4 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : items.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
   return (
-    <div className={`grid gap-3 ${cols}`}>
+    <div className={`grid gap-4 ${cols}`}>
       {items.map(({ label, value, icon: Icon, hint }) => (
-        <div key={label} className="rounded-2xl bg-gradient-to-br from-white to-purple-50 border border-purple-100 p-4 flex items-start gap-3 min-w-0">
-          {Icon && <span className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0"><Icon className="w-4 h-4" /></span>}
+        <div key={label} className="border border-slate-200/80 rounded-2xl bg-white shadow-2xs px-4 py-3.5 flex items-center gap-3 min-w-0">
+          {Icon && <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>}
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500">{label}</p>
-            <p className={`text-xl font-black mt-0.5 truncate ${isEmpty(value) ? "text-slate-400" : "text-purple-800"}`}>{displayValue(value)}</p>
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{label}</p>
+            <p className={`text-lg font-bold mt-0.5 truncate ${isEmpty(value) ? "text-slate-400" : "text-slate-900"}`}>{displayValue(value)}</p>
             {hint && <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>}
           </div>
         </div>
@@ -176,36 +181,37 @@ export function DetailStats({ items }) {
   );
 }
 
-/** Purple-only pill. tone: "solid" | "soft" | "outline" | "muted" | "onDark" */
+/** Purple-only pill. tone: "solid" | "soft" | "outline" | "muted" | "onDark" (kept for callers; same as soft on the white header). */
 export function DetailPill({ children, tone = "soft", className = "" }) {
   const tones = {
     solid: "bg-purple-600 text-white border-purple-600",
-    soft: "bg-purple-100 text-purple-700 border-purple-200",
+    soft: "bg-purple-50 text-purple-700 border-purple-200",
     outline: "bg-white text-purple-700 border-purple-300",
-    muted: "bg-purple-50 text-purple-400 border-purple-100",
-    onDark: "bg-white/15 text-white border-white/25",
+    muted: "bg-slate-50 text-slate-500 border-slate-200",
+    onDark: "bg-purple-50 text-purple-700 border-purple-200",
   };
   return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${tones[tone] || tones.soft} ${className}`}>{children}</span>;
 }
 
 /** columns: [{ header, render(row, i), align? }] */
 export function DetailTable({ columns, rows, empty = "No records.", rowKey = (r, i) => r.id ?? i }) {
+  const alignCls = (c) => (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "");
   return (
-    <div className="overflow-x-auto rounded-xl border border-purple-100">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-purple-50 text-[10px] uppercase font-bold tracking-wider text-purple-600">
+    <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-slate-50/80 text-[11px] uppercase font-bold tracking-wider text-slate-600 border-b border-slate-100">
           <tr>
-            {columns.map((c) => <th key={c.header} className={`px-4 py-3 whitespace-nowrap ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : ""}`}>{c.header}</th>)}
+            {columns.map((c) => <th key={c.header} className={`px-4 py-3 whitespace-nowrap ${alignCls(c)}`}>{c.header}</th>)}
           </tr>
         </thead>
-        <tbody className="divide-y divide-purple-50 bg-white">
+        <tbody className="divide-y divide-slate-100 bg-white">
           {rows.length === 0 ? (
             <tr><td colSpan={columns.length} className="px-4 py-6 text-center text-xs text-slate-400">{empty}</td></tr>
           ) : rows.map((row, i) => (
-            <tr key={rowKey(row, i)} className="hover:bg-purple-50/40">
+            <tr key={rowKey(row, i)} className="hover:bg-slate-50/60">
               {columns.map((c) => {
                 const v = c.render(row, i);
-                return <td key={c.header} className={`px-4 py-2.5 text-slate-700 ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : ""}`}>{isEmpty(v) ? <span className="text-slate-400">N/A</span> : v}</td>;
+                return <td key={c.header} className={`px-4 py-2.5 text-slate-800 ${alignCls(c)}`}>{isEmpty(v) ? <span className="text-slate-400">N/A</span> : v}</td>;
               })}
             </tr>
           ))}
@@ -215,33 +221,13 @@ export function DetailTable({ columns, rows, empty = "No records.", rowKey = (r,
   );
 }
 
+/** Long text (reasons, notes) under a field label. */
 export function DetailText({ label, children }) {
   return (
-    <div className="rounded-xl bg-purple-50/70 border border-purple-100/80 px-4 py-3">
-      {label && <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500/90 mb-1">{label}</p>}
-      <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isEmpty(children) ? "text-slate-400" : "text-slate-700"}`}>{displayValue(children)}</p>
+    <div className="min-w-0">
+      {label && <p className={LABEL}>{label}</p>}
+      <p className={`bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap break-words ${isEmpty(children) ? "text-slate-400" : "text-slate-800"}`}>{displayValue(children)}</p>
     </div>
-  );
-}
-
-/**
- * The single control at the end of a previewable row. It is the same size on
- * every row so the column never shifts; record actions (approve, cancel…) live
- * in the preview's footer instead. `attention` fills it when the row is waiting
- * on the viewer. Keep the visible word inside `label` for voice-control users.
- */
-export function RowOpenButton({ onClick, label, attention = false, children, className = "w-24" }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-haspopup="dialog"
-      title={label}
-      className={`inline-flex items-center justify-center gap-1 h-8 px-2 rounded-lg text-xs font-bold whitespace-nowrap transition ${className} ${attention ? "bg-purple-600 text-white hover:bg-purple-700 shadow-sm shadow-purple-200" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"}`}
-    >
-      {children ?? (attention ? "Review" : "View")} <HiChevronRight className="w-3.5 h-3.5 shrink-0" />
-    </button>
   );
 }
 
@@ -249,7 +235,7 @@ export function RowOpenButton({ onClick, label, attention = false, children, cla
 export function DetailFooterNote({ children }) {
   return (
     <p className="mr-auto flex items-start gap-2 text-xs text-slate-500">
-      <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-400" /> <span>{children}</span>
+      <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500" /> <span>{children}</span>
     </p>
   );
 }
@@ -257,9 +243,10 @@ export function DetailFooterNote({ children }) {
 const INTERACTIVE = "button, a, input, select, textarea, label, [data-row-action]";
 
 /**
- * Makes a table row open a preview on click / Enter / Space while leaving inner
- * buttons, links and form controls alone. Keeps native row semantics (no
- * role/aria-label override) so screen readers still read the cell contents.
+ * Makes a table row open its preview on click / Enter / Space — the row is the
+ * only way in (no separate View button), so it is always a keyboard stop. Inner
+ * buttons, links and form controls keep their own behaviour. Keeps native row
+ * semantics so screen readers still read the cell contents.
  */
 export function rowPreviewProps(onOpen, label) {
   return {

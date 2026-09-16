@@ -8,21 +8,24 @@ import AttendanceTab from "./employee-profile/AttendanceTab";
 import ProfileTab from "./employee-profile/ProfileTab";
 import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
+import DepartmentTab from "./employee-profile/DepartmentTab";
+import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar,
-  HiOutlineCalendar,
+  HiOutlineCalendar, HiOutlineOfficeBuilding,
   HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
 } from "react-icons/hi";
 
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
+  { key: "department", label: "Department", icon: HiOutlineOfficeBuilding },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
   { key: "profile", label: "Profile", icon: HiOutlineUser },
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
 ];
 
-import GenderAvatar, { genderOf } from "../../../shared/components/GenderAvatar";
+
 
 function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   const [departments, setDepartments] = useState([]);
@@ -192,7 +195,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
                 </select>
                 <p className="text-[10px] text-slate-400 mt-1">Required if the user&apos;s new department has no HOD, or if moving them to &ldquo;No Department&rdquo;. Ignored for HR/Manager roles.</p>
                 {employees.filter(x => canBeHOD(x.role)).length === 0 && (
-                  <p className="text-[10px] text-amber-600 font-semibold mt-1">
+                  <p className="text-[10px] text-fuchsia-600 font-semibold mt-1">
                     No Managers or HR admins exist yet — create one before transferring.
                   </p>
                 )}
@@ -246,14 +249,14 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
               </label>
 
               {requiresFallback && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-2">
-                  <label className="block text-xs font-bold text-amber-800 mb-1.5">Fallback Manager <span className="text-red-500">*</span></label>
-                  <p className="text-xs text-amber-700 mb-2">The old department has no HOD. Select a manager to inherit this user's subordinates.</p>
+                <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 mt-2">
+                  <label className="block text-xs font-bold text-fuchsia-800 mb-1.5">Fallback Manager <span className="text-red-500">*</span></label>
+                  <p className="text-xs text-fuchsia-700 mb-2">The old department has no HOD. Select a manager to inherit this user's subordinates.</p>
                   <select 
                     name="old_dept_fallback_manager_id" 
                     value={form.old_dept_fallback_manager_id} 
                     onChange={handleChange}
-                    className="w-full bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-amber-900 outline-none focus:border-amber-500 transition-all"
+                    className="w-full bg-white border border-fuchsia-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-fuchsia-900 outline-none focus:border-fuchsia-500 transition-all"
                   >
                     <option value="">Select fallback manager...</option>
                     {employees.filter(x => canBeHOD(x.role)).map(e => {
@@ -433,9 +436,9 @@ export default function EmployeeProfilePage() {
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold flex items-center gap-1.5 ${
                   employee.is_active === false
                     ? "bg-rose-50 text-rose-700"
-                    : "bg-emerald-50 text-emerald-700"
+                    : "bg-violet-50 text-violet-700"
                 }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${employee.is_active === false ? "bg-rose-500" : "bg-emerald-500"}`}></span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${employee.is_active === false ? "bg-rose-500" : "bg-violet-500"}`}></span>
                   {employee.is_active === false ? "Inactive" : "Active"}
                 </span>
               )}
@@ -458,9 +461,9 @@ export default function EmployeeProfilePage() {
                     className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
                   >
                     {employee?.is_active === false ? (
-                      <><HiCheckCircle className="w-4 h-4 text-emerald-500" /> Activate Employee</>
+                      <><HiCheckCircle className="w-4 h-4 text-violet-500" /> Activate Employee</>
                     ) : (
-                      <><HiBan className="w-4 h-4 text-amber-500" /> Deactivate Employee</>
+                      <><HiBan className="w-4 h-4 text-fuchsia-500" /> Deactivate Employee</>
                     )}
                   </button>
                   <div className="h-px bg-slate-100 my-1"></div>
@@ -502,15 +505,7 @@ export default function EmployeeProfilePage() {
                     <div className="w-24 h-24 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
                     <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-purple-50 shrink-0 flex items-center justify-center">
-                      {employee?.avatar ? (
-                        <img 
-                          src={employee.avatar} 
-                          alt={displayName} 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <GenderAvatar gender={genderOf(employee)} name={displayName} />
-                      )}
+                      <GenderAvatar person={employee} name={displayName} />
                     </div>
                   )}
                 </div>
@@ -615,7 +610,7 @@ export default function EmployeeProfilePage() {
                 {/* Attendance reads are split by role (/employees, /managers, /hrs).
                     Wait for the profile so a manager/HR isn't first queried through
                     /employees/* — that stale response could overwrite the real one. */}
-                {(activeTab === "overview" || activeTab === "attendance") && loading && (
+                {(activeTab === "overview" || activeTab === "attendance" || activeTab === "department") && loading && (
                   <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
                 )}
                 {activeTab === "overview" && !loading && employee && (
@@ -623,6 +618,9 @@ export default function EmployeeProfilePage() {
               )}
               {activeTab === "attendance" && !loading && employee && (
                 <AttendanceTab key={userId} userId={userId} employeeRole={employeeRole} />
+              )}
+              {activeTab === "department" && !loading && employee && (
+                <DepartmentTab key={userId} employee={employee} userId={userId} employeeRole={employeeRole} />
               )}
               {activeTab === "leave" && (
                 <LeaveTab userId={userId} />
@@ -738,10 +736,10 @@ export default function EmployeeProfilePage() {
       
       {/* ── TOAST ── */}
       {successToast && (
-        <div className="fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
-          <HiCheckCircle className="w-5 h-5 text-emerald-500" />
+        <div className="fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl bg-violet-50 text-violet-700 border border-violet-200 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
+          <HiCheckCircle className="w-5 h-5 text-violet-500" />
           <span>{successToast}</span>
-          <button onClick={() => setSuccessToast("")}><HiX className="w-4 h-4 text-emerald-300 hover:text-emerald-500" /></button>
+          <button onClick={() => setSuccessToast("")}><HiX className="w-4 h-4 text-violet-300 hover:text-violet-500" /></button>
         </div>
       )}
 

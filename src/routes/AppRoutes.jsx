@@ -30,6 +30,7 @@ import InvitationAcceptPage from "../auth/pages/InvitationAcceptPage";
 import DashboardPage from "../roles/DashboardPage";
 import GuestDashboard from "../roles/guest/screens/GuestDashboard";
 import HRDashboard from "../roles/hr/screens/HRDashboard";
+import HRInboxPage from "../roles/hr/screens/HRInboxPage";
 import EmployeesPage from "../roles/hr/screens/EmployeesPage";
 import EmployeeProfilePage from "../roles/hr/screens/EmployeeProfilePage";
 import DepartmentsPage from "../roles/hr/screens/DepartmentsPage";
@@ -94,7 +95,8 @@ import PayrollLoansPage from "../roles/hr/payroll/screens/PayrollLoansPage";
 import TaxConfigurationsPage from "../roles/hr/payroll/screens/TaxConfigurationsPage";
 import TaxDeclarationsPage from "../roles/hr/payroll/screens/TaxDeclarationsPage";
 import YearEndClosurePage from "../roles/hr/payroll/screens/YearEndClosurePage";
-import BenefitsAndReimbursementsPage from "../roles/hr/payroll/screens/BenefitsAndReimbursementsPage";
+import PayrollReimbursementsPage from "../roles/hr/payroll/screens/PayrollReimbursementsPage";
+import PayrollBenefitsPage from "../roles/hr/payroll/screens/PayrollBenefitsPage";
 import PayrollReportsPage from "../roles/hr/payroll/screens/PayrollReportsPage";
 import BankVerificationPage from "../roles/hr/payroll/screens/BankVerificationPage";
 import PayrollAuditLogPage from "../roles/hr/payroll/screens/PayrollAuditLogPage";
@@ -217,6 +219,7 @@ function AppRoutes() {
          between these routes keeps its scroll position and expanded sections. */}
       <Route element={<ProtectedRoute workspace="hr"><DashboardLayout role="hr" /></ProtectedRoute>}>
         <Route path="/dashboard/hr" element={<HRDashboard />} />
+        <Route path="/dashboard/hr/inbox" element={<HRInboxPage />} />
         <Route path="/dashboard/hr/employees" element={<EmployeesPage />} />
         <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
         <Route path="/dashboard/hr/departments" element={<DepartmentsPage />} />
@@ -260,7 +263,9 @@ function AppRoutes() {
         <Route path="/dashboard/hr/payroll/statutory" element={<TaxConfigurationsPage />} />
         <Route path="/dashboard/hr/payroll/tax-declarations" element={<TaxDeclarationsPage />} />
         <Route path="/dashboard/hr/payroll/year-end" element={<YearEndClosurePage />} />
-        <Route path="/dashboard/hr/payroll/benefits" element={<BenefitsAndReimbursementsPage />} />
+        <Route path="/dashboard/hr/payroll/reimbursements" element={<PayrollReimbursementsPage />} />
+        <Route path="/dashboard/hr/payroll/benefits" element={<PayrollBenefitsPage />} />
+        <Route path="/dashboard/hr/my-reimbursements" element={<MyReimbursementsPage />} />
         <Route path="/dashboard/hr/payroll/reports" element={<PayrollReportsPage />} />
       </Route>
 
@@ -287,6 +292,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/payroll/team-payslips" element={<TeamPayslipsPage />} />
         <Route path="/dashboard/manager/payroll/adjustments" element={<ManagerAdjustmentsPage />} />
         <Route path="/dashboard/manager/payroll/reimbursements" element={<TeamReimbursementsPage />} />
+        <Route path="/dashboard/manager/my-reimbursements" element={<MyReimbursementsPage />} />
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}

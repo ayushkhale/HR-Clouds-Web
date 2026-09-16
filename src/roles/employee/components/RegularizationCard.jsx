@@ -13,13 +13,14 @@ import { entityId } from "../../../shared/attendance/normalize";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, StatusBadge, Toast, useToast } from "../../../shared/attendance/ui";
 import { HiPencilAlt, HiPlus, HiX } from "react-icons/hi";
+import TimeField from "../../../shared/components/TimeField";
 
 const inputClass = (invalid) =>
   `w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all ${invalid ? "border-rose-300" : "border-slate-200"}`;
 
 /** Requested instant as a time, with "+1 day" when it falls after the request date. */
 function RequestedTime({ iso, date }) {
-  if (!iso) return <span className="text-slate-400">—</span>;
+  if (!iso) return <span className="text-slate-400">N/A</span>;
   const nextDay = date && toLocalYMD(iso) > ymdOnly(date);
   return (
     <span>
@@ -91,13 +92,13 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="reg-in" className="block text-sm font-semibold text-slate-700 mb-1.5">Clock in</label>
-              <input id="reg-in" type="time" className={inputClass(!!(errors.clockIn || errors.times))} value={form.clockIn} onChange={(e) => set("clockIn", e.target.value)} />
+              <span className="block text-sm font-semibold text-slate-700 mb-1.5">Clock in</span>
+              <TimeField label="Clock in" value={form.clockIn} onChange={(v) => set("clockIn", v)} invalid={!!(errors.clockIn || errors.times)} />
               <FieldError message={errors.clockIn} />
             </div>
             <div>
-              <label htmlFor="reg-out" className="block text-sm font-semibold text-slate-700 mb-1.5">Clock out</label>
-              <input id="reg-out" type="time" className={inputClass(!!(errors.clockOut || errors.times))} value={form.clockOut} onChange={(e) => set("clockOut", e.target.value)} />
+              <span className="block text-sm font-semibold text-slate-700 mb-1.5">Clock out</span>
+              <TimeField label="Clock out" value={form.clockOut} onChange={(v) => set("clockOut", v)} invalid={!!(errors.clockOut || errors.times)} />
             </div>
           </div>
           {showNextDay && (

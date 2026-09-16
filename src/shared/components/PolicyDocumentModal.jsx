@@ -178,21 +178,21 @@ function PolicyDocumentModal({ onClose }) {
                             
                             <ul className="space-y-2.5 m-0 list-none pl-0">
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                                 <span>
                                   Late Grace Period: <strong>{policy.late_grace_time_minutes} minutes</strong>
                                 </span>
                               </li>
                               
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                                 <span>
                                   Early Exit Allowance: <strong>{policy.early_leave_grace_time_minutes} minutes</strong>
                                 </span>
                               </li>
 
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-fuchsia-500 mt-0.5 shrink-0" />
                                 <span>
                                   Half-Day Threshold: <strong>{policy.mark_half_day_after_late_minutes} minutes</strong>
                                 </span>

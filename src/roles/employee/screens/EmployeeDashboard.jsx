@@ -13,6 +13,8 @@ import { ErrorState, StatusBadge } from "../../../shared/attendance/ui";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 
 const RING = 2 * Math.PI * 40;
+// Dashboard previews show a few rows; "Show all" reveals the rest.
+const PREVIEW_ROWS = 3;
 
 function greeting(date = new Date()) {
   const h = date.getHours();
@@ -53,6 +55,7 @@ function EmployeeDashboard() {
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [graph, setGraph] = useState({ data: null, loading: true, error: null });
   const [holidays, setHolidays] = useState([]);
+  const [showAllHolidays, setShowAllHolidays] = useState(false);
 
   const loadGraph = useCallback(async () => {
     setGraph((g) => ({ ...g, loading: true, error: null }));
@@ -75,7 +78,7 @@ function EmployeeDashboard() {
       .then((res) => {
         if (!alive) return;
         const from = todayYMD();
-        setHolidays(listFrom(res, ["holidays"]).filter((h) => ymdOnly(h.date) >= from).sort((a, b) => ymdOnly(a.date).localeCompare(ymdOnly(b.date))).slice(0, 4));
+        setHolidays(listFrom(res, ["holidays"]).filter((h) => ymdOnly(h.date) >= from).sort((a, b) => ymdOnly(a.date).localeCompare(ymdOnly(b.date))));
       })
       .catch(() => alive && setHolidays([]));
     return () => {
@@ -85,7 +88,7 @@ function EmployeeDashboard() {
 
   const summary = graph.data?.summary || {};
   const daily = listFrom(graph.data, ["daily", "days"]);
-  const recent = [...daily].filter((d) => d.status && d.status !== "not_marked").sort((a, b) => ymdOnly(b.date).localeCompare(ymdOnly(a.date))).slice(0, 5);
+  const recent = [...daily].filter((d) => d.status && d.status !== "not_marked").sort((a, b) => ymdOnly(b.date).localeCompare(ymdOnly(a.date))).slice(0, PREVIEW_ROWS);
   const segments = [
     { key: "present", label: "present", value: num(summary.present_days), color: "#9333EA", dot: "bg-purple-600" },
     { key: "half", label: "half days", value: num(summary.half_days), color: "#818CF8", dot: "bg-indigo-400" },
@@ -169,7 +172,7 @@ function EmployeeDashboard() {
                         </div>
                       ))}
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-amber-400" />
+                        <div className="w-2 h-2 rounded-full bg-fuchsia-400" />
                         <span className="text-xs font-bold text-slate-800">{num(summary.late_days)}</span>
                         <span className="text-[11px] font-medium text-slate-400">late arrivals</span>
                       </div>
@@ -184,21 +187,28 @@ function EmployeeDashboard() {
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 flex flex-col">
-            <div className="flex items-center gap-2 mb-4">
-              <HiCalendar className="w-5 h-5 text-purple-600" />
-              <h3 className="text-sm font-bold text-slate-800">Upcoming holidays</h3>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <HiCalendar className="w-5 h-5 text-purple-600" />
+                <h3 className="text-sm font-bold text-slate-800">Upcoming holidays</h3>
+              </div>
+              {holidays.length > PREVIEW_ROWS && (
+                <button type="button" onClick={() => setShowAllHolidays((v) => !v)} aria-expanded={showAllHolidays} className="text-xs font-semibold text-purple-600 hover:text-purple-800">
+                  {showAllHolidays ? "Show less" : `Show all (${holidays.length})`}
+                </button>
+              )}
             </div>
             {holidays.length === 0 ? (
               <p className="text-xs text-slate-400 py-6 text-center">No upcoming holidays.</p>
             ) : (
-              <ul className="divide-y divide-slate-50">
-                {holidays.map((h) => (
+              <ul className={`divide-y divide-slate-50 ${showAllHolidays ? "max-h-72 overflow-y-auto pr-1" : ""}`}>
+                {(showAllHolidays ? holidays : holidays.slice(0, PREVIEW_ROWS)).map((h) => (
                   <li key={h.id || `${h.name}-${h.date}`} className="flex items-center justify-between py-3 gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-800 truncate">{h.name}</p>
                       <p className="text-[11px] text-slate-400">{fmtDate(ymdOnly(h.date), { weekday: "long", day: "numeric", month: "short" })}</p>
                     </div>
-                    {h.is_optional && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Optional</span>}
+                    {h.is_optional && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200">Optional</span>}
                   </li>
                 ))}
               </ul>
@@ -208,7 +218,7 @@ function EmployeeDashboard() {
           <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-100 overflow-hidden flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-bold text-slate-800">Recent days</h3>
-              <Link to={selfPath("history")} className="text-xs font-semibold text-purple-600 hover:text-purple-800">Full history</Link>
+              <Link to={selfPath("history")} className="text-xs font-semibold text-purple-600 hover:text-purple-800">Show all</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-separate border-spacing-y-2 min-w-[420px]">
@@ -226,8 +236,8 @@ function EmployeeDashboard() {
                     <tr key={row.date} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-2.5 text-slate-600">{fmtDate(ymdOnly(row.date), { weekday: "short", day: "numeric", month: "short" })}</td>
                       <td className="px-4 py-2.5"><StatusBadge status={row.status} /></td>
-                      <td className="px-4 py-2.5 text-amber-600">{Number(row.late_minutes) > 0 ? fmtMinutes(row.late_minutes) : "—"}</td>
-                      <td className="px-4 py-2.5 text-purple-600">{Number(row.overtime_minutes) > 0 ? fmtMinutes(row.overtime_minutes) : "—"}</td>
+                      <td className="px-4 py-2.5 text-fuchsia-600">{fmtMinutes(row.late_minutes)}</td>
+                      <td className="px-4 py-2.5 text-purple-600">{fmtMinutes(row.overtime_minutes)}</td>
                       <td className="px-4 py-2.5">{fmtHours(row.effective_hours)}</td>
                     </tr>
                   ))}

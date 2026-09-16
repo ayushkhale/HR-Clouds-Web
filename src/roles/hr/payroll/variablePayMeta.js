@@ -77,6 +77,36 @@ export function employeeDirectory(list) {
   return { options, activeOptions: options.filter((o) => o.active), byId };
 }
 
+/**
+ * The employee the backend embedded in a payroll row (gap G-2, `?include=employee`):
+ * `employee: { user_id, name, employee_code, department, is_active }`. Leavers
+ * resolve too. null when the key is absent (G-2 not shipped) or has no name.
+ * @returns {{ id: string, name: string, code: string, department: string, active: boolean } | null}
+ */
+export function embeddedEmployee(row) {
+  const e = row?.employee;
+  if (!e || typeof e !== "object") return null;
+  const name = typeof e.name === "string" ? e.name.trim() : "";
+  if (!name) return null;
+  return {
+    id: e.user_id ?? row.user_id ?? "",
+    name,
+    code: typeof e.employee_code === "string" ? e.employee_code : "",
+    department: typeof e.department === "string" ? e.department : departmentName(e),
+    active: e.is_active !== false,
+  };
+}
+
+/**
+ * Name of the person in an actor field (gap G-2): `approved_by` →
+ * `approved_by_user: { user_id, name }`. null when absent or nameless.
+ */
+export function actorName(row, field) {
+  const actor = row?.[`${field}_user`];
+  const name = actor && typeof actor === "object" && typeof actor.name === "string" ? actor.name.trim() : "";
+  return name || null;
+}
+
 /** Case-insensitive match on name, code or department. */
 export const matchesEmployee = (entry, query) => {
   const q = query.trim().toLowerCase();
@@ -87,8 +117,8 @@ export const matchesEmployee = (entry, query) => {
 // ── Approval status (the maker–checker quartet) ─────────────────────────────
 
 export const APPROVAL_STATUS = {
-  pending: { label: "Waiting for approval", pill: "bg-amber-50 text-amber-700 border-amber-200" },
-  approved: { label: "Approved", pill: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  pending: { label: "Waiting for approval", pill: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
+  approved: { label: "Approved", pill: "bg-violet-50 text-violet-700 border-violet-200" },
   rejected: { label: "Rejected", pill: "bg-rose-50 text-rose-700 border-rose-200" },
   cancelled: { label: "Cancelled", pill: "bg-slate-100 text-slate-500 border-slate-200" },
 };
@@ -154,7 +184,7 @@ export function adjustmentLockedReason(adj) {
 // ── Component codes ─────────────────────────────────────────────────────────
 
 /** Engine-owned codes an adjustment may not use (checked case-insensitively). */
-export const RESERVED_COMPONENT_CODES = ["NET_PAY_SHORTFALL_CARRIED", "CARRY_FORWARD_RECOVERY", "OVERTIME", "ROUNDING_ADJUSTMENT"];
+export const RESERVED_COMPONENT_CODES = ["NET_PAY_SHORTFALL_CARRIED", "CARRY_FORWARD_RECOVERY", "OVERTIME", "ROUNDING_ADJUSTMENT", "REIMBURSEMENT", "BENEFIT"];
 
 const CODE_MAX = 50;
 
@@ -276,7 +306,9 @@ export const EMPLOYMENT_TYPE_LABEL = {
   intern: "Intern",
 };
 
-// The backend has no ceiling on percentages; a typo like 500 would pay 5× salary.
+// Gap G-5: the backend rejects percentages above 100 (VALIDATION_ERROR) once
+// Wave 1 ships, with no override flag. The form enforces the same limit so the
+// check doesn't depend on that release; flat amounts stay uncapped.
 export const MAX_PERCENT = 100;
 export const CONFIRM_PERCENT_ABOVE = 50;
 
@@ -299,7 +331,9 @@ export const BASIS_LABEL = {
 /**
  * `POST /bonus-rules/:id/preview-impact` →
  * `{ rule, awarded_count, skipped_count, total_award_amount, awards[], skipped[], note }`.
- * The cap is applied silently, so "at the cap" is inferred from the rule's cap.
+ * Gap G-7 adds `capped` / `uncapped_amount` to each award; `capped` is true only
+ * when the cap actually cut the amount. Without it, "at the cap" is inferred
+ * from the rule's cap, which wrongly flags an amount that lands exactly on it.
  */
 export function normalizeImpact(data, rule) {
   const d = data && typeof data === "object" ? data : {};
@@ -307,15 +341,16 @@ export function normalizeImpact(data, rule) {
   const hasCap = cap !== null && cap !== undefined && cap !== "";
   const awards = (Array.isArray(d.awards) ? d.awards : []).map((r) => ({
     user_id: r?.user_id,
+    employee: r?.employee ?? null,
     amount: r?.amount ?? "0.00",
     basis: r?.basis || "",
     // A flat bonus reports basis_amount "0.00"; there is no salary basis to show.
     basisAmount: r?.basis && r.basis !== "flat" ? r.basis_amount ?? null : null,
-    // Gap G-7 (proposed): an explicit `capped` flag replaces the inference.
     atCap: typeof r?.capped === "boolean" ? r.capped : hasCap && sameMoney(r?.amount, cap),
-    uncappedAmount: r?.uncapped_amount ?? null,
+    // Only worth showing when the cap bit; otherwise it equals `amount`.
+    uncappedAmount: r?.capped === true ? r.uncapped_amount ?? null : null,
   }));
-  const skipped = (Array.isArray(d.skipped) ? d.skipped : []).map((r) => ({ user_id: r?.user_id, reason: r?.reason }));
+  const skipped = (Array.isArray(d.skipped) ? d.skipped : []).map((r) => ({ user_id: r?.user_id, employee: r?.employee ?? null, reason: r?.reason }));
   const bases = [...new Set(awards.map((a) => a.basis).filter((b) => b && b !== "flat"))];
   return {
     awards,

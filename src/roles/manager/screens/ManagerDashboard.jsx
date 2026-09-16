@@ -8,15 +8,16 @@ import { useAuth } from "../../../shared/contexts/AuthContext";
 import Skeleton from "../../../shared/components/Skeleton";
 import { HiSparkles, HiUserGroup, HiClock, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
 import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
-import { employeeCode, initials, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
+import { employeeCode, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
 import { fmtClock, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
+import GenderAvatar from "../../../shared/components/GenderAvatar";
 
 const CHART_PAGE_SIZE = 16;
 
 /* ─── Team status today (M1 — today-only endpoint) ─────────────────────── */
-export function TeamDirectoryTable() {
+export function TeamDirectoryTable({ hideTitle = false }) {
   const [state, setState] = useState({ records: [], loading: true, error: null, at: null });
 
   const load = useCallback(async () => {
@@ -49,7 +50,7 @@ export function TeamDirectoryTable() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-800">Team status today</h2>
+          {!hideTitle && <h2 className="text-xl font-bold tracking-tight text-slate-800">Team status today</h2>}
           <p className="text-[11px] text-slate-400 font-medium">{fmtDate(todayYMD(), { weekday: "long", day: "numeric", month: "short" })}{state.at ? ` · updated ${fmtTime(state.at)}` : ""}</p>
         </div>
         <div className="flex items-center gap-3">
@@ -93,7 +94,7 @@ export function TeamDirectoryTable() {
                       <tr key={mem.user_id || mem.id || name} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">{initials(name)}</div>
+                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 text-xs"><GenderAvatar person={mem} name={name} /></div>
                             <div className="min-w-0">
                               <p className="font-bold text-slate-800 text-sm truncate">{name}</p>
                               {code && <p className="text-[10px] text-slate-400">{code}</p>}
@@ -103,13 +104,13 @@ export function TeamDirectoryTable() {
                         <td className="px-5 py-3.5">
                           {mem.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={mem.status || "not_marked"} />}
                         </td>
-                        <td className="px-5 py-3.5 text-xs text-slate-500">{mem.shift ? `${mem.shift.name || "Shift"}${mem.shift.start_time ? ` · ${fmtClock(mem.shift.start_time)}–${fmtClock(mem.shift.end_time)}` : ""}` : "—"}</td>
+                        <td className="px-5 py-3.5 text-xs text-slate-500">{mem.shift ? `${mem.shift.name || "Shift"}${mem.shift.start_time ? ` · ${fmtClock(mem.shift.start_time)}–${fmtClock(mem.shift.end_time)}` : ""}` : "N/A"}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">{fmtTime(mem.clock_in_time)}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">{fmtTime(mem.clock_out_time)}</td>
                         <td className="px-5 py-3.5 text-right">
-                          {!mem.clock_in_time ? <span className="text-slate-300 text-xs">—</span>
+                          {!mem.clock_in_time ? <span className="text-slate-300 text-xs">N/A</span>
                             : late > 0 ? <span className="text-rose-600 font-bold text-xs">{fmtMinutes(late)} late</span>
-                              : <span className="text-emerald-600 font-bold text-xs">On time</span>}
+                              : <span className="text-violet-600 font-bold text-xs">On time</span>}
                         </td>
                       </tr>
                     );
@@ -188,7 +189,7 @@ function ManagerDashboard() {
     { label: "Team members", value: num(s.team_size), icon: HiUserGroup },
     { label: "Present today", value: num(s.final_present_count), icon: HiCheckCircle, tag: "Present", tagClass: "bg-purple-50 text-purple-600" },
     { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent", tagClass: "bg-rose-50 text-rose-600" },
-    { label: "Late arrivals", value: num(s.counts?.late), icon: HiClock, tag: "Late", tagClass: "bg-amber-50 text-amber-600" },
+    { label: "Late arrivals", value: num(s.counts?.late), icon: HiClock, tag: "Late", tagClass: "bg-fuchsia-50 text-fuchsia-600" },
   ];
 
   return (
@@ -248,7 +249,7 @@ function ManagerDashboard() {
                 <h3 className="text-lg font-bold text-slate-800">Team attendance trends</h3>
                 <div className="flex items-center gap-4 mt-2">
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#8B5CF6]" /> On time</span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#F59E0B]" /> Late</span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#D946EF]" /> Late</span>
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#DDD6FE]" /> Absent</span>
                 </div>
               </div>
@@ -285,7 +286,7 @@ function ManagerDashboard() {
                     <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
                     <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
                     <Bar dataKey="on_time_count" name="On time" fill="#8B5CF6" maxBarSize={8} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="late_count" name="Late" fill="#F59E0B" maxBarSize={8} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="late_count" name="Late" fill="#D946EF" maxBarSize={8} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="final_absent_count" name="Absent" fill="#DDD6FE" maxBarSize={8} radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

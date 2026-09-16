@@ -9,8 +9,8 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
-import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, RowOpenButton, rowPreviewProps } from "../../../../shared/components/DetailDialog";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import { payrollErrorMessage, formErrorsFrom, clearFieldErrors } from "../../../../shared/utils/payrollErrors";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated, listFrom, personName } from "../../../../shared/attendance/normalize";
@@ -22,6 +22,7 @@ import {
   currentPeriod, isPeriod, periodOptions, parseAmount, approvalStatusMeta, isPendingStatus,
   APPROVAL_STATUS_FILTERS, BONUS_TYPE_LABEL, BONUS_TYPE_OPTIONS, ELIGIBILITY_LABEL, ELIGIBILITY_OPTIONS,
   EMPLOYMENT_TYPE_LABEL, MAX_PERCENT, CONFIRM_PERCENT_ABOVE, skipReasonText, normalizeImpact, usesUserIds, isUnavailableSource,
+  embeddedEmployee, actorName,
 } from "../variablePayMeta";
 
 const PAGE_SIZE = 20;
@@ -96,7 +97,7 @@ function ChecklistPicker({ items, selected, onChange, emptyText, searchPlacehold
         {shown.length === 0 && <p className="text-xs text-slate-400 px-2 py-2">{items.length === 0 ? emptyText : "Nothing matches your search."}</p>}
       </div>
       {unknown.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 text-xs text-amber-800 bg-amber-50 rounded-b-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 text-xs text-fuchsia-800 bg-fuchsia-50 rounded-b-xl">
           <span>{plural(unknown.length, "earlier choice")} {unknown.length === 1 ? "is" : "are"} no longer in the list (removed or inactive).</span>
           <button type="button" onClick={() => onChange(selected.filter((id) => knownIds.has(id)))} className="font-bold underline">Remove</button>
         </div>
@@ -187,12 +188,27 @@ function buildRulePayload(f, editing) {
   return payload;
 }
 
+// Form-state key → error key, for clearing server field errors on edit.
+const RULE_ERROR_KEY = {
+  name: "name", reason: "reason", value: "value", bonus_type: "value",
+  max_amount_per_employee: "max_amount_per_employee", min_tenure_months: "min_tenure_months",
+  eligibility_source: "eligibility", department_ids: "eligibility", user_ids: "eligibility", employment_types: "eligibility",
+};
+
+// Server path (gap G-1, dot-joined) → error key; "" puts it in the banner.
+function ruleErrorKey(path) {
+  if (path === "eligibility_config.min_tenure_months") return "min_tenure_months";
+  if (path === "eligibility_config" || path.startsWith("eligibility_config.")) return "eligibility";
+  return RULE_ERROR_KEY[path] || "";
+}
+
 function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved }) {
   const editing = !!rule;
   const [form, setForm] = useState(() => (rule ? ruleToForm(rule) : emptyRule()));
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [serverFields, setServerFields] = useState({});
   const savingRef = useRef(false);
   const closeRef = useRef(onClose);
   closeRef.current = saving ? () => {} : onClose;
@@ -204,8 +220,12 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
   }, []);
 
   const errors = validateRule(form);
-  const show = (key) => (touched ? errors[key] : "");
-  const set = (patch) => { setForm((f) => ({ ...f, ...patch })); setServerError(""); };
+  const show = (key) => (touched && errors[key]) || serverFields[key] || "";
+  const set = (patch) => {
+    setForm((f) => ({ ...f, ...patch }));
+    setServerError("");
+    setServerFields((s) => clearFieldErrors(s, patch, RULE_ERROR_KEY));
+  };
   const isPercent = form.bonus_type !== "flat";
   const typeOptions = BONUS_TYPE_OPTIONS.includes(form.bonus_type) ? BONUS_TYPE_OPTIONS : [...BONUS_TYPE_OPTIONS, form.bonus_type];
   const sourceOptions = ELIGIBILITY_OPTIONS.includes(form.eligibility_source) ? ELIGIBILITY_OPTIONS : [...ELIGIBILITY_OPTIONS, form.eligibility_source];
@@ -234,7 +254,7 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
     savingRef.current = true;
     let saved = false;
     try {
-      // The backend has no ceiling on percentages, so a large one must be deliberate.
+      // Up to 100% is allowed (gap G-5), but anything above 50% is unusual: make it deliberate.
       const percent = Number(String(form.value).trim());
       if (isPercent && percent > CONFIRM_PERCENT_ABOVE) {
         const basis = form.bonus_type === "percent_of_gross" ? "monthly gross pay" : "monthly basic pay";
@@ -242,12 +262,15 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
       }
       setSaving(true);
       setServerError("");
+      setServerFields({});
       const payload = buildRulePayload(form, editing);
       const res = editing ? await payrollAPI.updateBonusRule(rule.id, payload) : await payrollAPI.createBonusRule(payload);
       saved = true;
       onSaved(res?.data ?? res, editing);
     } catch (err) {
-      setServerError(payrollErrorMessage(err, "Couldn't save this bonus rule."));
+      const { fields, banner } = formErrorsFrom(err, ruleErrorKey, "Couldn't save this bonus rule.");
+      setServerFields(fields);
+      setServerError(banner);
     } finally {
       if (!saved) {
         savingRef.current = false;
@@ -611,7 +634,6 @@ export default function PayrollBonusRulesPage() {
                     <th className="px-5 py-4 border-b border-slate-100">Who qualifies</th>
                     <th className="px-5 py-4 border-b border-slate-100">Most per person</th>
                     <th className="px-5 py-4 border-b border-slate-100">Status</th>
-                    <th className="px-5 py-4 border-b border-slate-100 w-px"><span className="sr-only">Open</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
@@ -620,8 +642,7 @@ export default function PayrollBonusRulesPage() {
                     const needsAction = isPendingStatus(r.status) || isReadyToApply(r);
                     const openLabel = `${needsAction ? "Review" : "View"} ${r.name || "bonus rule"}`;
                     return (
-                      // The open button is the keyboard stop; the row itself only takes clicks.
-                      <tr key={r.id} {...rowPreviewProps(() => openDetail(r), openLabel)} tabIndex={-1}>
+                      <tr key={r.id} {...rowPreviewProps(() => openDetail(r), openLabel)}>
                         <td className="px-5 py-4 max-w-[320px]">
                           <p className="font-bold text-slate-800 truncate">{r.name || "Untitled rule"}</p>
                           <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{r.reason || "N/A"}</p>
@@ -638,14 +659,11 @@ export default function PayrollBonusRulesPage() {
                           {r.applied_at && <span className="block mt-1.5 text-[10px] font-bold text-purple-600 uppercase">Applied · {plural(toCount(r.applied_count), "person", "people")}</span>}
                           {isReadyToApply(r) && <span className="block mt-1.5 text-[10px] font-bold text-purple-600 uppercase">Ready to apply</span>}
                         </td>
-                        <td className="px-5 py-4 text-right">
-                          <RowOpenButton onClick={() => openDetail(r)} label={openLabel} attention={needsAction} />
-                        </td>
                       </tr>
                     );
                   })}
                   {list.items.length === 0 && (
-                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">{hasFilters ? "No bonus rules match these filters." : "No bonus rules yet."}</td></tr>
+                    <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">{hasFilters ? "No bonus rules match these filters." : "No bonus rules yet."}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -742,7 +760,7 @@ export default function PayrollBonusRulesPage() {
             ) : !detailLoading && <DetailFooterNote>{ruleLockedReason(detail)}</DetailFooterNote>}
           >
             {isUnavailableSource(src) && (
-              <p className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <p className="flex items-start gap-2 text-sm text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-4 py-3">
                 <HiExclamationCircle className="w-5 h-5 shrink-0" /> “{ELIGIBILITY_LABEL[src]}” isn’t available yet, so this rule leaves everyone out and can’t be applied. Cancel it and create a rule that picks people another way.
               </p>
             )}
@@ -783,8 +801,8 @@ export default function PayrollBonusRulesPage() {
                 items={[
                   ["Status", approvalStatusMeta(detail.status).label],
                   ["Created on", detail.created_at ? formatDate(detail.created_at) : null],
-                  ["Proposed by", userName(detail.proposed_by || detail.created_by) || personName(detail.proposer, "") || null],
-                  ["Approved or rejected by", userName(detail.approved_by) || personName(detail.approver, "") || null],
+                  ["Proposed by", actorName(detail, "proposed_by") || actorName(detail, "created_by") || userName(detail.proposed_by || detail.created_by) || personName(detail.proposer, "") || null],
+                  ["Approved or rejected by", actorName(detail, "approved_by") || actorName(detail, "rejected_by") || userName(detail.approved_by || detail.rejected_by) || personName(detail.approver, "") || null],
                   ["Decided on", detail.actioned_at ? formatDate(detail.actioned_at) : null],
                   ["Applied on", detail.applied_at ? formatDate(detail.applied_at) : null],
                   ["Bonuses created", detail.applied_at ? toCount(detail.applied_count) : null],
@@ -809,9 +827,9 @@ export default function PayrollBonusRulesPage() {
       {impact && (() => {
         const { rule, loading: impactLoading, data, error } = impact;
         const canApply = rule.status === "approved" && !rule.applied_at;
-        // Awards and skips carry `user_id` only.
-        const nameFor = (row) => people.nameOf(row.user_id);
-        const codeFor = (row) => directory.byId.get(row.user_id)?.code || null;
+        // Awards and skips carry `user_id`, plus `employee` once gap G-2 ships.
+        const nameFor = (row) => embeddedEmployee(row)?.name || people.nameOf(row.user_id);
+        const codeFor = (row) => embeddedEmployee(row)?.code || directory.byId.get(row.user_id)?.code || null;
         const average = data && data.awardedCount > 0 ? Number.parseFloat(data.total || 0) / data.awardedCount : 0;
         const showBasis = rule.bonus_type !== "flat";
         return (
@@ -869,7 +887,14 @@ export default function PayrollBonusRulesPage() {
                         render: (row) => (
                           <span className="font-bold tabular-nums text-purple-700">
                             {formatMoney(row.amount)}
-                            {row.atCap && <span className="ml-1.5 text-[10px] font-bold uppercase text-amber-700">At limit</span>}
+                            {row.atCap && (
+                              <span
+                                className="ml-1.5 text-[10px] font-bold uppercase text-fuchsia-700"
+                                title={row.uncappedAmount ? `Worked out as ${formatMoney(row.uncappedAmount)} before the limit` : undefined}
+                              >
+                                At limit
+                              </span>
+                            )}
                           </span>
                         ),
                       },

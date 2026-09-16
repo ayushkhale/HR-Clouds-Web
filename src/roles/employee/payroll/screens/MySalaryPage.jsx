@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCurrencyRupee, HiLibrary, HiClock } from "react-icons/hi";
+import {
+  HiCheckCircle, HiExclamationCircle, HiX, HiLibrary, HiClock, HiChevronDown, HiChevronRight,
+  HiCurrencyRupee, HiTrendingUp, HiTrendingDown, HiDocumentText, HiSwitchHorizontal, HiPencil,
+} from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { humanize } from "../../../../shared/attendance/enums";
 
 const REVISION_LABELS = {
   initial: "Initial",
@@ -13,16 +18,108 @@ const REVISION_LABELS = {
   correction: "Correction",
   restructure: "Restructure",
 };
+const revisionLabel = (s) => REVISION_LABELS[s?.revision_type] || humanize(s?.revision_type) || "Revision";
+
+// Same label / input look as the Invite Team Member form.
+const labelCls = "block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5";
+const inputCls = "w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all";
+const EMPTY_BANK = { account_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "" };
+
+const amount = (v) => parseFloat(v) || 0;
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
+  );
+}
+
+// A structure mixes earnings and deductions in one `components` array. Split
+// them so deductions (e.g. PF Employee) never inflate gross, and derive the
+// take-home figure the API doesn't return.
+function breakdownOf(structure) {
+  const comps = (Array.isArray(structure?.components) ? structure.components : [])
+    .slice()
+    .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || String(a.component_name).localeCompare(String(b.component_name)));
+  const sum = (arr, key) => arr.reduce((s, c) => s + amount(c[key]), 0);
+  const earnings = comps.filter((c) => c.component_type === "earning");
+  const deductions = comps.filter((c) => c.component_type === "deduction");
+  const monthlyGross = amount(structure?.monthly_gross) || sum(earnings, "monthly_amount");
+  const annualGross = sum(earnings, "annual_amount");
+  const monthlyDeductions = sum(deductions, "monthly_amount");
+  const annualDeductions = sum(deductions, "annual_amount");
+  return {
+    earnings, deductions, comps,
+    monthlyGross, annualGross, monthlyDeductions, annualDeductions,
+    monthlyNet: monthlyGross - monthlyDeductions,
+    annualNet: annualGross - annualDeductions,
+  };
+}
+
+/** "40% of CTC", "Fixed amount", "Balance of CTC". */
+function calcLabel(c) {
+  const v = amount(c.value);
+  const pct = Number.isInteger(v) ? v : Number(v.toFixed(2));
+  switch (c.calculation_type) {
+    case "flat": return "Fixed amount";
+    case "percent_of_ctc": return `${pct}% of CTC`;
+    case "percent_of_basic": return `${pct}% of Basic`;
+    case "percent_of_gross": return `${pct}% of Gross`;
+    case "balancing": return "Balance of CTC";
+    default: return humanize(c.calculation_type) || "N/A";
+  }
+}
+
+const componentKey = (c) => c.component_code || c.component_id || c.component_name;
+
+/** Components added, removed or re-priced between two versions. */
+function componentChanges(current, previous) {
+  if (!previous) return [];
+  const before = new Map((previous.components || []).map((c) => [componentKey(c), c]));
+  const after = new Map((current.components || []).map((c) => [componentKey(c), c]));
+  const rows = [];
+  after.forEach((c, key) => {
+    const old = before.get(key);
+    if (!old) rows.push({ id: key, name: c.component_name, type: c.component_type, before: null, after: amount(c.monthly_amount), note: "Added" });
+    else if (amount(old.monthly_amount) !== amount(c.monthly_amount)) rows.push({ id: key, name: c.component_name, type: c.component_type, before: amount(old.monthly_amount), after: amount(c.monthly_amount), note: "Changed" });
+  });
+  before.forEach((c, key) => {
+    if (!after.has(key)) rows.push({ id: key, name: c.component_name, type: c.component_type, before: amount(c.monthly_amount), after: null, note: "Removed" });
+  });
+  return rows;
+}
+
+function CtcChange({ current, previous, compact = false }) {
+  if (!previous) return compact ? null : <span className="text-slate-400">First salary structure</span>;
+  const diff = amount(current.annual_ctc) - amount(previous.annual_ctc);
+  if (diff === 0) return <span className="text-[11px] font-semibold text-slate-400">No CTC change</span>;
+  const pct = amount(previous.annual_ctc) ? (diff / amount(previous.annual_ctc)) * 100 : null;
+  const Icon = diff > 0 ? HiTrendingUp : HiTrendingDown;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${diff > 0 ? "text-purple-700" : "text-rose-600"}`}>
+      <Icon className="w-3.5 h-3.5" />
+      {diff > 0 ? "+" : "−"}{formatMoney(Math.abs(diff))}{pct !== null && ` (${diff > 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%)`}
+    </span>
+  );
+}
+
+function ComponentTable({ rows, sign = "" }) {
+  return (
+    <DetailTable
+      rows={rows}
+      empty="None."
+      columns={[
+        { header: "Component", render: (c) => <span className="font-semibold text-slate-800">{c.component_name || c.component_code || "Component"}</span> },
+        { header: "How it's worked out", render: (c) => <span className="text-slate-500">{calcLabel(c)}</span> },
+        { header: "Monthly", align: "right", render: (c) => <span className="font-semibold tabular-nums">{sign}{formatMoney(c.monthly_amount)}</span> },
+        { header: "Annual", align: "right", render: (c) => <span className="tabular-nums">{sign}{formatMoney(c.annual_amount)}</span> },
+      ]}
+    />
   );
 }
 
@@ -32,11 +129,12 @@ export default function MySalaryPage() {
   const [bankAccount, setBankAccount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  
-  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
-  const [bankFormData, setBankFormData] = useState({
-    account_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: ""
-  });
+  const [expanded, setExpanded] = useState(false);
+  const [openRevision, setOpenRevision] = useState(null);
+
+  const [bankDialog, setBankDialog] = useState(null); // null | "view" | "edit"
+  const [bankFormData, setBankFormData] = useState(EMPTY_BANK);
+  const [bankSaving, setBankSaving] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -49,13 +147,11 @@ export default function MySalaryPage() {
       const [structRes, histRes, bankRes] = await Promise.all([
         payrollAPI.getMyCurrentStructure().catch(() => ({ data: null })),
         payrollAPI.getMyStructureHistory().catch(() => ({ data: [] })),
-        payrollAPI.getMyBankAccount().catch(() => ({ data: null }))
+        payrollAPI.getMyBankAccount().catch(() => ({ data: null })),
       ]);
       setStructure(structRes.data);
       setHistory(histRes.data?.records || histRes.data || []);
-      if (bankRes.data) {
-        setBankAccount(bankRes.data);
-      }
+      setBankAccount(bankRes.data || null);
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to load salary data"), "error");
     } finally {
@@ -65,227 +161,359 @@ export default function MySalaryPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleOpenBankModal = () => {
-    if (bankAccount) {
-      // The full account number is never returned (masked at rest), so it must
-      // be re-entered on edit — which also intentionally re-triggers HR verification.
-      setBankFormData({
-        account_holder_name: bankAccount.account_holder_name || "",
-        bank_name: bankAccount.bank_name || "",
-        account_number: "",
-        ifsc_code: bankAccount.ifsc_code || "",
-        branch_name: bankAccount.branch_name || ""
-      });
-    } else {
-      setBankFormData({
-        account_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: ""
-      });
-    }
-    setIsBankModalOpen(true);
+  const breakdown = useMemo(() => breakdownOf(structure), [structure]);
+  // Newest first; each revision is compared with the one right below it.
+  const revisions = useMemo(
+    () => (Array.isArray(history) ? history : []).slice().sort((a, b) => (b.version ?? 0) - (a.version ?? 0) || String(b.effective_from).localeCompare(String(a.effective_from))),
+    [history],
+  );
+  const previousOf = (rev) => revisions[revisions.indexOf(rev) + 1] || null;
+
+  const openBankEditor = () => {
+    // The full account number is never returned (masked at rest), so it must
+    // be re-entered on edit — which also intentionally re-triggers HR verification.
+    setBankFormData(bankAccount ? {
+      account_holder_name: bankAccount.account_holder_name || "",
+      bank_name: bankAccount.bank_name || "",
+      account_number: "",
+      ifsc_code: bankAccount.ifsc_code || "",
+      branch_name: bankAccount.branch_name || "",
+    } : EMPTY_BANK);
+    setBankDialog("edit");
   };
 
   const handleBankSubmit = async (e) => {
     e.preventDefault();
+    if (bankSaving) return;
+    setBankSaving(true);
     try {
       await payrollAPI.upsertMyBankAccount(bankFormData);
       showToast("Bank details updated successfully");
-      setIsBankModalOpen(false);
+      setBankDialog(null);
       loadData();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to update bank details"), "error");
+    } finally {
+      setBankSaving(false);
     }
   };
 
+  const bankStatus = bankAccount ? (bankAccount.is_verified ? "Verified" : "Pending verification") : "Not added";
+
   return (
     <>
-        <DashboardTopBar title="My Salary Details" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8">
-          
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900">Salary & Bank Details
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">View your current salary structure and manage deposit details.</p>
+      <DashboardTopBar title="My Salary Details" />
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 w-full">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Salary & Bank Details</h1>
+            <p className="text-sm text-slate-500 mt-1">Your current salary structure, how it has changed, and where your salary is paid.</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setBankDialog("view")}
+            aria-haspopup="dialog"
+            className="flex items-center gap-3 pl-3 pr-4 py-2.5 bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/40 rounded-xl shadow-2xs transition text-left"
+          >
+            <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiLibrary className="w-5 h-5" /></span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-slate-800">Bank details</span>
+              <span className="block text-[11px] font-semibold text-slate-500">
+                {bankAccount?.masked_account_number ? `${bankAccount.masked_account_number} · ` : ""}{bankStatus}
+              </span>
+            </span>
+            <HiChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </button>
+        </div>
 
-          {loading ? <Skeleton type="dashboard" /> : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Left Column - Salary Structure */}
-              <div className="md:col-span-2 space-y-6">
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-800">Current Salary Structure</h2>
-                      {structure && <p className="text-xs text-slate-500 mt-0.5">Effective from {formatDate(structure.effective_from)}</p>}
-                    </div>
+        {loading ? <Skeleton type="dashboard" /> : (
+          <>
+            {/* ── Current salary structure (full width, collapsible) ── */}
+            <section className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiCurrencyRupee className="w-5 h-5" /></div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-slate-900">Current Salary Structure</h2>
                     {structure && (
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Annual CTC</p>
-                        <p className="text-xl font-black text-purple-700">₹{parseFloat(structure.annual_ctc || 0).toLocaleString()}</p>
-                      </div>
+                      <p className="text-xs text-slate-500">
+                        Effective from {formatDate(structure.effective_from)}
+                        {structure.version != null && ` · Version ${structure.version}`}
+                        {structure.revision_type && ` · ${revisionLabel(structure)}`}
+                      </p>
                     )}
                   </div>
-                  
-                  {structure ? (
-                    <div className="p-6">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-                            <th className="px-4 py-3 rounded-l-lg">Component</th>
-                            <th className="px-4 py-3 text-right">Monthly</th>
-                            <th className="px-4 py-3 text-right rounded-r-lg">Annually</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50 text-sm">
-                          {(structure.components || []).map((line, i) => (
-                            <tr key={i} className="hover:bg-slate-50/50">
-                              <td className="px-4 py-3 font-medium text-slate-800">{line.name}</td>
-                              <td className="px-4 py-3 text-right font-semibold text-slate-700">₹{parseFloat(line.monthly_amount || 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 text-right font-bold text-slate-800">₹{parseFloat(line.annual_amount || 0).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="border-t-2 border-slate-100">
-                           <tr className="bg-slate-50/50">
-                             <td className="px-4 py-3 font-bold text-slate-800">Gross Earnings</td>
-                             <td className="px-4 py-3 text-right font-black text-purple-600">₹{parseFloat(structure.monthly_gross || 0).toLocaleString()}</td>
-                             <td className="px-4 py-3 text-right font-black text-purple-700">₹{parseFloat(structure.annual_ctc || 0).toLocaleString()}</td>
-                           </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center text-slate-500">
-                      Your salary structure has not been assigned yet.
-                    </div>
-                  )}
                 </div>
-
-                {/* Salary revision history (approved versions only) */}
-                {history.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-                      <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                        <HiClock className="text-purple-600 w-5 h-5" /> Salary History
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">Your approved salary revisions over time.</p>
-                    </div>
-                    <ol className="p-6 space-y-0">
-                      {history.map((h, i) => {
-                        const isCurrent = !h.effective_to;
-                        return (
-                          <li key={h.id || i} className="relative pl-6 pb-6 last:pb-0 border-l-2 border-slate-100 last:border-transparent">
-                            <span className={`absolute -left-[7px] top-1 w-3 h-3 rounded-full ring-4 ring-white ${isCurrent ? "bg-purple-600" : "bg-slate-300"}`} />
-                            <div className="flex flex-wrap items-baseline justify-between gap-2">
-                              <div>
-                                <span className="text-sm font-bold text-slate-800">{formatMoney(h.annual_ctc)}</span>
-                                <span className="text-xs text-slate-400 ml-2">/ year</span>
-                                {h.version != null && <span className="text-[11px] text-slate-400 ml-2">v{h.version}</span>}
-                              </div>
-                              <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                                {REVISION_LABELS[h.revision_type] || h.revision_type || "Revision"}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">
-                              {formatDate(h.effective_from)} — {isCurrent ? "Present" : formatDate(h.effective_to)}
-                            </p>
-                            {h.revision_reason && <p className="text-xs text-slate-400 mt-1 italic">“{h.revision_reason}”</p>}
-                          </li>
-                        );
-                      })}
-                    </ol>
+                {structure && (
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Annual CTC</p>
+                    <p className="text-xl font-black text-purple-700 tabular-nums">{formatMoney(structure.annual_ctc)}</p>
                   </div>
                 )}
               </div>
 
-              {/* Right Column - Bank Details */}
-              <div className="space-y-6">
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                    <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                      <HiLibrary className="text-purple-600 w-5 h-5" /> Bank Details
-                    </h2>
-                    {bankAccount && (bankAccount.is_verified
-                      ? <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase">Verified</span>
-                      : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">Pending verification</span>
-                    )}
-                  </div>
-                  <div className="p-6 flex-1">
-                    {bankAccount ? (
-                      <div className="space-y-4 text-sm">
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Account Holder</p>
-                          <p className="font-semibold text-slate-800">{bankAccount.account_holder_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Bank Name</p>
-                          <p className="font-semibold text-slate-800">{bankAccount.bank_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Account Number</p>
-                          <p className="font-mono font-medium text-slate-600">{bankAccount.masked_account_number || "••••••••"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">IFSC Code</p>
-                          <p className="font-mono font-medium text-slate-600">{bankAccount.ifsc_code}</p>
-                        </div>
+              {structure ? (
+                <>
+                  <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="rounded-2xl bg-purple-600 text-white px-5 py-4 shadow-sm shadow-purple-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100">Take-home / month</p>
+                      <p className="text-2xl font-black mt-1 tabular-nums">{formatMoney(breakdown.monthlyNet)}</p>
+                      <p className="text-[11px] text-purple-100 mt-0.5">Gross minus deductions</p>
+                    </div>
+                    {[
+                      ["Gross / month", formatMoney(breakdown.monthlyGross), `${breakdown.earnings.length} earning${breakdown.earnings.length === 1 ? "" : "s"}`],
+                      ["Deductions / month", `− ${formatMoney(breakdown.monthlyDeductions)}`, `${breakdown.deductions.length} deduction${breakdown.deductions.length === 1 ? "" : "s"}`],
+                      ["Take-home / year", formatMoney(breakdown.annualNet), "Before tax and variable pay"],
+                    ].map(([label, value, hint]) => (
+                      <div key={label} className="rounded-2xl border border-slate-200/80 bg-white px-5 py-4">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+                        <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{value}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>
                       </div>
-                    ) : (
-                      <div className="text-center py-6 text-slate-500 text-sm">
-                        No bank details added.
-                      </div>
-                    )}
+                    ))}
                   </div>
-                  <div className="p-4 border-t border-slate-100 bg-slate-50">
-                    <button onClick={handleOpenBankModal} className="w-full py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition">
-                      {bankAccount ? "Update Details" : "Add Bank Details"}
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-            </div>
+                  {expanded && (
+                    <div className="px-6 pb-6 grid grid-cols-1 xl:grid-cols-2 gap-5">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-bold text-slate-800">Earnings</h3>
+                          <span className="text-xs font-bold text-purple-700 tabular-nums">{formatMoney(breakdown.monthlyGross)} / month</span>
+                        </div>
+                        <ComponentTable rows={breakdown.earnings} />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-bold text-slate-800">Deductions</h3>
+                          <span className="text-xs font-bold text-rose-600 tabular-nums">− {formatMoney(breakdown.monthlyDeductions)} / month</span>
+                        </div>
+                        <ComponentTable rows={breakdown.deductions} sign="− " />
+                      </div>
+                      <p className="xl:col-span-2 text-[11px] text-slate-400">
+                        Annual CTC is the total cost to the company. Take-home is gross earnings minus deductions, before payroll-time tax and any variable pay.
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    aria-expanded={expanded}
+                    className="w-full flex items-center justify-center gap-1.5 px-6 py-3 border-t border-slate-100 bg-slate-50/60 hover:bg-purple-50/60 text-xs font-bold text-purple-700 transition"
+                  >
+                    {expanded ? "Hide salary breakdown" : `View salary breakdown (${breakdown.comps.length} components)`}
+                    <HiChevronDown className={`w-4 h-4 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+                  </button>
+                </>
+              ) : (
+                <div className="p-12 text-center text-slate-500">Your salary structure has not been assigned yet.</div>
+              )}
+            </section>
+
+            {/* ── Salary history as a log ── */}
+            {revisions.length > 0 && (
+              <section className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><HiClock className="w-4 h-4 text-purple-600" /> Salary History</h2>
+                  <p className="text-xs text-slate-500">{revisions.length} revision{revisions.length === 1 ? "" : "s"} · open one to see the full details</p>
+                </div>
+                <ul className="divide-y divide-slate-100">
+                  {revisions.map((rev) => {
+                    const isCurrent = !rev.effective_to;
+                    return (
+                      <li key={rev.id || rev.version}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenRevision(rev)}
+                          aria-haspopup="dialog"
+                          className="w-full text-left px-6 py-4 grid grid-cols-[auto_1fr_auto] items-center gap-4 hover:bg-purple-50/40 focus:bg-purple-50/60 outline-none transition-colors"
+                        >
+                          <span className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black ${isCurrent ? "bg-purple-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                            v{rev.version ?? "?"}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-slate-800">{revisionLabel(rev)}</span>
+                              {isCurrent && <DetailPill tone="solid">Current</DetailPill>}
+                              <span className="text-xs text-slate-500">{formatDate(rev.effective_from)} – {isCurrent ? "Present" : formatDate(rev.effective_to)}</span>
+                            </span>
+                            <span className="block text-xs text-slate-400 truncate mt-0.5">{rev.revision_reason || "No reason recorded"}</span>
+                          </span>
+                          <span className="flex items-center gap-3">
+                            <span className="text-right">
+                              <span className="block text-sm font-bold text-slate-900 tabular-nums">{formatMoney(rev.annual_ctc)}<span className="text-[11px] font-semibold text-slate-400"> / year</span></span>
+                              <CtcChange current={rev} previous={previousOf(rev)} compact />
+                            </span>
+                            <HiChevronRight className="w-4 h-4 text-slate-400" />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+          </>
+        )}
+      </main>
+
+      {/* ── Salary revision popup ── */}
+      {openRevision && (() => {
+        const rev = openRevision;
+        const prev = previousOf(rev);
+        const b = breakdownOf(rev);
+        const changes = componentChanges(rev, prev);
+        const isCurrent = !rev.effective_to;
+        return (
+          <DetailDialog
+            eyebrow="Salary revision"
+            icon={HiClock}
+            title={`${revisionLabel(rev)} · Version ${rev.version ?? "?"}`}
+            subtitle={`${formatDate(rev.effective_from)} – ${isCurrent ? "Present" : formatDate(rev.effective_to)}`}
+            badge={<DetailPill tone={isCurrent ? "solid" : "soft"}>{isCurrent ? "Current" : humanize(rev.status) || "Past"}</DetailPill>}
+            onClose={() => setOpenRevision(null)}
+            footer={<button type="button" onClick={() => setOpenRevision(null)} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all">Close</button>}
+          >
+            <DetailStats
+              items={[
+                { label: "Annual CTC", value: formatMoney(rev.annual_ctc), hint: <CtcChange current={rev} previous={prev} /> },
+                { label: "Gross / month", value: formatMoney(b.monthlyGross) },
+                { label: "Deductions / month", value: `− ${formatMoney(b.monthlyDeductions)}` },
+                { label: "Take-home / month", value: formatMoney(b.monthlyNet) },
+              ]}
+            />
+
+            <DetailSection title="Revision details" icon={HiDocumentText}>
+              <DetailGrid
+                items={[
+                  ["Type", revisionLabel(rev)],
+                  ["Effective from", formatDate(rev.effective_from)],
+                  ["Effective until", isCurrent ? "Present" : formatDate(rev.effective_to)],
+                  ["Approved on", rev.actioned_at ? formatDate(rev.actioned_at) : null],
+                ]}
+              />
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <DetailText label="Reason">{rev.revision_reason || "No reason recorded"}</DetailText>
+                {rev.rejection_reason && <DetailText label="Why it was rejected">{rev.rejection_reason}</DetailText>}
+              </div>
+            </DetailSection>
+
+            {prev && (
+              <DetailSection title={`What changed from version ${prev.version ?? "?"}`} icon={HiSwitchHorizontal}>
+                {changes.length === 0 ? (
+                  <p className="text-xs text-slate-500">Same components and monthly amounts as version {prev.version ?? "?"}.</p>
+                ) : (
+                  <DetailTable
+                    rows={changes}
+                    columns={[
+                      { header: "Component", render: (r) => <span className="font-semibold text-slate-800">{r.name || "Component"}</span> },
+                      { header: "Type", render: (r) => humanize(r.type) },
+                      { header: "Before / month", align: "right", render: (r) => (r.before === null ? <span className="text-slate-400">Not included</span> : <span className="tabular-nums">{formatMoney(r.before)}</span>) },
+                      { header: "After / month", align: "right", render: (r) => (r.after === null ? <span className="text-slate-400">Removed</span> : <span className="font-semibold tabular-nums">{formatMoney(r.after)}</span>) },
+                      {
+                        header: "Change",
+                        align: "right",
+                        render: (r) => {
+                          if (r.note !== "Changed") return <DetailPill tone={r.note === "Added" ? "soft" : "muted"}>{r.note}</DetailPill>;
+                          const d = r.after - r.before;
+                          return <span className={`font-bold tabular-nums ${d > 0 ? "text-purple-700" : "text-rose-600"}`}>{d > 0 ? "+" : "−"}{formatMoney(Math.abs(d))}</span>;
+                        },
+                      },
+                    ]}
+                  />
+                )}
+              </DetailSection>
+            )}
+
+            <DetailSection title={`Earnings · ${formatMoney(b.monthlyGross)} / month`} icon={HiTrendingUp}>
+              <ComponentTable rows={b.earnings} />
+            </DetailSection>
+
+            <DetailSection title={`Deductions · − ${formatMoney(b.monthlyDeductions)} / month`} icon={HiTrendingDown}>
+              <ComponentTable rows={b.deductions} sign="− " />
+            </DetailSection>
+          </DetailDialog>
+        );
+      })()}
+
+      {/* ── Bank details popup (view + edit) ── */}
+      {bankDialog && (
+        <DetailDialog
+          eyebrow="Bank account"
+          icon={HiLibrary}
+          title={bankDialog === "edit" ? (bankAccount ? "Update bank details" : "Add bank details") : (bankAccount?.bank_name || "Bank details")}
+          subtitle={bankDialog === "view" && bankAccount ? bankAccount.account_holder_name : "Your salary is paid into this account"}
+          badge={bankAccount && <DetailPill tone={bankAccount.is_verified ? "solid" : "soft"}>{bankStatus}</DetailPill>}
+          onClose={() => { if (!bankSaving) setBankDialog(null); }}
+          footer={bankDialog === "view" ? (
+            <>
+              {bankAccount && !bankAccount.is_verified && <DetailFooterNote>HR still needs to verify this account.</DetailFooterNote>}
+              <button type="button" onClick={() => setBankDialog(null)} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all">Close</button>
+              <button type="button" onClick={openBankEditor} className="px-6 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2">
+                <HiPencil className="w-3.5 h-3.5" /> {bankAccount ? "Update details" : "Add bank details"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" disabled={bankSaving} onClick={() => setBankDialog(bankAccount ? "view" : null)} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50">Cancel</button>
+              <button type="submit" form="bank-details-form" disabled={bankSaving} className="px-6 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-60">
+                {bankSaving ? "Saving…" : "Save bank details"}
+              </button>
+            </>
           )}
-        </main>
-
-      {isBankModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800">{bankAccount ? "Update Bank Details" : "Add Bank Details"}</h2>
-              <button onClick={() => setIsBankModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleBankSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Account Holder Name <span className="text-red-500">*</span></label>
-                <input type="text" required value={bankFormData.account_holder_name} onChange={e => setBankFormData({...bankFormData, account_holder_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Bank Name <span className="text-red-500">*</span></label>
-                <input type="text" required value={bankFormData.bank_name} onChange={e => setBankFormData({...bankFormData, bank_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Account Number <span className="text-red-500">*</span></label>
-                <input type="text" required value={bankFormData.account_number} onChange={e => setBankFormData({...bankFormData, account_number: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">IFSC Code <span className="text-red-500">*</span></label>
-                  <input type="text" required value={bankFormData.ifsc_code} onChange={e => setBankFormData({...bankFormData, ifsc_code: e.target.value.toUpperCase()})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+        >
+          {bankDialog === "view" ? (
+            bankAccount ? (
+              <DetailSection title="Account" icon={HiLibrary}>
+                <DetailGrid
+                  cols={3}
+                  items={[
+                    ["Account holder", bankAccount.account_holder_name],
+                    ["Bank", bankAccount.bank_name],
+                    { label: "Account number", value: bankAccount.masked_account_number || "••••••••", mono: true },
+                    { label: "IFSC code", value: bankAccount.ifsc_code, mono: true },
+                    ["Branch", bankAccount.branch_name],
+                    ["Verification", bankStatus],
+                  ]}
+                />
+              </DetailSection>
+            ) : (
+              <DetailSection title="Account" icon={HiLibrary}>
+                <p className="text-sm text-slate-500">You haven&apos;t added a bank account yet. Add one so your salary can be paid.</p>
+              </DetailSection>
+            )
+          ) : (
+            <form id="bank-details-form" onSubmit={handleBankSubmit}>
+              <DetailSection title="Account details" icon={HiLibrary}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="bank-holder" className={labelCls}>Account holder name <span className="text-red-400">*</span></label>
+                    <input id="bank-holder" type="text" required value={bankFormData.account_holder_name} onChange={(e) => setBankFormData({ ...bankFormData, account_holder_name: e.target.value })} className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="bank-name" className={labelCls}>Bank name <span className="text-red-400">*</span></label>
+                    <input id="bank-name" type="text" required value={bankFormData.bank_name} onChange={(e) => setBankFormData({ ...bankFormData, bank_name: e.target.value })} className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="bank-number" className={labelCls}>Account number <span className="text-red-400">*</span></label>
+                    <input id="bank-number" type="text" required value={bankFormData.account_number} onChange={(e) => setBankFormData({ ...bankFormData, account_number: e.target.value })} placeholder={bankAccount ? "Re-enter the full number" : ""} className={inputCls} />
+                  </div>
+                  <div>
+                    <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-red-400">*</span></label>
+                    <input id="bank-ifsc" type="text" required value={bankFormData.ifsc_code} onChange={(e) => setBankFormData({ ...bankFormData, ifsc_code: e.target.value.toUpperCase() })} className={`${inputCls} uppercase`} />
+                  </div>
+                  <div>
+                    <label htmlFor="bank-branch" className={labelCls}>Branch</label>
+                    <input id="bank-branch" type="text" value={bankFormData.branch_name} onChange={(e) => setBankFormData({ ...bankFormData, branch_name: e.target.value })} className={inputCls} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Branch</label>
-                  <input type="text" value={bankFormData.branch_name} onChange={e => setBankFormData({...bankFormData, branch_name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-                </div>
-              </div>
-              <p className="text-xs text-slate-400 italic">By updating this, you confirm these details are correct. HR may verify this account.</p>
-              <div className="flex gap-3 pt-4 mt-6 border-t border-slate-100">
-                <button type="button" onClick={() => setIsBankModalOpen(false)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Save Bank Details</button>
-              </div>
+                <p className="text-[11px] text-slate-500 mt-4">
+                  {bankAccount ? "For security the full account number isn't shown, so enter it again. Saving sends the account back to HR for verification." : "By saving, you confirm these details are correct. HR may verify this account."}
+                </p>
+              </DetailSection>
             </form>
-          </div>
-        </div>
+          )}
+        </DetailDialog>
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />

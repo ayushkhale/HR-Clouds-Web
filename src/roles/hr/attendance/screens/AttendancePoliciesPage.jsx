@@ -183,7 +183,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
             </div>
           </div>
           {form.is_default && !editPolicy?.is_default && (
-            <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 -mt-3">
+            <div className="flex items-start gap-2 text-sm text-fuchsia-700 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-5 py-3 -mt-3">
               <HiInformationCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>The existing default policy will lose its default status when you save.</span>
             </div>
@@ -413,8 +413,8 @@ export default function AttendancePoliciesPage() {
                         <td className="px-6 py-4 text-xs text-slate-600">{p.regularization_allowed ? `${p.regularization_window_days ?? "N/A"} days` : "Not allowed"}</td>
                         <td className="px-6 py-4 text-xs text-slate-600">{p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${p.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${p.is_active ? "bg-emerald-500" : "bg-slate-400"}`} />
+                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${p.is_active ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500"}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${p.is_active ? "bg-violet-500" : "bg-slate-400"}`} />
                             {p.is_active ? "Active" : "Inactive"}
                           </span>
                         </td>

@@ -13,8 +13,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -227,7 +227,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               Leave Type <span className="text-red-400">*</span>
-              {isEdit && <span className="ml-2 text-[10px] text-amber-500 normal-case font-semibold">(Immutable — cannot change)</span>}
+              {isEdit && <span className="ml-2 text-[10px] text-fuchsia-500 normal-case font-semibold">(Immutable — cannot change)</span>}
             </label>
             <select
               value={form.leave_type_id}
@@ -241,7 +241,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
               ))}
             </select>
             {!isEdit && selectableTypes.length === 0 && (
-              <p className="text-[10px] text-amber-600 mt-1">Every active leave type already has a quota in this policy. Edit or remove an existing one instead.</p>
+              <p className="text-[10px] text-fuchsia-600 mt-1">Every active leave type already has a quota in this policy. Edit or remove an existing one instead.</p>
             )}
           </div>
 
@@ -399,9 +399,9 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
       {expanded && (
         <div className="border-t border-slate-100">
           {/* Live-template warning */}
-          <div className="flex items-start gap-2.5 px-6 py-3 bg-amber-50 border-b border-amber-100">
-            <HiInformationCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700 font-medium">
+          <div className="flex items-start gap-2.5 px-6 py-3 bg-fuchsia-50 border-b border-fuchsia-100">
+            <HiInformationCircle className="w-4 h-4 text-fuchsia-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-fuchsia-700 font-medium">
               Editing this policy won't change anything for employees who are <strong>already assigned</strong> to it.
               To change a specific employee's leave right now, open their profile and use <strong>Customise Leave Rules</strong>.
             </p>

@@ -4,16 +4,20 @@ import { payrollAPI } from "../../../../shared/api";
 import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiPlus, HiTrash,
-  HiCalculator, HiCalendar, HiScale, HiPaperClip
+  HiCalculator, HiCalendar, HiScale, HiPaperClip, HiEye
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import AttachmentUploadButton from "../../../../shared/components/AttachmentUploadButton";
+import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
+import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -35,9 +39,9 @@ const SECTIONS = ["80C", "80D", "80CCD(1B)", "80E", "80G", "80TTA", "24B (Home L
 
 const STATUS_PILL = {
   draft: "bg-slate-100 text-slate-600",
-  submitted: "bg-amber-100 text-amber-700",
-  under_review: "bg-amber-100 text-amber-700",
-  verified: "bg-emerald-100 text-emerald-700",
+  submitted: "bg-fuchsia-100 text-fuchsia-700",
+  under_review: "bg-fuchsia-100 text-fuchsia-700",
+  verified: "bg-violet-100 text-violet-700",
   partially_verified: "bg-purple-100 text-purple-700",
   rejected: "bg-red-100 text-red-700",
 };
@@ -102,7 +106,7 @@ function regimeLabelOf(data) {
   const raw = data?.regime;
   if (raw && typeof raw === "object" && raw.name) return raw.name;
   const code = regimeCodeOf(data);
-  return code ? `${code.charAt(0).toUpperCase()}${code.slice(1)} Regime` : "—";
+  return code ? `${code.charAt(0).toUpperCase()}${code.slice(1)} Regime` : "N/A";
 }
 
 function SummaryTab({ fy, showToast }) {
@@ -153,6 +157,7 @@ function DeclarationsTab({ fy, showToast }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [viewAttachment, setViewAttachment] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +173,7 @@ function DeclarationsTab({ fy, showToast }) {
         verified_amount: it.verified_amount,
         proof_status: it.proof_status,
         proof_reference: it.proof_reference || "",
+        attachments: (Array.isArray(it.attachments) ? it.attachments : []).map(normalizeAttachment).filter((a) => a && a.id),
         locked: it.sub_category === "EPF_AUTO",
       })));
     } catch (err) {
@@ -240,6 +246,18 @@ function DeclarationsTab({ fy, showToast }) {
     }
   };
 
+  const canUploadProof = isDraft || canProofs;
+  const removeProof = async (i, att) => {
+    if (!(await window.confirm(`Remove ${att.file_name}?`))) return;
+    try {
+      await payrollAPI.deleteMyAttachment(att.id);
+      setRow(i, { attachments: (items[i]?.attachments || []).filter((a) => a.id !== att.id) });
+      showToast("Proof removed");
+    } catch (err) {
+      showToast(payrollErrorMessage(err, "Couldn't remove this proof."), "error");
+    }
+  };
+
   if (loading) return <Skeleton type="table" rows={5} />;
 
   return (
@@ -279,18 +297,36 @@ function DeclarationsTab({ fy, showToast }) {
                 <td className="px-5 py-2.5">
                   {isDraft && !r.locked ? (
                     <input value={r.sub_category} onChange={(e) => setRow(i, { sub_category: e.target.value })} placeholder="e.g. LIC premium" className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400 w-40" />
-                  ) : <span className="text-slate-500">{r.sub_category || "—"}</span>}
+                  ) : <span className="text-slate-500">{r.sub_category || "N/A"}</span>}
                 </td>
                 <td className="px-5 py-2.5 text-right">
                   {isDraft && !r.locked ? (
                     <input type="number" min="0" value={r.declared_amount} onChange={(e) => setRow(i, { declared_amount: e.target.value })} className="w-28 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-right outline-none focus:border-purple-400" />
                   ) : money(r.declared_amount)}
                 </td>
-                <td className="px-5 py-2.5 text-right text-slate-600">{r.verified_amount != null ? money(r.verified_amount) : "—"}</td>
+                <td className="px-5 py-2.5 text-right text-slate-600">{r.verified_amount != null ? money(r.verified_amount) : "N/A"}</td>
                 <td className="px-5 py-2.5">
                   {(isDraft || canProofs) && !r.locked ? (
                     <input value={r.proof_reference} onChange={(e) => setRow(i, { proof_reference: e.target.value })} placeholder="link or ref #" className="w-44 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                  ) : <span className="text-slate-500 truncate block max-w-[11rem]">{r.proof_reference || "—"}</span>}
+                  ) : <span className="text-slate-500 truncate block max-w-[11rem]">{r.proof_reference || "N/A"}</span>}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {(r.attachments || []).map((att) => (
+                      <span key={att.id} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[11px] text-slate-700">
+                        <span className="max-w-[100px] truncate">{att.file_name}</span>
+                        <button type="button" onClick={() => setViewAttachment(att)} className="text-purple-600 hover:text-purple-800" aria-label="View proof"><HiEye className="w-3.5 h-3.5" /></button>
+                        {canUploadProof && !r.locked && <button type="button" onClick={() => removeProof(i, att)} className="text-slate-400 hover:text-rose-600" aria-label="Remove proof"><HiTrash className="w-3.5 h-3.5" /></button>}
+                      </span>
+                    ))}
+                    {canUploadProof && !r.locked && r.item_id && (
+                      <AttachmentUploadButton
+                        issue={(meta) => payrollAPI.requestDeclarationProofUpload(r.item_id, meta)}
+                        confirm={(id) => payrollAPI.confirmMyAttachment(id)}
+                        label="Add proof"
+                        onUploaded={(att) => { setRow(i, { attachments: [...(items[i]?.attachments || []), att] }); showToast("Proof attached"); }}
+                      />
+                    )}
+                    {canUploadProof && !r.locked && !r.item_id && <span className="text-[11px] text-slate-400">Save the draft to attach a proof file.</span>}
+                  </div>
                 </td>
                 {isDraft && (
                   <td className="px-5 py-2.5">
@@ -304,7 +340,7 @@ function DeclarationsTab({ fy, showToast }) {
         </table>
         <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-between text-sm">
           <span className="text-slate-500">Declared <span className="font-bold text-slate-800">{money(declaredTotal)}</span></span>
-          <span className="text-slate-500">Verified <span className="font-bold text-emerald-600">{money(verifiedTotal)}</span></span>
+          <span className="text-slate-500">Verified <span className="font-bold text-violet-600">{money(verifiedTotal)}</span></span>
         </div>
       </div>
 
@@ -321,6 +357,10 @@ function DeclarationsTab({ fy, showToast }) {
           </button>
         )}
       </div>
+
+      {canUploadProof && <p className="text-[11px] text-slate-400">Uploaded proofs appear here once HR&apos;s copy is refreshed. You can attach a PDF, JPG, PNG or WebP up to 10 MB per item.</p>}
+
+      {viewAttachment && <AttachmentViewerDialog attachment={viewAttachment} getViewUrl={payrollAPI.getMyAttachmentViewUrl} onClose={() => setViewAttachment(null)} />}
     </div>
   );
 }
@@ -483,6 +523,7 @@ function MonthlyTab({ fy, showToast }) {
 function Form16Tab({ fy, showToast }) {
   const [data, setData] = useState(null);
   const [state, setState] = useState("idle"); // idle | loading | ready | unavailable
+  const [viewAttachment, setViewAttachment] = useState(null);
 
   const fetchIt = async () => {
     setState("loading");
@@ -505,12 +546,22 @@ function Form16Tab({ fy, showToast }) {
           {state === "loading" ? "Checking…" : "Fetch My Form 16"}
         </button>
         {state === "unavailable" && <p className="mt-3 text-sm text-red-600">Not finalized yet — check back after year-end closure.</p>}
+        {state === "ready" && data?.part_a_attachment && (() => {
+          const att = normalizeAttachment(data.part_a_attachment);
+          if (!att?.id) return null;
+          return (
+            <button type="button" onClick={() => setViewAttachment(att)} className="mt-4 ml-3 px-4 py-2.5 rounded-xl font-bold text-sm text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 transition inline-flex items-center gap-1.5">
+              <HiEye className="w-4 h-4" /> View Part A
+            </button>
+          );
+        })()}
       </div>
       {state === "ready" && data && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-[28rem]">{JSON.stringify(data, null, 2)}</pre>
         </div>
       )}
+      {viewAttachment && <AttachmentViewerDialog attachment={viewAttachment} getViewUrl={payrollAPI.getMyAttachmentViewUrl} onClose={() => setViewAttachment(null)} />}
     </div>
   );
 }

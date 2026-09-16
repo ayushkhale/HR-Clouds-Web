@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiClipboardList, HiCheck, HiRefresh, HiBan } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiClipboardList, HiCheck, HiRefresh, HiBan, HiEye, HiDocumentText } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
+import DetailDialog, { DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
+import { formatDate } from "../../../../shared/utils/formatUtils";
+import { personName } from "../../../../shared/attendance/normalize";
 import { currentFY, fyOptions } from "../fyUtils";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -19,16 +24,22 @@ function Toast({ toast, onClose }) {
 
 const money = (v) => `₹${parseFloat(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const FY_OPTIONS = fyOptions();
+const declarantName = (r) => r?.employee?.name || r?.user?.name || personName(r, "Employee");
 
 const STATUS_PILL = {
   draft: "bg-slate-100 text-slate-600",
-  submitted: "bg-amber-100 text-amber-700",
-  under_review: "bg-amber-100 text-amber-700",
-  verified: "bg-emerald-100 text-emerald-700",
+  submitted: "bg-fuchsia-100 text-fuchsia-700",
+  under_review: "bg-fuchsia-100 text-fuchsia-700",
+  verified: "bg-violet-100 text-violet-700",
   partially_verified: "bg-purple-100 text-purple-700",
   rejected: "bg-red-100 text-red-700",
 };
-const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{(s || "").replace(/_/g, " ")}</span>;
+const statusLabel = (s) => (s || "").replace(/_/g, " ") || "N/A";
+const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{statusLabel(s)}</span>;
+
+// Same label / input look as the Invite Team Member form.
+const labelCls = "block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5";
+const inputCls = "h-9 bg-slate-50/70 border border-slate-200 rounded-xl px-3 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all disabled:opacity-50";
 
 export default function TaxDeclarationsPage() {
   const [fy, setFy] = useState(currentFY());
@@ -42,6 +53,7 @@ export default function TaxDeclarationsPage() {
   const [verifyItems, setVerifyItems] = useState({}); // item_id -> { verified_amount, proof_status, verifier_remarks }
   const [hrRemarks, setHrRemarks] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  const [viewAttachment, setViewAttachment] = useState(null);
   const [reasonText, setReasonText] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -146,6 +158,9 @@ export default function TaxDeclarationsPage() {
     }
   };
 
+  const closeDetail = () => { if (!busy) setDetail(null); };
+  const canVerify = !!detail && ["submitted", "under_review"].includes(detail.status);
+
   const declaredTotal = (detail?.items || []).reduce((s, i) => s + (parseFloat(i.declared_amount) || 0), 0);
   const verifiedTotal = (detail?.items || []).reduce((s, i) => {
     const v = verifyItems[i.item_id || i.id] || {};
@@ -160,7 +175,7 @@ export default function TaxDeclarationsPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Investment Declarations
               </h1>
-              <p className="text-sm text-slate-500 mt-1">Review and verify employee tax-saving claims item by item.</p>
+              <p className="text-sm text-slate-500 mt-1">Review and verify employee tax-saving claims item by item. Open a row to review it.</p>
             </div>
             <div className="flex items-center gap-3">
               <select value={fy} onChange={(e) => setFy(e.target.value)} className="px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
@@ -188,24 +203,21 @@ export default function TaxDeclarationsPage() {
                     <th className="px-6 py-4 border-b border-slate-100">Declared</th>
                     <th className="px-6 py-4 border-b border-slate-100">Proof Deadline</th>
                     <th className="px-6 py-4 border-b border-slate-100">Status</th>
-                    <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
+                    <th className="px-6 py-4 border-b border-slate-100 w-px"><span className="sr-only">Reopen</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
                   {rows.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-800">{r.employee?.name || r.user?.name || r.user_id}</td>
-                      <td className="px-6 py-4 text-slate-600">{r.financial_year}</td>
+                    <tr key={r.id} {...rowPreviewProps(() => open(r), `Review declaration for ${declarantName(r)}`)}>
+                      <td className="px-6 py-4 font-bold text-slate-800">{declarantName(r)}</td>
+                      <td className="px-6 py-4 text-slate-600">{r.financial_year || "N/A"}</td>
                       <td className="px-6 py-4 font-semibold text-slate-800">{money(r.declared_total ?? r.total_declared)}</td>
-                      <td className="px-6 py-4 text-slate-600">{r.proof_deadline ? new Date(r.proof_deadline).toLocaleDateString() : "—"}</td>
+                      <td className="px-6 py-4 text-slate-600">{formatDate(r.proof_deadline)}</td>
                       <td className="px-6 py-4"><Pill s={r.status} /></td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => open(r)} className="px-2.5 py-1.5 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition">Review</button>
-                          {["submitted", "verified", "partially_verified"].includes(r.status) && (
-                            <button onClick={() => reopen(r)} className="p-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition" title="Reopen to draft"><HiRefresh className="w-4 h-4" /></button>
-                          )}
-                        </div>
+                        {["submitted", "verified", "partially_verified"].includes(r.status) && (
+                          <button onClick={() => reopen(r)} className="p-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition" title="Reopen to draft" aria-label={`Reopen declaration for ${declarantName(r)}`}><HiRefresh className="w-4 h-4" /></button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -217,96 +229,117 @@ export default function TaxDeclarationsPage() {
         </main>
 
       {detail && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">{detail.employee?.name || detail.user?.name || "Declaration"}</h2>
-                <p className="text-xs text-slate-500">FY {detail.financial_year} · <Pill s={detail.status} /> {detail.regime_code && <>· Regime: <span className="font-bold uppercase">{detail.regime_code}</span></>}</p>
-              </div>
-              <button onClick={() => setDetail(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-            </div>
+        <DetailDialog
+          eyebrow="Investment declaration"
+          icon={HiClipboardList}
+          title={declarantName(detail)}
+          subtitle={[detail.financial_year && `FY ${detail.financial_year}`, detail.regime_code && `Regime: ${String(detail.regime_code).toUpperCase()}`].filter(Boolean).join(" · ")}
+          badge={<DetailPill>{statusLabel(detail.status)}</DetailPill>}
+          loading={detailLoading}
+          onClose={closeDetail}
+          footer={detailLoading ? null : rejecting ? (
+            <>
+              <button type="button" onClick={() => setRejecting(false)} disabled={busy} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50">Back</button>
+              <button type="button" disabled={busy || !reasonText.trim()} onClick={submitReject} className="px-6 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50">
+                <HiBan className="w-3.5 h-3.5" /> {busy ? "Rejecting…" : "Reject Declaration"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setRejecting(true)} disabled={busy} className="sm:mr-auto px-5 py-2.5 text-xs font-bold text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50"><HiBan className="w-3.5 h-3.5" /> Reject All</button>
+              <button type="button" onClick={closeDetail} disabled={busy} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50">Cancel</button>
+              <button type="button" disabled={busy || !canVerify} onClick={submitVerify} title={canVerify ? undefined : "Only submitted or under-review declarations can be verified."} className="px-6 py-2.5 text-xs font-bold text-white bg-[#6D28D9] hover:bg-purple-700 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50">
+                <HiCheck className="w-3.5 h-3.5" /> {busy ? "Saving…" : "Apply Verification"}
+              </button>
+            </>
+          )}
+        >
+          {detailLoading ? <Skeleton type="table" rows={4} /> : (
+            <>
+              <DetailStats
+                items={[
+                  { label: "Declared total", value: money(declaredTotal) },
+                  { label: "Verifying", value: money(verifiedTotal) },
+                  { label: "Items", value: (detail.items || []).length },
+                  { label: "Proof deadline", value: formatDate(detail.proof_deadline) },
+                ]}
+              />
 
-            {detailLoading ? <div className="p-10"><Skeleton type="table" rows={4} /></div> : (
-              <>
-                <div className="overflow-y-auto flex-1">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 sticky top-0">
-                        <th className="px-5 py-3">Section</th>
-                        <th className="px-5 py-3 text-right">Declared</th>
-                        <th className="px-5 py-3 text-right">Verify Amount</th>
-                        <th className="px-5 py-3">Proof</th>
-                        <th className="px-5 py-3">Remarks</th>
+              <DetailSection title="Declared items" icon={HiDocumentText}>
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+                  <table className="w-full text-left text-xs min-w-[760px]">
+                    <thead className="bg-slate-50/80 text-[11px] uppercase font-bold tracking-wider text-slate-600 border-b border-slate-100">
+                      <tr>
+                        <th className="px-4 py-3">Section</th>
+                        <th className="px-4 py-3 text-right">Declared</th>
+                        <th className="px-4 py-3 text-right">Verify amount</th>
+                        <th className="px-4 py-3">Proof</th>
+                        <th className="px-4 py-3">Remarks</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-slate-100 bg-white">
                       {(detail.items || []).map((it) => {
                         const id = it.item_id || it.id;
                         const v = verifyItems[id] || {};
                         const locked = it.sub_category === "EPF_AUTO";
+                        const attachments = (Array.isArray(it.attachments) ? it.attachments : []).map(normalizeAttachment).filter((a) => a && a.id);
                         return (
-                          <tr key={id}>
-                            <td className="px-5 py-2.5">
-                              <p className="font-semibold text-slate-800">{it.section}</p>
+                          <tr key={id} className="align-top">
+                            <td className="px-4 py-3">
+                              <p className="font-semibold text-slate-800">{it.section || "N/A"}</p>
                               {it.sub_category && <p className="text-[11px] text-slate-400">{it.sub_category}</p>}
                             </td>
-                            <td className="px-5 py-2.5 text-right text-slate-600">{money(it.declared_amount)}</td>
-                            <td className="px-5 py-2.5 text-right">
+                            <td className="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">{money(it.declared_amount)}</td>
+                            <td className="px-4 py-3 text-right">
                               <input
                                 type="number" min="0" max={it.declared_amount}
                                 disabled={locked || v.proof_status === "rejected"}
                                 value={v.verified_amount ?? ""}
                                 onChange={(e) => setItem(id, { verified_amount: e.target.value })}
-                                className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm text-right outline-none focus:border-purple-400 disabled:opacity-40"
+                                aria-label={`Verified amount for ${it.section || "item"}`}
+                                className={`${inputCls} w-28 text-right`}
                               />
                             </td>
-                            <td className="px-5 py-2.5">
-                              <select disabled={locked} value={v.proof_status || "verified"} onChange={(e) => setItem(id, { proof_status: e.target.value })} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400 disabled:opacity-40">
+                            <td className="px-4 py-3">
+                              <select disabled={locked} value={v.proof_status || "verified"} onChange={(e) => setItem(id, { proof_status: e.target.value })} aria-label={`Proof status for ${it.section || "item"}`} className={`${inputCls} w-32`}>
                                 <option value="verified">Verified</option>
                                 <option value="pending">Pending</option>
                                 <option value="rejected">Rejected</option>
                               </select>
-                              {it.proof_reference && <a href={/^https?:/.test(it.proof_reference) ? it.proof_reference : undefined} target="_blank" rel="noreferrer" className="block text-[11px] text-purple-600 truncate max-w-[10rem] mt-0.5">{it.proof_reference}</a>}
+                              {it.proof_reference && <a href={/^https?:/.test(it.proof_reference) ? it.proof_reference : undefined} target="_blank" rel="noreferrer" className="block text-[11px] text-purple-600 truncate max-w-[10rem] mt-1">{it.proof_reference}</a>}
+                              {attachments.map((att) => (
+                                <button key={att.id} type="button" onClick={() => setViewAttachment(att)} className="mt-1 flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:underline"><HiEye className="w-3.5 h-3.5" /> {att.file_name}</button>
+                              ))}
                             </td>
-                            <td className="px-5 py-2.5">
-                              <input value={v.verifier_remarks || ""} onChange={(e) => setItem(id, { verifier_remarks: e.target.value })} disabled={locked} placeholder="—" className="w-32 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400 disabled:opacity-40" />
+                            <td className="px-4 py-3">
+                              <input value={v.verifier_remarks || ""} onChange={(e) => setItem(id, { verifier_remarks: e.target.value })} disabled={locked} placeholder="Optional" aria-label={`Remarks for ${it.section || "item"}`} className={`${inputCls} w-40`} />
                             </td>
                           </tr>
                         );
                       })}
-                      {(detail.items || []).length === 0 && <tr><td colSpan={5} className="px-5 py-6 text-center text-slate-500">No declared items.</td></tr>}
+                      {(detail.items || []).length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">No declared items.</td></tr>}
                     </tbody>
                   </table>
                 </div>
+              </DetailSection>
 
-                <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-between text-sm">
-                  <span className="text-slate-500">Declared total <span className="font-bold text-slate-800">{money(declaredTotal)}</span></span>
-                  <span className="text-slate-500">Verifying <span className="font-bold text-purple-700">{money(verifiedTotal)}</span></span>
-                </div>
-
-                {rejecting ? (
-                  <div className="p-4 border-t border-slate-100 space-y-3">
-                    <textarea value={reasonText} onChange={(e) => setReasonText(e.target.value)} rows={2} placeholder="Reason for rejecting the whole declaration…" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-red-400 outline-none resize-none" />
-                    <div className="flex justify-end gap-3">
-                      <button onClick={() => setRejecting(false)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition">Back</button>
-                      <button disabled={busy} onClick={submitReject} className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition shadow-md shadow-red-200 disabled:opacity-50">Reject Declaration</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 border-t border-slate-100 flex items-center gap-3">
-                    <input value={hrRemarks} onChange={(e) => setHrRemarks(e.target.value)} placeholder="Overall HR remarks (optional)" className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400" />
-                    <button onClick={() => setRejecting(true)} className="px-3 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition flex items-center gap-1.5"><HiBan className="w-4 h-4" /> Reject All</button>
-                    <button disabled={busy || !["submitted", "under_review"].includes(detail.status)} onClick={submitVerify} className="px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5">
-                      <HiCheck className="w-4 h-4" /> {busy ? "Saving…" : "Apply Verification"}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+              {rejecting ? (
+                <DetailSection title="Reject the whole declaration" icon={HiBan}>
+                  <label htmlFor="decl-reject-reason" className={labelCls}>Reason <span className="text-red-400">*</span></label>
+                  <textarea id="decl-reject-reason" value={reasonText} onChange={(e) => setReasonText(e.target.value)} rows={3} autoFocus placeholder="Tell the employee why the declaration is rejected…" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-red-400 focus:bg-white transition-all resize-none" />
+                </DetailSection>
+              ) : (
+                <DetailSection title="Your remarks" icon={HiClipboardList}>
+                  <label htmlFor="decl-hr-remarks" className={labelCls}>Overall HR remarks</label>
+                  <input id="decl-hr-remarks" value={hrRemarks} onChange={(e) => setHrRemarks(e.target.value)} placeholder="Optional" className={`${inputCls} w-full h-10 px-3.5`} />
+                </DetailSection>
+              )}
+            </>
+          )}
+        </DetailDialog>
       )}
+
+      {viewAttachment && <AttachmentViewerDialog attachment={viewAttachment} getViewUrl={payrollAPI.getAttachmentViewUrl} onClose={() => setViewAttachment(null)} />}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </>

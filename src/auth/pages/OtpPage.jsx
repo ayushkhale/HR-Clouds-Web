@@ -23,7 +23,7 @@ function PasswordStrength({ password }) {
     /[^A-Za-z0-9]/.test(password),
   ];
   const score = checks.filter(Boolean).length;
-  const colors = ["bg-gray-200", "bg-red-400", "bg-orange-400", "bg-yellow-400", "bg-emerald-400", "bg-emerald-500"];
+  const colors = ["bg-gray-200", "bg-red-400", "bg-fuchsia-400", "bg-fuchsia-400", "bg-violet-400", "bg-violet-500"];
   const labels = ["", "Very weak", "Weak", "Fair", "Good", "Strong"];
 
   if (!password) return null;
@@ -38,7 +38,7 @@ function PasswordStrength({ password }) {
           />
         ))}
       </div>
-      <p className={`text-[11px] mt-1 ${score <= 2 ? "text-red-500" : score <= 3 ? "text-yellow-600" : "text-emerald-600"}`}>
+      <p className={`text-[11px] mt-1 ${score <= 2 ? "text-red-500" : score <= 3 ? "text-fuchsia-600" : "text-violet-600"}`}>
         {labels[score]}
       </p>
     </div>
@@ -152,7 +152,7 @@ function OtpPage() {
     return (
       <div className="text-center space-y-4">
         <div className="flex justify-center">
-          <HiCheckCircle className="w-14 h-14 text-emerald-500" />
+          <HiCheckCircle className="w-14 h-14 text-violet-500" />
         </div>
         <h2 className="text-xl font-bold text-gray-900">Password Reset!</h2>
         <p className="text-sm text-gray-500">

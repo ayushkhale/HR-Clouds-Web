@@ -9,8 +9,8 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
-import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, RowOpenButton, rowPreviewProps } from "../../../../shared/components/DetailDialog";
-import { payrollErrorMessage, bulkErrorLines } from "../../../../shared/utils/payrollErrors";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import { payrollErrorMessage, bulkErrorLines, formErrorsFrom, clearFieldErrors } from "../../../../shared/utils/payrollErrors";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated, listFrom, personName } from "../../../../shared/attendance/normalize";
@@ -23,7 +23,7 @@ import {
   approvalStatusMeta, isPendingStatus, APPROVAL_STATUS_FILTERS, ADJUSTMENT_TYPE_LABEL, ADJUSTMENT_CATEGORY_LABEL,
   CATEGORIES_BY_TYPE, FILTER_CATEGORIES, adjustmentSource, canCancelAdjustment, isAppliedAdjustment, adjustmentLockedReason,
   codeFromName, componentCodeProblem, BULK_CSV_HEADERS, BULK_OPTIONAL_HEADERS, BULK_CSV_SAMPLE, BULK_MAX_ROWS,
-  bulkRowMessage, bulkTotals, csvDataRowCount, csvHeaderProblem,
+  bulkRowMessage, bulkTotals, csvDataRowCount, csvHeaderProblem, embeddedEmployee, actorName,
 } from "../variablePayMeta";
 
 const PAGE_SIZE = 20;
@@ -71,12 +71,21 @@ function validateAdjustment(f) {
   return e;
 }
 
+// Form-state key → error key, for both server paths (gap G-1) and clearing on
+// edit. The month picker can't hold an invalid value, so `period_month` stays
+// out and a server problem with it goes in the banner.
+const ADJUSTMENT_ERROR_KEY = {
+  user_id: "user_id", category: "category", amount: "amount", reason: "reason",
+  component_id: "component", component_name: "component", component_code: "component_code",
+};
+
 function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
   const [form, setForm] = useState(emptyForm);
   const [empQuery, setEmpQuery] = useState("");
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [serverFields, setServerFields] = useState({});
   const savingRef = useRef(false);
   const closeRef = useRef(onClose);
   closeRef.current = saving ? () => {} : onClose;
@@ -96,8 +105,12 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
   );
 
   const errors = validateAdjustment(form);
-  const show = (key) => (touched ? errors[key] : "");
-  const set = (patch) => { setForm((f) => ({ ...f, ...patch })); setServerError(""); };
+  const show = (key) => (touched && errors[key]) || serverFields[key] || "";
+  const set = (patch) => {
+    setForm((f) => ({ ...f, ...patch }));
+    setServerError("");
+    setServerFields((s) => clearFieldErrors(s, patch, ADJUSTMENT_ERROR_KEY));
+  };
 
   const changeType = (type) => set({ adjustment_type: type, category: CATEGORIES_BY_TYPE[type][0], component_id: "", component_name: "", component_code: "", codeEdited: false });
   const changeComponent = (value) => {
@@ -125,6 +138,7 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
     savingRef.current = true;
     setSaving(true);
     setServerError("");
+    setServerFields({});
     const payload = {
       user_id: form.user_id,
       period_month: form.period_month,
@@ -148,7 +162,9 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
       const res = await payrollAPI.createAdjustment(payload);
       onSaved(res?.data ?? res);
     } catch (err) {
-      setServerError(payrollErrorMessage(err, "Couldn't save this adjustment."));
+      const { fields, banner } = formErrorsFrom(err, (path) => ADJUSTMENT_ERROR_KEY[path] || "", "Couldn't save this adjustment.");
+      setServerFields(fields);
+      setServerError(banner);
       savingRef.current = false;
       setSaving(false);
     }
@@ -570,9 +586,12 @@ export default function PayrollAdjustmentsPage() {
   const lookupName = people.nameOf;
   const months = useMemo(() => periodOptions({ back: 18, ahead: 6 }), []);
   // "Loading…" while the directory loads, never a premature "Employee not found".
-  const nameOf = useCallback((adj) => directory.byId.get(adj?.user_id)?.name || personName(adj, "") || lookupName(adj?.user_id), [directory, lookupName]);
-  const codeOf = (adj) => directory.byId.get(adj?.user_id)?.code || "";
+  // The backend's embedded employee (gap G-2) wins; it resolves leavers too.
+  const nameOf = useCallback((adj) => embeddedEmployee(adj)?.name || directory.byId.get(adj?.user_id)?.name || personName(adj, "") || lookupName(adj?.user_id), [directory, lookupName]);
+  const codeOf = (adj) => embeddedEmployee(adj)?.code || directory.byId.get(adj?.user_id)?.code || "";
   const userName = (id) => (id ? directory.byId.get(id)?.name || null : null);
+  // Actor names: `<field>_user` (gap G-2), else the directory.
+  const actor = (row, ...fields) => fields.map((f) => actorName(row, f)).find(Boolean) || userName(fields.map((f) => row?.[f]).find(Boolean));
 
   const loadList = useCallback(async ({ silent = false } = {}) => {
     const reqId = ++reqRef.current;
@@ -808,7 +827,6 @@ export default function PayrollAdjustmentsPage() {
                     <th className="px-5 py-4 border-b border-slate-100 text-right">Amount</th>
                     <th className="px-5 py-4 border-b border-slate-100">Added via</th>
                     <th className="px-5 py-4 border-b border-slate-100">Status</th>
-                    <th className="px-5 py-4 border-b border-slate-100 w-px"><span className="sr-only">Open</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
@@ -818,8 +836,7 @@ export default function PayrollAdjustmentsPage() {
                     const name = nameOf(adj);
                     const openLabel = `${pending ? "Review" : "View"} adjustment for ${name}`;
                     return (
-                      // The open button is the keyboard stop; the row itself only takes clicks.
-                      <tr key={adj.id} {...rowPreviewProps(() => openDetail(adj), openLabel)} tabIndex={-1}>
+                      <tr key={adj.id} {...rowPreviewProps(() => openDetail(adj), openLabel)}>
                         <td className="px-5 py-4">
                           <p className="font-bold text-slate-800">{name}</p>
                           <p className="text-xs text-slate-400">{codeOf(adj) || "N/A"}</p>
@@ -838,14 +855,11 @@ export default function PayrollAdjustmentsPage() {
                           <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${status.pill}`}>{status.label}</span>
                           {isAppliedAdjustment(adj) && <span className="block mt-1.5 text-[10px] font-bold text-purple-600 uppercase">In payroll</span>}
                         </td>
-                        <td className="px-5 py-4 text-right">
-                          <RowOpenButton onClick={() => openDetail(adj)} label={openLabel} attention={pending} />
-                        </td>
                       </tr>
                     );
                   })}
                   {visible.length === 0 && (
-                    <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                       {list.items.length === 0 ? (hasFilters ? "No adjustments match these filters." : "No adjustments yet.") : "No rows on this page match your search."}
                     </td></tr>
                   )}
@@ -962,9 +976,9 @@ export default function PayrollAdjustmentsPage() {
                   ["Pay month", formatPeriod(d.period_month)],
                   ["Added via", adjustmentSource(d)],
                   ["In an approved payroll", isAppliedAdjustment(d) ? "Yes" : "Not yet"],
-                  ["Proposed by", userName(d.proposed_by || d.created_by) || personName(d.proposer, "") || null],
+                  ["Proposed by", actor(d, "proposed_by", "created_by") || personName(d.proposer, "") || null],
                   ["Created on", d.created_at ? formatDate(d.created_at) : null],
-                  ["Approved or rejected by", userName(d.approved_by) || personName(d.approver, "") || null],
+                  ["Approved or rejected by", actor(d, "approved_by", "rejected_by") || personName(d.approver, "") || null],
                   ["Decided on", d.actioned_at ? formatDate(d.actioned_at) : null],
                   ["Used in payroll on", d.applied_at ? formatDate(d.applied_at) : null],
                   ["Component code", d.component_code],

@@ -4,7 +4,7 @@ import { payrollAPI } from "../../../../shared/api";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiCash, HiCheck,
-  HiCalendar, HiTrash, HiLightningBolt, HiEye, HiDocumentText, HiTrendingUp
+  HiCalendar, HiTrash, HiLightningBolt, HiDocumentText, HiTrendingUp
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -13,8 +13,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -36,8 +36,8 @@ const fmtDate = (d) => {
 const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "");
 
 const STATUS_PILL = {
-  pending: "bg-amber-50 text-amber-700 border-amber-200",
-  active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  pending: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  active: "bg-violet-50 text-violet-700 border-violet-200",
   closed: "bg-slate-50 text-slate-600 border-slate-200",
   foreclosed: "bg-purple-50 text-purple-700 border-purple-200",
   rejected: "bg-red-50 text-red-700 border-red-200",
@@ -82,11 +82,12 @@ const emptyForm = () => ({
   reason: "",
 });
 
-export default function PayrollLoansPage() {
+/** initialStatus: preselected status filter, e.g. "pending" from the HR Inbox. */
+export default function PayrollLoansPage({ initialStatus = "" } = {}) {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
@@ -276,11 +277,10 @@ export default function PayrollLoansPage() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1.5">
-                            <button onClick={() => openSchedule(l)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Loan details"><HiEye className="w-4 h-4" /></button>
                             {l.status === "pending" && (
                               <>
-                                <button onClick={() => act(() => payrollAPI.approveLoan(l.id), "Loan approved — schedule generated")} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Approve"><HiCheck className="w-4 h-4" /></button>
-                                <button onClick={() => setRejectingId(l.id)} className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Reject"><HiX className="w-4 h-4" /></button>
+                                <button onClick={() => act(() => payrollAPI.approveLoan(l.id), "Loan approved — schedule generated")} className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition" title="Approve"><HiCheck className="w-4 h-4" /></button>
+                                <button onClick={() => setRejectingId(l.id)} className="p-1.5 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 rounded-lg transition" title="Reject"><HiX className="w-4 h-4" /></button>
                               </>
                             )}
                             {l.status === "active" && (

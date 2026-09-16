@@ -102,11 +102,7 @@ export default function MultiSelectDropdown({
                     
                     {opt.avatarIdentifier !== undefined && (
                       <div className="w-6 h-6 mr-2 rounded-full overflow-hidden shrink-0">
-                        {opt.avatar ? (
-                          <img src={opt.avatar} alt={opt.label} className="w-full h-full object-cover" />
-                        ) : (
-                          <GenderAvatar gender={opt.gender} name={opt.label} />
-                        )}
+                        <GenderAvatar person={opt} gender={opt.gender} src={opt.avatar} name={opt.label} />
                       </div>
                     )}
                     

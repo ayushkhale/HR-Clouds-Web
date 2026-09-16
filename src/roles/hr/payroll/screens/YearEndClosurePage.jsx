@@ -3,16 +3,20 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import { matchesEmployee } from "../variablePayMeta";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiUser, HiSearch } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiUser, HiSearch, HiEye, HiLink } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
+import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
+import AttachmentUploadButton from "../../../../shared/components/AttachmentUploadButton";
+import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
+import { PART_A_UPLOAD_ENABLED, PART_A_TYPES, PART_A_ACCEPT_ATTR } from "../../../../shared/utils/payrollAttachments";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -156,7 +160,7 @@ export default function YearEndClosurePage() {
                     {months.map((m) => (
                       <tr key={m.period_month || m.month} className="hover:bg-slate-50/50">
                         <td className="px-5 py-2.5 font-medium text-slate-700">{monthLabel(m.period_month || m.month)}</td>
-                        <td className="px-5 py-2.5 text-right text-slate-500">{m.headcount ?? m.employee_count ?? "—"}</td>
+                        <td className="px-5 py-2.5 text-right text-slate-500">{m.headcount ?? m.employee_count ?? "N/A"}</td>
                         <td className="px-5 py-2.5 text-right">{money(m.pf_total ?? m.pf)}</td>
                         <td className="px-5 py-2.5 text-right">{money(m.esi_total ?? m.esi)}</td>
                         <td className="px-5 py-2.5 text-right">{money(m.pt_total ?? m.pt)}</td>
@@ -202,7 +206,7 @@ export default function YearEndClosurePage() {
             <div className="p-6 space-y-4">
               {!finalizeResult ? (
                 <>
-                  <p className="text-sm text-slate-600 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-sm text-slate-600 bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-3">
                     This permanently freezes every employee&apos;s tax records and Form 16 for FY {fy}. Regime, previous-employer figures and declarations become read-only.
                   </p>
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -215,7 +219,7 @@ export default function YearEndClosurePage() {
                 </>
               ) : (
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-500">Finalized</span><span className="font-bold text-emerald-600">{finalizeResult.successful ?? finalizeResult.success_count ?? 0}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Finalized</span><span className="font-bold text-violet-600">{finalizeResult.successful ?? finalizeResult.success_count ?? 0}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Failed</span><span className="font-bold text-red-600">{finalizeResult.failed ?? finalizeResult.failure_count ?? 0}</span></div>
                   {(finalizeResult.errors || []).slice(0, 6).map((e, i) => (
                     <p key={i} className="text-[11px] text-red-500">{e.user_id ? people.nameOf(e.user_id) : e.name || "Employee"}: {e.message || e.error}</p>
@@ -260,7 +264,24 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
   const [form16, setForm16] = useState(null);
   const [projection, setProjection] = useState(null);
   const [partA, setPartA] = useState({ ack_number: "", issued_on: "", reference_url: "" });
+  const [partAAtt, setPartAAtt] = useState(null); // current linked/uploaded Part A attachment (#114)
+  const [tracesUrl, setTracesUrl] = useState(""); // "Link TRACES copy" reference URL
+  const [viewAttachment, setViewAttachment] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  // #114 fetched silently when the panel opens: a 404 just means "not finalized", not an error.
+  const loadPartA = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await payrollAPI.getEmployeeForm16(userId, fy);
+      const data = res?.data || res;
+      setPartAAtt(data?.part_a_attachment ? normalizeAttachment(data.part_a_attachment) : null);
+    } catch {
+      setPartAAtt(null);
+    }
+  }, [userId, fy]);
+
+  useEffect(() => { loadPartA(); }, [loadPartA]);
 
   useEffect(() => {
     const pe = summary?.previous_employer || {};
@@ -321,6 +342,30 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
       reference_url: partA.reference_url || undefined,
     }), "Form 16 Part-A reference saved");
   };
+
+  // #147 variant B — links a TRACES copy that is stored `available` at once (G5-1).
+  const linkTracesCopy = () => {
+    const url = tracesUrl.trim();
+    if (!/^https:\/\//i.test(url)) return showToast("Enter a valid https:// TRACES link", "error");
+    let file_name = "Form 16 Part A";
+    try {
+      const last = new URL(url).pathname.split("/").filter(Boolean).pop();
+      if (last) file_name = decodeURIComponent(last);
+    } catch { /* keep default file_name */ }
+    act(async () => {
+      await payrollAPI.attachForm16PartA(userId, fy, { file_name, reference_url: url });
+      setTracesUrl("");
+      await loadPartA();
+    }, "Part A linked.");
+  };
+
+  // #147 variant A — flagged off (G5-1: no HR endpoint can confirm the pending upload).
+  const issuePartAUpload = (meta) => payrollAPI.attachForm16PartA(userId, fy, {
+    file_name: meta.file_name,
+    content_type: "application/pdf",
+    size_bytes: meta.size_bytes,
+  }).then((res) => res?.data || res);
+  const confirmPartAUpload = () => Promise.reject(new Error("Part A upload confirmation is not available yet."));
 
   const rawRegime = summary?.regime_code ?? summary?.regime;
   const regime =
@@ -396,6 +441,45 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
               <button disabled={busy} onClick={savePartA} className="mt-3 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition disabled:opacity-40">Save Part-A Reference</button>
             </div>
 
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Form 16 Part-A Document</p>
+              {partAAtt ? (
+                <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{partAAtt.file_name}</p>
+                    <p className="text-[11px] text-slate-500">{partAAtt.storage_backend === "reference" || partAAtt.reference_url ? "TRACES link" : "Uploaded document"}</p>
+                  </div>
+                  <button onClick={() => setViewAttachment(partAAtt)} className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition">
+                    <HiEye className="w-4 h-4" /> View
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic mb-3">No Part A document linked yet.</p>
+              )}
+
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <input value={tracesUrl} onChange={(e) => setTracesUrl(e.target.value)} placeholder="https://…  TRACES Form 16 Part A copy" className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                <button disabled={busy || !tracesUrl.trim()} onClick={linkTracesCopy} className="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-40">
+                  <HiLink className="w-4 h-4" /> {partAAtt ? "Replace link" : "Link TRACES copy"}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">Paste the secure TRACES link to the employee&apos;s Form 16 Part A. The employee can open it from their Form 16 tab.</p>
+
+              {PART_A_UPLOAD_ENABLED && (
+                <div className="mt-3">
+                  <AttachmentUploadButton
+                    issue={issuePartAUpload}
+                    confirm={confirmPartAUpload}
+                    types={PART_A_TYPES}
+                    accept={PART_A_ACCEPT_ATTR}
+                    label="Upload Part A PDF"
+                    disabled={busy}
+                    onUploaded={() => loadPartA()}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-3 pt-2 border-t border-slate-100 flex-wrap">
               <button onClick={loadProjection} className="px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">View Projection Trace</button>
               <button onClick={loadForm16} className="px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">View Form 16 Part-B</button>
@@ -414,7 +498,7 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
             {form16 && (
               <div className="bg-slate-50 rounded-xl p-4">
                 <p className="text-xs font-bold text-slate-500 uppercase mb-2">
-                  Form 16 Part-B {form16.is_provisional && <span className="text-amber-600">· PROVISIONAL</span>}
+                  Form 16 Part-B {form16.is_provisional && <span className="text-fuchsia-600">· PROVISIONAL</span>}
                 </p>
                 <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-60">{JSON.stringify(form16, null, 2)}</pre>
               </div>
@@ -422,6 +506,14 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
           </div>
         )}
       </div>
+
+      {viewAttachment && (
+        <AttachmentViewerDialog
+          attachment={viewAttachment}
+          getViewUrl={payrollAPI.getAttachmentViewUrl}
+          onClose={() => setViewAttachment(null)}
+        />
+      )}
     </div>
   );
 }

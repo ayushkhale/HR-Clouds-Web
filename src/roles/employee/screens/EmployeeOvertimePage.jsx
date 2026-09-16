@@ -56,8 +56,8 @@ function EmployeeOvertimePage() {
                           <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(record.date || record.record_date || record.attendance_record?.date))}</td>
                           <td className="px-6 py-3.5 font-bold text-indigo-600">{fmtMinutes(overtimeMinutes(record))}</td>
                           <td className="px-6 py-3.5"><StatusBadge kind="overtime" status={record.status || "pending"} /></td>
-                          <td className="px-6 py-3.5 max-w-xs truncate" title={remarks}>{remarks || "—"}</td>
-                          <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(record.approved_at || record.reviewed_at || record.updated_at, "—")}</td>
+                          <td className="px-6 py-3.5 max-w-xs truncate" title={remarks}>{remarks || "N/A"}</td>
+                          <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(record.approved_at || record.reviewed_at || record.updated_at, "N/A")}</td>
                         </tr>
                       );
                     })}

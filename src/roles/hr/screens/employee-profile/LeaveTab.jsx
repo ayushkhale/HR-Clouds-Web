@@ -12,8 +12,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -385,7 +385,7 @@ export default function LeaveTab({ userId }) {
               })}
             </select>
             {selectedTemplateId && templates.find(t => t.id === selectedTemplateId)?.entitlements?.length === 0 && (
-              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+              <p className="text-xs text-fuchsia-600 mt-1.5 flex items-center gap-1">
                 <HiInformationCircle className="w-3.5 h-3.5" />
                 This template has no leave types — the employee will get 0 leave days.
               </p>
@@ -468,7 +468,7 @@ export default function LeaveTab({ userId }) {
               <h2 className="text-base font-bold text-slate-800">Confirm Policy Assignment</h2>
               <p className="text-xs text-slate-400 mt-1.5">
                 Assigning a new policy will{" "}
-                <strong className="text-amber-600">replace all of this employee's current leave rules</strong>{" "}
+                <strong className="text-fuchsia-600">replace all of this employee's current leave rules</strong>{" "}
                 and recalculate their leave days based on how much of the year is left. This cannot be undone.
               </p>
             </div>

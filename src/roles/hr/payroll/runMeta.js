@@ -52,7 +52,7 @@ export const RUN_STATUS_META = {
   approved: {
     label: "Approved",
     hint: "Payslips are published and attendance for the month is locked. Mark as paid once salaries are sent.",
-    pill: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    pill: "bg-violet-50 text-violet-700 border-violet-200",
   },
   paid: {
     label: "Paid",
@@ -210,15 +210,20 @@ export function periodBounds(run) {
 
 /**
  * The last working day payroll inferred for EXIT_DATE_REQUIRED, or "".
- * Takes the run item (or its `error_reason`). Prefers the structured
- * `error_context.inferred_last_working_day` proposed as gap G-4; until that
- * ships, the reason says `Inferred last working day: <YYYY-MM-DD | unknown>.`
+ * Takes a run item, an eligibility `exit_date_required[]` row, or the reason
+ * text. Gap G-4 adds `error_context: { inferred_last_working_day: "YYYY-MM-DD" | null }`;
+ * when that key is present it is final (null means "couldn't infer", never
+ * parse the sentence then). Older rows only have the sentence
+ * `Inferred last working day: <YYYY-MM-DD | unknown>.`
  */
 export function inferredExitDate(source) {
   const item = source && typeof source === "object" ? source : null;
-  const structured = item?.error_context?.inferred_last_working_day;
-  if (typeof structured === "string" && /^\d{4}-\d{2}-\d{2}$/.test(structured)) return structured;
-  const reason = item ? item.error_reason : source;
+  const context = item?.error_context;
+  if (context && typeof context === "object" && "inferred_last_working_day" in context) {
+    const structured = context.inferred_last_working_day;
+    return typeof structured === "string" && /^\d{4}-\d{2}-\d{2}$/.test(structured) ? structured : "";
+  }
+  const reason = item ? item.error_reason ?? item.reason : source;
   const match = /Inferred last working day: (\d{4}-\d{2}-\d{2})\b/.exec(String(reason || ""));
   return match ? match[1] : "";
 }
@@ -488,14 +493,14 @@ export const ENGINE_COMPONENT_LABEL = {
 export const LEDGER_META = {
   present: { label: "Present", cls: "bg-purple-100 text-purple-700" },
   worked_non_working: { label: "Worked a day off", cls: "bg-violet-200 text-violet-800" },
-  half_day: { label: "Half day", cls: "bg-amber-100 text-amber-800" },
+  half_day: { label: "Half day", cls: "bg-fuchsia-100 text-fuchsia-800" },
   paid_leave: { label: "Paid leave", cls: "bg-indigo-100 text-indigo-700" },
   paid_non_working: { label: "Holiday or week-off", cls: "bg-slate-100 text-slate-500" },
-  lop_leave: { label: "Leave, balance ran out", cls: "bg-orange-100 text-orange-700" },
+  lop_leave: { label: "Leave, balance ran out", cls: "bg-fuchsia-100 text-fuchsia-700" },
   unpaid_leave: { label: "Unpaid leave", cls: "bg-rose-100 text-rose-700" },
   absent: { label: "Absent", cls: "bg-rose-200 text-rose-800" },
   no_record: { label: "No attendance marked", cls: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-300" },
-  orphan_leave: { label: "On leave, no approved leave found", cls: "bg-orange-50 text-orange-800 ring-1 ring-inset ring-orange-300" },
+  orphan_leave: { label: "On leave, no approved leave found", cls: "bg-fuchsia-50 text-fuchsia-800 ring-1 ring-inset ring-fuchsia-300" },
 };
 
 // `r` is free text: a calendar reason, a classification or a leave-allocation

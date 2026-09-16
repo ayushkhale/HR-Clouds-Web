@@ -352,7 +352,7 @@ function DepartmentsPage() {
                     : "Only Managers and HR Admins can lead a department."}
                 </p>
                 {hodOptions.length === 0 && (
-                  <p className="text-[11px] text-amber-600 font-medium mt-1">
+                  <p className="text-[11px] text-fuchsia-600 font-medium mt-1">
                     No Managers or HR Admins available to assign.
                   </p>
                 )}
@@ -383,8 +383,8 @@ function DepartmentsPage() {
               </div>
 
               {result.message && (
-                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-                  {result.type === "success" && <HiCheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                  {result.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
                   {result.message}
                 </div>
               )}

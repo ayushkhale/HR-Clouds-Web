@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { organizationAPI, leaveAPI, attendanceAPI } from "../../../shared/api";
-import { 
-  HiUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding,
-  HiOutlineBriefcase, HiOutlineCalendar, HiOutlineLocationMarker, HiPencil, HiX,
-  HiCheckCircle, HiExclamationCircle, HiUserCircle, HiClock
+import {
+  HiUserGroup, HiOutlineCalendar, HiPencil, HiX,
+  HiCheckCircle, HiExclamationCircle, HiClock, HiSearch
 } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, personName, unwrap } from "../../../shared/attendance/normalize";
 import { fmtDate, fmtHours, fmtMinutes, fmtTime, monthRange, ymdOnly } from "../../../shared/attendance/dates";
 import { ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import GenderAvatar from "../../../shared/components/GenderAvatar";
+
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
 function EditProfileModal({ employee, onClose, onSuccess }) {
@@ -137,7 +138,7 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
       .finally(() => setLoading(false));
   }, [employee]);
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "N/A";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
@@ -174,10 +175,10 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="font-bold text-slate-800">{req.leave_type?.name || "Leave"}</h4>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border 
-                        ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                        ${req.status === 'approved' ? 'bg-violet-50 text-violet-700 border-violet-200' : 
                           req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 
                           req.status === 'cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
-                          'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                          'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'}`}>
                         {req.status?.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
@@ -275,11 +276,11 @@ function ViewAttendanceModal({ employee, onClose }) {
               {/* Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  ["Present", num(summary?.present_days), "text-emerald-600"],
-                  ["Half days", num(summary?.half_days), "text-blue-600"],
+                  ["Present", num(summary?.present_days), "text-violet-600"],
+                  ["Half days", num(summary?.half_days), "text-indigo-600"],
                   ["Absent", num(summary?.absent_days), "text-rose-600"],
                   ["On leave", num(summary?.on_leave_days), "text-purple-600"],
-                  ["Late", num(summary?.late_days), "text-amber-500"],
+                  ["Late", num(summary?.late_days), "text-fuchsia-500"],
                   // Summary keys per contract §4.2 (older payloads used holidays / weekly_offs).
                   ["Holidays / offs", num(summary?.holiday_days ?? summary?.holidays) + num(summary?.weekly_off_days ?? summary?.weekly_offs), "text-slate-600"],
                   ["Hours worked", fmtHours(summary?.total_hours_worked ?? summary?.total_effective_hours, "0m"), "text-purple-600"],
@@ -318,7 +319,7 @@ function ViewAttendanceModal({ employee, onClose }) {
                           <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
                           <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
                           <td className="px-4 py-3 text-slate-600">{fmtHours(record.effective_hours)}</td>
-                          <td className="px-4 py-3 text-amber-600">{Number(record.late_minutes) > 0 ? fmtMinutes(record.late_minutes) : "—"}</td>
+                          <td className="px-4 py-3 text-fuchsia-600">{Number(record.late_minutes) > 0 ? fmtMinutes(record.late_minutes) : "0m"}</td>
                         </tr>
                       ))
                     )}
@@ -346,6 +347,7 @@ export default function ManagerTeamRosterPage() {
   const [viewingLeaveHistory, setViewingLeaveHistory] = useState(null);
   const [viewingAttendance, setViewingAttendance] = useState(null);
   const [toast, setToast] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchTeam = async () => {
     setLoading(true);
@@ -368,21 +370,25 @@ export default function ManagerTeamRosterPage() {
     setTimeout(() => setToast(null), 5000);
   };
 
+  const q = searchQuery.trim().toLowerCase();
+  const filteredTeam = q
+    ? team.filter((emp) => [emp.name, emp.email, emp.employee_code, emp.emp_id].some((v) => String(v || "").toLowerCase().includes(q)))
+    : team;
+
   return (
     <>
         <DashboardTopBar title="My Team Roster" />
 
-        <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
-          <div className="flex items-center justify-between">
+        <main className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto flex-1 overflow-y-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">My Team Roster
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-900">My Team Roster</h1>
               <p className="text-sm text-slate-500 mt-1">View and manage your direct reports.</p>
             </div>
           </div>
 
           {toast && (
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border ${toast.type === "success" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border ${toast.type === "success" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-red-50 text-red-700 border-red-200"}`}>
               {toast.type === "success" ? <HiCheckCircle className="w-5 h-5 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 shrink-0" />}
               {toast.msg}
             </div>
@@ -394,95 +400,91 @@ export default function ManagerTeamRosterPage() {
             </div>
           )}
 
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl h-56 border border-slate-100 animate-pulse"></div>
-              ))}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="relative flex-1 sm:w-72 sm:max-w-xs">
+                <HiSearch className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search member or email…"
+                  className="w-full bg-slate-50/70 border border-slate-200/80 rounded-full pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all"
+                />
+              </div>
+              {!loading && <p className="text-xs font-semibold text-slate-400">{filteredTeam.length} {filteredTeam.length === 1 ? "member" : "members"}</p>}
             </div>
-          ) : team.length === 0 ? (
-            <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm">
-              <HiUserGroup className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-slate-800">No direct reports found</h3>
-              <p className="text-slate-500 text-sm mt-1">It looks like you don't have any team members assigned to you.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {team.map((emp) => (
-                <div key={emp.user_id || emp.id || emp._id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
-                  <div className="p-5 flex items-start gap-4">
-                    {(emp.avatar || emp.avatar_url) ? (
-                      <img src={emp.avatar || emp.avatar_url} alt={emp.name} className="w-14 h-14 rounded-full border-2 border-purple-100 object-cover shrink-0" />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full border-2 border-purple-100 bg-purple-50 flex items-center justify-center shrink-0">
-                        <HiUserCircle className="w-8 h-8 text-purple-300" />
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-[20px] h-64 border border-slate-100 animate-pulse"></div>
+                ))}
+              </div>
+            ) : team.length === 0 ? (
+              <div className="py-16 text-center">
+                <HiUserGroup className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-slate-800">No direct reports found</h3>
+                <p className="text-slate-500 text-sm mt-1">It looks like you don&apos;t have any team members assigned to you.</p>
+              </div>
+            ) : filteredTeam.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 font-medium">
+                <HiUserGroup className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+                No members matching &quot;{searchQuery}&quot;
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredTeam.map((emp) => {
+                  const empCode = emp.employee_code || emp.emp_id;
+                  const isActive = String(emp.status || "active").toLowerCase() === "active";
+                  return (
+                    <div key={emp.user_id || emp.id || emp._id} className="bg-white rounded-[20px] border border-slate-100 hover:border-purple-200 hover:shadow-md transition-all duration-200 group flex flex-col overflow-hidden shadow-sm">
+                      <div className="p-6 flex-1 flex flex-col">
+                        {/* Status & Emp Code Row */}
+                        <div className="flex justify-between items-center mb-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full ${isActive ? "bg-violet-50 text-violet-600 border border-violet-100" : "bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100"}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-violet-500" : "bg-fuchsia-500"}`} />
+                            {isActive ? "Active" : "Inactive"}
+                          </span>
+                          {empCode ? (
+                            <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">{empCode}</span>
+                          ) : (
+                            <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200" title="No employee code on file">N/A</span>
+                          )}
+                        </div>
+
+                        {/* Profile Section */}
+                        <div className="flex flex-col items-center text-center mb-2">
+                          <div className="relative mb-4">
+                            <div className="w-20 h-20 rounded-full shadow-sm overflow-hidden bg-slate-50 shrink-0 ring-2 ring-purple-100 flex items-center justify-center">
+                              <GenderAvatar person={emp} name={emp.name} />
+                            </div>
+                            {isActive && <div className="absolute bottom-0.5 right-0.5 w-4.5 h-4.5 bg-violet-500 border-2 border-white rounded-full shadow-sm" />}
+                          </div>
+                          <h3 className="text-[17px] font-bold text-slate-900 leading-tight px-2 truncate w-full">{emp.name || "Employee"}</h3>
+                          <p className="text-xs font-semibold text-slate-400 mt-1 uppercase truncate w-full">{emp.designation || emp.role || "Member"}</p>
+                          {emp.email && <p className="text-[11px] text-slate-400 mt-1 truncate w-full">{emp.email}</p>}
+                        </div>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0 pt-1">
-                      <h3 className="font-bold text-slate-900 truncate">{emp.name || "Employee"}</h3>
-                      <p className="text-purple-600 text-[11px] font-bold uppercase tracking-wider truncate mt-0.5">
-                        {emp.designation || emp.role || "Member"}
-                      </p>
+
+                      {/* Actions */}
+                      <div className="border-t border-slate-100 bg-slate-50 flex divide-x divide-slate-100">
+                        <button onClick={() => setViewingAttendance(emp)} className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5">
+                          <HiClock className="w-3.5 h-3.5" /> Attendance
+                        </button>
+                        <button onClick={() => setViewingLeaveHistory(emp)} className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5">
+                          <HiOutlineCalendar className="w-3.5 h-3.5" /> Leaves
+                        </button>
+                        <button onClick={() => setEditingEmployee(emp)} className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5">
+                          <HiPencil className="w-3.5 h-3.5" /> Edit
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="px-5 pb-5 space-y-2 text-xs text-slate-600 flex-1">
-                    {emp.email && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlineMail className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate">{emp.email}</span>
-                      </div>
-                    )}
-                    {(emp.phone_number || emp.contact) && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlinePhone className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span>{emp.phone_number || emp.contact}</span>
-                      </div>
-                    )}
-                    {emp.department && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlineOfficeBuilding className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate">{emp.department}</span>
-                      </div>
-                    )}
-                    {emp.work_location && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlineLocationMarker className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate">{emp.work_location}</span>
-                      </div>
-                    )}
-                    {emp.work_mode && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlineBriefcase className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="capitalize">{String(emp.work_mode).replace(/_/g, " ")}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-slate-100 bg-slate-50 flex divide-x divide-slate-100">
-                    <button 
-                      onClick={() => setViewingAttendance(emp)}
-                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
-                    >
-                      <HiClock className="w-3.5 h-3.5" /> Attendance
-                    </button>
-                    <button 
-                      onClick={() => setViewingLeaveHistory(emp)}
-                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
-                    >
-                      <HiOutlineCalendar className="w-3.5 h-3.5" /> Leaves
-                    </button>
-                    <button 
-                      onClick={() => setEditingEmployee(emp)}
-                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
-                    >
-                      <HiPencil className="w-3.5 h-3.5" /> Edit
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </main>
 
       {editingEmployee && (

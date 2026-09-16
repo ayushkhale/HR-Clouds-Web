@@ -8,8 +8,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -76,7 +76,7 @@ export default function MyPayslipsPage() {
                       <p className="text-xs text-slate-500 mt-0.5">Payable Days: {slip.payable_days}</p>
                     </div>
                     {slip.payroll_run?.status === 'paid' && (
-                      <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full">Paid</span>
+                      <span className="bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full">Paid</span>
                     )}
                   </div>
                   
@@ -89,9 +89,15 @@ export default function MyPayslipsPage() {
                       <p className="text-xs font-bold text-slate-400 uppercase">Deductions</p>
                       <p className="text-sm font-semibold text-red-600">₹{parseFloat(slip.total_deductions || 0).toLocaleString()}</p>
                     </div>
+                    {parseFloat(slip.reimbursement_amount || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <p className="text-xs font-bold text-slate-400 uppercase">Reimbursements</p>
+                        <p className="text-sm font-semibold text-purple-700">₹{parseFloat(slip.reimbursement_amount || 0).toLocaleString()}</p>
+                      </div>
+                    )}
                     <div className="flex justify-between pt-2 border-t border-slate-100">
                       <p className="text-xs font-bold text-slate-400 uppercase">Net Pay</p>
-                      <p className="text-sm font-black text-emerald-600">₹{parseFloat(slip.net_pay || 0).toLocaleString()}</p>
+                      <p className="text-sm font-black text-violet-600">₹{parseFloat(slip.net_pay || 0).toLocaleString()}</p>
                     </div>
                   </div>
 
@@ -133,9 +139,9 @@ export default function MyPayslipsPage() {
                    <p className="text-[10px] font-bold text-red-400 uppercase">Deductions</p>
                    <p className="text-xl font-black text-red-600">₹{parseFloat(selectedPayslip.total_deductions || 0).toLocaleString()}</p>
                  </div>
-                 <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
-                   <p className="text-[10px] font-bold text-emerald-400 uppercase">Net Pay</p>
-                   <p className="text-xl font-black text-emerald-700">₹{parseFloat(selectedPayslip.net_pay || 0).toLocaleString()}</p>
+                 <div className="bg-violet-50 p-4 rounded-xl border border-violet-100 text-center">
+                   <p className="text-[10px] font-bold text-violet-400 uppercase">Net Pay</p>
+                   <p className="text-xl font-black text-violet-700">₹{parseFloat(selectedPayslip.net_pay || 0).toLocaleString()}</p>
                  </div>
                </div>
                
@@ -166,6 +172,44 @@ export default function MyPayslipsPage() {
                     </div>
                  </div>
                </div>
+
+               {(() => {
+                 const reimbursements = selectedPayslip.reimbursements ?? selectedPayslip.item?.reimbursements
+                   ?? (selectedPayslip.snapshot?.lines || []).filter((l) => l.component_type === "reimbursement");
+                 const benefits = selectedPayslip.benefits ?? selectedPayslip.item?.benefits ?? [];
+                 const reimbTotal = reimbursements.reduce((s, r) => s + (parseFloat(r.amount ?? r.calculated_amount) || 0), 0);
+                 return (
+                   <>
+                     {reimbursements.length > 0 && (
+                       <div className="mt-8">
+                         <h3 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Reimbursements (paid on top of net pay)</h3>
+                         <div className="space-y-2 text-sm">
+                           {reimbursements.map((r, i) => (
+                             <div key={i} className="flex justify-between items-center">
+                               <span className="text-slate-600">{r.category || r.name || "Reimbursement"}{r.claim_number ? ` · ${r.claim_number}` : ""}</span>
+                               <span className="font-semibold text-purple-700">₹{parseFloat(r.amount ?? r.calculated_amount ?? 0).toLocaleString()}</span>
+                             </div>
+                           ))}
+                         </div>
+                         {reimbTotal > 0 && <p className="text-[11px] text-slate-500 mt-2">Net pay includes ₹{reimbTotal.toLocaleString()} of reimbursements, which aren&apos;t part of gross pay.</p>}
+                       </div>
+                     )}
+                     {benefits.length > 0 && (
+                       <div className="mt-8">
+                         <h3 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Benefits</h3>
+                         <div className="space-y-2 text-sm">
+                           {benefits.map((b, i) => (
+                             <div key={i} className="flex justify-between items-center">
+                               <span className="text-slate-600">{b.plan || b.plan_name || "Benefit"}</span>
+                               <span className="text-slate-700">You ₹{parseFloat(b.employee ?? b.employee_contribution ?? 0).toLocaleString()} · Company ₹{parseFloat(b.employer ?? b.employer_contribution ?? 0).toLocaleString()}</span>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+                   </>
+                 );
+               })()}
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end">
                 <button className="flex justify-center items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition shadow-md shadow-purple-200">

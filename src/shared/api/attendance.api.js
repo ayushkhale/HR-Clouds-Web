@@ -42,6 +42,47 @@ const post = (path, payload) =>
 const put = (path, payload) => request(path, { method: "PUT", body: JSON.stringify(payload) });
 const del = (path) => request(path, { method: "DELETE" });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHIFT_FILTERS = ["type", "is_active", "policy_id"];
+const ASSIGNMENT_FILTERS = ["user_id", "shift_id", "rotation_pattern_id"];
+
+const invalidFilter = (key) => {
+  const message = `"${key}" filter is not valid.`;
+  return Object.assign(new Error(message), { status: 400, data: { success: false, message, errorCode: "INVALID_FILTER", code: "INVALID_FILTER" } });
+};
+
+/**
+ * GET /shifts and GET /shifts/assignments allow-list their filters
+ * (update_shift_templates_2026_09_14.md §4). Any other key is ignored and the
+ * FULL list comes back, so it is dropped here instead of silently widening the
+ * result; a malformed `is_active` or UUID is a 400 INVALID_FILTER, so it is
+ * rejected before the request with the same error shape. Never send `org_id`.
+ * @returns {Promise<unknown>}
+ */
+function withShiftFilters(params, allowed, send) {
+  const out = {};
+  for (const [key, raw] of Object.entries(params || {})) {
+    if (raw === undefined || raw === null || raw === "") continue;
+    if (!allowed.includes(key)) {
+      if (import.meta.env?.DEV) console.warn(`[attendanceAPI] "${key}" is not a supported filter here and was not sent.`);
+      continue;
+    }
+    const value = String(raw).trim();
+    if (key === "is_active") {
+      const flag = value.toLowerCase();
+      if (!["true", "false", "1", "0"].includes(flag)) return Promise.reject(invalidFilter(key));
+      out[key] = flag === "1" || flag === "true" ? "true" : "false";
+    } else if (key === "type") {
+      out[key] = value;
+    } else if (UUID_RE.test(value)) {
+      out[key] = value;
+    } else {
+      return Promise.reject(invalidFilter(key));
+    }
+  }
+  return send(qs(out));
+}
+
 // Decision bodies: `remarks` is only sent when the user actually typed one.
 const decisionBody = (payload) => {
   const remarks = typeof payload?.remarks === "string" ? payload.remarks.trim() : "";
@@ -76,14 +117,18 @@ export const attendanceAPI = {
   deactivatePolicy: (id) => request(`/attendance/hr/policies/${seg(id)}/deactivate`, { method: "PATCH" }),
 
   // ── HR › Shifts (H10–H14) ──────────────────────────────────────────────────
-  getShifts: () => request("/attendance/hr/shifts"),
+  /** Not paginated. Filters: `type`, `is_active`, `policy_id` only. */
+  getShifts: (params = {}) => withShiftFilters(params, SHIFT_FILTERS, (query) => request(`/attendance/hr/shifts${query}`)),
   getShift: (id) => request(`/attendance/hr/shifts/${seg(id)}`),
   createShift: (payload) => post("/attendance/hr/shifts", payload),
+  /** Partial update. The backend skips the per-type time check here and refuses inactive shifts (SHIFT_DEACTIVATED). */
   updateShift: (id, payload) => put(`/attendance/hr/shifts/${seg(id)}`, payload),
+  /** Deactivates (is_active → false); the shift stays in the list. There is no reactivation. */
   deleteShift: (id) => del(`/attendance/hr/shifts/${seg(id)}`),
 
   // ── HR › Shift Roster / Assignments (H6–H9) ────────────────────────────────
-  getAssignments: (params = {}) => request(`/attendance/hr/shifts/assignments${qs(params)}`),
+  /** Not paginated. Filters: `user_id`, `shift_id`, `rotation_pattern_id` (UUIDs) only. */
+  getAssignments: (params = {}) => withShiftFilters(params, ASSIGNMENT_FILTERS, (query) => request(`/attendance/hr/shifts/assignments${query}`)),
   /** body: { user_id, (shift_id XOR rotation_pattern_id), effective_from, effective_to? } — no update route exists (§2 C2). */
   assignShift: (payload) => post("/attendance/hr/shifts/assign", payload),
   /** body: { effective_to: "YYYY-MM-DD" } */

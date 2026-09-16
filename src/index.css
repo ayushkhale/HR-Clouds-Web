@@ -9,5 +9,87 @@
   body {
     font-family: 'Manrope', sans-serif;
   }
+
+  /* No up/down spinners on number inputs anywhere in the app. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+/* ── TimeField (react-time-picker), themed like the app's other inputs ── */
+@layer components {
+  .hrc-time-field .react-time-picker {
+    width: 100%;
+  }
+  .hrc-time-field .react-time-picker__wrapper {
+    border: 1px solid #e2e8f0; /* slate-200 */
+    border-radius: 0.75rem;
+    background: #f8fafc; /* slate-50 */
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  }
+  .hrc-time-field .react-time-picker--disabled .react-time-picker__wrapper {
+    opacity: 0.6;
+  }
+  .hrc-time-field .react-time-picker__wrapper:focus-within {
+    background: #fff;
+    border-color: #a855f7; /* purple-500 */
+    box-shadow: 0 0 0 2px rgb(168 85 247 / 0.2);
+  }
+  .hrc-time-field--invalid .react-time-picker__wrapper {
+    border-color: #fda4af; /* rose-300 */
+  }
+  .hrc-time-field .react-time-picker__inputGroup {
+    font-size: 0.875rem;
+    color: #1e293b; /* slate-800 */
+    font-weight: 600;
+    min-width: auto;
+  }
+  .hrc-time-field .react-time-picker__inputGroup__input:focus {
+    outline: none;
+    background: #f3e8ff; /* purple-100 */
+    border-radius: 0.25rem;
+  }
+  .hrc-time-field .react-time-picker__inputGroup__amPm {
+    font-weight: 600;
+  }
+  .hrc-time-field .react-time-picker__button {
+    color: #94a3b8; /* slate-400 */
+    padding: 0 0.25rem;
+  }
+  .hrc-time-field .react-time-picker__button:enabled:hover,
+  .hrc-time-field .react-time-picker__button:enabled:focus {
+    color: #7c3aed; /* purple-600 */
+  }
+  .hrc-time-field .react-time-picker__clock {
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1rem;
+    box-shadow: 0 10px 25px -5px rgb(15 23 42 / 0.15);
+    z-index: 200;
+  }
+  .hrc-time-field .react-clock__face {
+    border-color: #e9d5ff; /* purple-200 */
+  }
+  .hrc-time-field .react-clock__hand__body {
+    background-color: #7c3aed;
+  }
+  .hrc-time-field .react-clock__second-hand__body {
+    background-color: #c084fc; /* purple-400 */
+  }
+  .hrc-time-field .react-clock__mark__body {
+    background-color: #cbd5e1; /* slate-300 */
+  }
+  .hrc-time-field .react-clock__mark__number {
+    color: #475569; /* slate-600 */
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
 }
 

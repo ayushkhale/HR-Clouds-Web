@@ -10,8 +10,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -20,8 +20,8 @@ function Toast({ toast, onClose }) {
 
 const REVISION_LABELS = { initial: "Initial", increment: "Increment", promotion: "Promotion", correction: "Correction", restructure: "Restructure" };
 const STATUS_PILL = {
-  approved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  proposed: "bg-amber-50 text-amber-700 border border-amber-200",
+  approved: "bg-violet-50 text-violet-700 border border-violet-200",
+  proposed: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
   rejected: "bg-red-50 text-red-700 border border-red-200",
   cancelled: "bg-slate-100 text-slate-500",
 };
@@ -258,7 +258,7 @@ export default function TeamSalaryPage() {
                         return (
                           <tr key={u.id || i} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
-                              <p className="font-bold text-slate-800">{u.name || u.identifier || "—"}</p>
+                              <p className="font-bold text-slate-800">{u.name || u.identifier || "N/A"}</p>
                               {u.email && <p className="text-xs text-slate-400">{u.email}</p>}
                             </td>
                             <td className="px-6 py-4 text-right tabular-nums">
@@ -314,7 +314,7 @@ export default function TeamSalaryPage() {
                       <td className="px-6 py-4 text-right">
                         {p.status === "proposed"
                           ? <button onClick={() => cancelProposal(p)} className="px-2.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition">Cancel</button>
-                          : <span className="text-xs text-slate-300">—</span>}
+                          : <span className="text-xs text-slate-300">N/A</span>}
                       </td>
                     </tr>
                   ))}

@@ -8,7 +8,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { HiCheckCircle, HiSearch } from "react-icons/hi";
 import { organizationAPI, tokenHelper } from "../api";
 import { attendanceErrorMessage } from "../utils/attendanceErrors.js";
-import { initials, isUuid, listFrom } from "./normalize.js";
+import { isUuid, listFrom } from "./normalize.js";
+import GenderAvatar from "../components/GenderAvatar.jsx";
 
 const firstString = (...values) => values.find((v) => typeof v === "string" && v.trim() && !isUuid(v))?.trim() || "";
 
@@ -109,8 +110,8 @@ export default function EmployeePicker({ value, onChange, purpose = "shift_assig
                 onClick={() => onChange(o.id, o)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition ${isSelected ? "bg-purple-50" : "hover:bg-slate-50"}`}
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${isSelected ? "bg-purple-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-                  {initials(o.name)}
+                <div className={`w-7 h-7 rounded-full overflow-hidden shrink-0 text-[10px] ${isSelected ? "ring-2 ring-purple-500" : ""}`}>
+                  <GenderAvatar person={o.raw || o} gender={o.gender} name={o.name} />
                 </div>
                 <div className="min-w-0">
                   <p className={`text-xs font-semibold truncate ${isSelected ? "text-purple-700" : "text-slate-800"}`}>

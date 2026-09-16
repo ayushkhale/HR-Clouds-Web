@@ -155,7 +155,7 @@ export function GlobalAlertProvider({ children }) {
                 type="button"
                 autoFocus
                 onClick={() => { if (!tooSoon()) closeAlert(alert.id); }}
-                className="w-full py-3.5 text-[#007AFF] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
+                className="w-full py-3.5 text-[#6D28D9] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
               >
                 OK
               </button>
@@ -181,14 +181,14 @@ export function GlobalAlertProvider({ children }) {
                 // re-press the button that opened this question.
                 autoFocus
                 onClick={() => resolveConfirm(confirm.id, false)}
-                className="flex-1 py-3.5 border-r border-gray-300/50 dark:border-gray-700/50 text-[#007AFF] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
+                className="flex-1 py-3.5 border-r border-gray-300/50 dark:border-gray-700/50 text-[#6D28D9] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => { if (!tooSoon()) resolveConfirm(confirm.id, true); }}
-                className="flex-1 py-3.5 text-[#007AFF] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
+                className="flex-1 py-3.5 text-[#6D28D9] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
               >
                 OK
               </button>

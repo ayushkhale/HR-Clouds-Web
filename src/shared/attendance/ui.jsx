@@ -10,7 +10,8 @@ import { HiCheckCircle, HiExclamationCircle, HiX, HiChevronLeft, HiChevronRight,
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
 import { statusMeta, TONE_CLASSES, TONE_DOT } from "./enums.js";
 import { attendanceErrorMessage, isFeatureDisabled } from "../utils/attendanceErrors.js";
-import { employeeCode, initials, personName } from "./normalize.js";
+import { employeeCode, personName } from "./normalize.js";
+import GenderAvatar from "../components/GenderAvatar.jsx";
 
 /** kind: "record" | "regularization" | "compoff" | "overtime" | "anomaly" | "severity" */
 export function StatusBadge({ kind = "record", status, label, className = "" }) {
@@ -133,9 +134,9 @@ export function FieldError({ message, id }) {
 export function InlineAlert({ tone = "rose", children, className = "" }) {
   const tones = {
     rose: "bg-rose-50 border-rose-200 text-rose-700",
-    amber: "bg-amber-50 border-amber-200 text-amber-800",
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    sky: "bg-sky-50 border-sky-200 text-sky-800",
+    amber: "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-800",
+    emerald: "bg-violet-50 border-violet-200 text-violet-700",
+    sky: "bg-indigo-50 border-indigo-200 text-indigo-800",
     slate: "bg-slate-50 border-slate-200 text-slate-600",
   };
   const Icon = tone === "emerald" ? HiCheckCircle : tone === "sky" || tone === "slate" ? HiInformationCircle : HiExclamationCircle;
@@ -154,8 +155,8 @@ export function PersonCell({ entity, secondary, size = "sm" }) {
   const box = size === "lg" ? "w-10 h-10 text-sm" : "w-8 h-8 text-xs";
   return (
     <div className="flex items-center gap-3 min-w-0">
-      <div className={`${box} rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold shrink-0`}>
-        {initials(name)}
+      <div className={`${box} rounded-full overflow-hidden shrink-0`}>
+        <GenderAvatar person={entity} name={name} />
       </div>
       <div className="min-w-0">
         <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
@@ -199,10 +200,10 @@ export function Toast({ toast, onClose }) {
       role={ok || info ? "status" : "alert"}
       aria-live="polite"
       className={`fixed top-5 right-5 left-5 sm:left-auto z-[120] sm:max-w-sm flex items-start gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold border ${
-        ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : info ? "bg-sky-50 text-sky-800 border-sky-200" : "bg-rose-50 text-rose-700 border-rose-200"
+        ok ? "bg-violet-50 text-violet-700 border-violet-200" : info ? "bg-indigo-50 text-indigo-800 border-indigo-200" : "bg-rose-50 text-rose-700 border-rose-200"
       }`}
     >
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-sky-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span className="flex-1 leading-snug">{toast.message}</span>
       <button type="button" onClick={onClose} aria-label="Dismiss" className="shrink-0">
         <HiX className="w-4 h-4 text-slate-400" />

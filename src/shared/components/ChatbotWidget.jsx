@@ -153,7 +153,7 @@ const ChatbotWidget = () => {
             <div>
               <p className="text-white font-bold text-sm leading-tight">Maya</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-yellow-300 animate-pulse' : 'bg-emerald-300 animate-pulse'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-fuchsia-300 animate-pulse' : 'bg-violet-300 animate-pulse'}`} />
                 <span className="text-purple-100 text-[11px]">
                   {busy ? 'Thinking…' : 'HR Assistant · Online'}
                 </span>
@@ -307,7 +307,7 @@ const ChatbotWidget = () => {
             )}
           </form>
           {inputValue.length > 0 && (
-            <p className={`text-[10px] mt-1 text-right pr-14 ${charWarn ? 'text-amber-500' : 'text-slate-400'}`}>
+            <p className={`text-[10px] mt-1 text-right pr-14 ${charWarn ? 'text-fuchsia-500' : 'text-slate-400'}`}>
               {charsLeft} remaining
             </p>
           )}
@@ -328,7 +328,7 @@ const ChatbotWidget = () => {
           : <><MayaAvatar size="sm" />
               <span className="text-white text-sm font-semibold">Ask Maya</span>
               {messages.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-violet-400 border-2 border-white" />
               )}
             </>
         }

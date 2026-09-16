@@ -15,7 +15,7 @@ import useToast from "../useToast";
 import PeriodPicker from "../PeriodPicker";
 import {
   runStatusMeta, runActions, runNextStep, RUN_STATUS_FILTERS, RUN_ACTION_SUCCESS, RUN_ACTION_FAILURE,
-  statutoryReadinessNotes, payoutReadinessNotes, taxTablesMissing, alreadyRunText, toCount, plural,
+  statutoryReadinessNotes, payoutReadinessNotes, taxTablesMissing, alreadyRunText, toCount, plural, inferredExitDate,
 } from "../runMeta";
 import { currentPeriod } from "../variablePayMeta";
 
@@ -29,7 +29,7 @@ function Spinner({ light = false }) {
 
 function ReadinessStat({ label, value, tone = "neutral" }) {
   const n = toCount(value);
-  const toneCls = tone === "bad" && n > 0 ? "text-rose-600" : tone === "warn" && n > 0 ? "text-amber-600" : "text-slate-800";
+  const toneCls = tone === "bad" && n > 0 ? "text-rose-600" : tone === "warn" && n > 0 ? "text-fuchsia-600" : "text-slate-800";
   return (
     <div className="rounded-xl bg-white border border-purple-100/70 px-3 py-2.5">
       <p className={`text-lg font-bold tabular-nums ${toneCls}`}>{n}</p>
@@ -151,18 +151,23 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
                   <div key={title}>
                     <p className="text-[11px] font-bold text-slate-500 uppercase mb-1.5">{title}</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {rows.slice(0, 10).map((m, i) => (
-                        <span key={m.user_id || i} title={m.reason || undefined} className="text-[11px] font-semibold text-rose-700 bg-white border border-rose-200 rounded-md px-2 py-0.5">
-                          {m.employee_code || "No employee code"}
-                        </span>
-                      ))}
+                      {rows.slice(0, 10).map((m, i) => {
+                        // Exit rows carry the inferred last working day (gap G-4, else in `reason`).
+                        const lastDay = rows === exitDates ? inferredExitDate(m) : "";
+                        return (
+                          <span key={m.user_id || i} title={m.reason || undefined} className="text-[11px] font-semibold text-rose-700 bg-white border border-rose-200 rounded-md px-2 py-0.5">
+                            {m.employee_code || "No employee code"}
+                            {lastDay && <span className="font-medium text-rose-500"> · last seen {formatDate(lastDay)}</span>}
+                          </span>
+                        );
+                      })}
                       {rows.length > 10 && <span className="text-[11px] text-slate-500 px-1 py-0.5">+{rows.length - 10} more</span>}
                     </div>
                   </div>
                 ))}
 
                 {(toCount(data.missing_structure_count) > 0 || toCount(data.exit_date_required_count) > 0) && (
-                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  <p className="text-xs text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-3 py-2">
                     These employees will show up as problems after calculating. You can start now and fix or exclude them before approving.
                   </p>
                 )}
@@ -181,7 +186,7 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
                     <p className="flex items-center gap-1.5 text-[11px] font-bold text-purple-700 uppercase mb-1.5"><HiShieldCheck className="w-3.5 h-3.5" /> Tax, reimbursements & benefits</p>
                     <ul className="space-y-1">
                       {readinessNotes.map((note) => (
-                        <li key={note.text} className={`text-xs leading-relaxed ${note.tone === "bad" ? "text-rose-700 font-semibold" : note.tone === "warn" ? "text-amber-800" : "text-slate-600"}`}>{note.text}</li>
+                        <li key={note.text} className={`text-xs leading-relaxed ${note.tone === "bad" ? "text-rose-700 font-semibold" : note.tone === "warn" ? "text-fuchsia-800" : "text-slate-600"}`}>{note.text}</li>
                       ))}
                     </ul>
                   </div>
@@ -261,7 +266,7 @@ function RunCard({ run, busy, onOpen, onCalculate }) {
             </button>
           )}
           {excluded > 0 && (
-            <button type="button" onClick={() => onOpen("status=excluded")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-lg px-2.5 py-1 transition">
+            <button type="button" onClick={() => onOpen("status=excluded")} className="inline-flex items-center gap-1.5 text-xs font-bold text-fuchsia-700 border border-fuchsia-200 bg-fuchsia-50 hover:bg-fuchsia-100 rounded-lg px-2.5 py-1 transition">
               <HiBan className="w-3.5 h-3.5" /> {excluded} excluded
             </button>
           )}
@@ -271,7 +276,7 @@ function RunCard({ run, busy, onOpen, onCalculate }) {
             </span>
           )}
           {acts.stuck && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 border border-amber-200 bg-amber-50 rounded-lg px-2.5 py-1">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-fuchsia-700 border border-fuchsia-200 bg-fuchsia-50 rounded-lg px-2.5 py-1">
               <HiClock className="w-3.5 h-3.5" /> Calculation seems stuck
             </span>
           )}
@@ -369,8 +374,11 @@ export default function PayrollRunDashboard() {
   const hasCalculating = list.items.some((r) => r.status === "calculating");
   useEffect(() => {
     if (!hasCalculating) return undefined;
-    const timer = setInterval(() => loadRuns({ silent: true }), 10000);
-    return () => clearInterval(timer);
+    // Don't poll a tab nobody is looking at; catch up when it comes back.
+    const tick = () => { if (document.visibilityState === "visible") loadRuns({ silent: true }); };
+    const timer = setInterval(tick, 10000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
   }, [hasCalculating, loadRuns]);
 
   const openRun = (id, query = "") => navigate(`/dashboard/hr/payroll/runs/${id}${query ? `?${query}` : ""}`);

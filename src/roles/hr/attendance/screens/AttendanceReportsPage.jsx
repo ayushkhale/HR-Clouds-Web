@@ -100,7 +100,7 @@ function DailyReport() {
         <LoadingRows rows={5} />
       ) : state.rows && (
         <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-2xs border border-slate-100 space-y-3">
-          {shownDate !== date && <p className="text-[11px] font-semibold text-amber-600">Showing {fmtDate(shownDate)}. Generate again to load {fmtDate(date)}.</p>}
+          {shownDate !== date && <p className="text-[11px] font-semibold text-fuchsia-600">Showing {fmtDate(shownDate)}. Generate again to load {fmtDate(date)}.</p>}
           {rows.length === 0 ? (
             <EmptyState title="No records" message={`No attendance recorded on ${fmtDate(shownDate)}.`} />
           ) : (
@@ -127,7 +127,7 @@ function DailyReport() {
                       <td className="px-5 py-3"><StatusBadge status={d.status || "not_marked"} /></td>
                       <td className="px-5 py-3">{fmtTime(d.clock_in_time)}</td>
                       <td className="px-5 py-3">{fmtTime(d.clock_out_time)}</td>
-                      <td className="px-5 py-3">{num(d.late_minutes) > 0 ? <span className="text-amber-600 font-bold">{fmtMinutes(d.late_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
+                      <td className="px-5 py-3">{num(d.late_minutes) > 0 ? <span className="text-fuchsia-600 font-bold">{fmtMinutes(d.late_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       <td className="px-5 py-3">{num(d.overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(d.overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       <td className="px-5 py-3">{d.is_anomaly ? <span className="text-rose-600 font-bold">Yes</span> : <span className="text-slate-400">No</span>}</td>
                     </tr>
@@ -203,7 +203,7 @@ function MonthlyReport() {
         <LoadingRows rows={5} />
       ) : state.rows && (
         <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-2xs border border-slate-100 space-y-6">
-          {shown.period !== period && <p className="text-[11px] font-semibold text-amber-600">Showing {monthLabel(shown.year, shown.month)}. Generate again to load {monthLabel(year, month)}.</p>}
+          {shown.period !== period && <p className="text-[11px] font-semibold text-fuchsia-600">Showing {monthLabel(shown.year, shown.month)}. Generate again to load {monthLabel(year, month)}.</p>}
           {rows.length === 0 ? (
             <EmptyState title="No records" message={`No attendance recorded for ${monthLabel(shown.year, shown.month)}.`} />
           ) : (
@@ -241,7 +241,7 @@ function MonthlyReport() {
                         </td>
                         <td className="px-5 py-3 font-bold text-indigo-600">{num(e.total_present)}d</td>
                         <td className="px-5 py-3 font-bold text-slate-500">{num(e.total_absent)}d</td>
-                        <td className="px-5 py-3">{num(e.total_late_days) > 0 ? <span className="text-amber-600 font-bold">{num(e.total_late_days)}</span> : <span className="text-slate-400">0</span>}</td>
+                        <td className="px-5 py-3">{num(e.total_late_days) > 0 ? <span className="text-fuchsia-600 font-bold">{num(e.total_late_days)}</span> : <span className="text-slate-400">0</span>}</td>
                         <td className="px-5 py-3">{num(e.total_overtime_minutes) > 0 ? <span className="text-indigo-600 font-bold">+{fmtMinutes(e.total_overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
                       </tr>
                     ))}

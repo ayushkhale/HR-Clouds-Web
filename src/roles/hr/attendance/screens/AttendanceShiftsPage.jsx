@@ -2,15 +2,15 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI } from "../../../../shared/api";
-import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
-import { validateShift, validateRotation, hasErrors, ROTATION_CYCLE_MAX } from "../../../../shared/attendance/validation";
+import { attendanceErrorMessage, attendanceErrorCode } from "../../../../shared/utils/attendanceErrors";
+import { validateShift, validateRotation, hasErrors, ROTATION_CYCLE_MAX, TIMED_SHIFT_TYPES } from "../../../../shared/attendance/validation";
 import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import { todayYMD, ymdOnly, fmtDate } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
-import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import {
-  HiAdjustments,
+  HiBan,
   HiClipboardList,
   HiClock,
   HiPlus,
@@ -20,22 +20,31 @@ import {
   HiRefresh,
   HiInformationCircle,
 } from "react-icons/hi";
+import TimeField from "../../../../shared/components/TimeField";
 
-// Rotational schedules are built from shift templates in the Rotation Patterns
-// section and assigned via the roster, so the template picker offers the four
-// concrete shift types only.
+// `type` is only a label: every type is calculated the same way, from start_time,
+// end_time and the policy (update_shift_templates_2026_09_14.md §3.3). New
+// shifts are Fixed, Flexible or Night. `split` has no second block any more and
+// is worked out exactly like Fixed; `rotational` takes each day's hours from the
+// rotation pattern. Both are offered only to keep an existing shift's type.
 const SHIFT_TYPE_OPTIONS = [
-  { value: "fixed", label: "Fixed", desc: "Set start & end time" },
-  { value: "flexible", label: "Flexible", desc: "Minimum hours required" },
-  { value: "night", label: "Night", desc: "Crosses midnight" },
-  { value: "split", label: "Split", desc: "Two work blocks" },
+  { value: "fixed", label: "Fixed", desc: "Set start and end time" },
+  { value: "flexible", label: "Flexible", desc: "No set start or end time" },
+  { value: "night", label: "Night", desc: "Starts one day, ends the next" },
 ];
+const KEEP_ONLY_TYPE_OPTIONS = {
+  split: { value: "split", label: "Split", desc: "Worked out like Fixed" },
+  rotational: { value: "rotational", label: "Rotational", desc: "Hours come from the rotation" },
+};
+const TYPE_DESC = Object.fromEntries([...SHIFT_TYPE_OPTIONS, ...Object.values(KEEP_ONLY_TYPE_OPTIONS)].map((t) => [t.value, t.desc]));
+
+const hoursText = (v) => (v != null && v !== "" && Number.isFinite(Number(v)) ? `${Number(v)} hrs` : null);
 
 const TYPE_COLORS = {
-  fixed: "bg-blue-50 text-blue-700",
+  fixed: "bg-indigo-50 text-indigo-700",
   flexible: "bg-violet-50 text-violet-700",
   night: "bg-slate-100 text-slate-600",
-  split: "bg-amber-50 text-amber-700",
+  split: "bg-fuchsia-50 text-fuchsia-700",
   rotational: "bg-purple-50 text-purple-700",
 };
 
@@ -60,23 +69,21 @@ const Label = ({ htmlFor, children, required }) => (
 /* ─── Shift Modal (Create / Edit) ────────────────────────────────────────── */
 function ShiftModal({ editShift, policies, onClose, onSaved }) {
   const isEdit = !!editShift;
+  const savedType = shiftType(editShift);
   const activePolicies = policies.filter((p) => p.is_active !== false || p.id === editShift?.policy_id);
   const defaultPolicy = activePolicies.find((p) => p.is_default);
   const hhmm = (v, d) => (v ? String(v).slice(0, 5) : d);
+  const typeOptions = isEdit && KEEP_ONLY_TYPE_OPTIONS[savedType] ? [...SHIFT_TYPE_OPTIONS, KEEP_ONLY_TYPE_OPTIONS[savedType]] : SHIFT_TYPE_OPTIONS;
+  const hadTimes = !!(editShift?.start_time || editShift?.end_time);
 
   const [form, setForm] = useState({
     name: editShift?.name || "",
-    type: shiftType(editShift) === "rotational" ? "fixed" : shiftType(editShift),
+    // An edit keeps the saved type; a rotational shift is never silently turned into Fixed.
+    type: isEdit ? savedType : "fixed",
     policy_id: isEdit ? editShift?.policy_id || editShift?.policy?.id || "" : defaultPolicy?.id || "",
+    // The API returns "HH:mm:ss" and takes "HH:mm".
     start_time: hhmm(editShift?.start_time, "09:00"),
     end_time: hhmm(editShift?.end_time, "18:00"),
-    min_hours: editShift?.min_hours ?? "8",
-    core_start_time: hhmm(editShift?.core_start_time, ""),
-    core_end_time: hhmm(editShift?.core_end_time, ""),
-    split_start_time_2: hhmm(editShift?.split_start_time_2, "14:00"),
-    split_end_time_2: hhmm(editShift?.split_end_time_2, "19:00"),
-    buffer_minutes_before: editShift?.buffer_minutes_before ?? 15,
-    buffer_minutes_after: editShift?.buffer_minutes_after ?? 15,
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -87,14 +94,23 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
     setErrors((e) => (e[k] ? { ...e, [k]: undefined } : e));
   }
 
-  const isTimed = form.type === "fixed" || form.type === "night" || form.type === "split";
-  const crossesMidnight = isTimed && form.type !== "split" && form.end_time && form.start_time && form.end_time < form.start_time;
+  const isTimed = TIMED_SHIFT_TYPES.includes(form.type);
+  const crossesMidnight = isTimed && form.end_time && form.start_time && form.end_time < form.start_time;
+  // Thresholds live on the policy; with none linked, the organisation default applies.
+  const policyInUse = form.policy_id ? activePolicies.find((p) => p.id === form.policy_id) : defaultPolicy;
+  const thresholds = policyInUse
+    ? [
+      hoursText(policyInUse.full_day_min_hours) && `full day ${hoursText(policyInUse.full_day_min_hours)}`,
+      hoursText(policyInUse.half_day_min_hours) && `half day ${hoursText(policyInUse.half_day_min_hours)}`,
+      policyInUse.grace_minutes != null && `${policyInUse.grace_minutes} mins grace`,
+    ].filter(Boolean).join(" · ")
+    : "";
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (loading) return;
     const hadPolicy = !!(editShift?.policy_id || editShift?.policy?.id);
-    const { errors: v, payload } = validateShift(form, { isEdit, hadPolicy });
+    const { errors: v, payload } = validateShift(form, { isEdit, hadPolicy, hadTimes });
     const clean = Object.fromEntries(Object.entries(v).filter(([, msg]) => msg));
     setErrors(clean);
     if (hasErrors(clean)) {
@@ -109,7 +125,10 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
       emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "shift" });
       onSaved(isEdit ? "Shift updated successfully." : "Shift created successfully.");
     } catch (err) {
-      setError(attendanceErrorMessage(err, "Couldn't save the shift."));
+      // PUT refuses an inactive shift; the list this was opened from was stale.
+      setError(isEdit && attendanceErrorCode(err) === "SHIFT_DEACTIVATED"
+        ? "This shift has been deactivated, so it can't be edited. Close this window and refresh the list."
+        : attendanceErrorMessage(err, "Couldn't save the shift."));
     } finally {
       setLoading(false);
     }
@@ -147,14 +166,17 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-slate-400 mt-1.5">Grace period, half/full-day thresholds, breaks and overtime come from this policy.</p>
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                {thresholds && <span className="font-semibold text-slate-500">{form.policy_id ? "This policy" : "Organisation default"}: {thresholds}. </span>}
+                Lateness, full and half-day hours, breaks and overtime all come from the policy.
+              </p>
             </div>
           </div>
 
           <div>
             <Label>Shift Type</Label>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {SHIFT_TYPE_OPTIONS.map((t) => (
+            <div className={`grid gap-3 ${typeOptions.length > 3 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-3"}`}>
+              {typeOptions.map((t) => (
                 <button
                   key={t.value}
                   type="button"
@@ -175,13 +197,13 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
           {isTimed && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <Label htmlFor="shift-start" required>{form.type === "split" ? "First Block Starts" : "Work Starts At"}</Label>
-                <input id="shift-start" type="time" value={form.start_time} onChange={(e) => set("start_time", e.target.value)} className={inputClass(!!errors.start_time)} />
+                <Label required>Work Starts At</Label>
+                <TimeField label="Work starts at" value={form.start_time} onChange={(v) => set("start_time", v)} invalid={!!errors.start_time} clearable={false} />
                 <FieldError message={errors.start_time} />
               </div>
               <div>
-                <Label htmlFor="shift-end" required>{form.type === "split" ? "First Block Ends" : "Work Ends At"}</Label>
-                <input id="shift-end" type="time" value={form.end_time} onChange={(e) => set("end_time", e.target.value)} className={inputClass(!!errors.end_time)} />
+                <Label required>Work Ends At</Label>
+                <TimeField label="Work ends at" value={form.end_time} onChange={(v) => set("end_time", v)} invalid={!!errors.end_time} clearable={false} />
                 <FieldError message={errors.end_time} />
               </div>
               {crossesMidnight && (
@@ -191,65 +213,28 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
               )}
               {form.type === "night" && !crossesMidnight && form.start_time !== form.end_time && (
                 <div className="sm:col-span-2">
-                  <InlineAlert tone="amber">Night shifts are treated as overnight. If this shift finishes on the same day, choose Fixed instead.</InlineAlert>
+                  <InlineAlert tone="amber">This night shift ends on the same day it starts, so it won’t be treated as overnight. Check the times, or choose Fixed.</InlineAlert>
                 </div>
               )}
             </div>
           )}
 
           {form.type === "split" && (
-            <div className="bg-slate-50 rounded-xl p-5">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Second Work Block</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                  <Label htmlFor="split-start" required>Starts At</Label>
-                  <input id="split-start" type="time" value={form.split_start_time_2} onChange={(e) => set("split_start_time_2", e.target.value)} className={inputClass(!!errors.split_start_time_2)} />
-                  <FieldError message={errors.split_start_time_2} />
-                </div>
-                <div>
-                  <Label htmlFor="split-end" required>Ends At</Label>
-                  <input id="split-end" type="time" value={form.split_end_time_2} onChange={(e) => set("split_end_time_2", e.target.value)} className={inputClass(!!errors.split_end_time_2)} />
-                  <FieldError message={errors.split_end_time_2} />
-                </div>
-              </div>
-            </div>
+            <InlineAlert tone="amber">
+              Split shifts are worked out exactly like Fixed: only the start and end times above count, and a second work block isn’t supported. Consider switching this shift to Fixed.
+            </InlineAlert>
           )}
 
           {form.type === "flexible" && (
-            <div className="bg-slate-50 rounded-xl p-5 space-y-5">
-              <div>
-                <Label htmlFor="flex-hours" required>Minimum Hours Per Day</Label>
-                <input id="flex-hours" type="number" step={0.25} min={0.25} max={24} value={form.min_hours} onChange={(e) => set("min_hours", e.target.value)} className={inputClass(!!errors.min_hours)} />
-                <FieldError message={errors.min_hours} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                  <Label htmlFor="core-start">Core Hours Start (optional)</Label>
-                  <input id="core-start" type="time" value={form.core_start_time} onChange={(e) => set("core_start_time", e.target.value)} className={inputClass(!!errors.core_start_time)} />
-                  <FieldError message={errors.core_start_time} />
-                </div>
-                <div>
-                  <Label htmlFor="core-end">Core Hours End (optional)</Label>
-                  <input id="core-end" type="time" value={form.core_end_time} onChange={(e) => set("core_end_time", e.target.value)} className={inputClass(!!errors.core_end_time)} />
-                  <FieldError message={errors.core_end_time} />
-                </div>
-              </div>
-              <p className="text-xs text-slate-400">When set, employees are expected at work between the core start and end times.</p>
-            </div>
+            <InlineAlert tone="sky">
+              Flexible shifts have no set start or end, so nobody on them is marked late. The hours needed for a full or half day come from the attendance policy.
+              {isEdit && hadTimes && " Saving removes the start and end times this shift had."}
+            </InlineAlert>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <Label htmlFor="buffer-before">Allow Early Entry By (mins)</Label>
-              <input id="buffer-before" type="number" min={0} max={240} value={form.buffer_minutes_before} onChange={(e) => set("buffer_minutes_before", e.target.value)} className={inputClass(!!errors.buffer_minutes_before)} />
-              {errors.buffer_minutes_before ? <FieldError message={errors.buffer_minutes_before} /> : <p className="text-xs text-slate-400 mt-1.5">How early before the start an employee can clock in</p>}
-            </div>
-            <div>
-              <Label htmlFor="buffer-after">Allow Late Entry By (mins)</Label>
-              <input id="buffer-after" type="number" min={0} max={240} value={form.buffer_minutes_after} onChange={(e) => set("buffer_minutes_after", e.target.value)} className={inputClass(!!errors.buffer_minutes_after)} />
-              {errors.buffer_minutes_after ? <FieldError message={errors.buffer_minutes_after} /> : <p className="text-xs text-slate-400 mt-1.5">Lateness beyond the policy grace period is still recorded</p>}
-            </div>
-          </div>
+          {form.type === "rotational" && (
+            <InlineAlert tone="sky">Each day’s hours come from the rotation pattern the employee is assigned to, not from this template.</InlineAlert>
+          )}
 
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">
             <button type="button" onClick={onClose} disabled={loading} className="px-8 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50">
@@ -445,10 +430,12 @@ export default function AttendanceShiftsPage() {
   const [editShift, setEditShift] = useState(null);
   const [editShiftLoading, setEditShiftLoading] = useState(null);
   const [showRotationModal, setShowRotationModal] = useState(false);
-  const [deleting, setDeleting] = useState(null);
+  const [deactivating, setDeactivating] = useState(null);
   const [deletingRotation, setDeletingRotation] = useState(null);
   const { toast, showToast, clearToast } = useToast();
   const [preview, setPreview] = useState(null);
+  // Deactivated shifts stay in GET /shifts for good, so they're hidden by default.
+  const [showInactive, setShowInactive] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -473,12 +460,21 @@ export default function AttendanceShiftsPage() {
 
   const policyById = useMemo(() => Object.fromEntries(policies.map((p) => [p.id, p])), [policies]);
   const shiftById = useMemo(() => Object.fromEntries(shifts.map((s) => [s.id, s])), [shifts]);
+  const inactiveCount = useMemo(() => shifts.filter((s) => !s.is_active).length, [shifts]);
+  const visibleShifts = useMemo(() => (showInactive ? shifts : shifts.filter((s) => s.is_active)), [shifts, showInactive]);
 
   async function handleEditShift(shift) {
     setEditShiftLoading(shift.id);
     try {
       const res = await attendanceAPI.getShift(shift.id);
-      setEditShift(unwrap(res) || shift);
+      const fresh = unwrap(res) || shift;
+      // Deactivated since the list loaded: PUT would be refused (SHIFT_DEACTIVATED).
+      if (fresh.is_active === false) {
+        showToast("This shift has been deactivated, so it can't be edited.", "error");
+        load();
+        return;
+      }
+      setEditShift(fresh);
       setShowShiftModal(true);
     } catch (err) {
       showToast(attendanceErrorMessage(err, "Couldn't load shift details."), "error");
@@ -487,18 +483,20 @@ export default function AttendanceShiftsPage() {
     }
   }
 
-  async function handleDeleteShift(shift) {
-    if (!(await window.confirm(`Delete "${shift.name}"? Shifts with employees assigned or used in a rotation can't be deleted.`))) return;
-    setDeleting(shift.id);
+  // DELETE /shifts/:id deactivates, and nothing can switch a shift back on.
+  async function handleDeactivateShift(shift) {
+    if (!(await window.confirm(`Deactivate "${shift.name}"? It stays in the list as inactive and can no longer be assigned or edited. This can't be undone. Anyone still assigned to it must have their assignment ended first.`))) return;
+    setDeactivating(shift.id);
     try {
       await attendanceAPI.deleteShift(shift.id);
       emitAttendanceChanged(ATTENDANCE_EVENTS.CONFIG, { entity: "shift" });
-      showToast("Shift deleted.");
+      showToast("Shift deactivated.");
+      setPreview(null);
       load();
     } catch (err) {
-      showToast(attendanceErrorMessage(err, "Couldn't delete the shift. It may still be assigned to employees or used in a rotation."), "error");
+      showToast(attendanceErrorMessage(err, "Couldn't deactivate the shift."), "error");
     } finally {
-      setDeleting(null);
+      setDeactivating(null);
     }
   }
 
@@ -519,10 +517,21 @@ export default function AttendanceShiftsPage() {
 
   function timingLabel(s) {
     const type = shiftType(s);
-    if (type === "flexible") return s.min_hours == null ? "N/A" : `Min ${s.min_hours} hrs / day${s.core_start_time ? ` · core ${fmt12(s.core_start_time)}–${fmt12(s.core_end_time)}` : ""}`;
-    if (type === "split" && s.split_start_time_2) return `${fmt12(s.start_time)}–${fmt12(s.end_time)}, ${fmt12(s.split_start_time_2)}–${fmt12(s.split_end_time_2)}`;
-    if (s.start_time && s.end_time) return `${fmt12(s.start_time)} – ${fmt12(s.end_time)}${s.is_overnight ? " (+1 day)" : ""}`;
-    return "N/A";
+    const times = s.start_time && s.end_time ? `${fmt12(s.start_time)} – ${fmt12(s.end_time)}${s.is_overnight ? " (+1 day)" : ""}` : "";
+    // A flexible shift saved before the change can still carry times, and the engine still uses them.
+    if (type === "flexible") return times ? `${times} (still set)` : "No set hours";
+    if (type === "rotational") return times || "From the rotation pattern";
+    return times || "Not set";
+  }
+
+  /** Something about a shift that silently changes how attendance is worked out, or "". */
+  function shiftWarning(s) {
+    const type = shiftType(s);
+    const timed = TIMED_SHIFT_TYPES.includes(type);
+    if (timed && !(s.start_time && s.end_time)) return "This shift has no start or end time, so lateness isn't worked out for anyone on it. Edit it and add both times.";
+    if (type === "flexible" && (s.start_time || s.end_time)) return "This flexible shift still has start and end times, so lateness is still worked out against them. Edit and save it to remove them.";
+    if (type === "split") return "Split shifts are worked out exactly like Fixed: only the start and end times count. A second work block isn't supported.";
+    return "";
   }
 
   function policyLabel(s) {
@@ -531,7 +540,7 @@ export default function AttendanceShiftsPage() {
     const p = policyById[id] || s.policy;
     if (!p) return <span className="text-slate-400">Linked policy</span>;
     return (
-      <span className={p.is_active === false ? "text-amber-600" : ""}>
+      <span className={p.is_active === false ? "text-fuchsia-600" : ""}>
         {p.name}
         {p.is_active === false && " (inactive)"}
       </span>
@@ -567,23 +576,33 @@ export default function AttendanceShiftsPage() {
               <h1 className="text-2xl font-bold text-slate-900">Shift Templates</h1>
               <p className="text-sm text-slate-500 mt-1">Define working hours, and link each shift to an attendance policy.</p>
             </div>
-            <button onClick={() => { setEditShift(null); setShowShiftModal(true); }} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
-              <HiPlus className="w-4 h-4" />
-              Add Shift
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {inactiveCount > 0 && (
+                <label htmlFor="show-inactive-shifts" className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                  <input id="show-inactive-shifts" type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                  Show deactivated ({inactiveCount})
+                </label>
+              )}
+              <button onClick={() => { setEditShift(null); setShowShiftModal(true); }} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
+                <HiPlus className="w-4 h-4" />
+                Add Shift
+              </button>
+            </div>
           </div>
 
           {loading ? (
             <Skeleton type="table" rows={4} />
           ) : !loadError && (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              {shifts.length === 0 ? (
+              {visibleShifts.length === 0 ? (
                 <div className="p-16 flex flex-col items-center gap-3 text-center">
                   <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
                     <HiClock className="w-7 h-7 text-slate-400" />
                   </div>
-                  <p className="text-sm font-semibold text-slate-600">No shifts created yet</p>
-                  <p className="text-xs text-slate-400">Add your first shift template to start assigning employees.</p>
+                  <p className="text-sm font-semibold text-slate-600">{shifts.length === 0 ? "No shifts created yet" : "No active shifts"}</p>
+                  <p className="text-xs text-slate-400">
+                    {shifts.length === 0 ? "Add your first shift template to start assigning employees." : "Every shift has been deactivated. Add a shift to start assigning employees."}
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -599,29 +618,37 @@ export default function AttendanceShiftsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {shifts.map((s) => (
+                      {visibleShifts.map((s) => (
                         <tr key={s.id} {...rowPreviewProps(() => setPreview(s), `View ${s.name}`)}>
                           <td className="px-6 py-4 text-sm font-semibold text-slate-800">{s.name}</td>
                           <td className="px-6 py-4">
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${TYPE_COLORS[shiftType(s)] || "bg-slate-100 text-slate-600"}`}>{shiftType(s)}</span>
                           </td>
-                          <td className="px-6 py-4 text-xs text-slate-600">{timingLabel(s)}</td>
+                          <td className="px-6 py-4 text-xs text-slate-600">
+                            {timingLabel(s)}
+                            {shiftWarning(s) && s.is_active && <span className="block text-[10px] font-semibold text-fuchsia-600">Check this shift</span>}
+                          </td>
                           <td className="px-6 py-4 text-xs text-slate-600">{policyLabel(s)}</td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${s.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? "bg-emerald-500" : "bg-slate-400"}`} />
+                            <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${s.is_active ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500"}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? "bg-violet-500" : "bg-slate-400"}`} />
                               {s.is_active ? "Active" : "Inactive"}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => handleEditShift(s)} disabled={editShiftLoading === s.id} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Edit shift" aria-label={`Edit ${s.name}`}>
-                                {editShiftLoading === s.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
-                              </button>
-                              <button onClick={() => handleDeleteShift(s)} disabled={deleting === s.id} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50" title="Delete shift" aria-label={`Delete ${s.name}`}>
-                                {deleting === s.id ? <Spinner className="w-4 h-4" /> : <HiTrash className="w-4 h-4" />}
-                              </button>
-                            </div>
+                            {/* A deactivated shift can't be edited or switched back on (PUT → SHIFT_DEACTIVATED). */}
+                            {s.is_active ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <button onClick={() => handleEditShift(s)} disabled={editShiftLoading === s.id} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Edit shift" aria-label={`Edit ${s.name}`}>
+                                  {editShiftLoading === s.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
+                                </button>
+                                <button onClick={() => handleDeactivateShift(s)} disabled={deactivating === s.id} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50" title="Deactivate shift" aria-label={`Deactivate ${s.name}`}>
+                                  {deactivating === s.id ? <Spinner className="w-4 h-4" /> : <HiBan className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Can’t be edited</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -716,40 +743,36 @@ export default function AttendanceShiftsPage() {
         const type = shiftType(p);
         const pid = p.policy_id || p.policy?.id;
         const pol = pid ? policyById[pid] || p.policy : null;
-        const hours = (v) => (v != null && v !== "" ? `${v} hrs` : null);
+        const warning = shiftWarning(p);
         return (
           <DetailDialog
             eyebrow="Shift template"
             icon={HiClock}
             title={p.name}
-            subtitle={SHIFT_TYPE_OPTIONS.find((t) => t.value === type)?.desc}
+            subtitle={TYPE_DESC[type]}
             badge={<DetailPill tone="onDark">{p.is_active ? "Active" : "Inactive"}</DetailPill>}
             onClose={() => setPreview(null)}
-            footer={
-              <button onClick={() => { const s = p; setPreview(null); handleEditShift(s); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
-                <HiPencil className="w-4 h-4" /> Edit shift
-              </button>
-            }
+            footer={p.is_active ? (
+              <>
+                <button onClick={() => handleDeactivateShift(p)} disabled={deactivating === p.id} className="sm:mr-auto px-4 py-2.5 text-sm font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50">
+                  {deactivating === p.id ? <Spinner className="w-4 h-4" /> : <HiBan className="w-4 h-4" />} Deactivate
+                </button>
+                <button onClick={() => { const s = p; setPreview(null); handleEditShift(s); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                  <HiPencil className="w-4 h-4" /> Edit shift
+                </button>
+              </>
+            ) : (
+              <DetailFooterNote>This shift is deactivated. It can’t be edited, assigned or switched back on.</DetailFooterNote>
+            )}
           >
+            {warning && <InlineAlert tone="amber">{warning}</InlineAlert>}
             <DetailSection title="Working hours" icon={HiClock}>
               <DetailGrid
                 items={[
                   ["Shift type", type.charAt(0).toUpperCase() + type.slice(1)],
                   ["Working hours", timingLabel(p)],
-                  ...(type === "flexible"
-                    ? [["Minimum hours / day", hours(p.min_hours)], ["Core hours", p.core_start_time ? `${fmt12(p.core_start_time)} – ${fmt12(p.core_end_time)}` : "Not set"]]
-                    : [["Starts", fmt12(p.start_time)], ["Ends", fmt12(p.end_time)]]),
-                  ...(type === "split" ? [["Second block starts", fmt12(p.split_start_time_2)], ["Second block ends", fmt12(p.split_end_time_2)]] : []),
                   ["Ends next day", p.is_overnight ? "Yes" : "No"],
-                ]}
-              />
-            </DetailSection>
-            <DetailSection title="Clock-in window" icon={HiAdjustments}>
-              <DetailGrid
-                cols={2}
-                items={[
-                  ["Early entry allowed", `${p.buffer_minutes_before ?? 0} mins before start`],
-                  ["Late entry allowed", `${p.buffer_minutes_after ?? 0} mins after start`],
+                  ["Time zone", p.timezone || null],
                 ]}
               />
             </DetailSection>
@@ -758,8 +781,8 @@ export default function AttendanceShiftsPage() {
                 items={[
                   ["Policy", pol?.name || (pid ? "Linked policy" : "Organisation default")],
                   ["Grace period", pol?.grace_minutes != null ? `${pol.grace_minutes} mins` : null],
-                  ["Hours for full day", hours(pol?.full_day_min_hours)],
-                  ["Hours for half day", hours(pol?.half_day_min_hours)],
+                  ["Hours for full day", hoursText(pol?.full_day_min_hours)],
+                  ["Hours for half day", hoursText(pol?.half_day_min_hours)],
                 ]}
               />
             </DetailSection>

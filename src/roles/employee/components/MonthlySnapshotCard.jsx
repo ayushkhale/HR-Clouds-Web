@@ -15,25 +15,25 @@ function MonthlySnapshotCard({ summary }) {
         
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 transition-transform hover:-translate-y-1 hover:bg-white/10">
           <div className="text-2xl mb-1">
-            <HiClock className="text-blue-400 w-7 h-7" />
+            <HiClock className="text-indigo-400 w-7 h-7" />
           </div>
-          <div className="text-2xl font-extrabold text-blue-300">{formatDecimalHours(summary?.total_hours_worked)}</div>
+          <div className="text-2xl font-extrabold text-indigo-300">{formatDecimalHours(summary?.total_hours_worked)}</div>
           <div className="text-xs text-slate-300 mt-1 font-medium tracking-wide uppercase">Effective Hrs</div>
         </div>
         
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 transition-transform hover:-translate-y-1 hover:bg-white/10">
           <div className="text-2xl mb-1">
-            <HiCheckCircle className="text-emerald-400 w-7 h-7" />
+            <HiCheckCircle className="text-violet-400 w-7 h-7" />
           </div>
-          <div className="text-2xl font-extrabold text-emerald-300">{summary?.present_days || 0}</div>
+          <div className="text-2xl font-extrabold text-violet-300">{summary?.present_days || 0}</div>
           <div className="text-xs text-slate-300 mt-1 font-medium tracking-wide uppercase">Present Days</div>
         </div>
         
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 transition-transform hover:-translate-y-1 hover:bg-white/10">
           <div className="text-2xl mb-1">
-            <HiExclamationCircle className="text-amber-400 w-7 h-7" />
+            <HiExclamationCircle className="text-fuchsia-400 w-7 h-7" />
           </div>
-          <div className="text-2xl font-extrabold text-amber-300">{summary?.late_days || 0}</div>
+          <div className="text-2xl font-extrabold text-fuchsia-300">{summary?.late_days || 0}</div>
           <div className="text-xs text-slate-300 mt-1 font-medium tracking-wide uppercase">Late Arrivals</div>
         </div>
         

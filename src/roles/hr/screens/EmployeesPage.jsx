@@ -6,10 +6,10 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiOutlineUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding,
   HiDotsHorizontal, HiUserGroup, HiSearch, HiFilter, HiPlus, HiX,
-  HiMail, HiPhone, HiPaperAirplane, HiCheckCircle, HiChevronDown
+  HiMail, HiPhone, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiOfficeBuilding
 } from "react-icons/hi";
 
-import GenderAvatar, { genderOf, normalizeGender } from "../../../shared/components/GenderAvatar";
+import GenderAvatar, { avatarUrlOf, genderOf, normalizeGender } from "../../../shared/components/GenderAvatar";
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -117,13 +117,12 @@ function EmployeesPage() {
 
   const fetchEmployees = async () => {
     try {
-      const [res, locRes, depRes, hrRes] = await Promise.all([
+      const [res, locRes, depRes] = await Promise.all([
         organizationAPI.getEmployees({ purpose: "shift_assignment" }),
         organizationAPI.getLocations().catch(() => ({ success: false, data: [] })),
         organizationAPI.getDepartments().catch(() => ({ success: false, data: [] })),
-        organizationAPI.getEmployees({ purpose: "all_hr_list" }).catch(() => ({ success: false, data: [] }))
       ]);
-      
+
       if (res.success && res.data) {
         setEmployees(res.data);
         setManagers(res.data.filter(emp => emp.role === 'manager' || emp.role === 'hr'));
@@ -134,13 +133,19 @@ function EmployeesPage() {
       if (depRes.success && depRes.data) {
         setDepartments(depRes.data);
       }
-      if (hrRes.success && hrRes.data) {
-        setHrList(hrRes.data);
-      }
     } catch (error) {
       console.error("Failed to fetch form data", error);
     }
   };
+
+  // The HR list only feeds the invite modal's approver picker, so it loads the
+  // first time that modal opens — not on every visit to this page.
+  useEffect(() => {
+    if (!showAddModal || hrList.length > 0) return;
+    organizationAPI.getEmployees({ purpose: "all_hr_list" })
+      .then((res) => { if (res.success && res.data) setHrList(res.data); })
+      .catch(() => { /* the picker falls back to HR rows from the employee list */ });
+  }, [showAddModal, hrList.length]);
 
   // Fetch cascading departments when work location changes
   useEffect(() => {
@@ -336,8 +341,10 @@ function EmployeesPage() {
       city: emp.city || emp.work_location || "",
       contact: emp.contact || emp.phone_number || "",
       empId: emp.employee_code || emp.emp_id || "",
+      department: (typeof emp.department === "string" ? emp.department : emp.department?.name) || emp.department_name || "",
       isOwner: emp.role === 'owner',
       gender: genderOf(emp),
+      avatar: avatarUrlOf(emp),
     })),
     ...invitations.map((inv, idx) => ({
       id: `inv-${idx}`,
@@ -440,9 +447,9 @@ function EmployeesPage() {
                       {/* Status & Emp Code Row */}
                       <div className="flex justify-between items-center mb-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full ${
-                          member.status === "Active" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-amber-50 text-amber-600 border border-amber-100"
+                          member.status === "Active" ? "bg-violet-50 text-violet-600 border border-violet-100" : "bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100"
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${member.status === "Active" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${member.status === "Active" ? "bg-violet-500" : "bg-fuchsia-500"}`} />
                           {member.status === "Active" ? "Active" : "Pending"}
                         </span>
                         {member.empId ? (
@@ -456,24 +463,25 @@ function EmployeesPage() {
                       <div className="flex flex-col items-center text-center mb-6">
                         <div className="relative mb-4">
                           <div className="w-20 h-20 rounded-full shadow-sm overflow-hidden bg-slate-50 shrink-0 ring-2 ring-purple-100 flex items-center justify-center">
-                            {member.avatar ? (
-                              <img 
-                                src={member.avatar} 
-                                alt={member.name} 
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <GenderAvatar gender={member.gender} name={member.name} />
-                            )}
+                            <GenderAvatar person={member} name={member.name} />
                           </div>
                           {member.status === "Active" && (
-                            <div className="absolute bottom-0.5 right-0.5 w-4.5 h-4.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
+                            <div className="absolute bottom-0.5 right-0.5 w-4.5 h-4.5 bg-violet-500 border-2 border-white rounded-full shadow-sm" />
                           )}
                         </div>
                         <h3 className="text-[17px] font-bold text-slate-900 leading-tight group-hover:text-purple-700 transition-colors px-2 truncate w-full">{member.name}</h3>
                         <p className="text-xs font-semibold text-slate-400 mt-1 uppercase">
                           {member.role || "N/A"}
                         </p>
+                        {member.status !== "Pending" && (
+                          <span
+                            className={`mt-2.5 inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full text-[11px] font-semibold border ${member.department ? "bg-purple-50 text-purple-700 border-purple-100" : "bg-slate-50 text-slate-400 border-slate-200"}`}
+                            title={member.department || "No department assigned"}
+                          >
+                            <HiOfficeBuilding className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{member.department || "No department"}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -794,8 +802,8 @@ function EmployeesPage() {
 
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0 bg-slate-50/50 rounded-b-2xl">
                 {inviteResult.message && (
-                  <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-                    {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                  <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                    {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
                     {inviteResult.message}
                   </div>
                 )}

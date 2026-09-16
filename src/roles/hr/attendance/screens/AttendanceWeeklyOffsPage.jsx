@@ -253,14 +253,14 @@ export default function AttendanceWeeklyOffsPage() {
                       <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{fmtDate(ymdOnly(r.effective_from))}{r.effective_to ? ` – ${fmtDate(ymdOnly(r.effective_to))}` : " onwards"}</td>
                       <td className="px-6 py-4 max-w-xs">
                         {lines.length === 0 ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">Whole organisation</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-100">Whole organisation</span>
                         ) : (
                           lines.map((line) => <p key={line} className="text-[10px] font-semibold text-slate-500 truncate" title={line}>{line}</p>)
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${r.is_active !== false ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${r.is_active !== false ? "bg-emerald-500" : "bg-slate-400"}`} />
+                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${r.is_active !== false ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${r.is_active !== false ? "bg-violet-500" : "bg-slate-400"}`} />
                           {r.is_active !== false ? "Active" : "Inactive"}
                         </span>
                       </td>

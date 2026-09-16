@@ -151,6 +151,47 @@ export function fmtClock(hhmm, fallback = "N/A") {
   return m ? `${pad(Number(m[1]))}:${m[2]}` : fallback;
 }
 
+/** Shift wall-clock "HH:mm[:ss]" → minutes since midnight, or null. */
+export function clockMinutes(hhmm) {
+  const m = String(hhmm || "").match(/^(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** Minutes since midnight (may exceed 1440) → "06:00 pm" / short "6 pm". No timezone conversion. */
+export function fmtClockMinutes(minutes, { short = false } = {}, fallback = "N/A") {
+  if (!Number.isFinite(minutes)) return fallback;
+  const norm = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const d = new Date(2000, 0, 1, Math.floor(norm / 60), norm % 60);
+  return d.toLocaleTimeString("en-IN", short ? { hour: "numeric" } : { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Shift wall-clock "HH:mm[:ss]" → "10:00 am" (a schedule — no timezone conversion). */
+export const fmtClockTime = (hhmm, fallback = "N/A") => fmtClockMinutes(clockMinutes(hhmm) ?? NaN, {}, fallback);
+
+/**
+ * Wall-clock minutes of an instant in `timeZone`, measured from midnight of the
+ * calendar date `ymd` in that zone — 1500 means 01:00 on the next day. Lets
+ * punches be compared against a shift schedule. Returns null for bad input.
+ */
+export function zoneMinutesFrom(ymd, iso, timeZone) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const opts = { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", { ...opts, timeZone: timeZone || undefined }).formatToParts(d);
+  } catch {
+    parts = new Intl.DateTimeFormat("en-CA", opts).formatToParts(d);
+  }
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const minutes = Number(get("hour")) * 60 + Number(get("minute"));
+  const base = parseYMDLocal(ymd);
+  const actual = parseYMDLocal(`${get("year")}-${get("month")}-${get("day")}`);
+  if (!base || !actual) return minutes;
+  return minutes + Math.round((actual - base) / 86_400_000) * 1440;
+}
+
 /** Minutes → "1h 5m" / "45m" / "0m". null/undefined → fallback. */
 export function fmtMinutes(value, fallback = "0m") {
   if (value === null || value === undefined || value === "") return fallback;

@@ -373,10 +373,10 @@ function AttendanceLocationsPage() {
                       <div className="flex justify-between items-start mb-4">
                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${
                           loc.is_active 
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                          ? 'bg-violet-50 text-violet-600 border-violet-100' 
                           : 'bg-rose-50 text-rose-600 border-rose-100'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-violet-500' : 'bg-rose-500'}`} />
                           {loc.is_active ? 'Active' : 'Inactive'}
                         </div>
                         

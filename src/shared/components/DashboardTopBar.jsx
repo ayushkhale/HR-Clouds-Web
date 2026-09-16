@@ -3,9 +3,12 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
 import { useSidebar } from "../contexts/SidebarContext";
-import { HiSearch, HiBell, HiDocumentText, HiMenuAlt2 } from "react-icons/hi";
+import { HiSearch, HiBell, HiDocumentText, HiMenuAlt2, HiChevronDown } from "react-icons/hi";
+import GenderAvatar from "./GenderAvatar";
+import { useEmbeddedPage } from "../contexts/EmbeddedPageContext";
 
 function DashboardTopBar({ title = "HR Dashboard" }) {
+  const embedded = useEmbeddedPage();
   const { user, role, orgId, updateTokens, getDashboardPath } = useAuth();
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
@@ -51,6 +54,9 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
   // Mock organizations for UI if backend doesn't provide it yet
   const organizations = user?.organizations || [];
   const currentOrg = organizations.find(o => o.org_id === orgId) || { name: "Current Workspace", role };
+
+  // A page embedded in another page (HR Inbox) shares the host's top bar.
+  if (embedded) return null;
 
   return (
     <header className="bg-white px-4 md:px-8 py-4 md:py-5 flex items-center justify-between sticky top-0 z-20 font-sans gap-4 md:gap-6 lg:gap-0 border-b lg:border-none border-slate-100 shadow-sm lg:shadow-none">
@@ -147,11 +153,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
             className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center shadow-sm overflow-hidden border-2 border-transparent hover:border-purple-200 hover:shadow transition-all focus:outline-none"
             title="My Profile"
           >
-            <img 
-              src="https://cdn3d.iconscout.com/3d/premium/thumb/woman-avatar-3d-icon-png-download-4118353.png" 
-              alt="Profile" 
-              className="w-full h-full object-cover bg-purple-100"
-            />
+            <GenderAvatar person={user} />
           </button>
         </div>
       </div>

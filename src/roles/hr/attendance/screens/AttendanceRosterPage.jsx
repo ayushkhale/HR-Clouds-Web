@@ -5,12 +5,13 @@ import { attendanceAPI } from "../../../../shared/api";
 import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
 import EmployeePicker from "../../../../shared/attendance/EmployeePicker";
 import { validateAssignment, validateEndAssignment, hasErrors } from "../../../../shared/attendance/validation";
-import { listFrom, personName, personEmail, employeeCode, initials } from "../../../../shared/attendance/normalize";
+import { listFrom, personName, personEmail, employeeCode } from "../../../../shared/attendance/normalize";
 import { fmtDate, fmtClock, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, Pagination, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiUserGroup, HiPlus, HiX, HiSearch, HiDotsVertical, HiTrash, HiClock, HiCalendar, HiUser } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import GenderAvatar from "../../../../shared/components/GenderAvatar";
 
 const PAGE_SIZE = 25;
 
@@ -33,6 +34,20 @@ function assignmentState(a, today) {
   if (from && from > today) return "scheduled";
   return "ongoing";
 }
+
+// Shifts no longer carry min_hours (update_shift_templates_2026_09_14): a
+// flexible shift has no set hours. "" when there's nothing to show.
+function shiftHours(shift) {
+  if (shift?.start_time && shift?.end_time) return `${fmtClock(shift.start_time)} – ${fmtClock(shift.end_time)}`;
+  return (shift?.type || shift?.shift_type) === "flexible" ? "Flexible hours" : "";
+}
+
+const FormSection = ({ title, children }) => (
+  <div>
+    <p className="text-xs font-bold text-slate-700 mb-3">{title}</p>
+    {children}
+  </div>
+);
 
 /* ─── Assign Modal ───────────────────────────────────────────────────────── */
 function AssignModal({ onClose, onSaved }) {
@@ -85,94 +100,111 @@ function AssignModal({ onClose, onSaved }) {
     }
   }
 
-  const selectClass = (invalid) => `w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white ${invalid ? "border-rose-300" : "border-slate-200"}`;
+  // Same field look and layout as the Create Attendance Policy modal.
+  const fieldClass = (invalid) => `w-full px-4 py-3 text-sm border rounded-xl bg-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${invalid ? "border-rose-300" : "border-slate-200"}`;
+  const labelClass = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2";
+  const selectedShift = shifts.find((s) => String(s.id) === String(form.shift_id));
+  const selectedRotation = rotations.find((r) => String(r.id) === String(form.rotation_pattern_id));
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 sm:p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="assign-shift-title">
+        <div className="flex items-center justify-between px-6 sm:px-10 py-6 border-b border-slate-100 shrink-0">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Assign Shift</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Pick an employee and the shift or rotation they should follow.</p>
+            <h2 id="assign-shift-title" className="text-lg font-bold text-slate-800">Assign Shift</h2>
+            <p className="text-sm text-slate-400 mt-0.5">Pick an employee and the shift or rotation they should follow.</p>
           </div>
-          <button type="button" onClick={onClose} disabled={loading} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition" aria-label="Close">
+          <button type="button" onClick={onClose} disabled={loading} className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition" aria-label="Close">
             <HiX className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5" noValidate>
-          {error && <InlineAlert tone="rose">{error}</InlineAlert>}
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col" noValidate>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 sm:px-10 py-8 space-y-7">
+            {error && <InlineAlert tone="rose">{error}</InlineAlert>}
 
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Employee <span className="text-red-400">*</span></label>
-            <EmployeePicker value={form.user_id} onChange={(id) => set("user_id", id)} invalid={!!errors.user_id} disabled={loading} />
-            <FieldError message={errors.user_id} />
+            <FormSection title="Employee">
+              <label className={labelClass}>Employee <span className="text-red-400">*</span></label>
+              <EmployeePicker value={form.user_id} onChange={(id) => set("user_id", id)} invalid={!!errors.user_id} disabled={loading} />
+              <FieldError message={errors.user_id} />
+            </FormSection>
+
+            <FormSection title="Schedule">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                <div>
+                  <span className={labelClass}>What kind of schedule?</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: "shift", label: "Single Shift", desc: "Same shift every working day" },
+                      { value: "rotation", label: "Rotation", desc: "Cycles through shift phases" },
+                    ].map((t) => (
+                      <button key={t.value} type="button" onClick={() => set("assignType", t.value)} aria-pressed={form.assignType === t.value} className={`flex flex-col items-start px-4 py-3.5 rounded-xl border-2 text-left transition ${form.assignType === t.value ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-slate-300"}`}>
+                        <span className={`text-sm font-bold ${form.assignType === t.value ? "text-purple-700" : "text-slate-700"}`}>{t.label}</span>
+                        <span className="text-[11px] text-slate-400 mt-0.5">{t.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {dropLoading ? (
+                  <p className="text-xs text-slate-400 flex items-center gap-2 lg:mt-8"><Spinner className="w-3.5 h-3.5 text-purple-600" /> Loading shifts…</p>
+                ) : dropError ? (
+                  <InlineAlert tone="rose">{attendanceErrorMessage(dropError, "Couldn't load shifts and rotations.")}</InlineAlert>
+                ) : form.assignType === "shift" ? (
+                  <div>
+                    <label htmlFor="assign-shift" className={labelClass}>Shift <span className="text-red-400">*</span></label>
+                    <select id="assign-shift" value={form.shift_id} onChange={(e) => set("shift_id", e.target.value)} className={fieldClass(!!errors.shift_id)}>
+                      <option value="">Select a shift…</option>
+                      {shifts.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} · {shiftHours(s) || "No set hours"} · {s.type || s.shift_type}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.shift_id ? <FieldError message={errors.shift_id} />
+                      : shifts.length === 0 ? <p className="text-[10px] text-slate-400 mt-1.5">No active shifts. Create one under Work Shifts.</p>
+                        : selectedShift ? <p className="text-[10px] text-slate-400 mt-1.5">{shiftHours(selectedShift) || "No set hours"} · {String(selectedShift.type || selectedShift.shift_type || "").replace(/_/g, " ")}{selectedShift.is_overnight ? " · ends next day" : ""}</p>
+                          : null}
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="assign-rotation" className={labelClass}>Rotation Pattern <span className="text-red-400">*</span></label>
+                    <select id="assign-rotation" value={form.rotation_pattern_id} onChange={(e) => set("rotation_pattern_id", e.target.value)} className={fieldClass(!!errors.rotation_pattern_id)}>
+                      <option value="">Select a rotation…</option>
+                      {rotations.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name} · {r.rotation_cycle_days}-day cycle</option>
+                      ))}
+                    </select>
+                    {errors.rotation_pattern_id ? <FieldError message={errors.rotation_pattern_id} />
+                      : rotations.length === 0 ? <p className="text-[10px] text-slate-400 mt-1.5">No active rotation patterns. Create one under Work Shifts.</p>
+                        : selectedRotation ? <p className="text-[10px] text-slate-400 mt-1.5">Repeats every {selectedRotation.rotation_cycle_days ?? 0} days</p>
+                          : null}
+                  </div>
+                )}
+              </div>
+            </FormSection>
+
+            <FormSection title="Dates">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="assign-from" className={labelClass}>Effective From <span className="text-red-400">*</span></label>
+                  <input id="assign-from" type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)} className={fieldClass(!!errors.effective_from)} />
+                  {errors.effective_from ? <FieldError message={errors.effective_from} /> : <p className="text-[10px] text-slate-400 mt-1.5">Attendance from this date is calculated against the selected schedule. Dates already locked for payroll aren&apos;t recalculated.</p>}
+                </div>
+                <div>
+                  <label htmlFor="assign-to" className={labelClass}>Effective Until <span className="normal-case tracking-normal font-semibold text-slate-400">(optional)</span></label>
+                  <input id="assign-to" type="date" min={form.effective_from || undefined} value={form.effective_to} onChange={(e) => set("effective_to", e.target.value)} className={fieldClass(!!errors.effective_to)} />
+                  {errors.effective_to ? <FieldError message={errors.effective_to} /> : <p className="text-[10px] text-slate-400 mt-1.5">Leave empty for an open-ended assignment. To change a schedule later, end this assignment and create a new one.</p>}
+                </div>
+              </div>
+            </FormSection>
           </div>
 
-          <div>
-            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">What kind of schedule?</span>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { value: "shift", label: "Single Shift", desc: "Same shift every working day" },
-                { value: "rotation", label: "Rotation", desc: "Cycles through shift phases" },
-              ].map((t) => (
-                <button key={t.value} type="button" onClick={() => set("assignType", t.value)} aria-pressed={form.assignType === t.value} className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition ${form.assignType === t.value ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-slate-300"}`}>
-                  <span className={`text-xs font-bold ${form.assignType === t.value ? "text-purple-700" : "text-slate-700"}`}>{t.label}</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5">{t.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {dropLoading ? (
-            <p className="text-xs text-slate-400 flex items-center gap-2"><Spinner className="w-3.5 h-3.5 text-purple-600" /> Loading shifts…</p>
-          ) : dropError ? (
-            <InlineAlert tone="rose">{attendanceErrorMessage(dropError, "Couldn't load shifts and rotations.")}</InlineAlert>
-          ) : form.assignType === "shift" ? (
-            <div>
-              <label htmlFor="assign-shift" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Shift <span className="text-red-400">*</span></label>
-              <select id="assign-shift" value={form.shift_id} onChange={(e) => set("shift_id", e.target.value)} className={selectClass(!!errors.shift_id)}>
-                <option value="">Select a shift…</option>
-                {shifts.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} · {s.start_time && s.end_time ? `${fmtClock(s.start_time)}–${fmtClock(s.end_time)}` : `min ${s.min_hours ?? "N/A"} hrs`} · {s.type || s.shift_type}
-                  </option>
-                ))}
-              </select>
-              {shifts.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active shifts. Create one under Work Shifts.</p>}
-              <FieldError message={errors.shift_id} />
-            </div>
-          ) : (
-            <div>
-              <label htmlFor="assign-rotation" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rotation Pattern <span className="text-red-400">*</span></label>
-              <select id="assign-rotation" value={form.rotation_pattern_id} onChange={(e) => set("rotation_pattern_id", e.target.value)} className={selectClass(!!errors.rotation_pattern_id)}>
-                <option value="">Select a rotation…</option>
-                {rotations.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name} · {r.rotation_cycle_days}-day cycle</option>
-                ))}
-              </select>
-              {rotations.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active rotation patterns. Create one under Work Shifts.</p>}
-              <FieldError message={errors.rotation_pattern_id} />
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="assign-from" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective From <span className="text-red-400">*</span></label>
-            <input id="assign-from" type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)} className={`w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${errors.effective_from ? "border-rose-300" : "border-slate-200"}`} />
-            {errors.effective_from ? <FieldError message={errors.effective_from} /> : <p className="text-[10px] text-slate-400 mt-1">Attendance from this date is calculated against the selected schedule. Dates already locked for payroll aren't recalculated.</p>}
-          </div>
-
-          <div>
-            <label htmlFor="assign-to" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective Until <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
-            <input id="assign-to" type="date" min={form.effective_from || undefined} value={form.effective_to} onChange={(e) => set("effective_to", e.target.value)} className={`w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${errors.effective_to ? "border-rose-300" : "border-slate-200"}`} />
-            {errors.effective_to ? <FieldError message={errors.effective_to} /> : <p className="text-[10px] text-slate-400 mt-1">Leave empty for an open-ended assignment. To change a schedule later, end this assignment and create a new one.</p>}
-          </div>
-
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-1">
-            <button type="button" onClick={onClose} disabled={loading} className="px-6 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50">
+          <div className="shrink-0 flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 px-6 sm:px-10 py-5 border-t border-slate-100">
+            <button type="button" onClick={onClose} disabled={loading} className="px-8 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={loading || dropLoading} className="flex-1 inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+            <button type="submit" disabled={loading || dropLoading} className="flex-1 inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
               {loading && <Spinner />}
               {loading ? "Saving…" : "Assign"}
             </button>
@@ -415,14 +447,14 @@ export default function AttendanceRosterPage() {
                         const email = personEmail(a.user || a);
                         const state = assignmentState(a, today);
                         const label = a.shift?.name || a.rotation_pattern?.name || "N/A";
-                        const times = a.shift?.start_time
-                          ? `${fmtClock(a.shift.start_time)} – ${fmtClock(a.shift.end_time)}`
+                        const times = a.shift
+                          ? shiftHours(a.shift) || null
                           : a.rotation_pattern ? `Rotation · ${a.rotation_pattern.rotation_cycle_days ?? "?"}-day cycle` : null;
                         return (
                           <tr key={a.id} {...rowPreviewProps(() => setPreview(a), `View ${name}'s schedule`)}>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold flex-shrink-0">{initials(name)}</div>
+                                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 text-xs"><GenderAvatar person={a.user || a} name={name} /></div>
                                 <div className="min-w-0">
                                   <p className="text-xs font-semibold text-slate-800 truncate">{name}</p>
                                   {email && email !== name && <p className="text-[10px] text-slate-400 truncate">{email}</p>}
@@ -441,10 +473,10 @@ export default function AttendanceRosterPage() {
                               ) : a.effective_to ? (
                                 <span className="text-xs text-slate-600">{fmtDate(ymdOnly(a.effective_to))}</span>
                               ) : state === "scheduled" ? (
-                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-sky-50 text-sky-700 px-2.5 py-1 rounded-full">Upcoming</span>
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">Upcoming</span>
                               ) : (
-                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Ongoing
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-violet-50 text-violet-700 px-2.5 py-1 rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500" /> Ongoing
                                 </span>
                               )}
                             </td>
@@ -456,7 +488,7 @@ export default function AttendanceRosterPage() {
                                 {activeMenuId === a.id && (
                                   <div className={`absolute right-0 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-10 ${openUp ? "bottom-full mb-1" : "mt-1"}`}>
                                     {!a.effective_to && (
-                                      <button onClick={() => { setActiveMenuId(null); setEndModalAssignment(a); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50">
+                                      <button onClick={() => { setActiveMenuId(null); setEndModalAssignment(a); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-fuchsia-600 hover:bg-fuchsia-50">
                                         End Assignment
                                       </button>
                                     )}
@@ -520,8 +552,8 @@ export default function AttendanceRosterPage() {
                   ? [
                     ["Shift", shift.name],
                     ["Shift type", (shift.type || shift.shift_type || "").replace(/_/g, " ")],
-                    ["Starts", fmtClock(shift.start_time)],
-                    ["Ends", fmtClock(shift.end_time)],
+                    ["Working hours", shiftHours(shift) || "Not set"],
+                    ["Ends next day", shift.is_overnight ? "Yes" : "No"],
                   ]
                   : [
                     ["Rotation", rot?.name],

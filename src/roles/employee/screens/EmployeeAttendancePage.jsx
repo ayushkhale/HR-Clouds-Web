@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
-import { HiClock, HiChartBar, HiX, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle } from "react-icons/hi";
+import { HiClock, HiChartBar, HiX, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle, HiPencil } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, unwrap } from "../../../shared/attendance/normalize";
 import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
@@ -260,10 +260,9 @@ export default function EmployeeAttendancePage() {
                         const ymd = ymdOnly(record.date);
                         return (
                           <tr key={record.id || ymd} className={`hover:bg-slate-50/70 transition-colors ${history.loading ? "opacity-60" : ""}`}>
-                            <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{fmtDate(ymd, { weekday: "short", day: "numeric", month: "short" })}</td>
+                            <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{fmtDate(ymd, { weekday: "short", day: "numeric", month: "short" })}{record.is_regularized && <span title="Corrected through a regularization request" className="ml-1.5 inline-flex items-center justify-center w-4 h-4 align-middle rounded-full bg-purple-100 text-purple-600"><HiPencil className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only">Corrected</span></span>}</td>
                             <td className="px-4 py-3">
                               <StatusBadge status={record.status} />
-                              {record.is_regularized && <span className="block mt-1 text-[9px] font-bold text-purple-500 uppercase tracking-wide">Corrected</span>}
                             </td>
                             <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
                             <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
