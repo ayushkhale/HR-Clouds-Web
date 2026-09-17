@@ -49,9 +49,12 @@ export function AuthContextProvider({ children }) {
     setTokenExp(tokenHelper.expiresAt(token));
 
     authAPI.me().then(res => {
-      if (res.data || res.user) {
-        setUser(prev => ({ ...prev, ...(res.data || res.user) }));
-      }
+      const profile = res.data || res.user;
+      if (!profile) return;
+      // Keep the session's own user id: /organizations/me reuses the employee
+      // detail view, whose `id` may be the profile row, and a changed id makes
+      // the identity check above discard this profile on the next token check.
+      setUser(prev => ({ ...prev, ...profile, id: prev?.id ?? profile.id }));
     }).catch(err => console.error("Failed to fetch user profile", err));
   }, []);
 

@@ -59,6 +59,13 @@ function nameOf(person) {
     const n = obj.display_name || obj.name || obj.full_name || full;
     if (typeof n === "string" && n.trim()) return n.trim();
   }
+  // Accounts created by invite often have no name yet (HR staff especially,
+  // whose `profile` comes back null). Their login email is the only human
+  // label there is — better an "M" than a "?".
+  for (const obj of nested(person)) {
+    const email = obj.email || obj.identifier;
+    if (typeof email === "string" && email.trim()) return email.trim();
+  }
   return "";
 }
 

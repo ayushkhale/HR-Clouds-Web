@@ -153,7 +153,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
             className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center shadow-sm overflow-hidden border-2 border-transparent hover:border-purple-200 hover:shadow transition-all focus:outline-none"
             title="My Profile"
           >
-            <GenderAvatar person={user} />
+            <GenderAvatar person={user} name={user?.name || user?.email || user?.identifier} />
           </button>
         </div>
       </div>
