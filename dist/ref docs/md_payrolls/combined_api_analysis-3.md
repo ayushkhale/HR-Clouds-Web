@@ -239,6 +239,11 @@ This document is the request/response contract for **every endpoint shipped acro
 * **Request Fields**: `userId` (Path, UUID).
 * **What This API Gives/Does**: The single current approved open-ended structure (`status = approved`, `effective_to = null`) with its component snapshot, or `null`.
 
+## 18a. Get Current Salary Structures (Bulk)
+* **HTTP method**: `GET` · **Endpoint**: `/api/v1/payroll/hr/salary-structures/current` · **Roles**: `hr`.
+* **Request Fields (query)**: `page` (Integer ≥ 1, default 1), `limit` (Integer 1–100, default 50).
+* **What This API Gives/Does**: A paginated list of all current approved open-ended structures for the organization, complete with component snapshots. Replaces N+1 calls to #18 on the HR dashboard.
+
 ## 19. List Salary-Structure Proposals (HR Checker Queue)
 * **HTTP method**: `GET` · **Endpoint**: `/api/v1/payroll/hr/salary-structures/proposals` · **Roles**: `hr`.
 * **Request Fields (query — validated in the controller)**:
@@ -274,20 +279,26 @@ This document is the request/response contract for **every endpoint shipped acro
 * **Error handling**: `409 INSUFFICIENT_CHECKERS`.
 * **What This API Gives/Does**: The updated settings.
 
-## 24. Get Employee Bank Account (HR view)
+## 24. List Bank Accounts (HR view)
+* **HTTP method**: `GET` · **Endpoint**: `/api/v1/payroll/hr/bank-accounts` · **Roles**: `hr`.
+* **Request Fields (query)**: `page` (default 1), `limit` (1–100, default 20).
+* **Detailed API Function**: Fetches a paginated list of primary bank accounts for all employees in the organization. The full account numbers are AES-256-GCM encrypted at rest and are **never** returned; the service maps over the list applying `toMasked(row)`.
+* **What This API Gives/Does**: `{ success: true, message: "Bank accounts fetched", data: [ { account_holder_name, masked_account_number: "••••1234", ifsc_code, bank_name, branch_name, account_type, is_verified, ... } ], pagination: { total, page, limit, total_pages } }`.
+
+## 25. Get Employee Bank Account (HR view)
 * **HTTP method**: `GET` · **Endpoint**: `/api/v1/payroll/hr/employees/:userId/bank-account` · **Roles**: `hr`.
 * **Request Fields**: `userId` (Path, UUID).
 * **Detailed API Function**: Returns the employee's primary account **masked** — the full number is AES-256-GCM encrypted at rest and is **never** returned.
 * **What This API Gives/Does**: `{ account_holder_name, masked_account_number: "••••1234", ifsc_code, bank_name, branch_name, account_type, is_verified, ... }` or `null`.
 
-## 25. Verify an Employee Bank Account
+## 26. Verify an Employee Bank Account
 * **HTTP method**: `POST` · **Endpoint**: `/api/v1/payroll/hr/employees/:userId/bank-account/verify` · **Roles**: `hr`.
 * **Request Fields**: `userId` (Path, UUID).
 * **Detailed API Function**: Sets `is_verified = true`, `verified_by`, `verified_at`. **Idempotent** — verifying an already-verified account is a no-op success.
 * **Error handling**: `404 BANK_ACCOUNT_NOT_FOUND`.
 * **What This API Gives/Does**: The masked, now-verified account.
 
-## 26. List Audit Logs
+## 27. List Audit Logs
 * **HTTP method**: `GET` · **Endpoint**: `/api/v1/payroll/hr/audit-logs` · **Roles**: `hr`.
 * **Request Fields (query — validated in the controller)**: `entity_type` (String), `entity_id` (UUID), `target_user_id` (UUID), `action` (String), `from`/`to` (`YYYY-MM-DD`), `page` (default 1), `limit` (1–100, default 20).
 * **Detailed API Function**: Reads the append-only `payroll_audit_logs`. Sensitive fields (`account_number`, `payroll_encryption_key`) are redacted by a deny-list backstop and can never appear in a log record.
@@ -1595,3 +1606,624 @@ This document is the request/response contract for **every endpoint shipped acro
 * **Detailed API Function**: Generates expiring pre-signed S3 `GET` URL (5-minute TTL). Caller must be owner of the document or have authorized role.
 * **Error Handling**: `404 DOCUMENT_NOT_FOUND`, `403 FORBIDDEN`.
 * **What This API Gives/Does**: `{ download_url, expires_at }`.
+
+---
+
+# Phase 6 APIs — Delivery Layer (Payslips, Reports, Exports, Bank Advice)
+
+> **Phase 6 Invariants:** 
+> **1. Delivery Layer Only:** Phase 6 performs no payroll math. It surfaces figures calculated by earlier phases.
+> **2. Payslip Immutability (D-39):** A generated payslip freezes the employee's profile, dimensions, and financial numbers as they stood at approval. Subsequent profile mutations never alter a published payslip.
+> **3. Safe Export Lifecycle (D-48):** Every PDF, ZIP, and CSV stream opens an audit row in `payroll_report_exports` BEFORE the first byte is transmitted. Stream failure marks the row as failed.
+> **4. The Release Gate (D-44):** Auto-publish configurations dictate if payslips are immediately visible or held for HR review. A held payslip behaves byte-identically to a missing one (403/404) for unauthorized viewers.
+
+## 167. Get Run Payslip Index
+* **API Name / Purpose:** Get Run Payslip Index. Retrieves a paginated index of all payslips for a specific payroll run.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/payslips`
+* **Authentication / Authorization:** Token.
+* **Required Roles:** `hr`
+* **Required Feature / Permission:** `payroll.access`
+* **Request Parameters:**
+  * `id` (Path, UUID, Required): The Payroll Run ID.
+  * `status` (Query, Enum: `active`, `superseded`, `revoked`, Optional)
+  * `visible_to_employee` (Query, Boolean, Optional)
+  * `email_status` (Query, Enum: `not_requested`, `pending`, `sending`, `sent`, `failed`, Optional)
+  * `department_id` (Query, UUID, Optional)
+  * `q` (Query, String, Optional): Search term against employee code/name in the snapshot.
+  * `page` (Query, Integer, Optional, default `1`, min `1`)
+  * `limit` (Query, Integer, Optional, default `50`, max `200`)
+* **Request JSON Payload:** None
+* **Detailed API Function:** Queries the `payslips` table filtered by the run ID. HR ignores `visible_to_employee` gates and sees all rows (including held and superseded).
+* **Business/User-Facing Behavior:** HR uses this to review payslips generated by an approved run before deciding to release them, or to track delivery status.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payslip index fetched",
+    "data": [
+      {
+        "payslip_id": "c1f1f9e0-3d71-4a8b-9e4a-5f5c3e7b1a2d",
+        "run_id": "a9a8f4b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+        "user_id": "b1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+        "employee_code": "EMP-001",
+        "full_name": "Alice Smith",
+        "department_id": "d1d2e3f4-g5h6-7i8j-9k0l-1m2n3o4p5q6r",
+        "department_name": "Engineering",
+        "period_month": "2026-03",
+        "version": 1,
+        "status": "active",
+        "visible_to_employee": true,
+        "gross_earnings": "150000.00",
+        "net_pay": "115000.00",
+        "email_status": "sent",
+        "email_attempts": 1,
+        "email_last_error": null,
+        "published_at": "2026-03-28T10:00:00.000Z",
+        "created_at": "2026-03-28T09:00:00.000Z"
+      }
+    ],
+    "run": {
+      "run_id": "a9a8f4b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+      "period_month": "2026-03",
+      "status": "approved",
+      "engine_version": 4,
+      "approved_at": "2026-03-28T09:00:00.000Z",
+      "paid_at": null
+    },
+    "pagination": { "page": 1, "limit": 50, "total": 3000, "total_pages": 60 }
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data[].payslip_id` | UUID | No | Payslip ID | Unique identifier for the payslip row |
+  | `data[].gross_earnings` | String | No | Gross earnings | Derived directly from the frozen snapshot |
+  | `data[].email_status` | String | No | Email delivery state | `not_requested`, `pending`, `sending`, `sent`, `failed` |
+  | `run` | Object | No | Run Context | Status and metadata of the parent run |
+  | `pagination` | Object | No | Paging Info | Standard pagination wrapper |
+* **Error Handling:**
+  - `404 RUN_NOT_FOUND`: The payroll run does not exist.
+  - `400 Validation Error`: Standard Joi failure.
+* **Idempotency / Retry Behavior:** Idempotent safe read.
+
+## 168. Get Employee Payslip History
+* **API Name / Purpose:** Get Employee Payslip History. Retrieves the complete payslip issuance history for an employee across all runs.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/employees/:userId/payslips`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request Parameters:**
+  * `userId` (Path, UUID, Required)
+  * `run_id` (Query, UUID, Optional)
+  * `active_only` (Query, Boolean, Optional, default `false`): If true, hides superseded and revoked versions.
+* **Request JSON Payload:** None
+* **Detailed API Function:** Queries the `payslips` table across all runs for a specific user.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payslip history fetched",
+    "data": {
+      "user_id": "b1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+      "payslips": [
+        {
+          "payslip_id": "c1f1f9e0-3d71-4a8b-9e4a-5f5c3e7b1a2d",
+          "run_id": "a9a8f4b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+          "period_month": "2026-03",
+          "run_status": "approved",
+          "version": 2,
+          "status": "active",
+          "visible_to_employee": true,
+          "email_status": "sent",
+          "published_at": "2026-03-28T10:00:00.000Z",
+          "superseded_at": null,
+          "revoked_at": null,
+          "reissue_reason": "Corrected name spelling",
+          "engine_version": 4,
+          "created_at": "2026-03-29T11:00:00.000Z"
+        }
+      ]
+    }
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data.payslips[].reissue_reason` | String | Yes | Reason | Why this specific version was created (if version > 1) |
+  | `data.payslips[].run_status` | String | No | Parent run status | Live status of the payroll run (`approved` / `paid`) |
+
+## 169. Get Employee Payslip Detail
+* **API Name / Purpose:** Get Employee Payslip Detail. Retrieves the full JSON representation of an employee's payslip for a specific run.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/employees/:userId/payslips/:runId`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request Parameters:**
+  * `userId` (Path, UUID, Required)
+  * `runId` (Path, UUID, Required)
+  * `version` (Query, Integer, Optional): Target superseded versions; if absent, fetches active.
+* **Request JSON Payload:** None
+* **Detailed API Function:** Merges the frozen payslip snapshot with the live calculation mechanism (like `calculation_type` from the immutable run item) and attaches an HR-only metadata block. Falls back to a live projection if the run predates Phase 6.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payslip detail fetched",
+    "data": {
+      "run": { "run_id": "...", "period_month": "2026-03", "status": "approved" },
+      "employee": { "user_id": "..." },
+      "period": { "start": "2026-03-01", "end": "2026-03-31" },
+      "status": "calculated",
+      "statutory_status": "applied",
+      "statutory_note": "Statutory withholding is applied: net_pay is the take-home after PF, ESI, professional tax and TDS.",
+      "statutory": {
+        "status": "applied", "pf_wage": "100000.00", "income_tax_amount": "15000.00", "pf_employee_amount": "1800.00"
+      },
+      "figures": {
+        "gross_earnings": "150000.00", "net_pay": "115000.00", "payable_days": "31", "lop_days": 0, "ctc_cost": "160000.00"
+      },
+      "components": [
+        {
+          "component_code": "BASIC", "component_name": "Basic", "component_type": "earning",
+          "calculation_type": "percent_of_ctc", "full_month_amount": "75000.00", "amount": "75000.00",
+          "is_taxable": true, "source": "payroll", "display_order": 1
+        }
+      ],
+      "reimbursements": [],
+      "benefits": [],
+      "reimbursement_note": "A reimbursement payout is included in net_pay but is not part of gross_earnings (it is a payout, not an earning).",
+      "warnings": [],
+      "day_ledger": null,
+      "snapshot_source": "snapshot",
+      "payslip_version": 1,
+      "hr": {
+        "payslip_id": "...", "version": 1, "payslip_status": "active",
+        "visible_to_employee": true, "email_status": "sent", "email_attempts": 1, "email_last_error": null,
+        "published_at": "2026-03-28T10:00:00.000Z", "published_by": "...", "superseded_at": null, "reissue_reason": null,
+        "snapshot_hash": "abcd1234efgh5678"
+      }
+    }
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data.snapshot_source` | String | No | Origin | `snapshot` or `live_projection` |
+  | `data.payslip_version` | Integer | Yes | Version | `null` on `live_projection` |
+  | `data.hr` | Object | Yes | HR Metadata | Omitted on employee/manager planes; contains delivery state and hashes |
+* **Error Handling:** `404 PAYSLIP_NOT_FOUND`, `404 RUN_NOT_FOUND`.
+
+## 170. Download Payslip PDF (HR)
+* **API Name / Purpose:** Download Payslip PDF. Generates and streams the PDF version of a payslip.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/employees/:userId/payslips/:runId/pdf`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request Parameters:**
+  * `userId` (Path, UUID, Required)
+  * `runId` (Path, UUID, Required)
+  * `version` (Query, Integer, Optional)
+* **Request JSON Payload:** None
+* **Detailed API Function:** Resolves the snapshot (falling back to ephemeral composition if pre-Phase 6). Creates an export audit row in `payroll_report_exports`. Renders the PDF via `payslipPdf.render`, pinning the `CreationDate` to `published_at` for determinism. Streams the buffer.
+* **Response Structure:** Binary PDF Stream (`Content-Type: application/pdf`).
+* **Error Handling:** `404 PAYSLIP_NOT_FOUND`. Stream failure triggers `reportService.failExport()`.
+* **Audit/Logging Behavior:** Inserts `payroll_report_exports` row (`report_type: 'payslip_single'`).
+
+## 171. Publish Run Payslips
+* **API Name / Purpose:** Publish Run Payslips. Releases held payslips to employees, making them visible and enqueueing them for email dispatch.
+* **HTTP Method:** `POST`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/payslips/publish`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request Parameters:** `id` (Path, UUID, Required)
+* **Request JSON Payload:**
+  ```json
+  {
+    "user_ids": ["b1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"]
+  }
+  ```
+* **Payload Fields & Meaning:**
+  | Field | Type | Required | Nullable | Description | Validation / Allowed Values | Default |
+  | ----- | ---- | -------- | -------- | ----------- | --------------------------- | ------- |
+  | `user_ids` | Array(UUID) | No | No | Specific employees | Max 5000 | `[]` (entire run) |
+* **Detailed API Function:** Takes the Rank-1 run lock. Executes a conditional UPDATE to flip `visible_to_employee` to true, stamps `published_at = NOW()`, and flips `email_status` to `pending` if `payslip_auto_email` is enabled.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payslips published",
+    "data": {
+      "run_id": "a9a8f4b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+      "period_month": "2026-03",
+      "payslips_published": 1,
+      "payslips_queued": 1
+    }
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data.payslips_published` | Integer | No | Count | Number of rows flipped |
+  | `data.payslips_queued` | Integer | No | Count | Number of rows added to email queue |
+* **Idempotency / Retry Behavior:** Idempotent by WHERE clause (updates `where visible_to_employee = false`).
+
+## 172. Backfill Run Payslips
+* **API Name / Purpose:** Backfill Run Payslips. Composes and persists payslip snapshots for historical runs approved before Phase 6.
+* **HTTP Method:** `POST`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/payslips/backfill`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:**
+  ```json
+  {
+    "user_ids": ["b1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"]
+  }
+  ```
+* **Payload Fields & Meaning:**
+  | Field | Type | Required | Nullable | Description | Validation / Allowed Values | Default |
+  | ----- | ---- | -------- | -------- | ----------- | --------------------------- | ------- |
+  | `user_ids` | Array(UUID) | No | No | Target employees | Max 5000 | `[]` (entire run) |
+* **Detailed API Function:** Iterates in cohorts of 200, taking the Rank-1 run lock per cohort. Computes and inserts `payslips` rows exactly matching the live fallback (D-45). Inherits the run's `approved_at` as the `published_at` to preserve rendering immutability.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payslips backfilled",
+    "data": {
+      "run_id": "a9a8f4b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+      "period_month": "2026-03",
+      "payslips_created": 200
+    }
+  }
+  ```
+* **Idempotency / Retry Behavior:** Reads a skip set per cohort to ignore already-persisted rows. Safe to retry mid-flight crashes.
+
+## 173. Reissue Payslip
+* **API Name / Purpose:** Reissue Payslip. Supersedes an active payslip with version N+1 to correct presentation errors.
+* **HTTP Method:** `POST`
+* **Endpoint / Route:** `/api/v1/payroll/hr/payslips/:id/reissue`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:**
+  ```json
+  {
+    "reason": "Corrected spelling of employee's last name"
+  }
+  ```
+* **Payload Fields & Meaning:**
+  | Field | Type | Required | Nullable | Description | Validation / Allowed Values | Default |
+  | ----- | ---- | -------- | -------- | ----------- | --------------------------- | ------- |
+  | `reason` | String | Yes | No | Justification | Non-empty string | - |
+* **Detailed API Function:** Takes the Rank-3 payslip lock. Asserts row is active. Composes a new snapshot. Asserts `hashMoney(newSnapshot) === hashMoney(oldSnapshot)`. Supercedes old row and inserts new.
+* **Error Handling:** 
+  - `409 PAYSLIP_FIGURES_CHANGED`: Reissue is blocked if financial calculations have changed (requires run cancel/recalc).
+  - `409 PAYSLIP_ALREADY_SUPERSEDED`: Target is no longer active.
+  - `409 PAYSLIP_REVOKED`: Target run was cancelled.
+
+## 174. Download Run Payslips (Bulk ZIP)
+* **API Name / Purpose:** Download Bulk Payslips. Streams a ZIP archive of all PDFs for an approved run.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/payslips/download`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:** None
+* **Detailed API Function:** Fetches all active payslips. Pre-flight checks size bounds. Opens `payslip_bulk` export audit row. Composes the ZIP stream.
+* **Error Handling:** `409 RUN_NOT_PAYABLE`, `422 EXPORT_TOO_LARGE` (max entries 5000).
+* **Side Effects:** Streams binary (`application/zip`).
+
+## 175. Dispatch Run Payslips
+* **API Name / Purpose:** Dispatch Run Payslips. Drains a bounded batch of the payslip notification email queue synchronously.
+* **HTTP Method:** `POST`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/payslips/dispatch`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:**
+  ```json
+  {
+    "limit": 200,
+    "user_ids": null,
+    "include_failed": false
+  }
+  ```
+* **Payload Fields & Meaning:**
+  | Field | Type | Required | Nullable | Description | Validation / Allowed Values | Default |
+  | ----- | ---- | -------- | -------- | ----------- | --------------------------- | ------- |
+  | `limit` | Integer | No | No | Batch bound | `1-500` | `200` |
+  | `user_ids` | Array(UUID) | No | Yes | Restrict to | Max 500 | `null` |
+  | `include_failed` | Boolean | No | No | Retry hard-failed | `true/false` | `false` |
+* **Detailed API Function:** Executes the 3-transaction queue loop (`CLAIM`, `SEND` via SES with timeout, `RECORD`).
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payslip dispatch batch processed",
+    "data": {
+      "run_id": "a9a8f4b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+      "period_month": "2026-03",
+      "candidates": 50,
+      "sent": 48,
+      "failed": 2,
+      "skipped": 0
+    }
+  }
+  ```
+
+## 176. Get Run Dispatch Status
+* **API Name / Purpose:** Get Run Dispatch Status. Surfaces queue state and recent failures for a run.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/payslips/dispatch-status`
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Dispatch status fetched",
+    "data": {
+      "run_id": "...",
+      "period_month": "2026-03",
+      "max_attempts": 5,
+      "counts": { "not_requested": 0, "pending": 50, "sending": 10, "sent": 2900, "failed": 40 },
+      "recent_failures": [
+        { "payslip_id": "...", "user_id": "...", "attempts": 5, "last_error": "NO_EMAIL_ADDRESS", "retryable": false }
+      ]
+    }
+  }
+  ```
+
+
+## 177. Get Payroll Register Report
+* **API Name / Purpose:** Get Payroll Register. Detailed employee-level financial data across a period.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/reports/payroll-register`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:** None
+* **Detailed API Function:** Returns employee-level report rows, computing aggregated amounts across all closed runs within the specified window. Uses pure paise arithmetic. Dimensions (department/location) are read from the frozen snapshots.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payroll Register report generated",
+    "data": {
+      "columns": [
+        { "key": "earning::BASIC", "code": "BASIC", "name": "Basic", "type": "earning", "label": "BASIC" }
+      ],
+      "rows": [
+        {
+          "run_id": "uuid", "period_month": "2026-03", "user_id": "uuid",
+          "employee_code": "EMP-01", "full_name": "Alice", "department_id": "uuid", "department_name": "Engineering",
+          "location_id": "uuid", "location_name": "HQ", "paid_days": "31", "lop_days": "0",
+          "components": { "earning::BASIC": "75000.00" },
+          "gross_earnings": "150000.00", "net_pay": "115000.00", "ctc_cost": "160000.00", "total_deductions": "10000.00",
+          "total_employer_contributions": "5000.00", "reimbursement_amount": "0.00"
+        }
+      ],
+      "totals": {
+        "gross_earnings": "1500000.00", "net_pay": "1150000.00", "components": { "earning::BASIC": "750000.00" }
+      },
+      "row_count": 10
+    }
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data.columns` | Array | No | Dynamic columns | Unique component codes present in the result set |
+  | `data.rows` | Array | No | Data rows | One row per employee per run |
+  | `data.totals` | Object | No | Grand totals | Aggregated sums over all rows |
+* **Error Handling:** `422 EXPORT_TOO_LARGE`, `422 REPORT_RANGE_TOO_LARGE`.
+
+## 178. Get Department Distribution Report
+* **API Name / Purpose:** Get Department Distribution. Aggregated financial totals bucketed by department (and optionally location).
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/reports/department-distribution`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:** None
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Department Distribution report generated",
+    "data": {
+      "rows": [
+        {
+          "department_id": "uuid", "department_name": "Engineering",
+          "location_id": null, "location_name": null,
+          "headcount": 50,
+          "gross_earnings": "7500000.00", "net_pay": "6000000.00", "ctc_cost": "8000000.00",
+          "total_deductions": "500000.00", "total_employer_contributions": "500000.00",
+          "reimbursement_amount": "0.00"
+        }
+      ],
+      "totals": { "gross_earnings": "7500000.00", "net_pay": "6000000.00" },
+      "row_count": 1
+    }
+  }
+  ```
+
+## 179. Get Deduction Summary Report
+* **API Name / Purpose:** Get Deduction Summary. Aggregated totals for deductions and employer contributions, bucketed by component code.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/reports/deduction-summary`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Deduction Summary report generated",
+    "data": {
+      "rows": [
+        {
+          "component_code": "PF_EMPLOYEE", "component_name": "PF (Employee)", "component_type": "deduction",
+          "headcount": 50, "total_amount": "90000.00"
+        }
+      ],
+      "totals": { "total_amount": "90000.00" },
+      "row_count": 1
+    }
+  }
+  ```
+
+## 180. Get Component Report
+* **API Name / Purpose:** Get Component Report. Employee-level breakdown isolated to specific requested component codes.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/reports/components`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Component report generated",
+    "data": {
+      "rows": [
+        {
+          "run_id": "uuid", "period_month": "2026-03", "user_id": "uuid",
+          "employee_code": "EMP-01", "full_name": "Alice", "department_id": "uuid", "department_name": "Engineering",
+          "location_id": "uuid", "location_name": "HQ",
+          "component_code": "SPECIAL_ALLOWANCE", "component_name": "Special", "component_type": "earning",
+          "amount": "15000.00"
+        }
+      ],
+      "totals": { "amount": "15000.00" },
+      "row_count": 1
+    }
+  }
+  ```
+
+## 181. Get Run Bank Advice
+* **API Name / Purpose:** Get Run Bank Advice. Streams a NEFT-compatible CSV containing decrypted employee bank details and net pay.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/runs/:id/bank-advice`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Detailed API Function:** Rejects any run not in `paid` status. Resolves the payable cohort and decrypts bank account numbers instantly inside a local loop (secrecy invariant). Initiates `bank_advice` export audit row.
+* **Response Structure:** Binary CSV stream (`Content-Type: text/csv`).
+* **Error Handling:** `409 RUN_NOT_PAYABLE` (if run is draft/approved).
+
+## 182. List Exports
+* **API Name / Purpose:** List Exports. Retrieves a paginated list of all export audit logs generated by the organization.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/exports`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Exports fetched",
+    "data": {
+      "count": 100,
+      "rows": [
+        {
+          "id": "uuid", "org_id": "uuid", "report_type": "payroll_register", "format": "csv",
+          "scope": "org", "run_id": null, "window_start": "2026-01", "window_end": "2026-03",
+          "status": "completed", "row_count": 500, "requested_by": "uuid", "created_at": "...", "completed_at": "..."
+        }
+      ]
+    }
+  }
+  ```
+
+## 183. Get Employee Annual Statement (JSON)
+* **API Name / Purpose:** Get Employee Annual Statement (JSON). Retrieves the FY salary grid for an employee.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/employees/:userId/annual-statement`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Request JSON Payload:** None
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Annual statement fetched",
+    "data": {
+      "financial_year": "2026-27",
+      "employee": { "user_id": "uuid", "full_name": "Alice", "pan": "ABCDE1234F" },
+      "employer": { "name": "Acme Corp", "tan": "XYZ1234567" },
+      "months": [
+        {
+          "period_month": "2026-04", "status": "present", "source": "snapshot",
+          "gross_earnings": "150000.00", "net_pay": "115000.00", "total_deductions": "10000.00",
+          "earnings": [{ "code": "BASIC", "amount": "75000.00" }],
+          "deductions": [{ "code": "PF_EMPLOYEE", "amount": "1800.00" }]
+        }
+      ],
+      "ytd_totals": {
+        "gross_earnings": "150000.00", "net_pay": "115000.00",
+        "earnings": [{ "code": "BASIC", "amount": "75000.00" }]
+      }
+    }
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data.months[].status` | String | No | Presence | `present` (has data) or `empty` (no run or held) |
+  | `data.months[].source` | String | Yes | Origin | `snapshot` or `live_projection` |
+
+## 184. Get Employee Annual Statement (PDF)
+* **API Name / Purpose:** Download Employee Annual Statement PDF.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/employees/:userId/annual-statement/pdf`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Detailed API Function:** Uses the exact dataset from #183 but streams it as a formatted PDF and logs an `annual_statement` export.
+* **Response Structure:** Binary PDF stream (`Content-Type: application/pdf`).
+
+## 185. Get Employee Form 16 PDF
+* **API Name / Purpose:** Download Employee Form 16 PDF.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear/pdf`
+* **Authentication / Authorization:** Token, `hr`, `payroll.access`.
+* **Detailed API Function:** Generates the Form 16 Part B tax certificate. Streams binary. Audited export.
+* **Response Structure:** Binary PDF stream (`Content-Type: application/pdf`).
+
+---
+
+# Manager Plane APIs — `/api/v1/payroll/manager`
+
+## 186. Download Report's Payslip PDF
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/manager/employees/:userId/payslips/:runId/pdf`
+* **Authentication / Authorization:** Token, `manager`, `payroll.access`.
+* **Detailed API Function:** Identical to #170 but enforces manager hierarchy and the D-44 release gate. If `visible_to_employee = false`, rejects with `403`.
+* **Response Structure:** Binary PDF stream.
+
+## 187. Get Manager Payroll Register
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/manager/reports/payroll-register`
+* **Authentication / Authorization:** Token, `manager`, `payroll.access`.
+* **Detailed API Function:** Scope is strictly constrained to the manager's hierarchy. Format identical to #177.
+* **Response Structure:** See #177.
+
+## 188. Get Manager Department Distribution
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/manager/reports/department-distribution`
+* **Response Structure:** See #178.
+
+## 189. Get Manager Deduction Summary
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/manager/reports/deduction-summary`
+* **Response Structure:** See #179.
+
+## 190. Get Manager Component Report
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/manager/reports/components`
+* **Response Structure:** See #180.
+
+---
+
+# Self Plane APIs — `/api/v1/payroll/self`
+
+## 191. Download Own Payslip PDF
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/self/me/payslips/:runId/pdf`
+* **Authentication / Authorization:** Token.
+* **Detailed API Function:** Rejects with `403` if `visible_to_employee = false`.
+* **Response Structure:** Binary PDF stream.
+
+## 192. Get Own Annual Statement (JSON)
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/self/me/annual-statement`
+* **Authentication / Authorization:** Token.
+* **Response Structure:** See #183.
+
+## 193. Download Own Annual Statement (PDF)
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/self/me/annual-statement/pdf`
+* **Authentication / Authorization:** Token.
+* **Response Structure:** Binary PDF stream.
+
+## 194. Download Own Form 16 PDF
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/self/me/tax/form16/:financialYear/pdf`
+* **Authentication / Authorization:** Token.
+* **Detailed API Function:** Employee downloads Form 16 Part B. Rejects with `404` if the FY is not finalized by HR.
+* **Response Structure:** Binary PDF stream.
