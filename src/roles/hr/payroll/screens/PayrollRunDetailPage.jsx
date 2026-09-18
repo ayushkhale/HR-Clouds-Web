@@ -18,11 +18,12 @@ import useToast from "../useToast";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import { embeddedEmployee } from "../variablePayMeta";
 import {
-  runStatusMeta, runActions, RUN_CONFIRM, RUN_ACTION_SUCCESS, RUN_ACTION_FAILURE, cancelRunDescription,
+  runStatusMeta, runActions, RUN_CONFIRM, RUN_ACTION_SUCCESS, RUN_ACTION_FAILURE, cancelRunDescription, cancelBlockedReason,
   itemErrorMeta, parseWarnings, periodBounds, inferredExitDate, COMPONENT_SOURCE_LABEL, ENGINE_COMPONENT_LABEL,
   LEDGER_META, ledgerReasonText, ledgerDataIssues, STATUTORY_NOTE, PREVIEW_WARNING_LABEL, VARIABLE_PAY_FIELDS,
   STATUTORY_FIELDS, PAYOUT_FIELDS, toCount, plural, prettifyCode, itemsLockedReason,
 } from "../runMeta";
+import RunPayslipsPanel from "../RunPayslipsPanel";
 
 const PAGE_SIZE = 20;
 // Backend maximum for run items. The preview's error_items carry no item id, so
@@ -464,6 +465,7 @@ export default function PayrollRunDetailPage() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const acts = runActions(run);
+  const cancelBlocked = cancelBlockedReason(run);
   const status = run?.status;
   const meta = runStatusMeta(status);
   const bounds = periodBounds(run);
@@ -663,10 +665,20 @@ export default function PayrollRunDetailPage() {
                 {busyAction === "pay" ? <Spinner light /> : <HiCash className="w-4 h-4" />} Mark as paid
               </button>
             )}
-            {acts.canCancel && (
-              <button type="button" onClick={() => { setDialogError(""); setDialog({ kind: "cancel" }); }} disabled={busy} className="px-4 py-2.5 text-sm font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition disabled:opacity-50">
-                Cancel run
-              </button>
+            {acts.showCancel && (
+              // The span carries the tooltip: a disabled button fires no mouse
+              // events, so a `title` on it would never show.
+              <span title={cancelBlocked || undefined} className="inline-flex">
+                <button
+                  type="button"
+                  onClick={() => { setDialogError(""); setDialog({ kind: "cancel" }); }}
+                  disabled={busy || !acts.canCancel}
+                  aria-label={cancelBlocked ? `Cancel run — unavailable. ${cancelBlocked}` : "Cancel run"}
+                  className="px-4 py-2.5 text-sm font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <HiBan className="w-4 h-4" /> Cancel run
+                </button>
+              </span>
             )}
           </div>
         </div>
@@ -754,6 +766,9 @@ export default function PayrollRunDetailPage() {
             <p className="text-xl font-black text-purple-700 mt-1 tabular-nums">{formatMoney(run.total_net)}</p>
           </div>
         </div>
+
+        {/* ── Payslips, email delivery and the bank file ── */}
+        <RunPayslipsPanel run={run} showToast={showToast} />
 
         {/* ── Problems that block approval ── */}
         {acts.errorCount > 0 && (

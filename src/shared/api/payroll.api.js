@@ -3,11 +3,20 @@ import { request } from "./client.js";
 // Helper to construct query string
 const buildQuery = (params) => {
   if (!params) return "";
-  const query = Object.entries(params)
-    .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
-  return query ? `?${query}` : "";
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    // Phase 6 report filters repeat a key: department_id=a&department_id=b
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== "") query.append(key, item);
+      });
+      return;
+    }
+    query.append(key, value);
+  });
+  const text = query.toString();
+  return text ? `?${text}` : "";
 };
 
 // PAYROLL_BACKEND_GAPS_RESPONSE.md §0.2: one comma-separated `include` param.
@@ -102,6 +111,13 @@ export const payrollAPI = {
   getReportPayslips: (userId) => request(`/payroll/manager/employees/${userId}/payslips`),
   getReportPayslip: (userId, runId) => request(`/payroll/manager/employees/${userId}/payslips/${runId}`),
 
+  // Manager — Reports (#187–#190). Auto-scoped to the manager's reporting line;
+  // with compensation visibility off they collapse to totals only (EC-25/EC-67).
+  getManagerPayrollRegister: (params) => request(`/payroll/manager/reports/payroll-register${buildQuery({ ...params, format: "json" })}`),
+  getManagerDepartmentDistribution: (params) => request(`/payroll/manager/reports/department-distribution${buildQuery({ ...params, format: "json" })}`),
+  getManagerDeductionSummary: (params) => request(`/payroll/manager/reports/deduction-summary${buildQuery({ ...params, format: "json" })}`),
+  getManagerComponentReport: (params) => request(`/payroll/manager/reports/components${buildQuery({ ...params, format: "json" })}`),
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Employee Self-Service APIs
   // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +129,8 @@ export const payrollAPI = {
   // Employee — Payslips
   getMyPayslips: () => request("/payroll/me/payslips"),
   getMyPayslip: (runId) => request(`/payroll/me/payslips/${runId}`),
+  // #192 — the financial year's month-by-month salary grid.
+  getMyAnnualStatement: (params) => request(`/payroll/me/annual-statement${buildQuery(params)}`),
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Phase 3: Variable Pay (Adjustments, Bonuses, Loans & Advances) — API #57–#94
@@ -274,10 +292,54 @@ export const payrollAPI = {
   getMyBenefits: () => request("/payroll/me/benefits"),
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Phase 6: Reports & Delivery — NOT yet implemented on the backend.
-  //   Kept commented as the starting point once that phase ships.
+  // Phase 6: Payslips, Reports, Exports & Bank Advice — API #167–#194
+  // Contract: md_payrolls/phases/phase6_api_analysis.md + phase6_implementation_plan.md §6.
+  //
+  // The binary endpoints (PDF, CSV, ZIP) are NOT here: `request()` always parses
+  // JSON. They are fetched through `payrollFiles` below with downloadFile().
   // ─────────────────────────────────────────────────────────────────────────────
-  // getPayrollRegisters: (params) => request(`/payroll/hr/reports/registers${buildQuery(params)}`),
-  // exportPayrollRegister: (params) => request(`/payroll/hr/reports/registers/export${buildQuery(params)}`),
-  // exportNEFTAdvice: (runId) => request(`/payroll/hr/reports/neft/${runId}/export`),
+
+  // HR — Payslips (#167–#169, #171–#173, #175–#176)
+  getRunPayslips: (runId, params) => request(`/payroll/hr/runs/${runId}/payslips${buildQuery(params)}`),
+  getEmployeePayslipHistory: (userId, params) => request(`/payroll/hr/employees/${userId}/payslips${buildQuery(params)}`),
+  getEmployeePayslip: (userId, runId, params) => request(`/payroll/hr/employees/${userId}/payslips/${runId}${buildQuery(params)}`),
+  publishRunPayslips: (runId, payload) => request(`/payroll/hr/runs/${runId}/payslips/publish`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  backfillRunPayslips: (runId, payload) => request(`/payroll/hr/runs/${runId}/payslips/backfill`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  reissuePayslip: (payslipId, payload) => request(`/payroll/hr/payslips/${payslipId}/reissue`, { method: "POST", body: JSON.stringify(payload) }),
+  dispatchRunPayslips: (runId, payload) => request(`/payroll/hr/runs/${runId}/payslips/dispatch`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  getRunDispatchStatus: (runId) => request(`/payroll/hr/runs/${runId}/payslips/dispatch-status`),
+
+  // HR — Reports (#177–#180). `format=json` previews on screen; csv/pdf download.
+  getPayrollRegister: (params) => request(`/payroll/hr/reports/payroll-register${buildQuery({ ...params, format: "json" })}`),
+  getDepartmentDistribution: (params) => request(`/payroll/hr/reports/department-distribution${buildQuery({ ...params, format: "json" })}`),
+  getDeductionSummary: (params) => request(`/payroll/hr/reports/deduction-summary${buildQuery({ ...params, format: "json" })}`),
+  getComponentReport: (params) => request(`/payroll/hr/reports/components${buildQuery({ ...params, format: "json" })}`),
+
+  // HR — Export audit trail (#182) and the FY salary statement (#183)
+  getExports: (params) => request(`/payroll/hr/exports${buildQuery(params)}`),
+  getEmployeeAnnualStatement: (userId, params) => request(`/payroll/hr/employees/${userId}/annual-statement${buildQuery(params)}`),
+};
+
+/**
+ * Paths for the binary Phase 6 endpoints (PDF · CSV · ZIP). Pass one to
+ * `downloadFile()` from shared/utils/download.js — every response is
+ * `Content-Disposition: attachment`, and every download writes an audit row.
+ */
+export const payrollFiles = {
+  // HR
+  hrPayslipPdf: (userId, runId) => `/payroll/hr/employees/${userId}/payslips/${runId}/pdf`,          // #170
+  hrRunPayslipsZip: (runId) => `/payroll/hr/runs/${runId}/payslips/download`,                        // #174
+  hrReport: (reportKey) => `/payroll/hr/reports/${reportKey}`,                                       // #177–#180
+  hrBankAdvice: (runId) => `/payroll/hr/runs/${runId}/bank-advice`,                                  // #181
+  hrAnnualStatementPdf: (userId) => `/payroll/hr/employees/${userId}/annual-statement/pdf`,          // #184
+  hrForm16Pdf: (userId, financialYear) => `/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}/pdf`, // #185
+
+  // Manager
+  managerPayslipPdf: (userId, runId) => `/payroll/manager/employees/${userId}/payslips/${runId}/pdf`, // #186
+  managerReport: (reportKey) => `/payroll/manager/reports/${reportKey}`,                              // #187–#190
+
+  // Self
+  myPayslipPdf: (runId) => `/payroll/me/payslips/${runId}/pdf`,                                       // #191
+  myAnnualStatementPdf: () => "/payroll/me/annual-statement/pdf",                                     // #193
+  myForm16Pdf: (financialYear) => `/payroll/me/tax/form16/${encodeURIComponent(financialYear)}/pdf`,  // #194
 };

@@ -98,6 +98,9 @@ import YearEndClosurePage from "../roles/hr/payroll/screens/YearEndClosurePage";
 import PayrollReimbursementsPage from "../roles/hr/payroll/screens/PayrollReimbursementsPage";
 import PayrollBenefitsPage from "../roles/hr/payroll/screens/PayrollBenefitsPage";
 import PayrollReportsPage from "../roles/hr/payroll/screens/PayrollReportsPage";
+import PayrollExportsPage from "../roles/hr/payroll/screens/PayrollExportsPage";
+import PayrollPayslipsPage from "../roles/hr/payroll/screens/PayrollPayslipsPage";
+import TeamPayrollReportsPage from "../roles/manager/payroll/screens/TeamPayrollReportsPage";
 import BankVerificationPage from "../roles/hr/payroll/screens/BankVerificationPage";
 import PayrollAuditLogPage from "../roles/hr/payroll/screens/PayrollAuditLogPage";
 
@@ -267,6 +270,8 @@ function AppRoutes() {
         <Route path="/dashboard/hr/payroll/benefits" element={<PayrollBenefitsPage />} />
         <Route path="/dashboard/hr/my-reimbursements" element={<MyReimbursementsPage />} />
         <Route path="/dashboard/hr/payroll/reports" element={<PayrollReportsPage />} />
+        <Route path="/dashboard/hr/payroll/payslips" element={<PayrollPayslipsPage />} />
+        <Route path="/dashboard/hr/payroll/exports" element={<PayrollExportsPage />} />
       </Route>
 
       {/* ─── MANAGER WORKSPACE ─── */}
@@ -290,6 +295,7 @@ function AppRoutes() {
         {/* Manager payroll */}
         <Route path="/dashboard/manager/payroll/team-salary" element={<TeamSalaryPage />} />
         <Route path="/dashboard/manager/payroll/team-payslips" element={<TeamPayslipsPage />} />
+        <Route path="/dashboard/manager/payroll/reports" element={<TeamPayrollReportsPage />} />
         <Route path="/dashboard/manager/payroll/adjustments" element={<ManagerAdjustmentsPage />} />
         <Route path="/dashboard/manager/payroll/reimbursements" element={<TeamReimbursementsPage />} />
         <Route path="/dashboard/manager/my-reimbursements" element={<MyReimbursementsPage />} />

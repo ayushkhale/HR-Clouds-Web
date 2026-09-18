@@ -73,12 +73,12 @@ const emptyForm = () => ({
   user_id: "",
   loan_type: "loan",
   principal_amount: "",
-  annual_interest_rate: "0",
+  interest_rate: "0",
   interest_method: "reducing_balance",
   tenure_months: "6",
   start_month: now.getMonth() + 1,
   start_year: now.getFullYear(),
-  disbursement_date: now.toISOString().slice(0, 10),
+  disbursed_on: now.toISOString().slice(0, 10),
   reason: "",
 });
 
@@ -124,8 +124,8 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
   const empName = (id) => people.nameOf(id);
 
   const est = useMemo(
-    () => estimateSchedule(form.principal_amount, form.annual_interest_rate, form.tenure_months, form.interest_method),
-    [form.principal_amount, form.annual_interest_rate, form.tenure_months, form.interest_method]
+    () => estimateSchedule(form.principal_amount, form.interest_rate, form.tenure_months, form.interest_method),
+    [form.principal_amount, form.interest_rate, form.tenure_months, form.interest_method]
   );
 
   const handleSubmit = async (e) => {
@@ -134,11 +134,14 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
       const payload = {
         loan_type: form.loan_type,
         principal_amount: parseFloat(form.principal_amount),
-        annual_interest_rate: parseFloat(form.annual_interest_rate) || 0,
+        // Exact names from grantLoanSchema. The validator runs stripUnknown,
+        // so a legacy name is dropped in silence and the loan falls back to the
+        // org's 0% default instead of failing — no error, just a wrong loan.
+        interest_rate: parseFloat(form.interest_rate) || 0,
         interest_method: form.interest_method,
         tenure_months: parseInt(form.tenure_months),
         start_period_month: `${form.start_year}-${String(form.start_month).padStart(2, "0")}`,
-        disbursement_date: form.disbursement_date,
+        disbursed_on: form.disbursed_on || null,
         reason: form.reason.trim(),
       };
       await payrollAPI.grantLoan(form.user_id, payload);
@@ -268,7 +271,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                         </td>
                         <td className="px-6 py-4 capitalize text-slate-600">{prettify(l.loan_type) || "N/A"}</td>
                         <td className="px-6 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
-                        <td className="px-6 py-4 text-slate-600">{parseFloat(l.annual_interest_rate || 0)}%<span className="block text-[10px] text-slate-400 capitalize">{prettify(l.interest_method) || "N/A"}</span></td>
+                        <td className="px-6 py-4 text-slate-600">{parseFloat(l.interest_rate || 0)}%<span className="block text-[10px] text-slate-400 capitalize">{prettify(l.interest_method) || "N/A"}</span></td>
                         <td className="px-6 py-4 text-slate-600">{money(l.emi_amount)}</td>
                         <td className="px-6 py-4 text-slate-600">{l.tenure_months ?? 0} mo</td>
                         <td className="px-6 py-4 font-bold text-purple-700">{money(outstanding(l))}</td>
@@ -342,7 +345,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                   </div>
                   <div>
                     <label className={labelClass}>Interest % p.a.</label>
-                    <input type="number" min="0" step="0.01" value={form.annual_interest_rate} onChange={(e) => setForm({ ...form, annual_interest_rate: e.target.value })} className={fieldClass} />
+                    <input type="number" min="0" max="100" step="0.01" value={form.interest_rate} onChange={(e) => setForm({ ...form, interest_rate: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
                     <label className={labelClass}>Method</label>
@@ -366,7 +369,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
                   <div>
                     <label className={labelClass}>Disbursement Date</label>
-                    <input type="date" value={form.disbursement_date} onChange={(e) => setForm({ ...form, disbursement_date: e.target.value })} className={fieldClass} />
+                    <input type="date" value={form.disbursed_on} onChange={(e) => setForm({ ...form, disbursed_on: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
                     <label className={labelClass}>Reason <span className="text-red-500">*</span></label>
@@ -433,11 +436,11 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 cols={3}
                 items={[
                   ["Type", prettify(loan.loan_type)],
-                  ["Interest rate", `${parseFloat(loan.annual_interest_rate || 0)}% p.a.`],
+                  ["Interest rate", `${parseFloat(loan.interest_rate || 0)}% p.a.`],
                   ["Interest method", prettify(loan.interest_method)],
                   ["Tenure", `${loan.tenure_months ?? 0} months`],
                   ["First EMI", fmtPeriod(loan.start_period_month)],
-                  ["Disbursed on", fmtDate(loan.disbursement_date)],
+                  ["Disbursed on", fmtDate(loan.disbursed_on)],
                 ]}
               />
               <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">

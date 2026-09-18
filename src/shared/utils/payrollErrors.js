@@ -144,6 +144,21 @@ const PAYROLL_ERROR_MESSAGES = {
   INVALID_FINANCIAL_YEAR: "Choose a valid financial year.",
   INVALID_ATTACHMENT_REFERENCE_URL: "Paste a full link that starts with https://.",
 
+  // Phase 6 — Payslips, reports, exports & bank advice
+  PAYSLIP_NOT_ACCESSIBLE: "This payslip isn't available to you. It may not have been released yet, or it belongs to someone outside your team.",
+  PAYSLIP_REVOKED: "This payslip was withdrawn when its payroll run was cancelled.",
+  PAYSLIP_ALREADY_SUPERSEDED: "Someone else already reissued this payslip. Refresh to see the latest version.",
+  PAYSLIP_FIGURES_CHANGED: "The figures on this run no longer match the published payslip, so it can't be reissued. Reissuing only corrects names and departments — to change money, cancel the run, recalculate and approve it again.",
+  PAYSLIP_VERSION_NOT_FOUND: "That version of this payslip doesn't exist.",
+  REISSUE_REASON_REQUIRED: "Write a reason for reissuing this payslip.",
+  NO_PAYSLIPS_FOR_RUN: "This run has no payslips yet. Approve it first, or use “Rebuild payslips” for a run approved before payslips existed.",
+  MISSING_BANK_ACCOUNTS: "Some employees in this run have no bank account on file, so it can't be marked paid or turned into a bank file. Add their accounts, or exclude them and approve the run again.",
+  RUN_NOT_PAID: "A bank file can only be generated once the run is marked as paid.",
+  REPORT_RANGE_TOO_LARGE: "Choose a shorter period — one report can cover at most 12 months.",
+  EXPORT_TOO_LARGE: "This export is too large. Narrow the period, departments or employees and try again.",
+  UNSUPPORTED_FORMAT: "That file format isn't available for this report.",
+  COMPENSATION_VIEW_DISABLED: "Your organisation doesn't let managers see individual pay. Team totals are still available.",
+
   // Generic
   VALIDATION_ERROR: "Some details are missing or invalid. Check the form and try again.",
   FORBIDDEN: "You don't have permission to do this.",

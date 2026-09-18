@@ -45,6 +45,10 @@ export default function PayrollSettingsPage() {
         reimbursement_approval_levels: 2,
         reimbursement_payout_lookahead_months: 2,
         benefit_deductions_enabled: false,
+        // Phase 6 — payslip delivery (registry #54). These defaults match the
+        // backend's and keep today's behaviour: released at once, no email.
+        payslip_auto_publish: true,
+        payslip_auto_email: false,
       };
       benefitsWereOn.current = !!loaded.benefit_deductions_enabled;
       setSettings(loaded);
@@ -192,6 +196,27 @@ export default function PayrollSettingsPage() {
                       <div>
                         <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Charge benefit deductions in payroll</span>
                         <span className="block text-xs text-slate-500 mt-0.5">When on, every active benefit enrollment is charged from the next payroll calculation. When off, plans and enrollments are kept but nothing is charged.</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Payslip delivery */}
+                <div>
+                  <h3 className="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Payslip Delivery</h3>
+                  <div className="space-y-4">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input type="checkbox" checked={settings.payslip_auto_publish !== false} onChange={e => setSettings({ ...settings, payslip_auto_publish: e.target.checked })} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                      <div>
+                        <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Release payslips as soon as a run is approved</span>
+                        <span className="block text-xs text-slate-500 mt-0.5">On by default. Switch it off to hold payslips back for a final check — they are still created and frozen at approval, but employees and managers see nothing until you release them from the run&apos;s Payslips panel.</span>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input type="checkbox" checked={!!settings.payslip_auto_email} onChange={e => setSettings({ ...settings, payslip_auto_email: e.target.checked })} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                      <div>
+                        <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Email employees when their payslip is released</span>
+                        <span className="block text-xs text-slate-500 mt-0.5">Off by default. The email carries a secure link to this portal, never the PDF itself. Delivery, retries and failures are shown on the run&apos;s Payslips panel.</span>
                       </div>
                     </label>
                   </div>

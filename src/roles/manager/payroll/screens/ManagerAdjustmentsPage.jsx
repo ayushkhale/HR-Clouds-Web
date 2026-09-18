@@ -117,7 +117,7 @@ export default function ManagerAdjustmentsPage() {
 
   const [adjForm, setAdjForm] = useState({ user_id: "", adjustment_type: "earning", category: "incentive", component_name: "", amount: "", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
   const [bonusForm, setBonusForm] = useState({ name: "", bonus_type: "flat", value: "", user_ids: [], reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
-  const [loanForm, setLoanForm] = useState({ user_id: "", loan_type: "salary_advance", principal_amount: "", tenure_months: "3", annual_interest_rate: "0", interest_method: "reducing_balance", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
+  const [loanForm, setLoanForm] = useState({ user_id: "", loan_type: "salary_advance", principal_amount: "", tenure_months: "3", interest_rate: "0", interest_method: "reducing_balance", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
 
   // Stable identity: LoanDetailModal's fetch effect lists showToast in its deps,
   // so an unstable function would re-fire the fetch on every parent re-render.
@@ -199,7 +199,8 @@ export default function ManagerAdjustmentsPage() {
         loan_type: loanForm.loan_type,
         principal_amount: parseFloat(loanForm.principal_amount),
         tenure_months: parseInt(loanForm.tenure_months),
-        annual_interest_rate: parseFloat(loanForm.annual_interest_rate) || 0,
+        // recommendLoanSchema strips unknown keys, so this must be interest_rate.
+        interest_rate: parseFloat(loanForm.interest_rate) || 0,
         interest_method: loanForm.interest_method,
         start_period_month: period(loanForm),
         reason: loanForm.reason.trim(),

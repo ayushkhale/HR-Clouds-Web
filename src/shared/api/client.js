@@ -5,6 +5,10 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://development.hrclouds.in/api/v1";
 
+// Binary downloads (payslip PDFs, report CSVs, bank advice, ZIPs) bypass
+// `request()` because it always parses JSON — they need the same base URL.
+export const API_BASE_URL = BASE_URL;
+
 // const BASE_URL = "http://192.168.29.131:4500/api/v1";
 
 // ─────────────────────────────────────────────────────────────────────────────

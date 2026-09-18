@@ -44,6 +44,7 @@ import {
   HiCash,
   HiDocumentText,
   HiUserCircle,
+  HiCloudDownload,
 } from "react-icons/hi";
 
 let cachedInboxCount = 0;
@@ -236,6 +237,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Loans & Advances", "/dashboard/hr/payroll/loans", HiCash),
             link("Bank Verification", "/dashboard/hr/payroll/bank-verification", HiShieldCheck),
             link("Payroll Runs", "/dashboard/hr/payroll/runs", HiPlay, { nested: true }),
+            link("Payslips & Documents", "/dashboard/hr/payroll/payslips", HiDocumentText),
             link("Employee Salaries", "/dashboard/hr/payroll/employee-structures", HiCurrencyRupee),
           ],
         },
@@ -254,6 +256,7 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Attendance Reports", "/dashboard/hr/reports", HiChartBar),
             link("Payroll Reports", "/dashboard/hr/payroll/reports", HiDocumentReport),
+            link("Exports", "/dashboard/hr/payroll/exports", HiCloudDownload),
             link("Audit Log", "/dashboard/hr/payroll/audit-log", HiDatabase),
           ],
         },
@@ -364,6 +367,7 @@ function DashboardSidebar({ role = "guest" }) {
         items: [
           { label: "Team Compensation", path: "/dashboard/manager/payroll/team-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/payroll/team-salary" },
           { label: "Team Payslips", path: "/dashboard/manager/payroll/team-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/team-payslips" },
+          { label: "Team Reports", path: "/dashboard/manager/payroll/reports", icon: HiChartBar, active: location.pathname === "/dashboard/manager/payroll/reports" },
           { label: "Team Variable Pay", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
           { label: "Team Claims & Benefits", path: "/dashboard/manager/payroll/reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
           { label: "My Claims & Benefits", path: "/dashboard/manager/my-reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/my-reimbursements" },

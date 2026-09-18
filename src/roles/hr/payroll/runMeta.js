@@ -128,8 +128,28 @@ export function runActions(run) {
     approveBlockers,
     canPay: status === "approved" && !run?.paid_at,
     canCancel: status === "approved" && !run?.paid_at,
+    // Cancel stays on screen for every live run, disabled with a reason. HR
+    // looks for it from the moment a run exists, and a button that silently
+    // disappears reads as a missing feature.
+    showCancel: status !== "cancelled" && status !== "paid" && !run?.paid_at,
     canEditItems: status === "draft" || status === "calculated",
   };
+}
+
+/**
+ * Why cancel is unavailable right now, or "" when it is allowed. Cancel is an
+ * approved-and-unpaid action only (#49); every other status is a 409
+ * RUN_NOT_CANCELLABLE, so the reason has to say what to do instead.
+ */
+export function cancelBlockedReason(run) {
+  const status = run?.status;
+  if (status === "approved" && !run?.paid_at) return "";
+  if (status === "draft") return "Nothing has been calculated yet, so there is nothing to withdraw. Cancelling becomes available once the run is approved.";
+  if (status === "calculating") return "Wait for the calculation to finish. Cancelling becomes available once the run is approved.";
+  if (status === "calculated" || status === "failed") return "This run isn't approved yet, so nothing has gone out — recalculate to change the figures. Cancelling becomes available once it is approved.";
+  if (status === "paid" || run?.paid_at) return "This run is marked as paid, so it can no longer be cancelled.";
+  if (status === "cancelled") return "This run is already cancelled.";
+  return "This run can't be cancelled right now.";
 }
 
 /**

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiOutlineDocumentSearch, HiUserGroup } from "react-icons/hi";
+import { payrollAPI, payrollFiles, organizationAPI } from "../../../../shared/api";
+import { downloadFile } from "../../../../shared/utils/download";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiOutlineDocumentSearch, HiUserGroup, HiDocumentDownload } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
@@ -178,11 +179,27 @@ export default function TeamPayslipsPage() {
 
   const [detailSlip, setDetailSlip] = useState(null); // { userId, runId, period }
   const [teamRun, setTeamRun] = useState(null);        // { runId, period }
+  const [downloading, setDownloading] = useState("");
 
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   }, []);
+
+  // #186 — a report's payslip PDF. Only released payslips are reachable; a held
+  // one is refused exactly like a payslip that doesn't exist.
+  const downloadPayslip = useCallback(async (userId, runId, period) => {
+    setDownloading(runId);
+    try {
+      await downloadFile(payrollFiles.managerPayslipPdf(userId, runId), {
+        filename: `payslip-${period || runId}.pdf`,
+      });
+    } catch (err) {
+      showToast(payrollErrorMessage(err, "Couldn't download this payslip"), "error");
+    } finally {
+      setDownloading("");
+    }
+  }, [showToast]);
 
   useEffect(() => {
     organizationAPI.getEmployees({ purpose: "shift_assignment" })
@@ -256,6 +273,12 @@ export default function TeamPayslipsPage() {
                               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition">
                               <HiOutlineDocumentSearch className="w-3.5 h-3.5" /> Payslip
                             </button>
+                            {rid && (
+                              <button onClick={() => downloadPayslip(selectedUserId, rid, period)} disabled={downloading === rid} title="Download the payslip PDF"
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-lg transition disabled:opacity-50">
+                                <HiDocumentDownload className="w-3.5 h-3.5" /> {downloading === rid ? "…" : "PDF"}
+                              </button>
+                            )}
                             {rid && (
                               <button onClick={() => setTeamRun({ runId: rid, period })} title="Whole team for this run"
                                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
