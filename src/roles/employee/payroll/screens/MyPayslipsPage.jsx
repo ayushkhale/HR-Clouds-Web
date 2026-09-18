@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
 import { downloadFile } from "../../../../shared/utils/download";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { payrollErrorMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailSection, DetailTable } from "../../../../shared/components/DetailDialog";
@@ -51,7 +51,7 @@ function PayslipDialog({ runId, period, onClose, showToast }) {
       await downloadFile(payrollFiles.myPayslipPdf(runId), { filename: `payslip-${period || runId}.pdf` });
       showToast("Payslip downloaded.");
     } catch (err) {
-      showToast(payrollErrorMessage(err, "Couldn't download the PDF"), "error");
+      showToast(payslipDownloadMessage(err, "Couldn't download the PDF"), "error");
     } finally {
       setDownloading(false);
     }
@@ -243,7 +243,7 @@ function Form16Tab({ showToast }) {
       await downloadFile(payrollFiles.myForm16Pdf(fy), { filename: `form16-${fy}.pdf` });
       showToast("Form 16 downloaded.");
     } catch (err) {
-      showToast(payrollErrorMessage(err, "Form 16 isn't available for this year yet"), "error");
+      showToast(payrollErrorMessage(err, "Form 16 for this financial year hasn't been published yet."), "error");
     } finally {
       setDownloading(false);
     }
@@ -302,7 +302,7 @@ export default function MyPayslipsPage() {
     try {
       await downloadFile(payrollFiles.myPayslipPdf(runId), { filename: `payslip-${period || runId}.pdf` });
     } catch (err) {
-      showToast(payrollErrorMessage(err, "Couldn't download that payslip"), "error");
+      showToast(payslipDownloadMessage(err), "error");
     } finally {
       setDownloading("");
     }

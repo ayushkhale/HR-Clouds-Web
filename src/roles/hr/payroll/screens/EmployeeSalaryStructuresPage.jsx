@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
@@ -7,8 +7,10 @@ import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { StatutorySummary, StatutoryUnavailableNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -132,6 +134,15 @@ function HistoryModal({ user, onClose, showToast }) {
 function AssignModal({ user, templates, onClose, onDone, showToast }) {
   const [current, setCurrent] = useState(undefined); // undefined = loading, null = none
   const hasCurrent = !!current;
+  // #18 enriches this read with the live PF / ESI / PT / TDS split, so HR can
+  // see what the employee actually takes home before pricing a revision.
+  const currentStatutory = useMemo(() => normalizeStatutory(current), [current]);
+  const currentComponentDeductions = useMemo(
+    () => (current?.components || [])
+      .filter((c) => c.component_type === "deduction")
+      .reduce((sum, c) => sum + (Number.parseFloat(c.monthly_amount) || 0), 0),
+    [current],
+  );
 
   const [form, setForm] = useState({
     annual_ctc: "",
@@ -227,16 +238,21 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
           {current === undefined ? (
             <div className="h-12 rounded-xl bg-slate-100 animate-pulse" />
           ) : hasCurrent ? (
-            <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Current CTC</p>
-                <p className="text-sm font-bold text-slate-800">{formatMoney(current.annual_ctc)}</p>
+            <>
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Current CTC</p>
+                  <p className="text-sm font-bold text-slate-800">{formatMoney(current.annual_ctc)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Since</p>
+                  <p className="text-sm font-semibold text-slate-600">{formatDate(current.effective_from)}{current.version != null ? ` · v${current.version}` : ""}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Since</p>
-                <p className="text-sm font-semibold text-slate-600">{formatDate(current.effective_from)}{current.version != null ? ` · v${current.version}` : ""}</p>
-              </div>
-            </div>
+              {currentStatutory
+                ? <StatutorySummary statutory={currentStatutory} componentDeductions={currentComponentDeductions} />
+                : <StatutoryUnavailableNotice compact />}
+            </>
           ) : (
             <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">No salary structure yet — this will be the initial assignment.</p>
           )}

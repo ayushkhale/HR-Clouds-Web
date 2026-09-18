@@ -295,6 +295,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("My Overtime", `${SELF_SERVICE_BASE.hr}/overtime`, HiLightningBolt),
             link(`My ${COMP_OFF}s`, `${SELF_SERVICE_BASE.hr}/comp-offs`, HiGift),
             link("My Claims", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
+            link("My Salary & Bank", "/dashboard/hr/my-salary", HiCurrencyRupee),
           ],
         },
       ];
@@ -371,6 +372,7 @@ function DashboardSidebar({ role = "guest" }) {
           { label: "Team Variable Pay", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
           { label: "Team Claims & Benefits", path: "/dashboard/manager/payroll/reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
           { label: "My Claims & Benefits", path: "/dashboard/manager/my-reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/my-reimbursements" },
+          { label: "My Salary & Bank", path: "/dashboard/manager/my-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/my-salary" },
         ],
       }] : [])
     ];

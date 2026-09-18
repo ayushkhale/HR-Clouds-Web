@@ -131,6 +131,12 @@ export const payrollAPI = {
   getMyPayslip: (runId) => request(`/payroll/me/payslips/${runId}`),
   // #192 — the financial year's month-by-month salary grid.
   getMyAnnualStatement: (params) => request(`/payroll/me/annual-statement${buildQuery(params)}`),
+  // #218 — your own leave / comp-off encashments. Mounted at /payroll/me like
+  // every other self route (the `/payroll/self/me/...` form in the Phase 6–7
+  // drafts was never real and 404s). The response shape is not documented
+  // anywhere yet, so nothing reads this at the moment — see the note in
+  // payroll_self_endpoints_frontend_guide.md.
+  getMyEncashments: (params) => request(`/payroll/me/encashments${buildQuery(params)}`),
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Phase 3: Variable Pay (Adjustments, Bonuses, Loans & Advances) — API #57–#94

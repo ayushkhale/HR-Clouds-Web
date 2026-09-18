@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCurrencyRupee, HiPencil, HiClock, HiLockClosed } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { StatutorySummary, StatutoryUnavailableNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -37,6 +39,15 @@ function HistoryModal({ member, onClose, showToast }) {
   const [current, setCurrent] = useState(undefined);
   const [rows, setRows] = useState(undefined);
   const [denied, setDenied] = useState(false);
+  // #29 enriches the current-structure read with the statutory split. It stays
+  // behind the same COMPENSATION_VIEW_DISABLED gate as the CTC itself.
+  const statutory = useMemo(() => normalizeStatutory(current), [current]);
+  const componentDeductions = useMemo(
+    () => (current?.components || [])
+      .filter((c) => c.component_type === "deduction")
+      .reduce((sum, c) => sum + (Number.parseFloat(c.monthly_amount) || 0), 0),
+    [current],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -74,10 +85,15 @@ function HistoryModal({ member, onClose, showToast }) {
           ) : rows === undefined ? <Skeleton type="table" rows={4} /> : (
             <>
               {current && (
-                <div className="flex items-center justify-between rounded-xl bg-purple-50 border border-purple-100 px-4 py-3 mb-5">
-                  <div><p className="text-[10px] font-bold text-purple-400 uppercase">Current CTC</p><p className="text-sm font-black text-purple-700">{formatMoney(current.annual_ctc)}</p></div>
-                  <div className="text-right"><p className="text-[10px] font-bold text-purple-400 uppercase">Since</p><p className="text-sm font-semibold text-slate-600">{formatDate(current.effective_from)}</p></div>
-                </div>
+                <>
+                  <div className="flex items-center justify-between rounded-xl bg-purple-50 border border-purple-100 px-4 py-3 mb-3">
+                    <div><p className="text-[10px] font-bold text-purple-400 uppercase">Current CTC</p><p className="text-sm font-black text-purple-700">{formatMoney(current.annual_ctc)}</p></div>
+                    <div className="text-right"><p className="text-[10px] font-bold text-purple-400 uppercase">Since</p><p className="text-sm font-semibold text-slate-600">{formatDate(current.effective_from)}</p></div>
+                  </div>
+                  {statutory
+                    ? <StatutorySummary statutory={statutory} componentDeductions={componentDeductions} className="mb-5" />
+                    : <StatutoryUnavailableNotice compact className="mb-5" />}
+                </>
               )}
               {rows.length === 0 ? (
                 <p className="text-center text-slate-400 py-6">No approved salary history to show.</p>

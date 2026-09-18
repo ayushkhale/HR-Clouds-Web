@@ -7,8 +7,10 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText } from "../../../../shared/components/DetailDialog";
+import StatutoryBreakdownPanel, { StatutoryUnavailableNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
 import { humanize } from "../../../../shared/attendance/enums";
 
 const REVISION_LABELS = {
@@ -40,8 +42,13 @@ function Toast({ toast, onClose }) {
 }
 
 // A structure mixes earnings and deductions in one `components` array. Split
-// them so deductions (e.g. PF Employee) never inflate gross, and derive the
-// take-home figure the API doesn't return.
+// them so deductions (e.g. a salary advance) never inflate gross.
+//
+// PF, ESI, professional tax and TDS are never components — they are statutory
+// withholdings the backend recomputes on every read into `statutory_breakdown`.
+// So take-home is gross minus BOTH sides, and the two are summed here exactly
+// once: `statutory_breakdown.figures.net_pay` nets only the statutory heads and
+// knows nothing about contractual deduction components.
 function breakdownOf(structure) {
   const comps = (Array.isArray(structure?.components) ? structure.components : [])
     .slice()
@@ -49,16 +56,36 @@ function breakdownOf(structure) {
   const sum = (arr, key) => arr.reduce((s, c) => s + amount(c[key]), 0);
   const earnings = comps.filter((c) => c.component_type === "earning");
   const deductions = comps.filter((c) => c.component_type === "deduction");
-  const monthlyGross = amount(structure?.monthly_gross) || sum(earnings, "monthly_amount");
+  const statutory = normalizeStatutory(structure);
+  const monthlyGross = statutory?.monthlyGross || amount(structure?.monthly_gross) || sum(earnings, "monthly_amount");
   const annualGross = sum(earnings, "annual_amount");
-  const monthlyDeductions = sum(deductions, "monthly_amount");
+  const componentDeductions = sum(deductions, "monthly_amount");
+  const statutoryDeductions = statutory ? statutory.employeeTotal : 0;
+  const monthlyDeductions = componentDeductions + statutoryDeductions;
   const annualDeductions = sum(deductions, "annual_amount");
+  const monthlyNet = monthlyGross - monthlyDeductions;
   return {
-    earnings, deductions, comps,
+    earnings, deductions, comps, statutory,
     monthlyGross, annualGross, monthlyDeductions, annualDeductions,
-    monthlyNet: monthlyGross - monthlyDeductions,
-    annualNet: annualGross - annualDeductions,
+    componentDeductions, statutoryDeductions,
+    monthlyNet,
+    // TDS is trued up month to month, so twelve times the current month is an
+    // estimate — not the contractual annual figure it used to be.
+    annualNet: statutory ? monthlyNet * 12 : annualGross - annualDeductions,
   };
+}
+
+const SHORT_HEAD = { pf: "PF", esi: "ESI", pt: "professional tax", tds: "income tax" };
+
+/** "PF and income tax" — names what is actually coming off, not just a count. */
+function deductionHint(b) {
+  // Only heads with a real amount: an applicable head sitting at ₹0 (no tax due
+  // this year) would otherwise be named as if it were reducing the pay.
+  const parts = b.statutory ? b.statutory.employeeLines.filter((l) => l.applicable && l.amount > 0).map((l) => SHORT_HEAD[l.key]) : [];
+  if (b.deductions.length) parts.push(`${b.deductions.length} salary deduction${b.deductions.length === 1 ? "" : "s"}`);
+  if (parts.length === 0) return b.statutory ? "No statutory deductions apply" : "No deductions";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 /** "40% of CTC", "Fixed amount", "Balance of CTC". */
@@ -162,11 +189,18 @@ export default function MySalaryPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const breakdown = useMemo(() => breakdownOf(structure), [structure]);
-  // Newest first; each revision is compared with the one right below it.
-  const revisions = useMemo(
-    () => (Array.isArray(history) ? history : []).slice().sort((a, b) => (b.version ?? 0) - (a.version ?? 0) || String(b.effective_from).localeCompare(String(a.effective_from))),
-    [history],
-  );
+  // Newest first; each revision is compared with the one right below it. Only
+  // the "current structure" read carries `statutory_breakdown` — history rows
+  // never do — so the live one is carried across onto its own revision instead
+  // of leaving the current version looking like it has no deductions.
+  const revisions = useMemo(() => {
+    const rows = (Array.isArray(history) ? history : []).slice()
+      .sort((a, b) => (b.version ?? 0) - (a.version ?? 0) || String(b.effective_from).localeCompare(String(a.effective_from)));
+    if (!structure?.statutory_breakdown) return rows;
+    return rows.map((r) => (r.id && r.id === structure.id && !r.statutory_breakdown
+      ? { ...r, statutory_breakdown: structure.statutory_breakdown }
+      : r));
+  }, [history, structure]);
   const previousOf = (rev) => revisions[revisions.indexOf(rev) + 1] || null;
 
   const openBankEditor = () => {
@@ -199,6 +233,10 @@ export default function MySalaryPage() {
   };
 
   const bankStatus = bankAccount ? (bankAccount.is_verified ? "Verified" : "Pending verification") : "Not added";
+  // Nobody can be paid without this, and only the account holder can enter it
+  // (`PUT /payroll/me/bank-account` is self-scoped), so a missing account is the
+  // one thing on this page that needs chasing.
+  const bankMissing = !loading && !bankAccount;
 
   return (
     <>
@@ -211,15 +249,15 @@ export default function MySalaryPage() {
           </div>
           <button
             type="button"
-            onClick={() => setBankDialog("view")}
+            onClick={() => (bankMissing ? openBankEditor() : setBankDialog("view"))}
             aria-haspopup="dialog"
-            className="flex items-center gap-3 pl-3 pr-4 py-2.5 bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/40 rounded-xl shadow-2xs transition text-left"
+            className={`flex items-center gap-3 pl-3 pr-4 py-2.5 bg-white rounded-xl shadow-2xs transition text-left border ${bankMissing ? "border-fuchsia-300 hover:border-fuchsia-400 hover:bg-fuchsia-50/40" : "border-slate-200 hover:border-purple-300 hover:bg-purple-50/40"}`}
           >
-            <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiLibrary className="w-5 h-5" /></span>
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${bankMissing ? "bg-fuchsia-50 text-fuchsia-600" : "bg-purple-50 text-purple-600"}`}><HiLibrary className="w-5 h-5" /></span>
             <span className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800">Bank details</span>
-              <span className="block text-[11px] font-semibold text-slate-500">
-                {bankAccount?.masked_account_number ? `${bankAccount.masked_account_number} · ` : ""}{bankStatus}
+              <span className="block text-sm font-bold text-slate-800">{bankMissing ? "Add bank details" : "Bank details"}</span>
+              <span className={`block text-[11px] font-semibold ${bankMissing ? "text-fuchsia-600" : "text-slate-500"}`}>
+                {loading ? "Checking…" : bankMissing ? "Needed before you can be paid" : `${bankAccount?.masked_account_number ? `${bankAccount.masked_account_number} · ` : ""}${bankStatus}`}
               </span>
             </span>
             <HiChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -258,12 +296,12 @@ export default function MySalaryPage() {
                     <div className="rounded-2xl bg-purple-600 text-white px-5 py-4 shadow-sm shadow-purple-200">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100">Take-home / month</p>
                       <p className="text-2xl font-black mt-1 tabular-nums">{formatMoney(breakdown.monthlyNet)}</p>
-                      <p className="text-[11px] text-purple-100 mt-0.5">Gross minus deductions</p>
+                      <p className="text-[11px] text-purple-100 mt-0.5">{breakdown.statutory ? "After PF, ESI, PT and tax" : "Before PF, ESI and tax"}</p>
                     </div>
                     {[
                       ["Gross / month", formatMoney(breakdown.monthlyGross), `${breakdown.earnings.length} earning${breakdown.earnings.length === 1 ? "" : "s"}`],
-                      ["Deductions / month", `− ${formatMoney(breakdown.monthlyDeductions)}`, `${breakdown.deductions.length} deduction${breakdown.deductions.length === 1 ? "" : "s"}`],
-                      ["Take-home / year", formatMoney(breakdown.annualNet), "Before tax and variable pay"],
+                      ["Deductions / month", `− ${formatMoney(breakdown.monthlyDeductions)}`, deductionHint(breakdown)],
+                      ["Take-home / year", formatMoney(breakdown.annualNet), breakdown.statutory ? "Estimated at this month's rate" : "Before PF, ESI, tax and variable pay"],
                     ].map(([label, value, hint]) => (
                       <div key={label} className="rounded-2xl border border-slate-200/80 bg-white px-5 py-4">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
@@ -274,23 +312,36 @@ export default function MySalaryPage() {
                   </div>
 
                   {expanded && (
-                    <div className="px-6 pb-6 grid grid-cols-1 xl:grid-cols-2 gap-5">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-bold text-slate-800">Earnings</h3>
-                          <span className="text-xs font-bold text-purple-700 tabular-nums">{formatMoney(breakdown.monthlyGross)} / month</span>
+                    <div className="px-6 pb-6 space-y-5">
+                      {/* Contractual deduction lines only, and only when there
+                          are any. PF / ESI / PT / TDS are never components; they
+                          live in the statutory block below. */}
+                      <div className={`grid grid-cols-1 gap-5 ${breakdown.deductions.length > 0 ? "xl:grid-cols-2" : ""}`}>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-bold text-slate-800">Earnings</h3>
+                            <span className="text-xs font-bold text-purple-700 tabular-nums">{formatMoney(breakdown.monthlyGross)} / month</span>
+                          </div>
+                          <ComponentTable rows={breakdown.earnings} />
                         </div>
-                        <ComponentTable rows={breakdown.earnings} />
+                        {breakdown.deductions.length > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-bold text-slate-800">Salary deductions</h3>
+                              <span className="text-xs font-bold text-rose-600 tabular-nums">− {formatMoney(breakdown.componentDeductions)} / month</span>
+                            </div>
+                            <ComponentTable rows={breakdown.deductions} sign="− " />
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-bold text-slate-800">Deductions</h3>
-                          <span className="text-xs font-bold text-rose-600 tabular-nums">− {formatMoney(breakdown.monthlyDeductions)} / month</span>
-                        </div>
-                        <ComponentTable rows={breakdown.deductions} sign="− " />
-                      </div>
-                      <p className="xl:col-span-2 text-[11px] text-slate-400">
-                        Annual CTC is the total cost to the company. Take-home is gross earnings minus deductions, before payroll-time tax and any variable pay.
+
+                      {breakdown.statutory
+                        ? <StatutoryBreakdownPanel statutory={breakdown.statutory} componentDeductions={breakdown.componentDeductions} />
+                        : <StatutoryUnavailableNotice />}
+
+                      <p className="text-[11px] text-slate-400">
+                        Annual CTC is the total cost to the company. Take-home is gross earnings minus deductions
+                        {breakdown.statutory ? ", and moves with attendance, unpaid leave and your tax declarations." : ", before payroll-time tax and any variable pay."}
                       </p>
                     </div>
                   )}
@@ -306,7 +357,20 @@ export default function MySalaryPage() {
                   </button>
                 </>
               ) : (
-                <div className="p-12 text-center text-slate-500">Your salary structure has not been assigned yet.</div>
+                <div className="p-12 text-center">
+                  <p className="text-slate-500">Your salary structure has not been assigned yet.</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {bankMissing
+                      ? "You can add your bank details now — they don't depend on a salary structure."
+                      : "HR will assign one; your bank details are already on file."}
+                  </p>
+                  {bankMissing && (
+                    <button type="button" onClick={openBankEditor} aria-haspopup="dialog"
+                      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs">
+                      <HiLibrary className="w-3.5 h-3.5" /> Add bank details
+                    </button>
+                  )}
+                </div>
               )}
             </section>
 
@@ -378,7 +442,7 @@ export default function MySalaryPage() {
               items={[
                 { label: "Annual CTC", value: formatMoney(rev.annual_ctc), hint: <CtcChange current={rev} previous={prev} /> },
                 { label: "Gross / month", value: formatMoney(b.monthlyGross) },
-                { label: "Deductions / month", value: `− ${formatMoney(b.monthlyDeductions)}` },
+                { label: "Deductions / month", value: `− ${formatMoney(b.monthlyDeductions)}`, hint: deductionHint(b) },
                 { label: "Take-home / month", value: formatMoney(b.monthlyNet) },
               ]}
             />
@@ -429,9 +493,18 @@ export default function MySalaryPage() {
               <ComponentTable rows={b.earnings} />
             </DetailSection>
 
-            <DetailSection title={`Deductions · − ${formatMoney(b.monthlyDeductions)} / month`} icon={HiTrendingDown}>
-              <ComponentTable rows={b.deductions} sign="− " />
-            </DetailSection>
+            {b.deductions.length > 0 && (
+              <DetailSection title={`Salary deductions · − ${formatMoney(b.componentDeductions)} / month`} icon={HiTrendingDown}>
+                <ComponentTable rows={b.deductions} sign="− " />
+              </DetailSection>
+            )}
+
+            {/* Statutory figures are recomputed on read and only ship with the
+                current structure, so past revisions say so rather than showing
+                a take-home that silently ignores PF and tax. */}
+            {b.statutory
+              ? <StatutoryBreakdownPanel statutory={b.statutory} componentDeductions={b.componentDeductions} />
+              : <StatutoryUnavailableNotice />}
           </DetailDialog>
         );
       })()}

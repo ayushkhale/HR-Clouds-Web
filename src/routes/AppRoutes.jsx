@@ -269,6 +269,10 @@ function AppRoutes() {
         <Route path="/dashboard/hr/payroll/reimbursements" element={<PayrollReimbursementsPage />} />
         <Route path="/dashboard/hr/payroll/benefits" element={<PayrollBenefitsPage />} />
         <Route path="/dashboard/hr/my-reimbursements" element={<MyReimbursementsPage />} />
+        {/* HR self-service pay. `PUT /payroll/me/bank-account` is the only route
+            that can create a bank account and it is self-scoped, so without this
+            mount an HR user has no way to enter the account they are paid into. */}
+        <Route path="/dashboard/hr/my-salary" element={<MySalaryPage />} />
         <Route path="/dashboard/hr/payroll/reports" element={<PayrollReportsPage />} />
         <Route path="/dashboard/hr/payroll/payslips" element={<PayrollPayslipsPage />} />
         <Route path="/dashboard/hr/payroll/exports" element={<PayrollExportsPage />} />
@@ -299,6 +303,8 @@ function AppRoutes() {
         <Route path="/dashboard/manager/payroll/adjustments" element={<ManagerAdjustmentsPage />} />
         <Route path="/dashboard/manager/payroll/reimbursements" element={<TeamReimbursementsPage />} />
         <Route path="/dashboard/manager/my-reimbursements" element={<MyReimbursementsPage />} />
+        {/* Manager self-service pay — same reason as the HR mount above. */}
+        <Route path="/dashboard/manager/my-salary" element={<MySalaryPage />} />
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}

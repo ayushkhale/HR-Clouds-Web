@@ -141,7 +141,7 @@ const PAYROLL_ERROR_MESSAGES = {
   ATTACHMENT_STORAGE_UNAVAILABLE: "File storage isn't reachable right now. Nothing else was changed. Try again shortly.",
   ATTACHMENT_NOT_DELETABLE: "This file can't be removed any more.",
   DECLARATION_NOT_OPEN_FOR_PROOF: "Proofs can't be added once the declaration is verified, rejected or closed.",
-  INVALID_FINANCIAL_YEAR: "Choose a valid financial year.",
+  INVALID_FINANCIAL_YEAR: "Choose a valid financial year, written as 2026-27.",
   INVALID_ATTACHMENT_REFERENCE_URL: "Paste a full link that starts with https://.",
 
   // Phase 6 — Payslips, reports, exports & bank advice
@@ -150,6 +150,8 @@ const PAYROLL_ERROR_MESSAGES = {
   PAYSLIP_ALREADY_SUPERSEDED: "Someone else already reissued this payslip. Refresh to see the latest version.",
   PAYSLIP_FIGURES_CHANGED: "The figures on this run no longer match the published payslip, so it can't be reissued. Reissuing only corrects names and departments — to change money, cancel the run, recalculate and approve it again.",
   PAYSLIP_VERSION_NOT_FOUND: "That version of this payslip doesn't exist.",
+  PAYSLIP_NOT_FOUND: "This payslip isn't part of that payroll run — you may have been left out of it. Refresh the list.",
+  FORM16_NOT_FINALIZED: "Form 16 for this financial year hasn't been published yet. HR has to close the year first.",
   REISSUE_REASON_REQUIRED: "Write a reason for reissuing this payslip.",
   NO_PAYSLIPS_FOR_RUN: "This run has no payslips yet. Approve it first, or use “Rebuild payslips” for a run approved before payslips existed.",
   MISSING_BANK_ACCOUNTS: "Some employees in this run have no bank account on file, so it can't be marked paid or turned into a bank file. Add their accounts, or exclude them and approve the run again.",
@@ -180,11 +182,18 @@ const PERIOD_OVERRIDE_MESSAGES = [
  * Resolve a friendly, actionable message from a rejected payroll request.
  * @param {unknown} err - the error thrown by `request()` (carries `.data.errorCode` and `.message`).
  * @param {string} [fallback] - message when neither a mapped code nor a server message is present.
+ * @param {Record<string, string>} [overrides] - screen-specific wording for codes whose
+ *   shared text is too vague in one place. A generic code like FORBIDDEN means
+ *   something concrete on a particular route, and only the caller knows which
+ *   route it asked for; this keeps that knowledge at the call site instead of
+ *   bending the shared message for everyone.
  * @returns {string}
  */
-export function payrollErrorMessage(err, fallback = "Something went wrong. Please try again.") {
+export function payrollErrorMessage(err, fallback = "Something went wrong. Please try again.", overrides = null) {
   const code = err?.data?.errorCode;
   const serverMessage = String(err?.data?.message || err?.message || "");
+
+  if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) return overrides[code];
 
   // The one Joi message names the field; it is more useful than a generic line.
   if (code === "VALIDATION_ERROR") {
@@ -213,6 +222,27 @@ export function payrollErrorMessage(err, fallback = "Something went wrong. Pleas
 
 /** The typed backend error code, or "" when there is none. */
 export const payrollErrorCode = (err) => err?.data?.errorCode || "";
+
+// #191 `GET /payroll/me/payslips/:runId/pdf` answers 403 FORBIDDEN when HR has
+// not released the payslip yet (`visible_to_employee = false`). "You don't have
+// permission to do this" would read as a mistake on the employee's part and send
+// them to the wrong place, so this route gets its own wording. HR's and the
+// manager's payslip routes keep the shared text — a 403 there really is a
+// permission problem.
+const SELF_PAYSLIP_PDF_OVERRIDES = {
+  FORBIDDEN: "This payslip hasn't been released by HR yet. You'll be able to download it once they publish it.",
+  PAYSLIP_NOT_ACCESSIBLE: "This payslip hasn't been released by HR yet. You'll be able to download it once they publish it.",
+};
+
+/**
+ * Message for a failed download of your *own* payslip PDF (#191).
+ * A streamed route can refuse with no JSON body at all, so the bare status is
+ * read as well — otherwise a bodyless 403 falls through to "Download failed: 403".
+ */
+export function payslipDownloadMessage(err, fallback = "Couldn't download that payslip") {
+  if (!payrollErrorCode(err) && err?.status === 403) return SELF_PAYSLIP_PDF_OVERRIDES.FORBIDDEN;
+  return payrollErrorMessage(err, fallback, SELF_PAYSLIP_PDF_OVERRIDES);
+}
 
 /**
  * Line-level problems for the two bulk codes that carry them:

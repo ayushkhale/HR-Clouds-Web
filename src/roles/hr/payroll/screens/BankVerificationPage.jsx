@@ -10,8 +10,9 @@ import {
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate } from "../../../../shared/utils/formatUtils";
-import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
+import { useAuth } from "../../../../shared/contexts/AuthContext";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -31,6 +32,34 @@ const userId = (u) => u?.user_id ?? u?.id ?? u?._id;
 const isNotFound = (err) => err?.status === 404 || err?.data?.errorCode === "BANK_ACCOUNT_NOT_FOUND";
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
 const userDept = (u) => u?.department || u?.department_name || "N/A";
+
+// Same wording as the claim approval guard in reimbursementMeta.js — HR meets
+// this sentence in both places and it should read the same way.
+const SOLE_HR_HINT = " If you're the only HR user, invite a second HR user to verify it.";
+
+/**
+ * Whether the signed-in HR user may verify this account, and the reason shown
+ * in place of the button when they may not.
+ *
+ * Verifying is the one control between "an account number was typed in" and
+ * "salary is paid to it", and only the account holder can enter it
+ * (`PUT /payroll/me/bank-account` is self-scoped). So the person who typed the
+ * number must not also be the person who clears it — that is self-approval, and
+ * it is exactly how a payroll diversion goes unnoticed.
+ *
+ * This is a UI guard, not an authorisation boundary: the same rule has to hold
+ * on `POST /payroll/hr/employees/:userId/bank-account/verify`.
+ */
+function verifyAction(account, { isSelf } = {}) {
+  if (!account || account.is_verified) return { canVerify: false, reason: "" };
+  if (isSelf) {
+    return {
+      canVerify: false,
+      reason: `You can't verify your own bank account. Another HR user has to check it against your passbook or a cancelled cheque.${SOLE_HR_HINT}`,
+    };
+  }
+  return { canVerify: true, reason: "" };
+}
 
 const ACCOUNT_KEYS = ["accounts", "bank_accounts", "records"];
 const PAGE_LIMIT = 100; // backend maximum
@@ -78,9 +107,10 @@ const accountState = (acct, unknown = false) => {
 };
 
 // ── One account's details, read for the clicked row ─────────────────────────
-function AccountPreview({ user, account, loading, failed, onClose, onVerify, verifying }) {
+function AccountPreview({ user, account, loading, failed, onClose, onVerify, verifying, isSelf }) {
   const state = loading && !account ? "loading" : accountState(account, failed);
   const present = !!account;
+  const action = verifyAction(account, { isSelf });
 
   return (
     <DetailDialog
@@ -88,15 +118,23 @@ function AccountPreview({ user, account, loading, failed, onClose, onVerify, ver
       icon={HiLibrary}
       title={userName(user)}
       subtitle={userDept(user) !== "N/A" ? userDept(user) : undefined}
-      badge={<DetailPill tone="onDark">{STATE[state].label}</DetailPill>}
+      badge={
+        <>
+          {isSelf && <DetailPill tone="muted">Your account</DetailPill>}
+          <DetailPill tone="onDark">{STATE[state].label}</DetailPill>
+        </>
+      }
       loading={loading}
       onClose={onClose}
       footer={state === "unverified" && (
         <>
+          {action.reason && <DetailFooterNote>{action.reason}</DetailFooterNote>}
           <button onClick={onClose} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition">Close</button>
-          <button disabled={verifying} onClick={() => onVerify(user)} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5">
-            <HiShieldCheck className="w-4 h-4" /> {verifying ? "Verifying…" : "Verify account"}
-          </button>
+          {action.canVerify && (
+            <button disabled={verifying} onClick={() => onVerify(user)} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5">
+              <HiShieldCheck className="w-4 h-4" /> {verifying ? "Verifying…" : "Verify account"}
+            </button>
+          )}
         </>
       )}
     >
@@ -141,6 +179,13 @@ function AccountPreview({ user, account, loading, failed, onClose, onVerify, ver
 }
 
 export default function BankVerificationPage() {
+  // The session's own users.id — the id every payroll route keys on. The
+  // /organizations/me profile can carry a different `id` (the employee row), so
+  // AuthContext deliberately keeps the session one; use that and nothing else.
+  const { user: viewer } = useAuth();
+  const viewerId = viewer?.id;
+  const isSelf = useCallback((u) => !!viewerId && userId(u) === viewerId, [viewerId]);
+
   const [employees, setEmployees] = useState([]);
   const [acctByUser, setAcctByUser] = useState({}); // user_id -> account
   const [accountsFailed, setAccountsFailed] = useState(false);
@@ -207,6 +252,13 @@ export default function BankVerificationPage() {
 
   const handleVerify = useCallback(async (user) => {
     const id = userId(user);
+    // The button is already hidden for your own account; this stops a stale
+    // dialog or a re-render race from firing the request anyway. The backend
+    // still has to refuse it — a client can always be bypassed.
+    if (viewerId && id === viewerId) {
+      showToast("You can't verify your own bank account — another HR user has to.", "error");
+      return;
+    }
     setVerifyingId(id);
     try {
       const res = await payrollAPI.verifyEmployeeBankAccount(id);
@@ -219,7 +271,7 @@ export default function BankVerificationPage() {
     } finally {
       setVerifyingId(null);
     }
-  }, [acctByUser, showToast]);
+  }, [acctByUser, showToast, viewerId]);
 
   const counts = useMemo(() => {
     const c = { verified: 0, unverified: 0, none: 0 };
@@ -306,7 +358,10 @@ export default function BankVerificationPage() {
                           <div className="flex items-center gap-3">
                             <span className="w-9 h-9 rounded-full overflow-hidden shrink-0 text-xs"><GenderAvatar person={u} name={userName(u)} /></span>
                             <div>
-                              <p className="font-bold text-slate-800">{userName(u)}</p>
+                              <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                                {userName(u)}
+                                {isSelf(u) && <span className="px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-bold uppercase tracking-wider">You</span>}
+                              </p>
                               <p className="text-[11px] text-slate-400">{userDept(u)}</p>
                             </div>
                           </div>
@@ -336,6 +391,7 @@ export default function BankVerificationPage() {
           loading={preview.loading}
           failed={preview.failed}
           verifying={verifyingId === userId(preview.user)}
+          isSelf={isSelf(preview.user)}
           onVerify={handleVerify}
           onClose={() => setPreview(null)}
         />

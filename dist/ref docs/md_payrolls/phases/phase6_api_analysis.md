@@ -641,30 +641,30 @@ Approval and publishing never send emails synchronously to avoid holding the Ran
 
 ---
 
-# Self Plane APIs — `/api/v1/payroll/self`
+# Employee Self-Service Delivery APIs — `/api/v1/payroll/me`
 
 ## 191. Download Own Payslip PDF
 * **HTTP Method:** `GET`
-* **Endpoint / Route:** `/api/v1/payroll/self/me/payslips/:runId/pdf`
+* **Endpoint / Route:** `/api/v1/payroll/me/payslips/:runId/pdf`
 * **Authentication / Authorization:** Token.
 * **Detailed API Function:** Rejects with `403` if `visible_to_employee = false`.
 * **Response Structure:** Binary PDF stream.
 
 ## 192. Get Own Annual Statement (JSON)
 * **HTTP Method:** `GET`
-* **Endpoint / Route:** `/api/v1/payroll/self/me/annual-statement`
+* **Endpoint / Route:** `/api/v1/payroll/me/annual-statement`
 * **Authentication / Authorization:** Token.
 * **Response Structure:** See #183.
 
 ## 193. Download Own Annual Statement (PDF)
 * **HTTP Method:** `GET`
-* **Endpoint / Route:** `/api/v1/payroll/self/me/annual-statement/pdf`
+* **Endpoint / Route:** `/api/v1/payroll/me/annual-statement/pdf`
 * **Authentication / Authorization:** Token.
 * **Response Structure:** Binary PDF stream.
 
 ## 194. Download Own Form 16 PDF
 * **HTTP Method:** `GET`
-* **Endpoint / Route:** `/api/v1/payroll/self/me/tax/form16/:financialYear/pdf`
+* **Endpoint / Route:** `/api/v1/payroll/me/tax/form16/:financialYear/pdf`
 * **Authentication / Authorization:** Token.
 * **Detailed API Function:** Employee downloads Form 16 Part B. Rejects with `404` if the FY is not finalized by HR.
 * **Response Structure:** Binary PDF stream.
