@@ -1,3 +1,5 @@
+import { employerStatutoryCost, componentFlagsByCode } from "../../../shared/utils/employerStatutoryCost";
+
 // Target-CTC budgeting for the template "Manage Components" modal.
 // The target is frontend-only (per template, per browser). Amounts come from
 // the backend preview; the client estimate is used only when that fails and
@@ -80,6 +82,7 @@ export function componentMeta(line, components = []) {
   return {
     id: found.id ?? id,
     name: resolvedName,
+    code: resolvedCode,
     type,
     partOfCtc: line.is_part_of_ctc ?? found.is_part_of_ctc ?? sc.is_part_of_ctc ?? type !== "deduction",
     isBasic:
@@ -88,7 +91,12 @@ export function componentMeta(line, components = []) {
   };
 }
 
-// Balancing lines absorb whatever the target has left, so they are kept out of `used`.
+// Balancing lines absorb whatever the target has left, so they are kept out of
+// `used`. The evaluator reserves the employer's statutory share out of the CTC
+// BEFORE the balancing line takes the remainder, so that reservation has to come
+// off the target too — otherwise this promises the balancing component money
+// that is already spoken for. Measured live: on a ₹600,000 CTC, ₹23,400 of the
+// "remaining" is employer PF, EDLI and admin, not Special Allowance.
 function summarize(rows, target, extra) {
   let used = 0;
   let unresolved = 0;
@@ -99,9 +107,10 @@ function summarize(rows, target, extra) {
     if (r.annual == null) { unresolved += 1; return; }
     used += r.annual;
   });
-  const remaining = target - used;
+  const reserved = Math.max(0, extra.reserved || 0);
+  const remaining = target - used - reserved;
   if (extra.estimate && balancingRows[0]) balancingRows[0].annual = Math.max(remaining, 0);
-  return { rows, target, used, remaining, balancing: balancingRows[0] || null, unresolved, ...extra };
+  return { rows, target, used, reserved, remaining, balancing: balancingRows[0] || null, unresolved, ...extra };
 }
 
 export function budgetFromPreview(preview, components, target) {
@@ -112,17 +121,56 @@ export function budgetFromPreview(preview, components, target) {
   }));
   const basic = rows.find((r) => r.meta.isBasic)?.annual ?? null;
   const gross = preview?.monthly_gross != null ? num(preview.monthly_gross) * 12 : null;
+  // The evaluator states the reservation as the gap between the CTC it was given
+  // and the gross it produced; no other field carries it. Zero on the pre-fix
+  // evaluator, where gross equals the CTC.
+  const annualCtc = num(preview?.annual_ctc);
+  const annualGross = num(preview?.annual_gross);
+  const reserved = annualCtc > 0 && annualGross > 0 ? Math.max(0, annualCtc - annualGross) : 0;
   return summarize(rows, target, {
     basic,
     gross,
-    ctc: num(preview?.annual_ctc) || target,
+    reserved,
+    reservedKnown: true, // stated by the evaluator itself
+    ctc: annualCtc || target,
     estimate: false,
   });
 }
 
 // Fallback when the backend can't evaluate the template yet (half-built, unbalanced).
 // % of Gross depends on the balancing line, so it stays unresolved here.
-export function estimateBudget(templateComponents, components, target, flatUnit) {
+/**
+ * Employer statutory the evaluator will reserve out of `target`, worked out
+ * client-side because this path has no preview to read `annual_ctc − annual_gross`
+ * from. Two passes: the ESI threshold is tested against gross, and gross depends
+ * on the reservation, so the first pass uses the target as an upper bound and the
+ * second refines it. Good enough for a figure already shown as "≈".
+ */
+function estimateReserved(rows, components, target, config) {
+  if (!config) return 0;
+  const flags = componentFlagsByCode(components);
+  const lineFor = (r, annual) => ({
+    code: r.meta.code,
+    component_type: r.meta.type || "earning",
+    monthly_amount: (annual ?? 0) / 12,
+  });
+  // The balancing row is unknown here; it never carries PF or ESI applicability
+  // in practice, and its only effect is on the ESI gross test below.
+  const resolved = rows.filter((r) => r.calc !== "balancing" && r.annual != null);
+  let reserved = 0;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const gross = Math.max(0, target - reserved);
+    const balancingShare = Math.max(0, gross - resolved.reduce((s, r) => s + r.annual, 0));
+    const lines = resolved.map((r) => lineFor(r, r.annual));
+    const balancingRow = rows.find((r) => r.calc === "balancing");
+    if (balancingRow) lines.push(lineFor(balancingRow, balancingShare));
+    const c = employerStatutoryCost({ lines, flags, config });
+    reserved = (c.core + c.extras) * 12;
+  }
+  return Math.max(0, reserved);
+}
+
+export function estimateBudget(templateComponents, components, target, flatUnit, statutoryConfig) {
   const rows = (templateComponents || []).map((c) => ({
     meta: componentMeta(c, components),
     calc: c.calculation_type,
@@ -137,7 +185,12 @@ export function estimateBudget(templateComponents, components, target, flatUnit)
   rows.forEach((r) => {
     if (r.calc === "percent_of_basic") r.annual = basic != null ? (basic * r.value) / 100 : null;
   });
-  return summarize(rows, target, { basic, gross: null, ctc: target, estimate: true });
+  const reserved = estimateReserved(rows, components, target, statutoryConfig);
+  // Without the config the employer's share is unknown, not zero. Callers must
+  // not present the remainder as if it all reaches the balancing component.
+  return summarize(rows, target, {
+    basic, gross: null, reserved, ctc: target, estimate: true, reservedKnown: Boolean(statutoryConfig),
+  });
 }
 
 // Annual amount for one template component row, or null if unknown.

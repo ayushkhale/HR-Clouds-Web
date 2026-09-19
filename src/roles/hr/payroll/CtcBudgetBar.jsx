@@ -21,7 +21,13 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
           : `Over by ${moYr(-budget.remaining)}`,
       };
     } else if (budget.balancing) {
-      status = { tone: "text-slate-600", text: `${moYr(budget.remaining)} goes to ${balancingName}` };
+      // Only what is left AFTER the employer's statutory share actually reaches
+      // the balancing component; `budget.remaining` already has it taken off —
+      // unless the statutory config never loaded, in which case say "at most"
+      // rather than promise a figure that is certainly too high.
+      status = budget.reservedKnown
+        ? { tone: "text-slate-600", text: `${moYr(budget.remaining)} goes to ${balancingName}` }
+        : { tone: "text-slate-500", text: `up to ${moYr(budget.remaining)} goes to ${balancingName} · before employer PF` };
     } else if (budget.remaining > 0.5) {
       if (ratio >= 0.95) barTone = "bg-fuchsia-500";
       status = isCtcDriven
@@ -86,6 +92,16 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
             </span>
             {status && <span className={`font-semibold tabular-nums ${status.tone}`}>{status.text}</span>}
           </div>
+
+          {/* The target does not all become pay. Show the split so "goes to
+              Special Allowance" is never read as the whole remainder. */}
+          {budget.reserved > 0.5 && (
+            <dl className="mt-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1 text-[11px]">
+              <div className="flex justify-between gap-3"><dt className="text-slate-500">Paid to the employee (gross)</dt><dd className="font-semibold tabular-nums text-slate-800">{formatINR(T - budget.reserved)}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-slate-500">Employer statutory — PF, EDLI, admin</dt><dd className="font-semibold tabular-nums text-slate-800">{formatINR(budget.reserved)}</dd></div>
+              <div className="flex justify-between gap-3 pt-1 border-t border-slate-100"><dt className="font-bold text-slate-600">Target CTC</dt><dd className="font-bold tabular-nums text-slate-900">{formatINR(T)}</dd></div>
+            </dl>
+          )}
           {budget.estimate && error && !loading && (
             <p className="flex items-start gap-1.5 mt-2 text-[11px] text-fuchsia-600" title={error}>
               <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 mt-px" />

@@ -29,6 +29,15 @@ const preferred = (v, derived) => (isNumeric(v) ? toAmount(v) : derived);
 /** A statutory head is on when its snapshot flag says so; amounts decide only when the flag is missing. */
 const isOn = (enabled, amount) => (typeof enabled === "boolean" ? enabled : amount > 0);
 
+/**
+ * Whether a line is rendered as an amount rather than as "Not applicable".
+ * A head whose flag says "off" but that still carries money is shown as money:
+ * the amount is counted in the total either way, and a row reading "Not
+ * applicable" next to a total that includes it is how a deduction goes
+ * unnoticed. The flags only ever choose the wording for a genuine zero.
+ */
+const shows = (on, amount) => on || amount > 0;
+
 // `status` is not enumerated in the integration guide; the sample shows
 // "estimated" and the payroll-run items use the same vocabulary as
 // runMeta.STATUTORY_NOTE. Anything unrecognised is treated as an estimate,
@@ -93,10 +102,14 @@ export function normalizeStatutory(structure) {
   const professionalTax = toAmount(raw.professional_tax_amount);
   const incomeTax = toAmount(raw.income_tax_amount);
   const eps = toAmount(raw.eps_amount);
+  const edli = toAmount(pf.edli);
+  const adminCharges = toAmount(pf.admin_charges);
 
   const pfOn = isOn(pf.enabled, pfEmployee + pfEmployer);
   const esiCovered = typeof raw.esi_covered === "boolean" ? raw.esi_covered : esi.covered ?? null;
-  const esiOn = isOn(esi.enabled, esiEmployee + esiEmployer) && esiCovered !== false;
+  // `covered: true` is itself a statement that ESI applies, so a payload that
+  // omits `esi.enabled` must not be described as "ESI is not enabled".
+  const esiOn = (isOn(esi.enabled, esiEmployee + esiEmployer) || esiCovered === true) && esiCovered !== false;
   const ptOn = isOn(pt.enabled, professionalTax);
   const taxOn = isOn(tax.enabled, incomeTax);
 
@@ -112,7 +125,7 @@ export function normalizeStatutory(structure) {
       key: "pf",
       label: "Provident fund (EPF)",
       amount: pfEmployee,
-      applicable: pfOn,
+      applicable: shows(pfOn, pfEmployee),
       note: pfOn
         ? [pfRate && `${pfRate} of ${formatMoney(pfWage)} counted for PF`, pf.ceiling_applied === true && "capped at the statutory wage ceiling"]
             .filter(Boolean).join(" · ")
@@ -122,7 +135,7 @@ export function normalizeStatutory(structure) {
       key: "esi",
       label: "Employee state insurance (ESI)",
       amount: esiEmployee,
-      applicable: esiOn,
+      applicable: shows(esiOn, esiEmployee),
       note: esiOn
         ? [esiRate && `${esiRate} of ${formatMoney(esiWage)} counted for ESI`].filter(Boolean).join(" · ")
         : esiCovered === false
@@ -133,7 +146,7 @@ export function normalizeStatutory(structure) {
       key: "pt",
       label: "Professional tax",
       amount: professionalTax,
-      applicable: ptOn,
+      applicable: shows(ptOn, professionalTax),
       note: ptOn
         ? `${pt.state_code ? `${pt.state_code} ` : ""}state slab`
         : "No state professional tax applies to this structure.",
@@ -142,7 +155,7 @@ export function normalizeStatutory(structure) {
       key: "tds",
       label: "Income tax (TDS)",
       amount: incomeTax,
-      applicable: taxOn,
+      applicable: shows(taxOn, incomeTax),
       note: taxOn
         ? incomeTax > 0
           ? regime || "Projected over the financial year"
@@ -156,7 +169,7 @@ export function normalizeStatutory(structure) {
       key: "pf_employer",
       label: "Provident fund (employer)",
       amount: pfEmployer,
-      applicable: pfOn,
+      applicable: shows(pfOn, pfEmployer),
       note: pfOn && (eps > 0 || isNumeric(pf.epf_employer))
         ? `Pension (EPS) ${formatMoney(eps)} · EPF ${formatMoney(pf.epf_employer)}`
         : null,
@@ -165,13 +178,30 @@ export function normalizeStatutory(structure) {
       key: "esi_employer",
       label: "Employee state insurance (employer)",
       amount: esiEmployer,
-      applicable: esiOn,
+      applicable: shows(esiOn, esiEmployer),
       note: esiOn ? formatRate(esi.employer_rate) && `${formatRate(esi.employer_rate)} of ${formatMoney(esiWage)}` : null,
+    },
+    {
+      key: "edli",
+      label: "Life insurance (EDLI)",
+      amount: edli,
+      applicable: shows(pfOn && edli > 0, edli),
+      note: edli > 0 ? `${formatRate(pf.edli_rate) || "EDLI"} of ${formatMoney(pfWage)}` : null,
+    },
+    {
+      key: "pf_admin",
+      label: "PF admin charges",
+      amount: adminCharges,
+      applicable: shows(pfOn && adminCharges > 0, adminCharges),
+      note: adminCharges > 0 ? `${formatRate(pf.admin_charge_rate) || "Admin charge"} of ${formatMoney(pfWage)}` : null,
     },
   ];
 
   const employeeTotal = preferred(figures.total_deductions, employeeLines.reduce((s, l) => s + l.amount, 0));
-  const employerTotal = preferred(figures.total_employer_contributions, pfEmployer + esiEmployer);
+  // The server's total now covers EDLI and admin charges as well as PF and ESI,
+  // so the fallback has to count the same heads or the two disagree whenever
+  // `figures` is absent.
+  const employerTotal = preferred(figures.total_employer_contributions, pfEmployer + esiEmployer + edli + adminCharges);
   const monthlyGross = preferred(figures.monthly_gross, toAmount(structure.monthly_gross));
   const netPay = preferred(figures.net_pay, monthlyGross - employeeTotal);
   const companyCost = preferred(figures.ctc_cost, monthlyGross + employerTotal);
@@ -237,10 +267,11 @@ function buildDetailGroups({ pf, esi, pt, tax, pfWage, esiWage, eps, pfOn, esiOn
         ["Pension (EPS)", formatMoney(eps)],
         ["Employer EPF share", isNumeric(pf.epf_employer) ? formatMoney(pf.epf_employer) : null],
         ["Insurance (EDLI)", isNumeric(pf.edli) ? formatMoney(pf.edli) : null],
-        // Admin charges carry an establishment-wide monthly floor, so the figure
-        // on one employee is not that employee's share. It is shown for
-        // reference and is deliberately not added to any total here.
-        ["Admin charges", isNumeric(pf.admin_charges) ? `${formatMoney(pf.admin_charges)} (establishment-level)` : null],
+        // Verified live 2026-09-19: this is the plain rate on the PF wage and is
+        // counted inside `figures.total_employer_contributions`. An org that sets
+        // `pf_admin_charge_min` above zero may still see an establishment floor
+        // here — the backend decides, this only renders what it sends.
+        ["Admin charges", isNumeric(pf.admin_charges) ? formatMoney(pf.admin_charges) : null],
         ["Wage ceiling", pf.ceiling_applied === true ? "Applied" : pf.restricted === true ? "Restricted to the ceiling wage" : "Not applied"],
         ["Unpaid leave reduces the ceiling", typeof pf.lop_reduces_ceiling === "boolean" ? (pf.lop_reduces_ceiling ? "Yes" : "No") : null],
       ],
@@ -285,10 +316,25 @@ function buildDetailGroups({ pf, esi, pt, tax, pfWage, esiWage, eps, pfOn, esiOn
 }
 
 /**
- * Take-home once BOTH the contractual deduction components and the statutory
- * heads are off. `figures.net_pay` nets only the statutory side, so a structure
- * that carries its own deduction lines would otherwise read too high. With no
- * breakdown at all this degrades to the old contractual figure.
+ * The three figures every caller shows together — gross, what comes off, and
+ * what is left — derived in one place.
+ *
+ * `net` is deliberately `gross - deductions` rather than the backend's
+ * `figures.net_pay`. The contract defines them as equal, but net_pay nets only
+ * the statutory side and knows nothing about contractual deduction components,
+ * so mixing the two sources let a card and the panel under it disagree, and let
+ * the panel's own "gross / deductions / take-home" tiles fail to add up. One
+ * derivation means the arithmetic on screen always reconciles; `statutory.netPay`
+ * stays available as the server's cross-check.
+ *
+ * @param {object|null} statutory - normalizeStatutory() output, or null.
+ * @param {{ monthlyGross?: unknown, componentDeductions?: unknown }} [opts]
+ *   `monthlyGross` is the fallback gross used when there is no breakdown.
  */
-export const netTakeHome = (statutory, monthlyGross, componentDeductions = 0) =>
-  (statutory ? statutory.netPay : toAmount(monthlyGross)) - toAmount(componentDeductions);
+export function statutoryTotals(statutory, { monthlyGross, componentDeductions = 0 } = {}) {
+  const contractual = toAmount(componentDeductions);
+  const gross = statutory ? statutory.monthlyGross : toAmount(monthlyGross);
+  const statutoryDeductions = statutory ? statutory.employeeTotal : 0;
+  const deductions = statutoryDeductions + contractual;
+  return { gross, statutoryDeductions, componentDeductions: contractual, deductions, net: gross - deductions };
+}

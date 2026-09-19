@@ -10,7 +10,7 @@ import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, 
 import StatutoryBreakdownPanel, { StatutoryUnavailableNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
-import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
+import { normalizeStatutory, statutoryTotals } from "../../../../shared/utils/statutoryBreakdown";
 import { humanize } from "../../../../shared/attendance/enums";
 
 const REVISION_LABELS = {
@@ -57,13 +57,16 @@ function breakdownOf(structure) {
   const earnings = comps.filter((c) => c.component_type === "earning");
   const deductions = comps.filter((c) => c.component_type === "deduction");
   const statutory = normalizeStatutory(structure);
-  const monthlyGross = statutory?.monthlyGross || amount(structure?.monthly_gross) || sum(earnings, "monthly_amount");
-  const annualGross = sum(earnings, "annual_amount");
   const componentDeductions = sum(deductions, "monthly_amount");
-  const statutoryDeductions = statutory ? statutory.employeeTotal : 0;
-  const monthlyDeductions = componentDeductions + statutoryDeductions;
+  // One derivation shared with StatutoryBreakdownPanel, so the headline cards
+  // and the panel below them can never show different take-home figures.
+  const totals = statutoryTotals(statutory, {
+    monthlyGross: amount(structure?.monthly_gross) || sum(earnings, "monthly_amount"),
+    componentDeductions,
+  });
+  const { gross: monthlyGross, deductions: monthlyDeductions, statutoryDeductions, net: monthlyNet } = totals;
+  const annualGross = sum(earnings, "annual_amount");
   const annualDeductions = sum(deductions, "annual_amount");
-  const monthlyNet = monthlyGross - monthlyDeductions;
   return {
     earnings, deductions, comps, statutory,
     monthlyGross, annualGross, monthlyDeductions, annualDeductions,
@@ -201,7 +204,15 @@ export default function MySalaryPage() {
       ? { ...r, statutory_breakdown: structure.statutory_breakdown }
       : r));
   }, [history, structure]);
-  const previousOf = (rev) => revisions[revisions.indexOf(rev) + 1] || null;
+  // Match by id, not object identity: `revisions` is rebuilt whenever history or
+  // the current structure reloads, and an open dialog still holds a row from the
+  // previous array. indexOf would return -1 and `revisions[0]` — the newest
+  // revision — would be presented as the one before this.
+  const previousOf = (rev) => {
+    const key = rev?.id ?? rev?.version;
+    const i = revisions.findIndex((r) => (r?.id ?? r?.version) === key);
+    return i < 0 ? null : revisions[i + 1] || null;
+  };
 
   const openBankEditor = () => {
     // The full account number is never returned (masked at rest), so it must

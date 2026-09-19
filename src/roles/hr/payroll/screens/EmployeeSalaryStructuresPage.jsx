@@ -11,6 +11,8 @@ import { StatutorySummary, StatutoryUnavailableNotice } from "../../../../shared
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
+import { costFromPreview, employeeStatutoryDeductions, componentFlagsByCode, hasBalancingLine, solveCtcForTargetCost } from "../../../../shared/utils/employerStatutoryCost";
+import CtcMoneyFlow from "../CtcMoneyFlow";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -131,7 +133,7 @@ function HistoryModal({ user, onClose, showToast }) {
 }
 
 // ── Assign / revise, with preview-before-commit (#15, #16, #18) ────────────
-function AssignModal({ user, templates, onClose, onDone, showToast }) {
+function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose, onDone, showToast }) {
   const [current, setCurrent] = useState(undefined); // undefined = loading, null = none
   const hasCurrent = !!current;
   // #18 enriches this read with the live PF / ESI / PT / TDS split, so HR can
@@ -154,6 +156,30 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
   const [preview, setPreview] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [solving, setSolving] = useState(false);
+
+  // What the structure really costs. The CTC typed into the form becomes gross
+  // pay in full — a balancing component absorbs whatever is left of it — and the
+  // employer's PF and ESI are charged on top, so the real cost is always the
+  // higher number. No endpoint previews statutory, so this is worked out from
+  // the org's own config; it is an estimate and is labelled as one.
+  //
+  // Verified against the deployed backend 2026-09-19: `annual_ctc` is now all-in
+  // and the evaluator reserves the employer's share, so `gap` is 0 on a
+  // template-priced structure and the warning below stays hidden. It still
+  // fires for anything priced under the old formula. See the header of
+  // shared/utils/employerStatutoryCost.js for the measurements.
+  const cost = useMemo(() => {
+    if (!preview || !statutoryConfig) return null;
+    const lines = preview.lines || [];
+    const c = costFromPreview({ preview, flags: componentFlags, config: statutoryConfig });
+    const enteredCtc = parseFloat(form.annual_ctc) || 0;
+    const deductions = employeeStatutoryDeductions({ lines, flags: componentFlags, config: statutoryConfig });
+    // Compare on the with-extras total: the evaluator reserves EDLI and PF admin
+    // charges inside the CTC too, so leaving them out understated the real cost
+    // by ₹1,800 a year on the live payload and produced a phantom negative gap.
+    return { ...c, enteredCtc, deductions, lines, gap: c.annualCostWithExtras - enteredCtc, balancing: hasBalancingLine(lines) };
+  }, [preview, statutoryConfig, componentFlags, form.annual_ctc]);
 
   // Load the employee's current structure so HR sees what they're revising (#18).
   useEffect(() => {
@@ -186,6 +212,37 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
       showToast(payrollErrorMessage(err, "Couldn't preview this structure"), "error");
     } finally {
       setPreviewing(false);
+    }
+  };
+
+  /** Re-price so the *real* cost lands on the CTC HR originally budgeted. */
+  const matchBudget = async () => {
+    const target = parseFloat(form.annual_ctc) || 0;
+    if (!form.template_id || target <= 0 || !statutoryConfig) return;
+    setSolving(true);
+    try {
+      const result = await solveCtcForTargetCost({
+        target,
+        previewAt: async (ctc) => {
+          const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: Math.round(ctc).toString() });
+          return res.data || res;
+        },
+        costOf: (p) => costFromPreview({ preview: p, flags: componentFlags, config: statutoryConfig }).annualCostWithExtras,
+        tolerance: 1,
+      });
+      const ctc = Math.round(result.ctc).toString();
+      // Re-preview first, then commit both together: updating the CTC on its own
+      // would leave `cost` comparing the new figure against the old split.
+      const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: ctc });
+      setForm((f) => ({ ...f, annual_ctc: ctc }));
+      setPreview(res.data || res);
+      showToast(result.converged
+        ? `CTC set to ${formatMoney(ctc)} — the real cost now lands on ${formatMoney(target)}`
+        : `Closest match is ${formatMoney(ctc)}. Check the figures before assigning.`, result.converged ? "success" : "error");
+    } catch (err) {
+      showToast(payrollErrorMessage(err, "Couldn't work out a matching CTC"), "error");
+    } finally {
+      setSolving(false);
     }
   };
 
@@ -224,7 +281,7 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">{hasCurrent ? "Revise salary" : "Assign salary"}</h2>
@@ -233,7 +290,9 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
           <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div className="space-y-4 min-w-0">
           {/* Current-structure context */}
           {current === undefined ? (
             <div className="h-12 rounded-xl bg-slate-100 animate-pulse" />
@@ -305,53 +364,78 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
             </div>
           </div>
 
+            </div>
+
+            {/* Right column — what the decision on the left actually costs. */}
+            <div className="space-y-4 min-w-0">
           {/* Preview-before-commit */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1.5"><HiEye className="w-3.5 h-3.5" /> Preview</span>
+          <section className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
+            <div className="flex items-center justify-between gap-3 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100">
+              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5"><HiEye className="w-4 h-4 text-purple-500" /> Preview</h4>
               <button type="button" onClick={runPreview} disabled={previewing || !form.template_id || !form.annual_ctc}
                 className="text-xs font-bold text-purple-600 hover:text-purple-800 disabled:opacity-40 disabled:cursor-not-allowed">
                 {previewing ? "Calculating…" : "Preview split"}
               </button>
             </div>
             {preview ? (
-              <div className="p-4">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-[10px] uppercase font-bold text-slate-400">
-                      <th className="text-left pb-2">Component</th>
-                      <th className="text-right pb-2">Monthly</th>
-                      <th className="text-right pb-2">Annual</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {(preview.lines || []).map((l, i) => (
-                      <tr key={i}>
-                        <td className="py-1.5 text-slate-700">{l.name}</td>
-                        <td className="py-1.5 text-right text-slate-600 tabular-nums">{formatMoney(l.monthly_amount)}</td>
-                        <td className="py-1.5 text-right font-semibold text-slate-800 tabular-nums">{formatMoney(l.annual_amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-slate-100">
-                    <tr>
-                      <td className="pt-2 font-bold text-slate-800">Annual gross</td>
-                      <td className="pt-2 text-right text-purple-600 font-black tabular-nums">{formatMoney(preview.monthly_gross)}</td>
-                      <td className="pt-2 text-right text-purple-700 font-black tabular-nums">{formatMoney(preview.annual_gross)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-                <div className={`mt-3 text-xs font-semibold rounded-lg px-3 py-2 flex items-center gap-1.5 ${preview.reconciled ? "text-violet-700 bg-violet-50" : "text-red-700 bg-red-50"}`}>
-                  {preview.reconciled ? <HiCheckCircle className="w-4 h-4" /> : <HiExclamationCircle className="w-4 h-4" />}
-                  {preview.reconciled ? "Reconciles to the CTC exactly." : "Does not reconcile to the CTC — check the template."}
+              <div className="p-5">
+                {/* The components now sum to GROSS, not the CTC — the employer's
+                    share is reserved out first — so this no longer claims the CTC. */}
+                <div className={`text-[11px] font-semibold rounded-xl px-3.5 py-2.5 flex items-start gap-2 ${preview.reconciled ? "text-violet-800 bg-violet-50 border border-violet-200" : "text-red-700 bg-red-50 border border-red-200"}`}>
+                  {preview.reconciled ? <HiCheckCircle className="w-4 h-4 shrink-0" /> : <HiExclamationCircle className="w-4 h-4 shrink-0" />}
+                  <span>{preview.reconciled ? "The components add up exactly — nothing is unallocated." : "The components don't add up — check the template."}</span>
                 </div>
+
+                {/* The itemisation lives in "Where the money goes"; all this
+                    has to answer is whether the spend lands on the budget. */}
+                {cost && (
+                  <div className="mt-3">
+                    {Math.abs(cost.gap) <= 1 ? (
+                      <p className="flex items-start gap-2 rounded-xl bg-violet-50 border border-violet-200 px-3.5 py-2.5 text-[11px] font-semibold text-violet-800">
+                        <HiCheckCircle className="w-4 h-4 shrink-0" />
+                        <span>Costs the company exactly the {formatMoney(cost.enteredCtc)} entered — the employer&apos;s statutory share is reserved inside it.</span>
+                      </p>
+                    ) : cost.gap > 1 ? (
+                      <div className="rounded-xl bg-fuchsia-50 border border-fuchsia-200 px-3.5 py-2.5">
+                        <p className="flex items-start gap-2 text-[11px] font-bold text-fuchsia-800">
+                          <HiExclamationCircle className="w-4 h-4 shrink-0" />
+                          <span>
+                            Costs {formatMoney(cost.annualCostWithExtras)} — {formatMoney(cost.gap)} a year more than the{" "}
+                            {formatMoney(cost.enteredCtc)} entered ({((cost.gap / cost.enteredCtc) * 100).toFixed(1)}% over).
+                          </span>
+                        </p>
+                        {cost.balancing && (
+                          <p className="text-[10px] text-fuchsia-700 mt-1 leading-relaxed">
+                            The balancing component takes whatever is left of the CTC, so the whole CTC becomes gross pay and the employer&apos;s share is added on top of it.
+                          </p>
+                        )}
+                        <button type="button" onClick={matchBudget} disabled={solving}
+                          className="mt-2 w-full px-3 py-2 rounded-xl text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition disabled:opacity-50">
+                          {solving ? "Working out the CTC…" : `Re-price so the real cost is ${formatMoney(cost.enteredCtc)}`}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             ) : (
-              <p className="px-4 py-3 text-xs text-slate-400">Preview the component split and confirm it reconciles before assigning.</p>
+              <p className="px-5 py-4 text-xs text-slate-500">Pick a template and enter a CTC, then preview to see exactly where the money goes before assigning.</p>
             )}
+          </section>
+
+          {cost && (
+            <CtcMoneyFlow
+              annualCtc={cost.enteredCtc || cost.annualCostWithExtras}
+              cost={cost}
+              deductions={cost.deductions}
+              lines={cost.lines}
+            />
+          )}
+
+            </div>
           </div>
 
-          <div className="flex gap-3 pt-2 border-t border-slate-100">
+          <div className="shrink-0 flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
             <button type="button" onClick={onClose} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
             <button type="submit" disabled={!canSubmit || submitting}
               className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
@@ -367,6 +451,8 @@ function AssignModal({ user, templates, onClose, onDone, showToast }) {
 export default function EmployeeSalaryStructuresPage() {
   const [employees, setEmployees] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [statutoryConfig, setStatutoryConfig] = useState(null);
+  const [componentFlags, setComponentFlags] = useState({});
   const [ctcByUser, setCtcByUser] = useState({}); // userId -> current structure (or null)
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -400,12 +486,21 @@ export default function EmployeeSalaryStructuresPage() {
     setLoading(true);
     // The roster names everyone (including people with no structure yet), the
     // bulk list carries the CTCs. Either can fail without blanking the screen.
-    const [listRes, tplRes, ctcRes] = await Promise.allSettled([
+    const [listRes, tplRes, ctcRes, cfgRes, compRes] = await Promise.allSettled([
       fetchAllOrgEmployees({ includeInactive: false }), // current employees only
       payrollAPI.getTemplates(),
       fetchAllCurrentStructures(),
+      // Needed to show what a structure really costs before it is committed:
+      // the rates, and which components count towards the PF / ESI wage.
+      payrollAPI.getStatutoryConfig(),
+      payrollAPI.getComponents({ is_active: true }),
     ]);
     if (reqId !== loadReq.current) return;
+
+    setStatutoryConfig(cfgRes.status === "fulfilled" ? cfgRes.value.data || null : null);
+    setComponentFlags(componentFlagsByCode(
+      compRes.status === "fulfilled" ? compRes.value.data?.records || compRes.value.data || [] : [],
+    ));
 
     const list = listRes.status === "fulfilled" ? listRes.value : [];
     if (listRes.status === "fulfilled") setEmployees(list);
@@ -505,6 +600,8 @@ export default function EmployeeSalaryStructuresPage() {
         <AssignModal
           user={assignUser}
           templates={templates}
+          statutoryConfig={statutoryConfig}
+          componentFlags={componentFlags}
           showToast={showToast}
           onClose={() => setAssignUser(null)}
           onDone={() => { const assigned = assignUser; setAssignUser(null); refreshOne(assigned); }}

@@ -24,6 +24,10 @@ function Toast({ toast, onClose }) {
 export default function PayrollTemplatesPage() {
   const [templates, setTemplates] = useState([]);
   const [components, setComponents] = useState([]);
+  // The evaluator reserves the employer's statutory share out of the CTC before
+  // the balancing line takes the rest, so every "fills up what's left" figure on
+  // this page needs the rates to be right.
+  const [statutoryConfig, setStatutoryConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   
@@ -76,12 +80,14 @@ export default function PayrollTemplatesPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tplRes, compRes] = await Promise.all([
+      const [tplRes, compRes, cfgRes] = await Promise.all([
         payrollAPI.getTemplates(),
-        payrollAPI.getComponents({ is_active: true })
+        payrollAPI.getComponents({ is_active: true }),
+        payrollAPI.getStatutoryConfig().catch(() => null),
       ]);
       setTemplates(tplRes.data?.records || tplRes.data || []);
       setComponents(compRes.data?.records || compRes.data || []);
+      setStatutoryConfig(cfgRes?.data || null);
     } catch (err) {
       showToast(err.message || "Failed to load templates", "error");
     } finally {
@@ -260,7 +266,11 @@ export default function PayrollTemplatesPage() {
   const cardEstimate = (tpl) => {
     const target = Number(readTarget(tpl.id));
     if (!(target > 0) || !tpl.components?.length) return null;
-    const est = estimateBudget(tpl.components, components, target, flatUnit);
+    // Without the statutory config the reservation can't be estimated, and the
+    // balancing figure would overstate by the employer's whole share — so the
+    // card falls back to "Balancing" rather than printing a wrong number.
+    if (!statutoryConfig) return null;
+    const est = estimateBudget(tpl.components, components, target, flatUnit, statutoryConfig);
     return est.unresolved > 0 ? null : est;
   };
 
@@ -309,8 +319,8 @@ export default function PayrollTemplatesPage() {
     const target = Number(budgetTarget);
     if (!managingTemplate || !(target > 0)) return null;
     if (budgetPreview) return budgetFromPreview(budgetPreview, components, target);
-    return estimateBudget(managingTemplate.components, components, target, flatUnit);
-  }, [managingTemplate, budgetTarget, budgetPreview, components, flatUnit]);
+    return estimateBudget(managingTemplate.components, components, target, flatUnit, statutoryConfig);
+  }, [managingTemplate, budgetTarget, budgetPreview, components, flatUnit, statutoryConfig]);
 
   // What a balancing line fills up: the target left over, in the backend's flat unit.
   // `ownAnnual` adds back a row's current amount when that row is being switched to balancing.

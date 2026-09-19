@@ -29,7 +29,11 @@ const PAYROLL_ERROR_MESSAGES = {
   EFFECTIVE_BEFORE_JOINING: "The effective date can't be earlier than the employee's joining date.",
   RETRO_REVISION_NOT_SUPPORTED: "A revision must take effect after the current version's start date. Back-dated revisions aren't supported.",
   NO_BASIC_COMPONENT: "This structure has a percent-of-basic component but no Basic component to calculate it from.",
-  CTC_BELOW_FIXED_COMPONENTS: "The CTC is lower than the fixed components already defined — the balancing component would go negative. Raise the CTC or lower the fixed amounts.",
+  // The evaluator reserves the employer's statutory share out of the CTC before
+  // the balancing component takes the remainder, so a CTC can fail this even
+  // when the fixed components alone would have fitted. Naming only the
+  // components would send HR hunting for the wrong cause.
+  CTC_BELOW_FIXED_COMPONENTS: "The CTC doesn't cover the fixed components plus the employer's statutory contributions (PF and the rest), so the balancing component would go negative. Raise the CTC or lower the fixed amounts.",
   CTC_RECONCILIATION_FAILED: "The component amounts don't add up to the CTC, and there's no balancing component to absorb the difference.",
   MULTIPLE_BALANCING_COMPONENTS: "Only one balancing component is allowed per structure.",
   INVALID_PERCENTAGE: "A percentage value must be between 0 and 100.",

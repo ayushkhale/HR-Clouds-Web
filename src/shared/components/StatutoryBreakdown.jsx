@@ -15,6 +15,7 @@
 import { HiShieldCheck, HiInformationCircle, HiExclamation, HiOfficeBuilding, HiCalculator } from "react-icons/hi";
 import { DetailGrid, DetailSection, DetailTable } from "./DetailDialog";
 import { formatMoney } from "../utils/formatUtils";
+import { statutoryTotals } from "../utils/statutoryBreakdown";
 
 /** One tile of the summary strip. `tone` only ever picks from the purple family (or rose for money taken away). */
 function Tile({ label, value, hint, tone = "plain" }) {
@@ -41,14 +42,13 @@ function Tile({ label, value, hint, tone = "plain" }) {
  */
 export function StatutorySummary({ statutory, componentDeductions = 0, className = "" }) {
   if (!statutory) return null;
-  const deductions = statutory.employeeTotal + componentDeductions;
-  const net = statutory.netPay - componentDeductions;
+  const totals = statutoryTotals(statutory, { componentDeductions });
   return (
     <div className={className}>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Tile label="Gross / month" value={formatMoney(statutory.monthlyGross)} />
-        <Tile label="Deductions / month" value={`− ${formatMoney(deductions)}`} tone="minus" hint={statutory.statusLabel} />
-        <Tile label="Take-home / month" value={formatMoney(net)} tone="accent" hint="After PF, ESI, PT and tax" />
+        <Tile label="Gross / month" value={formatMoney(totals.gross)} />
+        <Tile label="Deductions / month" value={`− ${formatMoney(totals.deductions)}`} tone="minus" hint={statutory.statusLabel} />
+        <Tile label="Take-home / month" value={formatMoney(totals.net)} tone="accent" hint="After PF, ESI, PT and tax" />
       </div>
       {statutory.statusNote && (
         <p className="mt-2.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500">
@@ -124,8 +124,7 @@ function AmountTable({ rows, empty, sign = "" }) {
  */
 export default function StatutoryBreakdownPanel({ statutory, componentDeductions = 0, showEmployer = true, showDetail = true }) {
   if (!statutory) return null;
-  const deductions = statutory.employeeTotal + componentDeductions;
-  const net = statutory.netPay - componentDeductions;
+  const totals = statutoryTotals(statutory, { componentDeductions });
 
   return (
     <div className="space-y-5">
@@ -139,15 +138,15 @@ export default function StatutoryBreakdownPanel({ statutory, componentDeductions
         <dl className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
           <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5">
             <dt className="text-xs font-semibold text-slate-600">Gross</dt>
-            <dd className="font-bold tabular-nums text-slate-900">{formatMoney(statutory.monthlyGross)}</dd>
+            <dd className="font-bold tabular-nums text-slate-900">{formatMoney(totals.gross)}</dd>
           </div>
           <div className="flex items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50/70 px-3.5 py-2.5">
-            <dt className="text-xs font-semibold text-rose-700">Deductions{componentDeductions > 0 ? " (incl. salary deductions)" : ""}</dt>
-            <dd className="font-bold tabular-nums text-rose-700">− {formatMoney(deductions)}</dd>
+            <dt className="text-xs font-semibold text-rose-700">Deductions{totals.componentDeductions > 0 ? " (incl. salary deductions)" : ""}</dt>
+            <dd className="font-bold tabular-nums text-rose-700">− {formatMoney(totals.deductions)}</dd>
           </div>
           <div className="flex items-center justify-between gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2.5">
             <dt className="text-xs font-semibold text-purple-700">Take-home</dt>
-            <dd className="font-black tabular-nums text-purple-800">{formatMoney(net)}</dd>
+            <dd className="font-black tabular-nums text-purple-800">{formatMoney(totals.net)}</dd>
           </div>
         </dl>
 
