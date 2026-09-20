@@ -104,6 +104,7 @@ import TeamPayrollReportsPage from "../roles/manager/payroll/screens/TeamPayroll
 import BankVerificationPage from "../roles/hr/payroll/screens/BankVerificationPage";
 import PayrollAuditLogPage from "../roles/hr/payroll/screens/PayrollAuditLogPage";
 import PayrollEncashmentsPage from "../roles/hr/payroll/screens/PayrollEncashmentsPage";
+import PayrollExitsPage from "../roles/hr/payroll/screens/PayrollExitsPage";
 
 // Manager — Payroll
 import TeamSalaryPage from "../roles/manager/payroll/screens/TeamSalaryPage";
@@ -262,6 +263,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/payroll/runs/:runId" element={<PayrollRunDetailPage />} />
         <Route path="/dashboard/hr/payroll/adjustments" element={<PayrollAdjustmentsPage />} />
         <Route path="/dashboard/hr/payroll/encashments" element={<PayrollEncashmentsPage />} />
+        <Route path="/dashboard/hr/payroll/exits" element={<PayrollExitsPage />} />
         <Route path="/dashboard/hr/payroll/bonus-rules" element={<PayrollBonusRulesPage />} />
         <Route path="/dashboard/hr/payroll/loans" element={<PayrollLoansPage />} />
         <Route path="/dashboard/hr/payroll/bank-verification" element={<BankVerificationPage />} />

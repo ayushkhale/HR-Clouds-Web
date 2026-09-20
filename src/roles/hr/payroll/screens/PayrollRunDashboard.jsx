@@ -227,9 +227,17 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
                 ))}
 
                 {(toCount(data.missing_structure_count) > 0 || toCount(data.exit_date_required_count) > 0) && (
-                  <p className="text-xs text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-3 py-2">
-                    These employees will show up as problems after calculating. You can start now and fix or exclude them before approving.
-                  </p>
+                  <div className="text-xs text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-200 rounded-xl px-3 py-2">
+                    <p>These employees will show up as problems after calculating. You can start now and fix or exclude them before approving.</p>
+                    {/* Phase 7 gave "needs a last working day" somewhere to be
+                        fixed. Link to it from the blocker rather than leaving
+                        HR to find the page for themselves. */}
+                    {toCount(data.exit_date_required_count) > 0 && (
+                      <a href="/dashboard/hr/payroll/exits" className="inline-flex items-center gap-1 font-bold underline mt-1.5">
+                        Record their last working day <HiArrowRight className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                 )}
                 {data.period_locked && (
                   <p className="flex items-start gap-1.5 text-xs text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2">
