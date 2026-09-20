@@ -7,6 +7,7 @@ import { useOrgEmployees } from "../../../shared/attendance/EmployeePicker";
 import { humanize } from "../../../shared/attendance/enums";
 import { addDaysYMD, fmtDate, fmtHours, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
 
 // Contract §2 C15 / §8.1: GET /manager/team/history ignores every query
 // parameter and returns all records ever for the whole team, unbounded — so it
@@ -113,24 +114,35 @@ function ManagerTeamHistoryPage() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
                         {list.items.map((r, idx) => {
-                          const late = Number(r.late_minutes) || 0;
-                          const early = Number(r.early_exit_minutes) || 0;
+                          // Dense rows carry `null`, not 0, on days with no
+                          // punch — treating those as 0 made every weekly off
+                          // report "On time" and dragged overtime averages down.
+                          const late = metric(r.late_minutes);
+                          const early = metric(r.early_exit_minutes);
+                          const overtime = metric(r.overtime_minutes);
+                          const chip = dayChip(r);
+                          const due = isWorkingDay(r);
+                          const dash = <span className="text-slate-300">—</span>;
                           return (
-                            <tr key={r.id || `${r.date}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                            <tr key={r.id || `${r.date}-${idx}`} className={isSynthesizedDay(r) ? (due ? "" : "bg-slate-50/40") : "hover:bg-slate-50/80 transition-colors"}>
                               <td className="px-5 py-3 text-xs font-medium whitespace-nowrap">{fmtDate(ymdOnly(r.date), { weekday: "short", day: "numeric", month: "short", year: "numeric" })}{r.is_regularized && <span title="Corrected through a regularization request" className="ml-1.5 inline-flex items-center justify-center w-4 h-4 align-middle rounded-full bg-purple-100 text-purple-600"><HiPencil className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only">Corrected</span></span>}</td>
                               <td className="px-5 py-3">
-                                <StatusBadge status={r.status} />
+                                <StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} />
                               </td>
-                              <td className="px-5 py-3 text-xs">{fmtTime(r.clock_in_time)}</td>
-                              <td className="px-5 py-3 text-xs">{fmtTime(r.clock_out_time)}</td>
-                              <td className="px-5 py-3 text-xs font-semibold">{fmtHours(r.effective_hours)}</td>
+                              <td className="px-5 py-3 text-xs">{r.clock_in_time ? fmtTime(r.clock_in_time) : dash}</td>
+                              <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : dash}</td>
+                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null ? dash : fmtHours(r.effective_hours)}</td>
                               <td className="px-5 py-3 text-xs">
-                                {late > 0 && <span className="block text-rose-600 font-bold">{fmtMinutes(late)} late</span>}
-                                {early > 0 && <span className="block text-fuchsia-600 font-bold">{fmtMinutes(early)} early</span>}
-                                {late === 0 && early === 0 && <span className="text-violet-600 font-semibold">On time</span>}
+                                {late === null && early === null ? dash : (
+                                  <>
+                                    {late > 0 && <span className="block text-rose-600 font-bold">{fmtMinutes(late)} late</span>}
+                                    {early > 0 && <span className="block text-fuchsia-600 font-bold">{fmtMinutes(early)} early</span>}
+                                    {!late && !early && <span className="text-violet-600 font-semibold">On time</span>}
+                                  </>
+                                )}
                               </td>
-                              <td className="px-5 py-3 text-xs">{Number(r.overtime_minutes) > 0 ? <span className="text-violet-600 font-bold">+{fmtMinutes(r.overtime_minutes)}</span> : <span className="text-slate-400">0m</span>}</td>
-                              <td className="px-5 py-3 text-xs text-slate-500">{r.work_mode ? humanize(r.work_mode) : "N/A"}</td>
+                              <td className="px-5 py-3 text-xs">{overtime === null ? dash : overtime > 0 ? <span className="text-violet-600 font-bold">+{fmtMinutes(overtime)}</span> : <span className="text-slate-400">0m</span>}</td>
+                              <td className="px-5 py-3 text-xs text-slate-500">{r.work_mode ? humanize(r.work_mode) : dash}</td>
                             </tr>
                           );
                         })}
@@ -138,7 +150,7 @@ function ManagerTeamHistoryPage() {
                     </table>
                   </div>
                   <div className="px-6 py-4 border-t border-slate-100">
-                    <Pagination page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} />
+                    <Pagination page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} noun="day" />
                   </div>
                 </>
               )}

@@ -55,6 +55,11 @@ export const RECORD_STATUS = {
   weekly_off: { label: "Weekly Off", tone: "slate" },
   holiday: { label: "Holiday", tone: "indigo" },
   not_marked: { label: "Not Marked", tone: "slate" },
+  // The two chips the dense history endpoints leave to the client (contract
+  // §8): `not_marked` splits into these by date. Listed here so a badge
+  // rendered from a chip key picks up the right tone rather than the fallback.
+  no_data: { label: "No data", tone: "slate" },
+  upcoming: { label: "Upcoming", tone: "slate" },
   // Display-only legacy values seen in list payloads.
   late: { label: "Late", tone: "amber" },
   overtime: { label: "Overtime", tone: "orange" },

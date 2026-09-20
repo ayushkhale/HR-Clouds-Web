@@ -27,9 +27,14 @@ export function StatusBadge({ kind = "record", status, label, className = "" }) 
   );
 }
 
-export function Pagination({ page, totalPages, total, limit, onPageChange, disabled = false, className = "" }) {
+/**
+ * `noun` names what is being counted. The dense attendance history endpoints
+ * paginate over CALENDAR DAYS, not records (contract §6), so "30 records" for
+ * September would be a plain lie — pass noun="day" there.
+ */
+export function Pagination({ page, totalPages, total, limit, onPageChange, disabled = false, className = "", noun = "record" }) {
   if (!total || totalPages <= 1) {
-    return total ? <p className={`text-[11px] text-slate-400 font-medium ${className}`}>{total} record{total === 1 ? "" : "s"}</p> : null;
+    return total ? <p className={`text-[11px] text-slate-400 font-medium ${className}`}>{total} {noun}{total === 1 ? "" : "s"}</p> : null;
   }
   const from = (page - 1) * limit + 1;
   const to = Math.min(total, page * limit);

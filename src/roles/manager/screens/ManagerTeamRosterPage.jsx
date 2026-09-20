@@ -9,6 +9,7 @@ import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, personName, unwrap } from "../../../shared/attendance/normalize";
 import { fmtDate, fmtHours, fmtMinutes, fmtTime, monthRange, ymdOnly } from "../../../shared/attendance/dates";
 import { ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 
 
@@ -216,7 +217,7 @@ function ViewAttendanceModal({ employee, onClose }) {
   // M15 takes a date range + pagination (not month/year).
   const historyList = usePagedList(
     ({ page, limit }) => attendanceAPI.getTeamMemberHistory(empId, { ...monthRange(year, month), page, limit }),
-    { limit: 15, keys: ["records"], filterKey: `${empId}-${year}-${month}` }
+    { limit: 31, keys: ["records"], filterKey: `${empId}-${year}-${month}` }
   );
 
   useEffect(() => {
@@ -312,21 +313,26 @@ function ViewAttendanceModal({ employee, onClose }) {
                         <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for this month.</td>
                       </tr>
                     ) : (
-                      history.map((record) => (
-                        <tr key={record.id || record.date} className="hover:bg-slate-50/50">
-                          <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{fmtDate(ymdOnly(record.date), { weekday: "short", day: "numeric", month: "short" })}</td>
-                          <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
-                          <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
-                          <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
-                          <td className="px-4 py-3 text-slate-600">{fmtHours(record.effective_hours)}</td>
-                          <td className="px-4 py-3 text-fuchsia-600">{Number(record.late_minutes) > 0 ? fmtMinutes(record.late_minutes) : "0m"}</td>
+                      history.map((record) => {
+                        const chip = dayChip(record);
+                        const late = metric(record.late_minutes);
+                        const dash = <span className="text-slate-300">—</span>;
+                        return (
+                        <tr key={record.id || record.date} className={isSynthesizedDay(record) ? (isWorkingDay(record) ? "" : "bg-slate-50/40") : "hover:bg-slate-50/50"}>
+                          <td className={`px-4 py-3 font-medium whitespace-nowrap ${isWorkingDay(record) ? "text-slate-700" : "text-slate-400"}`}>{fmtDate(ymdOnly(record.date), { weekday: "short", day: "numeric", month: "short" })}</td>
+                          <td className="px-4 py-3"><StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} /></td>
+                          <td className="px-4 py-3 text-slate-600">{record.clock_in_time ? fmtTime(record.clock_in_time) : dash}</td>
+                          <td className="px-4 py-3 text-slate-600">{record.clock_out_time ? fmtTime(record.clock_out_time) : dash}</td>
+                          <td className="px-4 py-3 text-slate-600">{metric(record.effective_hours) === null ? dash : fmtHours(record.effective_hours)}</td>
+                          <td className="px-4 py-3 text-fuchsia-600">{late === null ? dash : late > 0 ? fmtMinutes(late) : <span className="text-slate-500">0m</span>}</td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
                 <div className="px-4 py-3 border-t border-slate-50">
-                  <Pagination page={historyList.page} totalPages={historyList.totalPages} total={historyList.total} limit={historyList.limit} onPageChange={historyList.setPage} disabled={historyList.loading} />
+                  <Pagination page={historyList.page} totalPages={historyList.totalPages} total={historyList.total} limit={historyList.limit} onPageChange={historyList.setPage} disabled={historyList.loading} noun="day" />
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours
 import { unwrap } from "../../../../shared/attendance/normalize";
 import { anomalyStatusKey, anomalyTypeLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
 import { fmtClock, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
+import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../../shared/attendance/dayStatus";
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
 
@@ -150,7 +151,7 @@ export default function AttendanceTab({ userId, employeeRole }) {
   // HR detail endpoints are consumed with month/year (audit C15).
   const list = usePagedList(
     ({ page, limit }) => api.history(userId, { month: period.month, year: period.year, page, limit }),
-    { limit: 20, keys: ["records"], filterKey: `${userId}-${api.population}-${period.year}-${period.month}`, enabled: !!userId }
+    { limit: 31, keys: ["records"], filterKey: `${userId}-${api.population}-${period.year}-${period.month}`, enabled: !!userId }
   );
 
   const next = shiftMonth(period.year, period.month, 1);
@@ -161,7 +162,7 @@ export default function AttendanceTab({ userId, employeeRole }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-slate-800">Attendance history</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Select a day to see its full breakdown.</p>
+          <p className="text-xs text-slate-400 mt-0.5">Every day of the month is listed. Select a day with a record to see its full breakdown.</p>
         </div>
         <div className="flex items-center gap-1 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white shadow-xs w-max">
           <button type="button" onClick={() => setPeriod((p) => shiftMonth(p.year, p.month, -1))} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700" aria-label="Previous month"><HiChevronLeft className="w-4 h-4" /></button>
@@ -188,27 +189,61 @@ export default function AttendanceTab({ userId, employeeRole }) {
                     <th className="px-6 py-3.5">Clock in</th>
                     <th className="px-6 py-3.5">Clock out</th>
                     <th className="px-6 py-3.5">Late</th>
+                    <th className="px-6 py-3.5">Overtime</th>
+                    <th className="px-6 py-3.5">Mode</th>
                     <th className="px-6 py-3.5 text-right">Hours</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {list.items.map((record) => {
                     const ymd = ymdOnly(record.date);
+                    const chip = dayChip(record);
+                    // A day the backend synthesized has no punch to open, and
+                    // nothing was due on a weekly off or holiday: both are shown
+                    // quietly so the worked days stay the ones that read loudest.
+                    const synthetic = isSynthesizedDay(record);
+                    const due = isWorkingDay(record);
+                    const late = metric(record.late_minutes);
+                    const overtime = metric(record.overtime_minutes);
+                    // `null` is "no data", never a measured zero (contract §10).
+                    const dash = <span className="text-slate-300">—</span>;
                     return (
                       <tr
                         key={record.id || ymd}
-                        onClick={() => setSelectedDate(ymd)}
-                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSelectedDate(ymd))}
-                        tabIndex={0}
-                        className="hover:bg-purple-50/30 focus:bg-purple-50/40 outline-none transition-colors cursor-pointer"
+                        onClick={() => !synthetic && setSelectedDate(ymd)}
+                        onKeyDown={(e) => !synthetic && (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSelectedDate(ymd))}
+                        tabIndex={synthetic ? -1 : 0}
+                        aria-disabled={synthetic || undefined}
+                        className={synthetic
+                          ? `outline-none ${due ? "bg-white" : "bg-slate-50/40"}`
+                          : "hover:bg-purple-50/30 focus:bg-purple-50/40 outline-none transition-colors cursor-pointer"}
                       >
-                        <td className="px-6 py-3.5 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(ymd, { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</td>
-                        <td className="px-6 py-3.5"><StatusBadge status={record.status} /></td>
-                        <td className="px-6 py-3.5 text-slate-600 font-medium">{fmtTime(record.clock_in_time)}</td>
-                        <td className="px-6 py-3.5 text-slate-600 font-medium">{fmtTime(record.clock_out_time)}</td>
-                        <td className="px-6 py-3.5 text-xs">{Number(record.late_minutes) > 0 ? <span className="text-fuchsia-600 font-bold">{fmtMinutes(record.late_minutes)}</span> : <span className="text-slate-500">0m</span>}</td>
+                        <td className={`px-6 py-3.5 font-semibold whitespace-nowrap ${due ? "text-slate-800" : "text-slate-400"}`}>
+                          {fmtDate(ymd, { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} />
+                        </td>
+                        <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_in_time ? fmtTime(record.clock_in_time) : dash}</td>
+                        <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_out_time ? fmtTime(record.clock_out_time) : dash}</td>
+                        <td className="px-6 py-3.5 text-xs">
+                          {late === null ? dash : late > 0 ? <span className="text-fuchsia-600 font-bold">{fmtMinutes(late)}</span> : <span className="text-slate-500">0m</span>}
+                        </td>
+                        <td className="px-6 py-3.5 text-xs">
+                          {overtime === null ? dash : overtime > 0 ? <span className="text-violet-600 font-bold">{fmtMinutes(overtime)}</span> : <span className="text-slate-500">0m</span>}
+                        </td>
+                        <td className="px-6 py-3.5 text-xs">
+                          <span className="flex items-center gap-1.5">
+                            {record.work_mode ? <span className="text-slate-600 font-semibold">{humanize(record.work_mode)}</span> : dash}
+                            {record.is_regularized && (
+                              <span className="text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full" title="This day was corrected by a regularization">Fixed</span>
+                            )}
+                          </span>
+                        </td>
                         <td className="px-6 py-3.5 text-right">
-                          <LiveEffectiveHours effectiveHours={record.effective_hours} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />
+                          {record.effective_hours === null && !record.clock_in_time
+                            ? dash
+                            : <LiveEffectiveHours effectiveHours={record.effective_hours} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />}
                         </td>
                       </tr>
                     );
@@ -217,7 +252,7 @@ export default function AttendanceTab({ userId, employeeRole }) {
               </table>
             </div>
             <div className="px-6 py-4 border-t border-slate-100">
-              <Pagination page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} />
+              <Pagination page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} noun="day" />
             </div>
           </>
         )}

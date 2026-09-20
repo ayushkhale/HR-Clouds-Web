@@ -6,28 +6,12 @@ import {
 import { memberAttendanceApi } from "../../../../shared/attendance/memberAttendance";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
 import { listFrom, num, unwrap } from "../../../../shared/attendance/normalize";
-import { statusMeta } from "../../../../shared/attendance/enums";
+import { DAY_CHIPS, DAY_CHIP_ORDER, chipTally, dayChip, isWorkingDay, metric } from "../../../../shared/attendance/dayStatus";
 import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
 import { ErrorState, StatusBadge } from "../../../../shared/attendance/ui";
 
 const LIVE_REFRESH_MS = 60_000;
 
-// Purple-only day colours, from strongest (worked) to lightest (nothing due).
-// Absent and "no data" are dark fills so a missed day never reads as blank;
-// only days still to come stay light.
-const HEAT = {
-  present: "bg-purple-700 border-purple-700 text-white",
-  late: "bg-purple-400 border-purple-400 text-white",
-  half_day: "bg-purple-300 border-purple-300 text-purple-950",
-  on_leave: "bg-violet-200 border-violet-300 text-violet-900",
-  absent: "bg-purple-950 border-purple-950 text-white",
-  holiday: "bg-purple-100 border-purple-300 text-purple-700",
-  weekly_off: "bg-slate-200 border-slate-200 text-slate-600",
-  in_progress: "bg-white border-purple-400 text-purple-700",
-};
-const NO_DATA = "bg-slate-700 border-slate-700 text-slate-100";
-const UPCOMING = "bg-slate-50 border-slate-200 text-slate-400";
-const LEGEND = ["present", "late", "half_day", "on_leave", "absent", "holiday", "weekly_off"];
 
 export default function OverviewTab({ userId, employeeRole }) {
   const now = new Date();
@@ -76,9 +60,24 @@ export default function OverviewTab({ userId, employeeRole }) {
   const byDate = useMemo(() => Object.fromEntries(state.history.map((r) => [ymdOnly(r.date), r])), [state.history]);
   const today = todayYMD();
   const todayRecord = isCurrentMonth ? byDate[today] : null;
+  const daysInMonth = new Date(period.year, period.month, 0).getDate();
+
+  // Legend counts come from the dense rows for THIS month only.
+  const tally = useMemo(() => chipTally(
+    Array.from({ length: daysInMonth }, (_, i) => {
+      const ymd = `${period.year}-${String(period.month).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
+      return byDate[ymd] || { date: ymd, status: "not_marked" };
+    }),
+    today
+  ), [byDate, daysInMonth, period.year, period.month, today]);
+
+  // The dense payload states today's reason, so the card no longer infers
+  // "Not Marked" from an absent row.
+  const todayChip = dayChip(todayRecord ? { ...todayRecord, date: today } : { date: today, status: "not_marked" }, today);
+  const todayLate = metric(todayRecord?.late_minutes) || 0;
+  const todayDue = isWorkingDay({ ...(todayRecord || {}), date: today, status: todayRecord?.status || "not_marked" }, today);
   const s = state.summary || {};
   const next = shiftMonth(period.year, period.month, 1);
-  const daysInMonth = new Date(period.year, period.month, 0).getDate();
   const label = monthLabel(period.year, period.month);
 
   const stats = [
@@ -137,20 +136,36 @@ export default function OverviewTab({ userId, employeeRole }) {
             Today · {fmtDate(today, { weekday: "short", day: "numeric", month: "short" })}
           </span>
           <div className="mt-3 space-y-2">
-            <div className="mb-3">{todayRecord ? <StatusBadge status={todayRecord.status} /> : <StatusBadge status="not_marked" />}</div>
-            {[
-              ["Clock in", fmtTime(todayRecord?.clock_in_time)],
-              ["Clock out", fmtTime(todayRecord?.clock_out_time)],
-            ].map(([k, v]) => (
-              <div key={k} className="flex items-center justify-between text-xs p-2 rounded-xl bg-slate-50/50">
-                <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">{k}</span>
-                <span className="font-extrabold text-slate-700">{v}</span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between text-xs p-2 rounded-xl bg-purple-50/40 border border-purple-100/50">
-              <span className="text-purple-600 font-bold uppercase tracking-wider text-[9px]">Hours</span>
-              <LiveEffectiveHours effectiveHours={todayRecord?.effective_hours} clockInTime={todayRecord?.clock_in_time} clockOutTime={todayRecord?.clock_out_time} breaks={todayRecord?.breaks} className="text-purple-700 text-sm" />
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <StatusBadge status={todayChip.key === "late" ? "present" : todayChip.key} label={todayChip.label} />
+              {todayLate > 0 && <StatusBadge status="late" label={`${fmtMinutes(todayLate)} late`} />}
             </div>
+            {todayDue ? (
+              <>
+                {[
+                  ["Clock in", fmtTime(todayRecord?.clock_in_time)],
+                  ["Clock out", fmtTime(todayRecord?.clock_out_time)],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between text-xs p-2 rounded-xl bg-slate-50/50">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">{k}</span>
+                    <span className="font-extrabold text-slate-700">{v}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-xs p-2 rounded-xl bg-purple-50/40 border border-purple-100/50">
+                  <span className="text-purple-600 font-bold uppercase tracking-wider text-[9px]">Hours</span>
+                  <LiveEffectiveHours effectiveHours={todayRecord?.effective_hours} clockInTime={todayRecord?.clock_in_time} clockOutTime={todayRecord?.clock_out_time} breaks={todayRecord?.breaks} className="text-purple-700 text-sm" />
+                </div>
+              </>
+            ) : (
+              /* Nothing was due, so there are no hours to miss. Printing
+                 "0m" here read as "worked nothing", which is a different
+                 claim entirely. */
+              <p className="text-[11px] text-slate-500 leading-relaxed p-2 rounded-xl bg-slate-50/50">
+                {todayChip.key === "weekly_off" ? "Weekly off — no hours were due today."
+                  : todayChip.key === "holiday" ? "Public holiday — no hours were due today."
+                  : "Nothing is due today."}
+              </p>
+            )}
             {!isCurrentMonth && <p className="text-[10px] text-slate-400">Switch to the current month to see today&apos;s status.</p>}
           </div>
         </div>
@@ -158,35 +173,34 @@ export default function OverviewTab({ userId, employeeRole }) {
         <div className="md:col-span-8 bg-white rounded-3xl border border-slate-100 p-4 shadow-xs">
           <h3 className="text-xs font-bold text-slate-700 mb-1">Attendance pattern</h3>
           <div className="flex flex-wrap items-center gap-3 mb-4 mt-1.5">
-            {LEGEND.map((key) => (
+            {DAY_CHIP_ORDER.map((key) => (
               <span key={key} className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-                <span className={`w-3 h-3 rounded-[3px] border ${HEAT[key]}`} /> {statusMeta("record", key).label}
+                <span className={`w-3 h-3 rounded-[3px] border ${DAY_CHIPS[key].heat}`} />
+                {DAY_CHIPS[key].label}
+                {tally[key] > 0 && <span className="text-purple-600 font-black">{tally[key]}</span>}
               </span>
             ))}
-            <span className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-              <span className={`w-3 h-3 rounded-[3px] border ${NO_DATA}`} /> No data
-            </span>
-            <span className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-              <span className={`w-3 h-3 rounded-[3px] border ${UPCOMING}`} /> Upcoming
-            </span>
           </div>
           <div className="grid gap-1.5 sm:gap-2 w-full grid-cols-7 sm:grid-cols-10 lg:grid-cols-[repeat(15,minmax(0,1fr))]">
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const ymd = `${period.year}-${String(period.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              const record = byDate[ymd];
-              // "late" is not a stored day status — a present day with late
-              // minutes is what the Late legend colour represents.
-              const baseKey = statusMeta("record", record?.status).key;
-              const key = baseKey === "present" && (num(record?.late_minutes) > 0 || record?.is_late === true) ? "late" : baseKey;
-              const known = record && HEAT[key];
-              const upcoming = !known && ymd > today;
-              const cls = known ? HEAT[key] : upcoming ? UPCOMING : NO_DATA;
+              // Dense payload: the row carries the reason, so a day is only
+              // synthesized locally when the response is short (an older
+              // backend, or a page that didn't cover this day).
+              const record = byDate[ymd] || { date: ymd, status: "not_marked" };
+              const chip = dayChip(record, today);
+              const late = metric(record.late_minutes);
+              const hint = [
+                fmtDate(ymd, { weekday: "long", day: "numeric", month: "short" }),
+                chip.label,
+                late > 0 ? `${fmtMinutes(late)} late` : "",
+              ].filter(Boolean).join(" · ");
               return (
                 <div
                   key={day}
-                  title={`${fmtDate(ymd, { weekday: "long", day: "numeric", month: "short" })}: ${known ? statusMeta("record", key).label : upcoming ? "Upcoming" : "No data"}`}
-                  className={`w-full aspect-square rounded-md border flex items-center justify-center text-[10px] sm:text-xs font-bold ${cls}`}
+                  title={hint}
+                  className={`w-full aspect-square rounded-md border flex items-center justify-center text-[10px] sm:text-xs font-bold ${chip.heat}`}
                 >
                   {day}
                 </div>

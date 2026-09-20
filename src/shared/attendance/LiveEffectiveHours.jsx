@@ -28,7 +28,15 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
     return () => clearInterval(id);
   }, [isActive, clockInTime]);
 
-  if (!clockInTime) return <span className="text-xs text-slate-400">0m</span>;
+  // No punch at all. Dense history rows arrive with `effective_hours: null` on
+  // days where nothing was due (weekly off, holiday, a day still to come), and
+  // "0m" there claims the person worked nothing rather than that nothing was
+  // owed. A real zero still prints as 0m.
+  if (!clockInTime) {
+    return effectiveHours === null || effectiveHours === undefined
+      ? <span className="text-xs text-slate-300">—</span>
+      : <span className="text-xs text-slate-400">{fmtHours(effectiveHours, "0m")}</span>;
+  }
 
   if (isStale) {
     return effectiveHours != null && effectiveHours !== ""

@@ -12,6 +12,7 @@
 import React, { useEffect, useState } from "react";
 import { HiLocationMarker, HiLockClosed, HiMail } from "react-icons/hi";
 import { attendanceAPI } from "../api";
+import { isSynthesizedDay } from "./dayStatus.js";
 import { anomalyTypeLabel, humanize } from "./enums.js";
 import {
   browserTimeZone, clockMinutes, fmtClockMinutes, fmtClockTime, fmtDate, fmtDateTime,
@@ -597,7 +598,13 @@ function useDayRecord(item, enabled) {
       .getTeamMemberHistory(userId, { from: date, to: date, page: 1, limit: 5 })
       .then((res) => {
         const rows = listFrom(res, ["records"]);
-        const record = rows.find((r) => recordId && r.id === recordId) || rows.find((r) => ymdOnly(r.date) === date) || null;
+        // The history endpoint is dense now: a day with no punch still comes
+        // back, carrying `id: null` and null metrics. Matching on the date
+        // alone would hand this panel an empty shell and render a decision
+        // context of blank fields, so only a REAL record counts here.
+        const record = rows.find((r) => recordId && r.id === recordId)
+          || rows.find((r) => ymdOnly(r.date) === date && !isSynthesizedDay(r))
+          || null;
         if (alive) setState({ loading: false, record, error: false });
       })
       .catch(() => alive && setState({ loading: false, record: null, error: true }));
