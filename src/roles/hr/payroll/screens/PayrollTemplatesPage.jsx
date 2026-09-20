@@ -189,6 +189,15 @@ export default function PayrollTemplatesPage() {
     setPreviewError("");
   };
 
+  // Name the signed-in user rather than labelling them "Me": the dropdown is a
+  // list of people, and every other row is a name. "(You)" matches how the bank
+  // verification grid marks the viewer's own row.
+  const selfLabel = (() => {
+    const name = user?.id ? orgUserName(orgPeople.find((p) => orgUserId(p) === user.id) || user) : "";
+    return name && name !== "Unnamed" ? `${name} (You)` : "You";
+  })();
+  const others = orgPeople.filter((p) => orgUserId(p) && orgUserId(p) !== user?.id);
+
   // Absent on an older backend, and on any preview that predates the
   // employee-scoped contract — the tiles below it stay hidden rather than
   // rendering zeroes that would read as "nothing is deducted".
@@ -727,10 +736,12 @@ export default function PayrollTemplatesPage() {
                 onChange={(e) => { setPreviewUserId(e.target.value || null); setPreviewError(""); }}
                 className="w-full px-4 py-2.5 mb-1.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
               >
-                {user?.id && <option value={user.id}>Me{orgPeople.length > 0 ? " (signed in)" : ""}</option>}
-                {orgPeople
-                  .filter((p) => orgUserId(p) && orgUserId(p) !== user?.id)
-                  .map((p) => <option key={orgUserId(p)} value={orgUserId(p)}>{orgUserName(p)}</option>)}
+                {user?.id && <option value={user.id}>{selfLabel}</option>}
+                {others.length > 0 && (
+                  <optgroup label="Other employees">
+                    {others.map((p) => <option key={orgUserId(p)} value={orgUserId(p)}>{orgUserName(p)}</option>)}
+                  </optgroup>
+                )}
               </select>
               <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
                 The component split is the same for everyone on this template. Professional tax and income tax depend on
