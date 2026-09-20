@@ -103,12 +103,14 @@ import PayrollPayslipsPage from "../roles/hr/payroll/screens/PayrollPayslipsPage
 import TeamPayrollReportsPage from "../roles/manager/payroll/screens/TeamPayrollReportsPage";
 import BankVerificationPage from "../roles/hr/payroll/screens/BankVerificationPage";
 import PayrollAuditLogPage from "../roles/hr/payroll/screens/PayrollAuditLogPage";
+import PayrollEncashmentsPage from "../roles/hr/payroll/screens/PayrollEncashmentsPage";
 
 // Manager — Payroll
 import TeamSalaryPage from "../roles/manager/payroll/screens/TeamSalaryPage";
 import TeamPayslipsPage from "../roles/manager/payroll/screens/TeamPayslipsPage";
 import ManagerAdjustmentsPage from "../roles/manager/payroll/screens/ManagerAdjustmentsPage";
 import TeamReimbursementsPage from "../roles/manager/payroll/screens/TeamReimbursementsPage";
+import TeamEncashmentsPage from "../roles/manager/payroll/screens/TeamEncashmentsPage";
 
 // Employee — Payroll
 import MySalaryPage from "../roles/employee/payroll/screens/MySalaryPage";
@@ -259,6 +261,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/payroll/runs" element={<PayrollRunDashboard />} />
         <Route path="/dashboard/hr/payroll/runs/:runId" element={<PayrollRunDetailPage />} />
         <Route path="/dashboard/hr/payroll/adjustments" element={<PayrollAdjustmentsPage />} />
+        <Route path="/dashboard/hr/payroll/encashments" element={<PayrollEncashmentsPage />} />
         <Route path="/dashboard/hr/payroll/bonus-rules" element={<PayrollBonusRulesPage />} />
         <Route path="/dashboard/hr/payroll/loans" element={<PayrollLoansPage />} />
         <Route path="/dashboard/hr/payroll/bank-verification" element={<BankVerificationPage />} />
@@ -300,6 +303,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/payroll/team-salary" element={<TeamSalaryPage />} />
         <Route path="/dashboard/manager/payroll/team-payslips" element={<TeamPayslipsPage />} />
         <Route path="/dashboard/manager/payroll/reports" element={<TeamPayrollReportsPage />} />
+        <Route path="/dashboard/manager/payroll/encashments" element={<TeamEncashmentsPage />} />
         <Route path="/dashboard/manager/payroll/adjustments" element={<ManagerAdjustmentsPage />} />
         <Route path="/dashboard/manager/payroll/reimbursements" element={<TeamReimbursementsPage />} />
         <Route path="/dashboard/manager/my-reimbursements" element={<MyReimbursementsPage />} />
