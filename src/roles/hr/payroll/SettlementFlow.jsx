@@ -56,6 +56,9 @@ export default function SettlementFlow({ preview, prepared = false }) {
   if (!preview) return null;
 
   const { encash, notice, loans, net } = settlementNet(preview);
+  // Nothing due either way. "We pay them ₹0.00" reads as a mistake, and
+  // "They owe us ₹0.00" reads worse.
+  const settled = Math.abs(net) < 0.005;
   const noticeBlock = preview.notice_recovery || {};
   const loanBlock = preview.loan_recovery || {};
   const encashments = preview.encashments || [];
@@ -71,8 +74,8 @@ export default function SettlementFlow({ preview, prepared = false }) {
             <p className="text-[10px] text-slate-400 mt-0.5">Paid with {formatPeriod(preview.settlement_period_month)} payroll</p>
           )}
         </div>
-        <span className={`text-xs font-black tabular-nums ${isPayout ? "text-purple-700" : "text-rose-700"}`}>
-          {isPayout ? formatMoney(net) : `${formatMoney(Math.abs(net))} to recover`}
+        <span className={`text-xs font-black tabular-nums ${settled ? "text-slate-500" : isPayout ? "text-purple-700" : "text-rose-700"}`}>
+          {settled ? "Nothing due" : isPayout ? formatMoney(net) : `${formatMoney(Math.abs(net))} to recover`}
         </span>
       </div>
 
@@ -123,7 +126,11 @@ export default function SettlementFlow({ preview, prepared = false }) {
         <Stage icon={HiCreditCard} title="Outstanding loans" total={loans} tone={loans > 0 ? "minus" : "plain"}
           note={
             (loanBlock.loans || []).length === 0 ? "No loans are outstanding."
-              : loanBlock.mode === "manual_recovery" ? "Collected separately, outside payroll — not taken from this payment."
+              // The server sends "manual" / "payroll", not the doc's
+              // "manual_recovery" / "recover_via_payroll" (confirmed live
+              // 2026-09-20). Accept both so this note does not silently vanish.
+              : loanBlock.mode === "manual" || loanBlock.mode === "manual_recovery"
+                ? "Collected separately, outside payroll — not taken from this payment."
               : undefined
           }>
           {(loanBlock.loans || []).map((l, i) => (
@@ -138,18 +145,20 @@ export default function SettlementFlow({ preview, prepared = false }) {
 
         {/* The answer ------------------------------------------------------ */}
         <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border px-4 py-3 ${
-          isPayout ? "bg-purple-50 border-purple-200" : "bg-rose-50 border-rose-200"}`}>
+          settled ? "bg-slate-50 border-slate-200" : isPayout ? "bg-purple-50 border-purple-200" : "bg-rose-50 border-rose-200"}`}>
           <div className="min-w-0">
-            <p className={`text-[10px] font-bold uppercase tracking-wider ${isPayout ? "text-purple-500" : "text-rose-500"}`}>
-              {isPayout ? "We pay them" : "They owe us"}
+            <p className={`text-[10px] font-bold uppercase tracking-wider ${settled ? "text-slate-500" : isPayout ? "text-purple-500" : "text-rose-500"}`}>
+              {settled ? "Nothing to settle" : isPayout ? "We pay them" : "They owe us"}
             </p>
-            <p className={`text-[10px] mt-0.5 ${isPayout ? "text-purple-400" : "text-rose-400"}`}>
-              {isPayout
-                ? "Added to their final payslip."
-                : "Taken off their final payslip. If it can't all be recovered, collect the rest separately."}
+            <p className={`text-[10px] mt-0.5 ${settled ? "text-slate-400" : isPayout ? "text-purple-400" : "text-rose-400"}`}>
+              {settled
+                ? "Neither side owes the other. Their last month's salary is paid as normal."
+                : isPayout
+                  ? "Added to their final payslip."
+                  : "Taken off their final payslip. If it can't all be recovered, collect the rest separately."}
             </p>
           </div>
-          <span className={`text-lg font-black tabular-nums ${isPayout ? "text-purple-800" : "text-rose-800"}`}>
+          <span className={`text-lg font-black tabular-nums ${settled ? "text-slate-500" : isPayout ? "text-purple-800" : "text-rose-800"}`}>
             {formatMoney(Math.abs(net))}
           </span>
         </div>

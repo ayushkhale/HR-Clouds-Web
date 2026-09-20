@@ -124,33 +124,36 @@ export default function PayrollSettingsPage() {
         payslip_auto_publish: true,
         payslip_auto_email: false,
       };
-      // Phase 7 — final settlement (#55), automation (#56) and comp-off
-      // encashment (#57). Defaults match the backend's, so a field the server
-      // has never stored still renders the behaviour that is actually in force
-      // rather than an empty box that reads as "off".
+      // Phase 7 — final settlement (#55) and comp-off encashment (#57).
+      //
+      // VERIFIED AGAINST THE LIVE BACKEND 2026-09-20: the key names in the
+      // phase-7 analysis doc are NOT the names the server stores. The doc's
+      // `fnf_leave_encashment_rate_basis` is really `fnf_encashment_rate_basis`,
+      // `..._divisor_basis` is `..._divisor`, `fnf_leave_encashment_types` is
+      // `fnf_encashment_leave_type_codes`, and `fnf_notice_recovery_basis` is
+      // `fnf_notice_recovery_rate_basis`. Saving the doc's names would write
+      // keys the server ignores and silently lose the setting.
+      //
+      // The automation group (#56) does not exist on the server at all — no
+      // auto_draft_*, stale_run_sweep_*, attachment_* or calendar-reminder key
+      // is returned — so it is not offered here. See the Automation page.
       const PHASE7_DEFAULTS = {
         fnf_default_notice_period_days: 30,
-        fnf_notice_recovery_basis: "basic",
+        fnf_notice_recovery_enabled: false,
+        fnf_notice_recovery_rate_basis: "basic",
         fnf_notice_recovery_component_id: "",
-        fnf_leave_encashment_enabled: true,
-        fnf_leave_encashment_types: ["EL"],
-        fnf_leave_encashment_rate_basis: "basic",
-        fnf_leave_encashment_divisor_basis: "fixed_30",
-        fnf_loan_recovery_mode: "recover_via_payroll",
-        fnf_gratuity_auto_credit_enabled: false,
-        fnf_settlement_window_days: 45,
-        auto_draft_enabled: false,
-        auto_draft_day_of_month: 25,
-        auto_draft_days_before_period_end: 5,
-        stale_run_sweep_enabled: true,
-        stale_run_sweep_threshold_hours: 2,
-        attachment_retention_days: 2555,
-        attachment_purge_enabled: false,
-        payroll_calendar_reminders_enabled: true,
+        fnf_leave_encashment_enabled: false,
+        fnf_encashment_leave_type_codes: [],
+        fnf_encashment_rate_basis: "basic",
+        fnf_encashment_divisor: "fixed_30",
+        fnf_encashment_component_id: "",
+        fnf_encashment_max_days: "",
+        fnf_loan_recovery_mode: "manual",
         compoff_encashment_enabled: false,
         compoff_encashment_rate_basis: "basic",
-        compoff_encashment_divisor_basis: "fixed_30",
-        compoff_encashment_max_days_per_fy: 12,
+        compoff_encashment_divisor: "fixed_30",
+        compoff_encashment_component_id: "",
+        compoff_encashment_max_days_per_fy: "",
       };
       Object.entries(PHASE7_DEFAULTS).forEach(([k, v]) => {
         if (loaded[k] === undefined || loaded[k] === null) loaded[k] = v;
@@ -349,9 +352,14 @@ export default function PayrollSettingsPage() {
                     <Num label="Standard notice period" value={set7.fnf_default_notice_period_days} min={0} max={365} suffix="days"
                       onChange={(v) => upd({ fnf_default_notice_period_days: v })}
                       hint="Used when an exit doesn't specify its own notice period." />
-                    <Pick label="Recover short notice from" value={set7.fnf_notice_recovery_basis} options={RATE_BASIS}
-                      onChange={(v) => upd({ fnf_notice_recovery_basis: v })}
+                    <Pick label="Recover short notice from" value={set7.fnf_notice_recovery_rate_basis} options={RATE_BASIS}
+                      onChange={(v) => upd({ fnf_notice_recovery_rate_basis: v })}
                       hint="Which part of the salary the daily rate is worked out from." />
+                    <div className="sm:col-span-2">
+                      <Check checked={set7.fnf_notice_recovery_enabled} onChange={(v) => upd({ fnf_notice_recovery_enabled: v })}
+                        title="Recover pay for notice that wasn't served"
+                        hint="While this is off, leaving early costs the employee nothing, whatever the exit says." />
+                    </div>
                     <div className="sm:col-span-2">
                       <label className={labelCls}>Component used to recover short notice</label>
                       <select value={set7.fnf_notice_recovery_component_id || ""} onChange={(e) => upd({ fnf_notice_recovery_component_id: e.target.value })} className={fieldCls}>
@@ -362,13 +370,12 @@ export default function PayrollSettingsPage() {
                         The deduction line short notice is charged through. A settlement can&apos;t be prepared until this is chosen.
                       </p>
                     </div>
-                    <Num label="Settle within" value={set7.fnf_settlement_window_days} min={0} max={365} suffix="days"
-                      onChange={(v) => upd({ fnf_settlement_window_days: v })}
-                      hint="How long after the last working day the final payment is due." />
                     <Pick label="Outstanding loans" value={set7.fnf_loan_recovery_mode}
                       options={[
-                        { value: "recover_via_payroll", label: "Recover from the final payment" },
-                        { value: "manual_recovery", label: "Collect separately, outside payroll" },
+                        // The server's own values, confirmed live — not the
+                        // doc's `recover_via_payroll` / `manual_recovery`.
+                        { value: "payroll", label: "Recover from the final payment" },
+                        { value: "manual", label: "Collect separately, outside payroll" },
                       ]}
                       onChange={(v) => upd({ fnf_loan_recovery_mode: v })} />
                   </div>
@@ -381,21 +388,18 @@ export default function PayrollSettingsPage() {
                       <div className="grid sm:grid-cols-2 gap-6 pl-7">
                         <div>
                           <label className={labelCls}>Leave types paid out</label>
-                          <input type="text" value={(set7.fnf_leave_encashment_types || []).join(", ")}
-                            onChange={(e) => upd({ fnf_leave_encashment_types: e.target.value.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) })}
+                          <input type="text" value={(set7.fnf_encashment_leave_type_codes || []).join(", ")}
+                            onChange={(e) => upd({ fnf_encashment_leave_type_codes: e.target.value.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) })}
                             placeholder="EL" className={fieldCls} />
                           <p className="text-xs text-slate-400 mt-1.5">Short codes, separated by commas — for example EL, PL.</p>
                         </div>
-                        <Pick label="Work the daily rate from" value={set7.fnf_leave_encashment_rate_basis} options={RATE_BASIS}
-                          onChange={(v) => upd({ fnf_leave_encashment_rate_basis: v })} />
-                        <Pick label="Divide the monthly salary by" value={set7.fnf_leave_encashment_divisor_basis} options={DIVISOR_BASIS}
-                          onChange={(v) => upd({ fnf_leave_encashment_divisor_basis: v })}
+                        <Pick label="Work the daily rate from" value={set7.fnf_encashment_rate_basis} options={RATE_BASIS}
+                          onChange={(v) => upd({ fnf_encashment_rate_basis: v })} />
+                        <Pick label="Divide the monthly salary by" value={set7.fnf_encashment_divisor} options={DIVISOR_BASIS}
+                          onChange={(v) => upd({ fnf_encashment_divisor: v })}
                           hint="Turns a monthly salary into a per-day amount." />
                       </div>
                     )}
-                    <Check checked={set7.fnf_gratuity_auto_credit_enabled} onChange={(v) => upd({ fnf_gratuity_auto_credit_enabled: v })}
-                      title="Work out gratuity automatically"
-                      hint="For people who qualify. Leave this off to calculate and add gratuity by hand." />
                   </div>
                 </Section>
 
@@ -412,8 +416,8 @@ export default function PayrollSettingsPage() {
                       <div className="grid sm:grid-cols-2 gap-6 pl-7">
                         <Pick label="Work the daily rate from" value={set7.compoff_encashment_rate_basis} options={RATE_BASIS}
                           onChange={(v) => upd({ compoff_encashment_rate_basis: v })} />
-                        <Pick label="Divide the monthly salary by" value={set7.compoff_encashment_divisor_basis} options={DIVISOR_BASIS}
-                          onChange={(v) => upd({ compoff_encashment_divisor_basis: v })} />
+                        <Pick label="Divide the monthly salary by" value={set7.compoff_encashment_divisor} options={DIVISOR_BASIS}
+                          onChange={(v) => upd({ compoff_encashment_divisor: v })} />
                         <Num label="Most days per person, per year" value={set7.compoff_encashment_max_days_per_fy} min={0} max={365} suffix="days"
                           onChange={(v) => upd({ compoff_encashment_max_days_per_fy: v })}
                           hint="Requests above this are refused." />
@@ -422,55 +426,12 @@ export default function PayrollSettingsPage() {
                   </div>
                 </Section>
 
-                {/* ── Phase 7 · Automation (registry #56) ───────────────────── */}
-                <Section
-                  title="Automatic jobs"
-                  blurb="Routine work payroll can do on its own. Each of these also has a Run now button on the Automation page."
-                >
-                  <div className="space-y-5">
-                    <Check checked={set7.payroll_calendar_reminders_enabled} onChange={(v) => upd({ payroll_calendar_reminders_enabled: v })}
-                      title="Email payroll reminders"
-                      hint="Reminds the right people about cut-off dates, pay day, and deadlines for tax declarations and proofs." />
-
-                    <div>
-                      <Check checked={set7.auto_draft_enabled} onChange={(v) => upd({ auto_draft_enabled: v })}
-                        title="Create next month's draft payroll automatically"
-                        hint="Saves opening a run by hand each month. Nothing is calculated or paid — it only creates the draft." />
-                      {set7.auto_draft_enabled && (
-                        <div className="grid sm:grid-cols-2 gap-6 mt-4 pl-7">
-                          <Num label="Create it on day" value={set7.auto_draft_day_of_month} min={1} max={31}
-                            onChange={(v) => upd({ auto_draft_day_of_month: v })} hint="Day of the month." />
-                          <Num label="Or this many days before month end" value={set7.auto_draft_days_before_period_end} min={0} max={28} suffix="days"
-                            onChange={(v) => upd({ auto_draft_days_before_period_end: v })}
-                            hint="Used instead of a fixed day when the month is short." />
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <Check checked={set7.stale_run_sweep_enabled} onChange={(v) => upd({ stale_run_sweep_enabled: v })}
-                        title="Recover payroll runs that get stuck"
-                        hint="If a calculation stops unexpectedly, the run is marked as failed so it can be started again." />
-                      {set7.stale_run_sweep_enabled && (
-                        <div className="mt-4 pl-7 sm:max-w-xs">
-                          <Num label="Treat as stuck after" value={set7.stale_run_sweep_threshold_hours} min={1} max={72} suffix="hours"
-                            onChange={(v) => upd({ stale_run_sweep_threshold_hours: v })} />
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <Check checked={set7.attachment_purge_enabled} onChange={(v) => upd({ attachment_purge_enabled: v })}
-                        title="Permanently delete old receipts and proofs"
-                        hint="Files are kept for the period below, then deleted for good. Leave this off to keep everything." />
-                      <div className="mt-4 pl-7 sm:max-w-xs">
-                        <Num label="Keep files for" value={set7.attachment_retention_days} min={1} max={4000} suffix="days"
-                          onChange={(v) => upd({ attachment_retention_days: v })}
-                          hint="2555 days is seven years, the usual requirement in India." />
-                      </div>
-                    </div>
-                  </div>
-                </Section>
+                {/* Automation (#56) is documented but the server stores none of
+                    its keys — a GET of settings returns no auto_draft_*,
+                    stale_run_sweep_*, attachment_* or calendar-reminder field.
+                    Offering the switches here would save values that are
+                    silently dropped, so the jobs are run from the Automation
+                    page instead until the backend adds them. */}
 
                 <div className="pt-4 border-t border-slate-100 flex justify-end">
                   <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50">

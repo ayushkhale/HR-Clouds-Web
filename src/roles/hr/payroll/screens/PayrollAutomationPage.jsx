@@ -127,7 +127,8 @@ export default function PayrollAutomationPage() {
           <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500 mt-px" />
           <span>
             Running a job now is safe to repeat — nobody is emailed twice for the same thing and no duplicate drafts are
-            created. Only your organisation is affected.
+            created. Only your organisation is affected. Schedules for these jobs aren&apos;t configurable yet, so run
+            them here when you need the result.
           </span>
         </p>
 
@@ -135,7 +136,13 @@ export default function PayrollAutomationPage() {
           <div className="space-y-4">
             {JOBS.map((job) => {
               const Icon = job.icon;
-              const scheduled = settings?.[job.settingKey] !== false;
+              // VERIFIED LIVE 2026-09-20: the server stores none of the #56
+              // automation keys, so `settings[key]` is undefined for all four.
+              // `!== false` would then read undefined as "scheduled" and label
+              // every job "Runs on its own" — a claim we cannot support.
+              // Unknown is its own state.
+              const raw = settings?.[job.settingKey];
+              const scheduled = raw === undefined ? null : raw !== false;
               const running = busy === job.key;
               const result = results[job.key];
               return (
@@ -149,16 +156,24 @@ export default function PayrollAutomationPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-sm font-bold text-slate-800">{job.title}</h2>
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                          scheduled ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}>
-                          {scheduled ? "Runs on its own" : "Manual only"}
+                          scheduled === true ? "bg-violet-50 text-violet-700 border-violet-200"
+                            : scheduled === false ? "bg-slate-100 text-slate-500 border-slate-200"
+                            : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
+                          {scheduled === true ? "Runs on its own" : scheduled === false ? "Manual only" : "Schedule unknown"}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{job.what}</p>
 
-                      {!scheduled && (
+                      {scheduled === false && (
                         <p className="flex items-start gap-1.5 mt-2 text-[11px] text-slate-500">
                           <HiCog className="w-3.5 h-3.5 shrink-0 text-slate-400 mt-px" />
-                          <span>This is switched off, so it only happens when you run it here. Turn it on in Payroll Settings.</span>
+                          <span>This is switched off, so it only happens when you run it here.</span>
+                        </p>
+                      )}
+                      {scheduled === null && (
+                        <p className="flex items-start gap-1.5 mt-2 text-[11px] text-slate-500">
+                          <HiCog className="w-3.5 h-3.5 shrink-0 text-slate-400 mt-px" />
+                          <span>Whether this runs on a schedule isn&apos;t recorded yet, so run it here when you need it.</span>
                         </p>
                       )}
 
