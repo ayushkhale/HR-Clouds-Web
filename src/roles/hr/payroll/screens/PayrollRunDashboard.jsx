@@ -5,6 +5,7 @@ import { payrollAPI } from "../../../../shared/api";
 import {
   HiExclamationCircle, HiX, HiPlay, HiCalculator, HiCheck, HiCash, HiUserGroup, HiLockClosed,
   HiRefresh, HiChevronLeft, HiChevronRight, HiBan, HiClock, HiArrowRight, HiShieldCheck,
+  HiInformationCircle,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage, payrollErrorCode, runFailureAdvice } from "../../../../shared/utils/payrollErrors";
@@ -13,6 +14,8 @@ import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
 import PeriodPicker from "../PeriodPicker";
+import EmployeeMultiPicker from "../EmployeeMultiPicker";
+import { RUN_TYPES, runTypeMeta, runTypeLabel } from "../phase7Meta";
 import {
   runStatusMeta, runActions, runNextStep, RUN_STATUS_FILTERS, RUN_ACTION_SUCCESS, RUN_ACTION_FAILURE,
   statutoryReadinessNotes, payoutReadinessNotes, taxTablesMissing, alreadyRunText, toCount, plural, inferredExitDate,
@@ -42,6 +45,11 @@ function ReadinessStat({ label, value, tone = "neutral" }) {
 function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
   const [period, setPeriod] = useState(currentPeriod);
   const [notes, setNotes] = useState("");
+  // Phase 7: a run is no longer always the regular monthly one. Off-cycle and
+  // final-settlement runs pay a named group instead of everybody, so they carry
+  // a cohort of user_ids that the backend enforces a size limit on.
+  const [runType, setRunType] = useState("regular");
+  const [cohort, setCohort] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [elig, setElig] = useState({ loading: true, data: null, error: "" });
   const [creating, setCreating] = useState(false);
@@ -73,7 +81,18 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
   const readinessNotes = [...statutoryReadinessNotes(data.statutory), ...payoutReadinessNotes(data.payouts)];
   // Creating would fail with TAX_TABLES_MISSING; the readiness note says why.
   const blockedByTax = taxTablesMissing(data.statutory);
-  const canCreate = !elig.loading && !alreadyRun && !blockedByTax && !creating;
+  const rt = runTypeMeta(runType);
+  const needsCohort = Boolean(rt.cohort?.required);
+  const cohortSize = cohort.length;
+  const cohortProblem = !needsCohort ? ""
+    : cohortSize === 0 ? `Choose at least one person for a ${rt.label.toLowerCase()}.`
+    : cohortSize > rt.cohort.max ? `A ${rt.label.toLowerCase()} can cover at most ${rt.cohort.max} people. Remove ${cohortSize - rt.cohort.max}.`
+    : "";
+
+  // A duplicate-run check only applies to the regular monthly run: an off-cycle
+  // or final-settlement run is expected to sit alongside one.
+  const blocksDuplicate = runType === "regular" && alreadyRun;
+  const canCreate = !elig.loading && !blocksDuplicate && !blockedByTax && !creating && !cohortProblem;
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -81,7 +100,8 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
     setCreating(true);
     setCreateError("");
     try {
-      const payload = { period_month: period, run_type: "regular" };
+      const payload = { period_month: period, run_type: runType };
+      if (needsCohort) payload.user_ids = cohort;
       if (notes.trim()) payload.notes = notes.trim();
       const res = await payrollAPI.createRun(payload);
       onCreated(res?.data ?? res, period);
@@ -106,6 +126,46 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
         </div>
 
         <div className="px-6 py-5 space-y-5 overflow-y-auto">
+          {/* What kind of run. Regular is the default and the common case; the
+              other two pay a named group and say so before anything is picked. */}
+          <div>
+            <span className="block text-[11px] font-bold text-slate-500 uppercase mb-2">What are you paying?</span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {RUN_TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  disabled={creating}
+                  onClick={() => { setRunType(t.value); setCohort([]); setCreateError(""); }}
+                  aria-pressed={runType === t.value}
+                  className={`text-left px-3.5 py-3 rounded-xl border transition disabled:opacity-50 ${
+                    runType === t.value
+                      ? "border-purple-400 bg-purple-50 ring-2 ring-purple-100"
+                      : "border-slate-200 bg-white hover:border-purple-200"}`}
+                >
+                  <span className={`block text-xs font-bold ${runType === t.value ? "text-purple-800" : "text-slate-700"}`}>{t.label}</span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5 leading-snug">{t.blurb}</span>
+                </button>
+              ))}
+            </div>
+            {rt.note && (
+              <p className="flex items-start gap-1.5 mt-2 text-[11px] leading-relaxed text-slate-500">
+                <HiInformationCircle className="w-3.5 h-3.5 shrink-0 text-purple-500 mt-px" />
+                <span>{rt.note}</span>
+              </p>
+            )}
+          </div>
+
+          {needsCohort && (
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">
+                Who is being paid <span className="font-medium text-slate-400 normal-case">(up to {rt.cohort.max})</span>
+              </label>
+              <EmployeeMultiPicker value={cohort} onChange={setCohort} disabled={creating} max={rt.cohort.max} />
+              {cohortProblem && <p className="text-xs font-semibold text-rose-600 mt-1.5">{cohortProblem}</p>}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="run-period-month" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Pay month</label>
@@ -191,7 +251,7 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
                     </ul>
                   </div>
                 )}
-                {alreadyRun && (
+                {alreadyRun && runType === "regular" && (
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-purple-800 bg-purple-100/70 border border-purple-200 rounded-xl px-3 py-2.5">
                     <span className="font-semibold">{alreadyRunText(alreadyRun)}</span>
                     {alreadyRun.id && (
@@ -256,6 +316,13 @@ function RunCard({ run, busy, onOpen, onCalculate }) {
         <div className="flex flex-wrap items-center gap-2.5 mb-1">
           <h3 className="font-bold text-slate-800 text-lg">{formatPeriod(run.period_month)}</h3>
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${meta.pill}`}>{meta.label}</span>
+          {/* Regular is the norm and stays unlabelled; the other two are
+              exceptions and must be obvious at a glance in a shared list. */}
+          {run.run_type && run.run_type !== "regular" && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-indigo-50 text-indigo-700 border-indigo-200">
+              {runTypeLabel(run.run_type)}
+            </span>
+          )}
         </div>
         <p className="text-sm text-slate-500 line-clamp-1">{run.notes || meta.hint}</p>
 
@@ -337,6 +404,9 @@ export default function PayrollRunDashboard() {
   const { toast, showToast, hideToast } = useToast();
 
   const [statusFilter, setStatusFilter] = useState("");
+  // #39 gained a `run_type` filter in Phase 7; regular, off-cycle and final
+  // settlement runs now share the list.
+  const [typeFilter, setTypeFilter] = useState("");
   const [page, setPage] = useState(1);
   const [list, setList] = useState({ items: [], total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -353,6 +423,7 @@ export default function PayrollRunDashboard() {
     try {
       const params = { page, limit: PAGE_SIZE };
       if (statusFilter) params.status = statusFilter;
+      if (typeFilter) params.run_type = typeFilter;
       const res = await payrollAPI.getRuns(params);
       if (reqId !== requestRef.current) return;
       const norm = normalizePaginated(res, ["runs", "records", "items"], params);
@@ -366,7 +437,7 @@ export default function PayrollRunDashboard() {
     } finally {
       if (reqId === requestRef.current) setLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, typeFilter]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
 
@@ -425,6 +496,15 @@ export default function PayrollRunDashboard() {
             <label htmlFor="run-status-filter" className="text-xs font-bold text-slate-500 uppercase">Show</label>
             <select id="run-status-filter" value={statusFilter} onChange={(e) => changeFilter(e.target.value)} className="h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
               {RUN_STATUS_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <select
+              aria-label="Filter by run type"
+              value={typeFilter}
+              onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+              className="h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400"
+            >
+              <option value="">All kinds</option>
+              {RUN_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-3">

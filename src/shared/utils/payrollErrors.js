@@ -173,6 +173,36 @@ const PAYROLL_ERROR_MESSAGES = {
   BANK_ACCOUNT_NOT_FOUND: "No bank account is on file for this employee yet.",
   INVALID_IFSC: "That IFSC code isn't valid. It should look like HDFC0001234.",
   INVALID_ACCOUNT_NUMBER: "The account number must be 6 to 20 digits.",
+
+  // ── Phase 7 — Exits & final settlement (#195–#202) ────────────────────────
+  EXIT_ALREADY_RECORDED: "This employee already has an exit on record. Open it to change the last working day instead of adding another.",
+  EXIT_NOT_FOUND: "That exit record no longer exists. It may have been cancelled — refresh the list.",
+  EXIT_ALREADY_SETTLED: "This exit has already been settled and paid, so it can't be changed.",
+  EXIT_ALREADY_CANCELLED: "This exit has already been cancelled.",
+  EXIT_CANCELLED: "This exit was cancelled, so no settlement can be prepared for it.",
+  LWD_BEFORE_JOINING: "The last working day can't be before the employee joined.",
+  SETTLEMENT_ALREADY_PREPARED: "The settlement is already prepared. Reset it first, then change the dates.",
+  SETTLEMENT_NOT_PREPARED: "There's no prepared settlement to undo.",
+  SETTLEMENT_ARTEFACT_APPLIED: "Part of this settlement has already been paid in an approved payroll run, so it can't be undone.",
+  FNF_RUN_REFERENCES_EXIT: "A final settlement run for this exit has already been approved, so the exit can't be cancelled.",
+  NOTICE_COMPONENT_NOT_CONFIGURED: "Pick the salary component to recover short notice through, in Payroll Settings, before preparing a settlement.",
+  PERIOD_CLOSED: "That pay month is already approved or paid, so nothing new can be added to it. Choose an open month.",
+  NO_CHANGES: "Nothing was changed. Edit at least one field before saving.",
+
+  // ── Phase 7 — Arrears (#203–#205) ─────────────────────────────────────────
+  NO_CLOSED_RUN_FOR_PERIOD: "There's no approved or paid payroll for that month yet, so there's nothing to compare against.",
+  ENGINE_VERSION_NOT_RECONCILABLE: "That month was calculated by an older version of payroll and can't be compared automatically. Add the difference as a manual adjustment instead.",
+  SNAPSHOT_INCOMPLETE: "That month is missing some of the settings it was calculated with, so the difference can't be worked out reliably.",
+  NO_OPEN_ARREAR_TARGET: "There's no open payroll month to pay the difference into. Create a draft run first.",
+
+  // ── Phase 7 — Encashments (#206–#211, #216) ───────────────────────────────
+  ENCASHMENT_DISABLED: "Cashing out this kind of balance is switched off. Turn it on in Payroll Settings first.",
+  ENCASHMENT_NOT_FOUND: "That request no longer exists. Refresh the list.",
+  ENCASHMENT_NOT_ACTIONABLE: "This request has already been actioned, so it can't be changed again.",
+  ENCASHMENT_CAP_EXCEEDED: "That's more comp-off days than this employee is allowed to cash out in a year.",
+  COMP_OFF_NOT_ENCASHABLE: "One of the selected comp-offs can't be cashed out — it may have expired, been used, or not been approved yet.",
+  INSUFFICIENT_LEAVE_BALANCE: "That's more days than the employee currently has available.",
+  NO_SALARY_STRUCTURE: "This employee has no approved salary for that month, so a daily rate can't be worked out.",
 };
 
 // The three INVALID_PERIOD_OVERRIDE messages share one code; the text says which date is wrong.

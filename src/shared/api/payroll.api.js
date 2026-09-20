@@ -334,6 +334,51 @@ export const payrollAPI = {
   // HR — Export audit trail (#182) and the FY salary statement (#183)
   getExports: (params) => request(`/payroll/hr/exports${buildQuery(params)}`),
   getEmployeeAnnualStatement: (userId, params) => request(`/payroll/hr/employees/${userId}/annual-statement${buildQuery(params)}`),
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Phase 7: Exits & Final Settlement, Arrears, Encashments, Automation
+  // (#195–#218). Tenant plane only — no admin / super-admin.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // HR — Exits (#195–#199). One live exit per employee; a second is 409.
+  createExit: (payload) => request("/payroll/hr/exits", { method: "POST", body: JSON.stringify(payload) }),
+  getExits: (params) => request(`/payroll/hr/exits${buildQuery(params)}`),
+  getExit: (id) => request(`/payroll/hr/exits/${id}`),
+  // PATCH, not PUT: every field is optional and an empty body is 422 NO_CHANGES.
+  correctExit: (id, payload) => request(`/payroll/hr/exits/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  cancelExit: (id, payload) => request(`/payroll/hr/exits/${id}/cancel`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // HR — Full & final settlement (#200–#202).
+  // Preview persists NOTHING; prepare writes adjustments and debits leave
+  // wallets; reset is the exact inverse and needs a reason.
+  getSettlementPreview: (id, params) => request(`/payroll/hr/exits/${id}/settlement-preview${buildQuery(params)}`),
+  prepareSettlement: (id, payload) => request(`/payroll/hr/exits/${id}/prepare-settlement`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  resetSettlement: (id, payload) => request(`/payroll/hr/exits/${id}/settlement/reset`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // HR — Arrears (#203–#205). Drift is read-only; reconcile commits.
+  getArrearDrift: (params) => request(`/payroll/hr/arrears/drift${buildQuery(params)}`),
+  reconcileArrears: (payload) => request("/payroll/hr/arrears/reconcile", { method: "POST", body: JSON.stringify(payload) }),
+  getArrears: (params) => request(`/payroll/hr/arrears${buildQuery(params)}`),
+
+  // HR — Encashments (#206–#211).
+  createEncashment: (userId, payload) => request(`/payroll/hr/employees/${userId}/encashments`, { method: "POST", body: JSON.stringify(payload) }),
+  getEncashments: (params) => request(`/payroll/hr/encashments${buildQuery(params)}`),
+  getEncashment: (id) => request(`/payroll/hr/encashments/${id}`),
+  approveEncashment: (id) => request(`/payroll/hr/encashments/${id}/approve`, { method: "POST" }),
+  rejectEncashment: (id, payload) => request(`/payroll/hr/encashments/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
+  cancelEncashment: (id, payload) => request(`/payroll/hr/encashments/${id}/cancel`, { method: "POST", body: JSON.stringify(payload || {}) }),
+
+  // HR — Manual triggers for the four background jobs (#212–#215). All are
+  // org-scoped and idempotent: running one twice does not double-apply.
+  runCalendarReminders: () => request("/payroll/hr/jobs/calendar-reminders/run", { method: "POST" }),
+  runAutoDraft: () => request("/payroll/hr/jobs/auto-draft/run", { method: "POST" }),
+  runRunSweeper: () => request("/payroll/hr/jobs/run-sweeper/run", { method: "POST" }),
+  runAttachmentSweeper: () => request("/payroll/hr/jobs/attachment-sweeper/run", { method: "POST" }),
+
+  // Manager — Encashments (#216–#217). Amounts are masked unless the manager
+  // has compensation visibility (EC-25).
+  proposeEncashment: (userId, payload) => request(`/payroll/manager/employees/${userId}/encashments`, { method: "POST", body: JSON.stringify(payload) }),
+  getTeamEncashments: (params) => request(`/payroll/manager/encashments${buildQuery(params)}`),
 };
 
 /**
