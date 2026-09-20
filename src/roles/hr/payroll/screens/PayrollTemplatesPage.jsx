@@ -5,10 +5,16 @@ import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiD
 import Skeleton from "../../../../shared/components/Skeleton";
 import CtcBudgetBar from "../CtcBudgetBar";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 import {
   CTC_PRESETS, formatINR, readTarget, writeTarget, readFlatUnit, writeFlatUnit, flatUnitFrom,
   componentMeta, budgetFromPreview, estimateBudget, rowAnnual, estimateLine, moYr, buildSuggestions,
 } from "../ctcBudget";
+
+// Org employee rows carry `user_id`; payroll rows carry `id`. Accept either.
+const orgUserId = (u) => u?.user_id ?? u?.id ?? u?._id;
+const orgUserName = (u) =>
+  u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unnamed";
 
 /** One figure of the preview summary. Tones stay in the purple family; rose is reserved for money taken away. */
 function FigureTile({ label, value, hint, tone = "plain" }) {
@@ -36,16 +42,24 @@ function Toast({ toast, onClose }) {
 }
 
 export default function PayrollTemplatesPage() {
-  // The preview endpoint became employee-scoped on 2026-09-20: professional tax
-  // follows the employee's work state and TDS their declarations, so it now
-  // requires a `user_id`. This page previews a *template*, not a person, and has
-  // no employee in scope — so it evaluates against the signed-in HR user, who is
-  // always a valid profile in their own org. The component split (which is what
-  // this screen exists to show) is identical whoever it is evaluated for; only
-  // PT and TDS would differ, and neither is rendered here. The modal says so
-  // rather than letting the figures imply they are universal.
+  // The preview endpoint became employee-scoped on 2026-09-20 (combined_api_analysis-3
+  // §15): professional tax follows the employee's work state and TDS their
+  // declarations, so it requires a `user_id` and 404s an id outside the org.
+  //
+  // This page previews a *template*, not a person, so the employee is chosen
+  // here. It defaults to the signed-in HR user — always a valid profile in
+  // their own org, so the common case is still one click — but it is an
+  // explicit, visible choice: the component split is the same for everyone,
+  // while PT and TDS are not, and the breakdown now renders both.
   const { user } = useAuth();
-  const previewUserId = user?.id || null;
+  const [orgPeople, setOrgPeople] = useState([]);
+  const [previewUserId, setPreviewUserId] = useState(null);
+
+  // Default to the signed-in user as soon as auth resolves, without clobbering
+  // a pick HR has already made.
+  useEffect(() => {
+    if (user?.id) setPreviewUserId((cur) => cur ?? user.id);
+  }, [user?.id]);
 
   const [templates, setTemplates] = useState([]);
   const [components, setComponents] = useState([]);
@@ -180,11 +194,26 @@ export default function PayrollTemplatesPage() {
   // rendering zeroes that would read as "nothing is deducted".
   const previewFigures = previewData?.statutory_breakdown?.figures || null;
 
+  // Paged fetch behind a shared cache, so this is cheap after the first open.
+  useEffect(() => {
+    if (!previewTpl && !isComponentModalOpen) return;
+    if (orgPeople.length > 0) return;
+    let cancelled = false;
+    fetchAllOrgEmployees({ includeInactive: false })
+      .then((list) => { if (!cancelled) setOrgPeople(Array.isArray(list) ? list : []); })
+      .catch(() => { /* the signed-in default still works; the picker just stays empty */ });
+    return () => { cancelled = true; };
+  }, [previewTpl, isComponentModalOpen, orgPeople.length]);
+
   const runPreview = async (e) => {
     e?.preventDefault();
     const ctc = Number(previewCTC);
     if (!ctc || ctc <= 0) {
       setPreviewError("Enter an annual CTC greater than zero");
+      return;
+    }
+    if (!previewUserId) {
+      setPreviewError("Pick the employee to evaluate this template for — professional tax and income tax depend on them.");
       return;
     }
     setIsPreviewLoading(true);
@@ -689,6 +718,25 @@ export default function PayrollTemplatesPage() {
             </div>
 
             <form onSubmit={runPreview} className={`px-6 py-5 ${previewData ? "bg-slate-50 border-b border-slate-100" : ""}`}>
+              {/* Employee first: the split is template-wide, but PT and TDS are
+                  this person's, and the breakdown below shows both. */}
+              <label htmlFor="preview-user" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Evaluate for</label>
+              <select
+                id="preview-user"
+                value={previewUserId || ""}
+                onChange={(e) => { setPreviewUserId(e.target.value || null); setPreviewError(""); }}
+                className="w-full px-4 py-2.5 mb-1.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              >
+                {user?.id && <option value={user.id}>Me{orgPeople.length > 0 ? " (signed in)" : ""}</option>}
+                {orgPeople
+                  .filter((p) => orgUserId(p) && orgUserId(p) !== user?.id)
+                  .map((p) => <option key={orgUserId(p)} value={orgUserId(p)}>{orgUserName(p)}</option>)}
+              </select>
+              <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
+                The component split is the same for everyone on this template. Professional tax and income tax depend on
+                the employee.
+              </p>
+
               <label htmlFor="preview-ctc" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Annual CTC</label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
