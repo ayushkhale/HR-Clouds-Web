@@ -16,8 +16,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -43,7 +43,7 @@ const STATUS_PILL = {
   under_review: "bg-fuchsia-100 text-fuchsia-700",
   verified: "bg-violet-100 text-violet-700",
   partially_verified: "bg-purple-100 text-purple-700",
-  rejected: "bg-red-100 text-red-700",
+  rejected: "bg-rose-100 text-rose-700",
 };
 
 const TABS = [
@@ -330,7 +330,7 @@ function DeclarationsTab({ fy, showToast }) {
                 </td>
                 {isDraft && (
                   <td className="px-5 py-2.5">
-                    {!r.locked && <button onClick={() => removeRow(i)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><HiTrash className="w-4 h-4" /></button>}
+                    {!r.locked && <button onClick={() => removeRow(i)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><HiTrash className="w-4 h-4" /></button>}
                   </td>
                 )}
               </tr>
@@ -545,7 +545,7 @@ function Form16Tab({ fy, showToast }) {
         <button onClick={fetchIt} disabled={state === "loading"} className="mt-4 px-4 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50">
           {state === "loading" ? "Checking…" : "Fetch My Form 16"}
         </button>
-        {state === "unavailable" && <p className="mt-3 text-sm text-red-600">Not finalized yet — check back after year-end closure.</p>}
+        {state === "unavailable" && <p className="mt-3 text-sm text-rose-600">Not finalized yet — check back after year-end closure.</p>}
         {state === "ready" && data?.part_a_attachment && (() => {
           const att = normalizeAttachment(data.part_a_attachment);
           if (!att?.id) return null;

@@ -28,7 +28,7 @@ function GuestDashboard() {
             </span>
             <button
               onClick={handleLogout}
-              className="text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer bg-gray-100 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-red-200"
+              className="text-xs font-semibold text-gray-500 hover:text-rose-600 transition-colors flex items-center gap-1 cursor-pointer bg-gray-100 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-rose-200"
             >
               <HiLogout className="w-3.5 h-3.5" /> Log Out
             </button>

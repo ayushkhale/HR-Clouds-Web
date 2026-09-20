@@ -410,7 +410,7 @@ function MyProfilePage() {
                             </div>
 
                             {notice && (
-                                <div className={`px-4 py-3 rounded-xl text-sm font-semibold border ${notice.type === "success" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                                <div className={`px-4 py-3 rounded-xl text-sm font-semibold border ${notice.type === "success" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-rose-50 text-rose-700 border-rose-200"}`}>
                                     {notice.message}
                                 </div>
                             )}

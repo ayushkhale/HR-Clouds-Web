@@ -23,7 +23,7 @@ function PasswordStrength({ password }) {
     /[^A-Za-z0-9]/.test(password),
   ];
   const score = checks.filter(Boolean).length;
-  const colors = ["bg-gray-200", "bg-red-400", "bg-fuchsia-400", "bg-fuchsia-400", "bg-violet-400", "bg-violet-500"];
+  const colors = ["bg-gray-200", "bg-rose-400", "bg-fuchsia-400", "bg-fuchsia-400", "bg-violet-400", "bg-violet-500"];
   const labels = ["", "Very weak", "Weak", "Fair", "Good", "Strong"];
 
   if (!password) return null;
@@ -38,7 +38,7 @@ function PasswordStrength({ password }) {
           />
         ))}
       </div>
-      <p className={`text-[11px] mt-1 ${score <= 2 ? "text-red-500" : score <= 3 ? "text-fuchsia-600" : "text-violet-600"}`}>
+      <p className={`text-[11px] mt-1 ${score <= 2 ? "text-rose-500" : score <= 3 ? "text-fuchsia-600" : "text-violet-600"}`}>
         {labels[score]}
       </p>
     </div>
@@ -215,7 +215,7 @@ function OtpPage() {
           <>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                {isForgotPassword ? "New Password" : "Set Password"} <span className="text-red-400">*</span>
+                {isForgotPassword ? "New Password" : "Set Password"} <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <input
@@ -239,7 +239,7 @@ function OtpPage() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Confirm Password <span className="text-red-400">*</span>
+                Confirm Password <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <input
@@ -250,7 +250,7 @@ function OtpPage() {
                   required
                   className={`w-full border-2 rounded-xl px-4 py-2.5 pr-11 text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 transition-all bg-white ${
                     confirmPassword && confirmPassword !== password
-                      ? "border-red-300 focus:border-red-400 focus:ring-red-100"
+                      ? "border-rose-300 focus:border-rose-400 focus:ring-rose-100"
                       : "border-gray-300 focus:border-purple-500 focus:ring-purple-100"
                   }`}
                 />
@@ -263,14 +263,14 @@ function OtpPage() {
                 </button>
               </div>
               {confirmPassword && confirmPassword !== password && (
-                <p className="text-[11px] text-red-500 mt-1">Passwords do not match</p>
+                <p className="text-[11px] text-rose-500 mt-1">Passwords do not match</p>
               )}
             </div>
           </>
         )}
 
         {error && (
-          <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-500 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
             {error}
           </p>
         )}

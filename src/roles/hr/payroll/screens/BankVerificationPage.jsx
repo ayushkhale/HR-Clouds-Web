@@ -18,8 +18,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -91,7 +91,7 @@ const STATE = {
   verified: { label: "Verified", pill: "bg-violet-50 text-violet-700 border-violet-200" },
   unverified: { label: "Awaiting verification", pill: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
   none: { label: "No account on file", pill: "bg-slate-50 text-slate-500 border-slate-200" },
-  error: { label: "Couldn't load", pill: "bg-red-50 text-red-600 border-red-200" },
+  error: { label: "Couldn't load", pill: "bg-rose-50 text-rose-600 border-rose-200" },
   loading: { label: "Checking…", pill: "bg-slate-50 text-slate-400 border-slate-200" },
 };
 

@@ -157,7 +157,7 @@ export default function LeaveRequestCard({ request, onApprove, onReject, busy = 
             {bal.loading ? (
               <span className="text-slate-400">Loading balance…</span>
             ) : bal.error ? (
-              <span className="text-red-500">{bal.error}</span>
+              <span className="text-rose-500">{bal.error}</span>
             ) : bal.row ? (
               (() => {
                 const current = parseFloat(bal.row.current_balance);
@@ -183,7 +183,7 @@ export default function LeaveRequestCard({ request, onApprove, onReject, busy = 
           <button onClick={checkBalance} className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl transition mr-auto">
             <HiCalendar className="w-4 h-4" />{bal && !bal.error ? "Hide balance" : "Balance impact"}
           </button>
-          <button onClick={() => onReject(request)} disabled={busy} className="flex items-center gap-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50">
+          <button onClick={() => onReject(request)} disabled={busy} className="flex items-center gap-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50">
             <HiThumbDown className="w-4 h-4" />{isCancellation ? "Deny" : "Reject"}
           </button>
           <button onClick={() => onApprove(request)} disabled={busy} className="flex items-center gap-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 px-5 py-2.5 rounded-xl transition disabled:opacity-50 shadow-sm shadow-violet-200">

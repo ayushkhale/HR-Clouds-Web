@@ -66,8 +66,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -405,7 +405,7 @@ function PtSlabsTab({ showToast }) {
               <h3 className="font-bold text-slate-800">{g.state_name || g.code} <span className="text-xs font-mono text-slate-400">{g.code}</span></h3>
               <div className="flex gap-2">
                 <button onClick={() => openEditor(g)} className="p-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition" title="Edit"><HiPencil className="w-4 h-4" /></button>
-                <button onClick={() => deactivate(g.code)} className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Deactivate"><HiTrash className="w-4 h-4" /></button>
+                <button onClick={() => deactivate(g.code)} className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Deactivate"><HiTrash className="w-4 h-4" /></button>
               </div>
             </div>
             <table className="w-full text-left border-collapse text-sm">
@@ -433,7 +433,7 @@ function PtSlabsTab({ showToast }) {
       </div>
 
       {editorState && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">State PT Slabs</h2>
@@ -442,7 +442,7 @@ function PtSlabsTab({ showToast }) {
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">State Code <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">State Code <span className="text-rose-500">*</span></label>
                   <StateCodePicker
                     code={editorState.stateCode}
                     onSelect={(s) => setEditorState((st) => ({ ...st, stateCode: s.code, stateName: s.name }))}
@@ -479,7 +479,7 @@ function PtSlabsTab({ showToast }) {
                   <div key={i} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-slate-400 uppercase">Band {i + 1}</span>
-                      <button onClick={() => setEditorState({ ...editorState, rows: editorState.rows.filter((_, x) => x !== i) })} className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition" title="Remove band"><HiTrash className="w-4 h-4" /></button>
+                      <button onClick={() => setEditorState({ ...editorState, rows: editorState.rows.filter((_, x) => x !== i) })} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition" title="Remove band"><HiTrash className="w-4 h-4" /></button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <Field label="From ₹">
@@ -643,7 +643,7 @@ function RegimesTab({ showToast }) {
       )}
 
       {editing && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Edit Regime</h2>
@@ -672,7 +672,7 @@ function RegimesTab({ showToast }) {
       )}
 
       {slabEditor && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800 capitalize">{slabEditor.regime.name || slabEditor.regime.code} — Slabs</h2>
@@ -683,7 +683,7 @@ function RegimesTab({ showToast }) {
                 <div key={i} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-400 uppercase">Slab {i + 1}</span>
-                    <button onClick={() => setSlabEditor({ ...slabEditor, rows: slabEditor.rows.filter((_, x) => x !== i) })} className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition" title="Remove slab"><HiTrash className="w-4 h-4" /></button>
+                    <button onClick={() => setSlabEditor({ ...slabEditor, rows: slabEditor.rows.filter((_, x) => x !== i) })} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition" title="Remove slab"><HiTrash className="w-4 h-4" /></button>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Field label="Age Band">

@@ -62,7 +62,7 @@ const inputClass = (invalid) =>
 
 const Label = ({ htmlFor, children, required }) => (
   <label htmlFor={htmlFor} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-    {children} {required && <span className="text-red-400">*</span>}
+    {children} {required && <span className="text-rose-400">*</span>}
   </label>
 );
 
@@ -135,7 +135,7 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 sm:p-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-6 sm:px-10 py-6 border-b border-slate-100">
           <div>
@@ -308,7 +308,7 @@ function RotationModal({ shifts, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -365,7 +365,7 @@ function RotationModal({ shifts, onClose, onSaved }) {
                         <button type="button" onClick={() => moveEntry(i, -1)} disabled={i === 0} className="px-1.5 text-slate-400 hover:text-slate-700 disabled:opacity-30" aria-label="Move up">↑</button>
                         <button type="button" onClick={() => moveEntry(i, 1)} disabled={i === form.entries.length - 1} className="px-1.5 text-slate-400 hover:text-slate-700 disabled:opacity-30" aria-label="Move down">↓</button>
                         {form.entries.length > 1 && (
-                          <button type="button" onClick={() => removeEntry(i)} className="text-slate-400 hover:text-red-500 transition ml-1" aria-label="Remove phase">
+                          <button type="button" onClick={() => removeEntry(i)} className="text-slate-400 hover:text-rose-500 transition ml-1" aria-label="Remove phase">
                             <HiX className="w-4 h-4" />
                           </button>
                         )}
@@ -642,7 +642,7 @@ export default function AttendanceShiftsPage() {
                                 <button onClick={() => handleEditShift(s)} disabled={editShiftLoading === s.id} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Edit shift" aria-label={`Edit ${s.name}`}>
                                   {editShiftLoading === s.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
                                 </button>
-                                <button onClick={() => handleDeactivateShift(s)} disabled={deactivating === s.id} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50" title="Deactivate shift" aria-label={`Deactivate ${s.name}`}>
+                                <button onClick={() => handleDeactivateShift(s)} disabled={deactivating === s.id} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition disabled:opacity-50" title="Deactivate shift" aria-label={`Deactivate ${s.name}`}>
                                   {deactivating === s.id ? <Spinner className="w-4 h-4" /> : <HiBan className="w-4 h-4" />}
                                 </button>
                               </div>
@@ -711,7 +711,7 @@ export default function AttendanceShiftsPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button onClick={() => handleDeleteRotation(r)} disabled={deletingRotation === r.id} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50" title="Delete rotation" aria-label={`Delete ${r.name}`}>
+                            <button onClick={() => handleDeleteRotation(r)} disabled={deletingRotation === r.id} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition disabled:opacity-50" title="Delete rotation" aria-label={`Delete ${r.name}`}>
                               {deletingRotation === r.id ? <Spinner className="w-4 h-4" /> : <HiTrash className="w-4 h-4" />}
                             </button>
                           </td>

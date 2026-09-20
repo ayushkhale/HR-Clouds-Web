@@ -171,7 +171,7 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
       <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label="New adjustment" className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-5 border-b border-purple-100">
           <div>
@@ -398,7 +398,7 @@ function BulkUploadDialog({ directory, onClose, onCommitted }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
       <div role="dialog" aria-modal="true" aria-label="Bulk upload adjustments" className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
         <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-5 border-b border-purple-100">
           <div>

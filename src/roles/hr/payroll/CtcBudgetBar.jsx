@@ -13,9 +13,9 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
     const ratio = budget.used / T;
     const balancingName = budget.balancing?.meta.name || "balancing";
     if (over) {
-      barTone = "bg-red-500";
+      barTone = "bg-rose-500";
       status = {
-        tone: "text-red-600",
+        tone: "text-rose-600",
         text: budget.balancing
           ? `Over by ${moYr(-budget.remaining)} · ${balancingName} would go negative`
           : `Over by ${moYr(-budget.remaining)}`,
@@ -117,7 +117,7 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
                   type="button"
                   onClick={() => onSuggestion?.(s)}
                   title="Fills in the form for you. Nothing is saved until you confirm."
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition ${s.tone === "red" ? "border-red-100 bg-red-50 text-red-700 hover:bg-red-100" : "border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition ${s.tone === "red" ? "border-rose-100 bg-rose-50 text-rose-700 hover:bg-rose-100" : "border-purple-100 bg-white text-purple-700 hover:bg-purple-50"}`}
                 >
                   {s.kind === "edit" ? <HiPencil className="w-3 h-3" /> : s.kind === "remove" ? <HiTrash className="w-3 h-3" /> : <HiPlus className="w-3 h-3" />}
                   {s.title}

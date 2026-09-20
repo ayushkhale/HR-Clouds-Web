@@ -134,7 +134,7 @@ const OurTeam = () => {
 
       {/* Popup Modal */}
       {selectedMember && (
-        <div className="fixed inset-0 z-50 bg-primary-500/80 backdrop-blur-md flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center px-4">
           <div className="bg-primary-500 border border-white/10 text-white rounded-3xl p-8 max-w-xl w-full relative shadow-2xl overflow-hidden">
             {/* Modal Reflection Highlights */}
             <div className="left-[-20%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />

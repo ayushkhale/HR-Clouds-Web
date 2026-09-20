@@ -132,7 +132,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
@@ -149,7 +149,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
         
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-start gap-2">
+            <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm font-semibold flex items-start gap-2">
               <HiBan className="w-5 h-5 shrink-0 mt-0.5" />
               <p>{error}</p>
             </div>
@@ -218,7 +218,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
 
               {form.is_current_hod && (
                 <div className="pl-8">
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5">Replacement HOD <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">Replacement HOD <span className="text-rose-500">*</span></label>
                   <select 
                     name="replacement_hod_id" 
                     value={form.replacement_hod_id} 
@@ -250,7 +250,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
 
               {requiresFallback && (
                 <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 mt-2">
-                  <label className="block text-xs font-bold text-fuchsia-800 mb-1.5">Fallback Manager <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-bold text-fuchsia-800 mb-1.5">Fallback Manager <span className="text-rose-500">*</span></label>
                   <p className="text-xs text-fuchsia-700 mb-2">The old department has no HOD. Select a manager to inherit this user's subordinates.</p>
                   <select 
                     name="old_dept_fallback_manager_id" 
@@ -478,7 +478,7 @@ export default function EmployeeProfilePage() {
                   <button 
                     onClick={() => { setShowSettings(false); setShowDeleteModal(true); }}
                     disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
+                    className="w-full text-left px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
                   >
                     <HiTrash className="w-4 h-4" /> Delete Employee
                   </button>
@@ -488,7 +488,7 @@ export default function EmployeeProfilePage() {
           </div>
 
           {loadError && !loading && (
-            <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold flex items-center gap-2">
+            <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold flex items-center gap-2">
               <HiBan className="w-5 h-5 shrink-0" />
               {loadError}
             </div>
@@ -638,7 +638,7 @@ export default function EmployeeProfilePage() {
 
       {/* ── DELETE MODAL ── */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-lg text-slate-800">Delete Employee</h3>
@@ -651,8 +651,8 @@ export default function EmployeeProfilePage() {
               </button>
             </div>
             <div className="p-6">
-              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
-                <HiTrash className="w-6 h-6 text-red-500" />
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
+                <HiTrash className="w-6 h-6 text-rose-500" />
               </div>
               <p className="text-sm font-semibold text-slate-700 mb-2">
                 This action is permanent and cannot be undone.
@@ -671,12 +671,12 @@ export default function EmployeeProfilePage() {
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="DELETE"
                   disabled={isActionLoading}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-red-500 focus:bg-white transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-rose-500 focus:bg-white transition-all"
                 />
               </div>
 
               {actionError && (
-                <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-center gap-2">
+                <div className="mb-6 px-4 py-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm font-semibold flex items-center gap-2">
                   <HiBan className="w-5 h-5 shrink-0" />
                   <p>{actionError}</p>
                 </div>
@@ -693,7 +693,7 @@ export default function EmployeeProfilePage() {
                 <button
                   onClick={handleDeleteEmployee}
                   disabled={isActionLoading || deleteConfirmText !== "DELETE"}
-                  className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isActionLoading ? (
                     <>

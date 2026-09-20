@@ -105,7 +105,7 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -287,7 +287,7 @@ function SettlementPanel({ exit, onClose, onChanged, showToast, nameOf }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100">
           <div className="min-w-0">

@@ -14,8 +14,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -32,7 +32,7 @@ const STATUS_PILL = {
   under_review: "bg-fuchsia-100 text-fuchsia-700",
   verified: "bg-violet-100 text-violet-700",
   partially_verified: "bg-purple-100 text-purple-700",
-  rejected: "bg-red-100 text-red-700",
+  rejected: "bg-rose-100 text-rose-700",
 };
 const statusLabel = (s) => (s || "").replace(/_/g, " ") || "N/A";
 const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{statusLabel(s)}</span>;
@@ -240,13 +240,13 @@ export default function TaxDeclarationsPage() {
           footer={detailLoading ? null : rejecting ? (
             <>
               <button type="button" onClick={() => setRejecting(false)} disabled={busy} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50">Back</button>
-              <button type="button" disabled={busy || !reasonText.trim()} onClick={submitReject} className="px-6 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50">
+              <button type="button" disabled={busy || !reasonText.trim()} onClick={submitReject} className="px-6 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50">
                 <HiBan className="w-3.5 h-3.5" /> {busy ? "Rejecting…" : "Reject Declaration"}
               </button>
             </>
           ) : (
             <>
-              <button type="button" onClick={() => setRejecting(true)} disabled={busy} className="sm:mr-auto px-5 py-2.5 text-xs font-bold text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50"><HiBan className="w-3.5 h-3.5" /> Reject All</button>
+              <button type="button" onClick={() => setRejecting(true)} disabled={busy} className="sm:mr-auto px-5 py-2.5 text-xs font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50"><HiBan className="w-3.5 h-3.5" /> Reject All</button>
               <button type="button" onClick={closeDetail} disabled={busy} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50">Cancel</button>
               <button type="button" disabled={busy || !canVerify} onClick={submitVerify} title={canVerify ? undefined : "Only submitted or under-review declarations can be verified."} className="px-6 py-2.5 text-xs font-bold text-white bg-[#6D28D9] hover:bg-purple-700 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50">
                 <HiCheck className="w-3.5 h-3.5" /> {busy ? "Saving…" : "Apply Verification"}
@@ -325,8 +325,8 @@ export default function TaxDeclarationsPage() {
 
               {rejecting ? (
                 <DetailSection title="Reject the whole declaration" icon={HiBan}>
-                  <label htmlFor="decl-reject-reason" className={labelCls}>Reason <span className="text-red-400">*</span></label>
-                  <textarea id="decl-reject-reason" value={reasonText} onChange={(e) => setReasonText(e.target.value)} rows={3} autoFocus placeholder="Tell the employee why the declaration is rejected…" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-red-400 focus:bg-white transition-all resize-none" />
+                  <label htmlFor="decl-reject-reason" className={labelCls}>Reason <span className="text-rose-400">*</span></label>
+                  <textarea id="decl-reject-reason" value={reasonText} onChange={(e) => setReasonText(e.target.value)} rows={3} autoFocus placeholder="Tell the employee why the declaration is rejected…" className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-rose-400 focus:bg-white transition-all resize-none" />
                 </DetailSection>
               ) : (
                 <DetailSection title="Your remarks" icon={HiClipboardList}>

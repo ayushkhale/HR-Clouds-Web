@@ -44,7 +44,7 @@ function DailyLogModal({ date, onClose, onRequestCorrection }) {
   const empty = !record && sortedLogs.length === 0 && breaks.length === 0 && sessions.length === 0 && anomalies.length === 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" role="dialog" aria-modal="true" aria-label="Daily attendance log">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-800">Daily log · {fmtDate(date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</h2>

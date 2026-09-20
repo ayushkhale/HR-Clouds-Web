@@ -398,7 +398,7 @@ function RegisterOrgPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Organization / Company Name <span className="text-red-500">*</span>
+                  Organization / Company Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -441,7 +441,7 @@ function RegisterOrgPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
-                    Company Size <span className="text-red-500">*</span>
+                    Company Size <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={form.size}
@@ -512,7 +512,7 @@ function RegisterOrgPage() {
               </div>
 
               {error && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
                   {error}
                 </p>
               )}

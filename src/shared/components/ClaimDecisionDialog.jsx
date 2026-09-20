@@ -111,7 +111,7 @@ export default function ClaimDecisionDialog({ claim, levelLabel, busy = false, e
   };
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-3 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && !busy && onCloseRef.current?.()}>
+    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && !busy && onCloseRef.current?.()}>
       <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label="Review claim" className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-purple-100">
           <div className="min-w-0">

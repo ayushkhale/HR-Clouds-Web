@@ -33,8 +33,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -571,19 +571,19 @@ export default function MySalaryPage() {
               <DetailSection title="Account details" icon={HiLibrary}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label htmlFor="bank-holder" className={labelCls}>Account holder name <span className="text-red-400">*</span></label>
+                    <label htmlFor="bank-holder" className={labelCls}>Account holder name <span className="text-rose-400">*</span></label>
                     <input id="bank-holder" type="text" required value={bankFormData.account_holder_name} onChange={(e) => setBankFormData({ ...bankFormData, account_holder_name: e.target.value })} className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="bank-name" className={labelCls}>Bank name <span className="text-red-400">*</span></label>
+                    <label htmlFor="bank-name" className={labelCls}>Bank name <span className="text-rose-400">*</span></label>
                     <input id="bank-name" type="text" required value={bankFormData.bank_name} onChange={(e) => setBankFormData({ ...bankFormData, bank_name: e.target.value })} className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="bank-number" className={labelCls}>Account number <span className="text-red-400">*</span></label>
+                    <label htmlFor="bank-number" className={labelCls}>Account number <span className="text-rose-400">*</span></label>
                     <input id="bank-number" type="text" required value={bankFormData.account_number} onChange={(e) => setBankFormData({ ...bankFormData, account_number: e.target.value })} placeholder={bankAccount ? "Re-enter the full number" : ""} className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-red-400">*</span></label>
+                    <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-rose-400">*</span></label>
                     <input id="bank-ifsc" type="text" required value={bankFormData.ifsc_code} onChange={(e) => setBankFormData({ ...bankFormData, ifsc_code: e.target.value.toUpperCase() })} className={`${inputCls} uppercase`} />
                   </div>
                   <div>

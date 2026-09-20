@@ -33,8 +33,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -410,7 +410,7 @@ export default function PayrollTemplatesPage() {
       if (budget.balancing) return { tone: "text-fuchsia-600", text: `Template already has a balancing component (${balancingName})` };
       return budget.remaining >= 0
         ? { tone: "text-slate-500", text: `Fills up what's left: ≈ ${moYr(budget.remaining)} · calculated automatically` }
-        : { tone: "text-red-600", text: `Nothing left to absorb · already over by ${formatINR(-budget.remaining)}` };
+        : { tone: "text-rose-600", text: `Nothing left to absorb · already over by ${formatINR(-budget.remaining)}` };
     }
     if (componentFormData.value === "") return null;
     const amt = estimateLine(calc, componentFormData.value, budget, flatUnit);
@@ -424,7 +424,7 @@ export default function PayrollTemplatesPage() {
     const meta = componentMeta({ component_id: componentFormData.component_id }, components);
     if (!meta.partOfCtc) return { tone: "text-slate-500", text: `≈ ${moYr(amt)}${unitNote} · not part of CTC, doesn't use the target` };
     const after = budget.remaining - amt;
-    if (after < -0.5) return { tone: "text-red-600", text: `Adds ≈ ${moYr(amt)}${unitNote} · over target by ${formatINR(-after / 12)}/mo` };
+    if (after < -0.5) return { tone: "text-rose-600", text: `Adds ≈ ${moYr(amt)}${unitNote} · over target by ${formatINR(-after / 12)}/mo` };
     const ctcNote = calc === "percent_of_ctc" && !isCtcDriven ? " · % of CTC uses the target" : "";
     return {
       tone: "text-purple-600",
@@ -511,7 +511,7 @@ export default function PayrollTemplatesPage() {
                   <div className="p-4 border-t border-slate-50 flex items-center justify-between bg-white">
                     <div className="flex gap-2">
                       <button onClick={() => handleOpenModal(tpl)} className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"><HiPencil className="w-4 h-4" /></button>
-                      <button onClick={() => handleDeactivate(tpl.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><HiTrash className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeactivate(tpl.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><HiTrash className="w-4 h-4" /></button>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => handleOpenComponentModal(tpl)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
@@ -534,7 +534,7 @@ export default function PayrollTemplatesPage() {
         </main>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">{editingTemplate ? "Edit Template" : "New Template"}</h2>
@@ -566,7 +566,7 @@ export default function PayrollTemplatesPage() {
       )}
 
       {isComponentModalOpen && managingTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
@@ -648,7 +648,7 @@ export default function PayrollTemplatesPage() {
                             ) : (
                               <div className="flex justify-end gap-1.5">
                                 <button onClick={() => startEditComponent(c)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Edit"><HiPencil className="w-4 h-4" /></button>
-                                <button onClick={() => handleRemoveComponent(c.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Remove">
+                                <button onClick={() => handleRemoveComponent(c.id)} className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Remove">
                                   <HiTrash className="w-4 h-4" />
                                 </button>
                               </div>
@@ -698,7 +698,7 @@ export default function PayrollTemplatesPage() {
                   </div>
                   {draftHint && (
                     <p className={`col-span-12 -mt-1 flex items-center gap-1.5 text-xs font-semibold tabular-nums ${draftHint.tone}`}>
-                      {draftHint.tone === "text-red-600" && <HiExclamationCircle className="w-4 h-4 shrink-0" />}
+                      {draftHint.tone === "text-rose-600" && <HiExclamationCircle className="w-4 h-4 shrink-0" />}
                       {draftHint.text}
                     </p>
                   )}
@@ -713,7 +713,7 @@ export default function PayrollTemplatesPage() {
       )}
 
       {previewTpl && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className={`bg-white rounded-2xl shadow-2xl w-full ${previewData ? "max-w-3xl" : "max-w-md"} flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200`}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div className="min-w-0">
@@ -787,7 +787,7 @@ export default function PayrollTemplatesPage() {
                 )}
               </div>
               {previewError && (
-                <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-xs font-semibold text-red-600">
+                <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-xs font-semibold text-rose-600">
                   <HiExclamationCircle className="w-4 h-4 shrink-0 mt-px" />
                   <span>{previewError}</span>
                 </div>

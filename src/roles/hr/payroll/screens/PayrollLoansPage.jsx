@@ -13,8 +13,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -40,7 +40,7 @@ const STATUS_PILL = {
   active: "bg-violet-50 text-violet-700 border-violet-200",
   closed: "bg-slate-50 text-slate-600 border-slate-200",
   foreclosed: "bg-purple-50 text-purple-700 border-purple-200",
-  rejected: "bg-red-50 text-red-700 border-red-200",
+  rejected: "bg-rose-50 text-rose-700 border-rose-200",
   cancelled: "bg-slate-50 text-slate-600 border-slate-200",
 };
 // Preview is purple-only.
@@ -308,7 +308,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
       {/* Grant loan modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Grant Loan / Advance</h2>
@@ -318,7 +318,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
               <div className="px-6 sm:px-8 py-6 space-y-5 overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-4">
                   <div>
-                    <label className={labelClass}>Employee <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Employee <span className="text-rose-500">*</span></label>
                     <select required value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className={fieldClass}>
                       <option value="">{people.status === "loading" ? "Loading employees…" : people.status === "error" ? "Couldn't load employees" : "Select employee"}</option>
                       {/* Loans are granted to current employees only. */}
@@ -333,14 +333,14 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Principal (₹) <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Principal (₹) <span className="text-rose-500">*</span></label>
                     <input type="number" required min="1" value={form.principal_amount} onChange={(e) => setForm({ ...form, principal_amount: e.target.value })} className={fieldClass} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                   <div>
-                    <label className={labelClass}>Tenure (mo) <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Tenure (mo) <span className="text-rose-500">*</span></label>
                     <input type="number" required min="1" value={form.tenure_months} onChange={(e) => setForm({ ...form, tenure_months: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
@@ -372,7 +372,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                     <input type="date" value={form.disbursed_on} onChange={(e) => setForm({ ...form, disbursed_on: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Reason <span className="text-red-500">*</span></label>
+                    <label className={labelClass}>Reason <span className="text-rose-500">*</span></label>
                     <input type="text" required value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. Medical emergency" className={fieldClass} />
                   </div>
                 </div>
@@ -470,7 +470,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
       {/* Foreclose modal */}
       {foreclosing && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Foreclose Loan</h2>
@@ -502,7 +502,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 </div>
               )}
               <div>
-                <label className={labelClass}>Reason <span className="text-red-500">*</span></label>
+                <label className={labelClass}>Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={fcForm.reason} onChange={(e) => setFcForm({ ...fcForm, reason: e.target.value })} rows={2} className={`${fieldClass} resize-none`} placeholder="e.g. Employee requested early payoff" />
               </div>
               <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
@@ -516,7 +516,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
       {/* Reject modal */}
       {rejectingId && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Reject Loan</h2>
@@ -524,12 +524,12 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
             </div>
             <form onSubmit={handleReject} className="p-6 space-y-4">
               <div>
-                <label className={labelClass}>Rejection Reason <span className="text-red-500">*</span></label>
-                <textarea required value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} rows={3} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-red-400 outline-none resize-none" placeholder="Provide a reason..." />
+                <label className={labelClass}>Rejection Reason <span className="text-rose-500">*</span></label>
+                <textarea required value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} rows={3} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-rose-400 outline-none resize-none" placeholder="Provide a reason..." />
               </div>
               <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => { setRejectingId(null); setRejectionReason(""); }} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition shadow-md shadow-red-200">Reject</button>
+                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md shadow-rose-200">Reject</button>
               </div>
             </form>
           </div>

@@ -62,7 +62,7 @@ function ReissueDialog({ payslip, onClose, onDone, showToast }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>
@@ -81,7 +81,7 @@ function ReissueDialog({ payslip, onClose, onDone, showToast }) {
           {error && <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</div>}
           <div>
             <label htmlFor="reissue-reason" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              Why is it being reissued? <span className="text-red-400">*</span>
+              Why is it being reissued? <span className="text-rose-400">*</span>
             </label>
             <textarea
               id="reissue-reason"

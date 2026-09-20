@@ -89,7 +89,7 @@ export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose
 
   return (
     <div
-      className="fixed inset-0 z-[165] flex items-center justify-center bg-purple-950/50 backdrop-blur-sm p-3 sm:p-6"
+      className="fixed inset-0 z-[165] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onCloseRef.current?.()}
     >
       <div role="dialog" aria-modal="true" aria-label={`View ${fileName}`} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">

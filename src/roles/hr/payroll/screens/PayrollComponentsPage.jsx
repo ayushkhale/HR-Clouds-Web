@@ -9,8 +9,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -177,7 +177,7 @@ export default function PayrollComponentsPage() {
                             <div className="flex justify-end gap-2">
                               <button onClick={() => handleOpenModal(comp)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Edit"><HiPencil className="w-4 h-4" /></button>
                               {comp.is_active && !comp.is_system && (
-                                <button onClick={() => handleDeactivate(comp.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Deactivate"><HiTrash className="w-4 h-4" /></button>
+                                <button onClick={() => handleDeactivate(comp.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Deactivate"><HiTrash className="w-4 h-4" /></button>
                               )}
                             </div>
                           </td>
@@ -241,7 +241,7 @@ export default function PayrollComponentsPage() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <h2 className="text-lg font-bold text-slate-800">{editingComp ? "Edit Component" : "New Component"}</h2>
@@ -273,11 +273,11 @@ export default function PayrollComponentsPage() {
               <form id="compForm" onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-red-500">*</span></label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-rose-500">*</span></label>
                     <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none transition-all" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Code <span className="text-red-500">*</span></label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Code <span className="text-rose-500">*</span></label>
                     <input type="text" required disabled={editingComp?.is_system} value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none transition-all disabled:opacity-50" placeholder="E.g. BASIC_SALARY" />
                   </div>
                 </div>

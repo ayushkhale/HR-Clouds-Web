@@ -104,7 +104,7 @@ function InvitationAcceptPage() {
       <PageWrapper>
         <div className="text-center">
           <div className="flex justify-center mb-6 relative">
-             <div className="absolute inset-0 bg-red-100/50 rounded-full blur-2xl max-w-[120px] mx-auto"></div>
+             <div className="absolute inset-0 bg-rose-100/50 rounded-full blur-2xl max-w-[120px] mx-auto"></div>
              <img 
                src="https://cdn3d.iconscout.com/3d/premium/thumb/something-went-wrong-3d-icon-png-download-13356832.png" 
                alt="Invalid Invitation" 
@@ -204,7 +204,7 @@ function InvitationAcceptPage() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Create Password <span className="text-red-400">*</span>
+                Create Password <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <input
@@ -227,7 +227,7 @@ function InvitationAcceptPage() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Confirm Password <span className="text-red-400">*</span>
+                Confirm Password <span className="text-rose-400">*</span>
               </label>
               <input
                 type="password"
@@ -242,7 +242,7 @@ function InvitationAcceptPage() {
         )}
 
         {formError && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
             {formError}
           </p>
         )}

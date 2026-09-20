@@ -85,7 +85,7 @@ function EditProfileModal({ employee, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -98,7 +98,7 @@ function EditProfileModal({ employee, onClose, onSuccess }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
@@ -142,7 +142,7 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "N/A";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
           <div>
@@ -160,7 +160,7 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
               <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
             </div>
           ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           ) : history.length === 0 ? (
@@ -177,7 +177,7 @@ function ViewLeaveHistoryModal({ employee, onClose }) {
                       <h4 className="font-bold text-slate-800">{req.leave_type?.name || "Leave"}</h4>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border 
                         ${req.status === 'approved' ? 'bg-violet-50 text-violet-700 border-violet-200' : 
-                          req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 
+                          req.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
                           req.status === 'cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
                           'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'}`}>
                         {req.status?.replace('_', ' ').toUpperCase()}
@@ -241,7 +241,7 @@ function ViewAttendanceModal({ employee, onClose }) {
   const error = summaryState.error || historyList.error;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
           <div>
@@ -394,14 +394,14 @@ export default function ManagerTeamRosterPage() {
           </div>
 
           {toast && (
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border ${toast.type === "success" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border ${toast.type === "success" ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-rose-50 text-rose-700 border-rose-200"}`}>
               {toast.type === "success" ? <HiCheckCircle className="w-5 h-5 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 shrink-0" />}
               {toast.msg}
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100">
+            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm border border-rose-100">
               {error}
             </div>
           )}

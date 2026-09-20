@@ -103,17 +103,17 @@ function WeeklyOffModal({ shifts, onClose, onSaved, editRule }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label htmlFor="wo-name" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rule Name <span className="text-red-400">*</span></label>
+              <label htmlFor="wo-name" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rule Name <span className="text-rose-400">*</span></label>
               <input id="wo-name" type="text" maxLength={150} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Company weekend" className={inputClass(!!errors.name)} />
               <FieldError message={errors.name} />
             </div>
             <div>
-              <label htmlFor="wo-priority" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Priority <span className="text-red-400">*</span></label>
+              <label htmlFor="wo-priority" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Priority <span className="text-rose-400">*</span></label>
               <input id="wo-priority" type="number" min={0} max={999} step={1} value={form.priority} onChange={(e) => set("priority", e.target.value)} className={inputClass(!!errors.priority)} />
               {errors.priority ? <FieldError message={errors.priority} /> : <p className="text-[10px] text-slate-400 mt-1">When rules overlap, the higher number wins.</p>}
             </div>
             <div>
-              <label htmlFor="wo-from" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective From <span className="text-red-400">*</span></label>
+              <label htmlFor="wo-from" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Effective From <span className="text-rose-400">*</span></label>
               <input id="wo-from" type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)} className={inputClass(!!errors.effective_from)} />
               <FieldError message={errors.effective_from} />
             </div>
@@ -125,7 +125,7 @@ function WeeklyOffModal({ shifts, onClose, onSaved, editRule }) {
           </div>
 
           <div>
-            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Days Off <span className="text-red-400">*</span></span>
+            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Days Off <span className="text-rose-400">*</span></span>
             <div className="flex gap-2 flex-wrap">
               {WEEKDAYS.map((d) => {
                 const active = form.days_of_week.includes(d.value);
@@ -269,7 +269,7 @@ export default function AttendanceWeeklyOffsPage() {
                           <button onClick={() => setModalRule(r)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit rule" aria-label={`Edit ${r.name}`}>
                             <HiPencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDelete(r)} disabled={deleting === r.id} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50" title="Delete rule" aria-label={`Delete ${r.name}`}>
+                          <button onClick={() => handleDelete(r)} disabled={deleting === r.id} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition disabled:opacity-50" title="Delete rule" aria-label={`Delete ${r.name}`}>
                             {deleting === r.id ? <Spinner className="w-4 h-4" /> : <HiTrash className="w-4 h-4" />}
                           </button>
                         </div>

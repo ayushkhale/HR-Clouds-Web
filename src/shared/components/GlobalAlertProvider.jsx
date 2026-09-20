@@ -142,7 +142,7 @@ export function GlobalAlertProvider({ children }) {
 
       {/* Alert Modal */}
       {alert && (
-        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-10 sm:pt-16 bg-black/20 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-10 sm:pt-16 bg-slate-900/40 backdrop-blur-xs transition-opacity">
           {/* key: each alert mounts fresh, so autoFocus runs again */}
           <div key={alert.id} ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby={`global-alert-${alert.id}`} className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-xl shadow-2xl rounded-[14px] w-full max-w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-10 duration-300">
             <div className="p-6 text-center min-h-[90px] flex items-center justify-center">
@@ -166,7 +166,7 @@ export function GlobalAlertProvider({ children }) {
 
       {/* Confirm Modal */}
       {confirm && (
-        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-10 sm:pt-16 bg-black/20 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-10 sm:pt-16 bg-slate-900/40 backdrop-blur-xs transition-opacity">
           {/* key: each question mounts fresh, so Cancel is focused again */}
           <div key={confirm.id} ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby={`global-confirm-${confirm.id}`} className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-xl shadow-2xl rounded-[14px] w-full max-w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-10 duration-300">
             <div className="p-6 text-center min-h-[90px] flex items-center justify-center">

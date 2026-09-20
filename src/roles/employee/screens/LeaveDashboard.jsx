@@ -27,8 +27,8 @@ function Toast({ toast, onClose }) {
   const ok = toast.type === "success";
   const info = toast.type === "info";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : info ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : info ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -39,7 +39,7 @@ function Toast({ toast, onClose }) {
 function CancelConfirmModal({ request, onClose, onConfirm }) {
   const needsApproval = hasLeaveStarted(request.start_date);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-800">Cancel Leave?</h2>
@@ -52,7 +52,7 @@ function CancelConfirmModal({ request, onClose, onConfirm }) {
         <div className="p-6 flex gap-3">
           <button
             onClick={onConfirm}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-xl transition"
+            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-2.5 rounded-xl transition"
           >
             {needsApproval ? "Request Cancellation" : "Yes, Cancel Leave"}
           </button>
@@ -109,7 +109,7 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
   if (!requestId) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <h2 className="text-base font-bold text-slate-800">Leave Request Details</h2>
@@ -124,7 +124,7 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
               <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
             </div>
           ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -169,8 +169,8 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
               {/* Rejection */}
               {details.rejection_reason && (
                 <div>
-                  <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider mb-2">Rejection Reason</p>
-                  <p className="text-sm text-red-700 bg-red-50 p-4 rounded-xl border border-red-100">{details.rejection_reason}</p>
+                  <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-2">Rejection Reason</p>
+                  <p className="text-sm text-rose-700 bg-rose-50 p-4 rounded-xl border border-rose-100">{details.rejection_reason}</p>
                 </div>
               )}
 
@@ -426,7 +426,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
     const req = breakdown.leaveRequest;
     const bk = breakdown.breakdown || [];
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
             <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
@@ -479,7 +479,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div>
@@ -492,7 +492,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -501,7 +501,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
           {/* Leave Type */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Leave Type <span className="text-red-400">*</span>
+              Leave Type <span className="text-rose-400">*</span>
             </label>
             <select
               value={form.leave_type_id}
@@ -561,7 +561,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Start Date <span className="text-red-400">*</span>
+                Start Date <span className="text-rose-400">*</span>
               </label>
               <input
                 type="date"
@@ -572,7 +572,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                End Date <span className="text-red-400">*</span>
+                End Date <span className="text-rose-400">*</span>
               </label>
               <input
                 type="date"
@@ -791,7 +791,7 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
                         <button
                           onClick={() => onCancel(r.id)}
                           disabled={cancelling === r.id}
-                          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
                         >
                           <HiXCircle className="w-3.5 h-3.5" />
                           {cancelling === r.id ? "…" : "Cancel"}

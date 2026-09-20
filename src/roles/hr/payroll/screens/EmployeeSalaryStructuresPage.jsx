@@ -18,8 +18,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -34,7 +34,7 @@ const REVISION_LABELS = {
 const STRUCT_STATUS = {
   approved: "bg-violet-50 text-violet-700 border border-violet-200",
   proposed: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
-  rejected: "bg-red-50 text-red-700 border border-red-200",
+  rejected: "bg-rose-50 text-rose-700 border border-rose-200",
   cancelled: "bg-slate-100 text-slate-500",
 };
 
@@ -85,7 +85,7 @@ function HistoryModal({ user, onClose, showToast }) {
   }, [user, showToast]);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -306,7 +306,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -346,7 +346,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
           )}
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Template <span className="text-red-500">*</span></label>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Template <span className="text-rose-500">*</span></label>
             <select required value={form.template_id} onChange={(e) => { setForm({ ...form, template_id: e.target.value }); resetPreview(); }}
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
               <option value="">-- Select template --</option>
@@ -357,7 +357,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Annual CTC <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Annual CTC <span className="text-rose-500">*</span></label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                 <input type="number" required min="1" value={form.annual_ctc} onChange={(e) => { setForm({ ...form, annual_ctc: e.target.value }); resetPreview(); }}
@@ -365,7 +365,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Effective from <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Effective from <span className="text-rose-500">*</span></label>
               <input type="date" required value={form.effective_from} onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
@@ -385,7 +385,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">
-                Reason {reasonRequired && <span className="text-red-500">*</span>}
+                Reason {reasonRequired && <span className="text-rose-500">*</span>}
               </label>
               <input type="text" value={form.revision_reason} onChange={(e) => setForm({ ...form, revision_reason: e.target.value })}
                 placeholder={reasonRequired ? "Required for a revision" : "Optional"}
@@ -410,7 +410,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
               <div className="p-5">
                 {/* The components now sum to GROSS, not the CTC — the employer's
                     share is reserved out first — so this no longer claims the CTC. */}
-                <div className={`text-[11px] font-semibold rounded-xl px-3.5 py-2.5 flex items-start gap-2 ${preview.reconciled ? "text-violet-800 bg-violet-50 border border-violet-200" : "text-red-700 bg-red-50 border border-red-200"}`}>
+                <div className={`text-[11px] font-semibold rounded-xl px-3.5 py-2.5 flex items-start gap-2 ${preview.reconciled ? "text-violet-800 bg-violet-50 border border-violet-200" : "text-rose-700 bg-rose-50 border border-rose-200"}`}>
                   {preview.reconciled ? <HiCheckCircle className="w-4 h-4 shrink-0" /> : <HiExclamationCircle className="w-4 h-4 shrink-0" />}
                   <span>{preview.reconciled ? "The components add up exactly — nothing is unallocated." : "The components don't add up — check the template."}</span>
                 </div>
@@ -600,7 +600,7 @@ export default function EmployeeSalaryStructuresPage() {
                           {cur === undefined ? (
                             <span className="inline-block w-16 h-4 rounded bg-slate-100 animate-pulse" />
                           ) : cur === LOAD_ERROR ? (
-                            <span className="text-xs font-semibold text-red-500">Couldn&apos;t load</span>
+                            <span className="text-xs font-semibold text-rose-500">Couldn&apos;t load</span>
                           ) : cur ? (
                             <span className="font-bold text-slate-800">{formatMoney(cur.annual_ctc)}</span>
                           ) : (

@@ -88,7 +88,7 @@ function PolicyModal({ policy, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
       <form onSubmit={handleSave} noValidate className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-800">{isEdit ? "Edit policy" : "New policy"}</h3>
@@ -102,7 +102,7 @@ function PolicyModal({ policy, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
             <div>
-              <label htmlFor="cop-name" className={labelClass}>Policy name <span className="text-red-400">*</span></label>
+              <label htmlFor="cop-name" className={labelClass}>Policy name <span className="text-rose-400">*</span></label>
               <input id="cop-name" type="text" maxLength={NAME_MAX} value={form.name} onChange={(e) => set("name", e.target.value)} className={inputClass(!!errors.name)} placeholder={`e.g. Holiday work ${TERM.toLowerCase()}`} />
               <FieldError message={errors.name} />
             </div>
@@ -130,7 +130,7 @@ function PolicyModal({ policy, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="cop-mult" className={labelClass}>Multiplier <span className="text-red-400">*</span></label>
+              <label htmlFor="cop-mult" className={labelClass}>Multiplier <span className="text-rose-400">*</span></label>
               <input id="cop-mult" type="number" step="0.25" min="0.25" max="10" value={form.multiplier} onChange={(e) => set("multiplier", e.target.value)} className={inputClass(!!errors.multiplier)} />
               {errors.multiplier ? <FieldError message={errors.multiplier} /> : <p className="text-[11px] text-slate-400 mt-1">1 = one day credited per day earned.</p>}
             </div>

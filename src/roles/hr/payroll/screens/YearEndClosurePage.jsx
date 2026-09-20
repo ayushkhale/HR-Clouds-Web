@@ -15,8 +15,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -197,7 +197,7 @@ export default function YearEndClosurePage() {
 
       {/* Finalize modal */}
       {finalizeOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Finalize FY {fy}</h2>
@@ -220,9 +220,9 @@ export default function YearEndClosurePage() {
               ) : (
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-slate-500">Finalized</span><span className="font-bold text-violet-600">{finalizeResult.successful ?? finalizeResult.success_count ?? 0}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Failed</span><span className="font-bold text-red-600">{finalizeResult.failed ?? finalizeResult.failure_count ?? 0}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Failed</span><span className="font-bold text-rose-600">{finalizeResult.failed ?? finalizeResult.failure_count ?? 0}</span></div>
                   {(finalizeResult.errors || []).slice(0, 6).map((e, i) => (
-                    <p key={i} className="text-[11px] text-red-500">{e.user_id ? people.nameOf(e.user_id) : e.name || "Employee"}: {e.message || e.error}</p>
+                    <p key={i} className="text-[11px] text-rose-500">{e.user_id ? people.nameOf(e.user_id) : e.name || "Employee"}: {e.message || e.error}</p>
                   ))}
                 </div>
               )}
@@ -375,7 +375,7 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
   const ytd = summary?.ytd || summary?.actuals || {};
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>

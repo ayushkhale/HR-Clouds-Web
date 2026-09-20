@@ -185,12 +185,12 @@ function DepartmentsPage() {
             </div>
 
             {fetchError && !pageLoading && (
-              <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold flex flex-wrap items-center gap-3">
+              <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold flex flex-wrap items-center gap-3">
                 <span>{fetchError}</span>
                 <button
                   type="button"
                   onClick={fetchData}
-                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-red-200 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors"
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
                 >
                   Try Again
                 </button>
@@ -306,7 +306,7 @@ function DepartmentsPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department Name <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department Name <span className="text-rose-400">*</span></label>
                 <input
                   type="text"
                   value={name}
@@ -383,7 +383,7 @@ function DepartmentsPage() {
               </div>
 
               {result.message && (
-                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
                   {result.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
                   {result.message}
                 </div>

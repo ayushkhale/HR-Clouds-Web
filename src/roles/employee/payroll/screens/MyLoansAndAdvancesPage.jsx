@@ -12,8 +12,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -33,7 +33,7 @@ const INST_PILL = {
   scheduled: "bg-fuchsia-100 text-fuchsia-700",
   deducted: "bg-violet-100 text-violet-700",
   cancelled: "bg-slate-100 text-slate-500",
-  skipped: "bg-red-100 text-red-700",
+  skipped: "bg-rose-100 text-rose-700",
 };
 
 // ── Encashments (#218 GET /payroll/me/encashments) ──────────────────────────
@@ -46,7 +46,7 @@ const INST_PILL = {
 const ENCASH_STATUS = {
   pending: { label: "Pending", pill: "bg-fuchsia-100 text-fuchsia-700" },
   approved: { label: "Approved", pill: "bg-violet-100 text-violet-700" },
-  rejected: { label: "Rejected", pill: "bg-red-100 text-red-700" },
+  rejected: { label: "Rejected", pill: "bg-rose-100 text-rose-700" },
   cancelled: { label: "Cancelled", pill: "bg-slate-100 text-slate-500" },
 };
 
@@ -218,7 +218,7 @@ export default function MyLoansAndAdvancesPage() {
       {openEncashment && <EncashmentDetail record={openEncashment} onClose={() => setOpenEncashment(null)} />}
 
       {selectedLoan && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Repayment Schedule</h2>
@@ -287,7 +287,7 @@ function Section({ title, icon: Icon, rows, showType }) {
                 <td className="px-6 py-3.5 text-slate-600">{fmtPeriod(r.period_month)}</td>
                 {showType && (
                   <td className="px-6 py-3.5">
-                    <span className={`inline-flex items-center gap-1 text-xs font-bold ${r.adjustment_type === "deduction" ? "text-red-600" : "text-violet-600"}`}>
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold ${r.adjustment_type === "deduction" ? "text-rose-600" : "text-violet-600"}`}>
                       {r.adjustment_type === "deduction" ? <HiTrendingDown className="w-3.5 h-3.5" /> : <HiTrendingUp className="w-3.5 h-3.5" />}
                       {r.adjustment_type === "deduction" ? "Deduction" : "Earning"}
                     </span>
@@ -359,7 +359,7 @@ function EncashmentsTable({ rows, error, onOpen }) {
                     payroll feature flag it would be a false one. */}
                 <td colSpan={6} className="px-6 py-10 text-center">
                   {error ? (
-                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-red-600">
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-rose-600">
                       <HiExclamationCircle className="w-4 h-4 shrink-0" /> {error}
                     </span>
                   ) : (

@@ -11,8 +11,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -44,7 +44,7 @@ function PayslipDetailModal({ userId, runId, period, onClose, showToast }) {
   const reimbTotal = reimbursements.reduce((s, r) => s + (parseFloat(r.amount ?? r.calculated_amount) || 0), 0);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-800">Payslip — {formatPeriod(period)}</h2>
@@ -54,7 +54,7 @@ function PayslipDetailModal({ userId, runId, period, onClose, showToast }) {
           <div className="p-6 overflow-y-auto space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-purple-50 border border-purple-100 rounded-xl p-3"><p className="text-[10px] font-bold text-purple-400 uppercase">Gross</p><p className="text-base font-black text-purple-700 tabular-nums">{formatMoney(item.gross_earnings ?? item.gross_pay)}</p></div>
-              <div className="bg-red-50 border border-red-100 rounded-xl p-3"><p className="text-[10px] font-bold text-red-400 uppercase">Deductions</p><p className="text-base font-black text-red-600 tabular-nums">{formatMoney(item.total_deductions)}</p></div>
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-3"><p className="text-[10px] font-bold text-rose-400 uppercase">Deductions</p><p className="text-base font-black text-rose-600 tabular-nums">{formatMoney(item.total_deductions)}</p></div>
               <div className="bg-violet-50 border border-violet-100 rounded-xl p-3"><p className="text-[10px] font-bold text-violet-500 uppercase">Net Pay</p><p className="text-base font-black text-violet-700 tabular-nums">{formatMoney(item.net_pay)}</p></div>
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Payable / LOP</p><p className="text-base font-black text-slate-700 tabular-nums">{item.payable_days ?? "N/A"} / {item.lop_days ?? "N/A"}</p></div>
             </div>
@@ -70,7 +70,7 @@ function PayslipDetailModal({ userId, runId, period, onClose, showToast }) {
                 <h3 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Deductions</h3>
                 <div className="space-y-2 text-sm">
                   {deductions.length === 0 && <span className="text-slate-400 italic">No deductions</span>}
-                  {deductions.map((l, i) => (<div key={i} className="flex justify-between"><span className="text-slate-600">{lineName(l)}</span><span className="font-semibold text-red-600 tabular-nums">{formatMoney(lineAmt(l))}</span></div>))}
+                  {deductions.map((l, i) => (<div key={i} className="flex justify-between"><span className="text-slate-600">{lineName(l)}</span><span className="font-semibold text-rose-600 tabular-nums">{formatMoney(lineAmt(l))}</span></div>))}
                 </div>
               </div>
             </div>
@@ -119,7 +119,7 @@ function TeamRunModal({ runId, period, onClose, showToast }) {
   const moneyHidden = list.length > 0 && list.every((it) => it.net_pay == null && it.gross_earnings == null);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-800">Team cost — {formatPeriod(period)}</h2>
@@ -265,7 +265,7 @@ export default function TeamPayslipsPage() {
                         <td className="px-6 py-4 font-bold text-slate-800">{formatPeriod(period)}</td>
                         <td className="px-6 py-4 text-right tabular-nums text-slate-600">{slip.payable_days ?? "N/A"} / {slip.lop_days ?? "N/A"}</td>
                         <td className="px-6 py-4 text-right tabular-nums font-semibold text-slate-700">{formatMoney(slip.gross_earnings ?? slip.gross_pay)}</td>
-                        <td className="px-6 py-4 text-right tabular-nums font-semibold text-red-600">{formatMoney(slip.total_deductions)}</td>
+                        <td className="px-6 py-4 text-right tabular-nums font-semibold text-rose-600">{formatMoney(slip.total_deductions)}</td>
                         <td className="px-6 py-4 text-right tabular-nums font-black text-violet-600">{formatMoney(slip.net_pay)}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-1.5">

@@ -30,8 +30,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -118,7 +118,7 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
   const labelClass = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100 shrink-0">
@@ -134,7 +134,7 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6 space-y-5">
             {error && (
-              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
                 <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -145,11 +145,11 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
               <div className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-4">
                   <div>
-                    <label className={labelClass}>Name <span className="text-red-400">*</span></label>
+                    <label className={labelClass}>Name <span className="text-rose-400">*</span></label>
                     <input type="text" value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Sick Leave" className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Code <span className="text-red-400">*</span></label>
+                    <label className={labelClass}>Code <span className="text-rose-400">*</span></label>
                     <input type="text" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SL" maxLength={10} className={`${inputClass} font-mono uppercase`} />
                     <p className="text-[10px] text-slate-400 mt-1">Unique, max 10 chars.</p>
                   </div>
@@ -265,7 +265,7 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-base text-slate-800">
@@ -286,7 +286,7 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
                 Employees will no longer be able to apply for this leave type. Past records are kept.
               </p>
               {errorMsg && (
-                <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
                   <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{errorMsg}
                 </div>
               )}
@@ -295,7 +295,7 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
                 <button
                   onClick={() => handleDelete(false)}
                   disabled={loading}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-rose-600 text-white hover:bg-rose-700 transition disabled:opacity-50"
                 >
                   {loading ? "Processing…" : "Deactivate"}
                 </button>
@@ -328,12 +328,12 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
 
           {stage === "pending_block" && (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
-                <HiBan className="w-6 h-6 text-red-500" />
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center">
+                <HiBan className="w-6 h-6 text-rose-500" />
               </div>
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-4">
-                <p className="text-sm font-bold text-red-700 mb-1">Pending requests exist</p>
-                <p className="text-sm text-red-600">
+              <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-4">
+                <p className="text-sm font-bold text-rose-700 mb-1">Pending requests exist</p>
+                <p className="text-sm text-rose-600">
                   One or more employees have pending leave requests for <strong>{leaveType.name}</strong>.
                   Please approve or reject all pending requests before deactivating this leave type.
                 </p>
@@ -501,7 +501,7 @@ export default function LeaveTypesPage() {
                                   <HiPencil className="w-4 h-4" />
                                 </button>
                                 {t.is_active && (
-                                  <button onClick={() => setDeleteTarget(t)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition" title="Deactivate">
+                                  <button onClick={() => setDeleteTarget(t)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition" title="Deactivate">
                                     <HiTrash className="w-4 h-4" />
                                   </button>
                                 )}

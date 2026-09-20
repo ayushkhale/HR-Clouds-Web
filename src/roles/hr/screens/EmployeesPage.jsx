@@ -527,15 +527,15 @@ function EmployeesPage() {
                         <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="e.g. EMP001 (Optional)" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-rose-400">*</span></label>
                         <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email Address <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email Address <span className="text-rose-400">*</span></label>
                         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-rose-400">*</span></label>
                         <select value={role} onChange={(e) => handleRoleChange(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="employee">Employee</option>
                           <option value="manager">Manager</option>
@@ -543,7 +543,7 @@ function EmployeesPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender <span className="text-rose-400">*</span></label>
                         <select value={gender} onChange={(e) => setGender(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           {GENDER_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
@@ -568,7 +568,7 @@ function EmployeesPage() {
                   <div className="p-5 border-t border-slate-100">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Primary Contact <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Primary Contact <span className="text-rose-400">*</span></label>
                         <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
@@ -634,7 +634,7 @@ function EmployeesPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                          Department <span className="text-red-400">*</span>
+                          Department <span className="text-rose-400">*</span>
                           {departmentLoading && <span className="ml-2 text-[10px] text-purple-600 font-normal">Loading...</span>}
                         </label>
                         <select value={department} onChange={(e) => setDepartment(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
@@ -660,7 +660,7 @@ function EmployeesPage() {
                       {/* Reporting Person (Shifted to next grid position) */}
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                          Reporting Person <span className="text-red-400">*</span>
+                          Reporting Person <span className="text-rose-400">*</span>
                         </label>
                         <select 
                           value={reportingManager} 
@@ -686,7 +686,7 @@ function EmployeesPage() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Status <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Status <span className="text-rose-400">*</span></label>
                         <select value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           <option value="probation">Probation</option>
@@ -699,7 +699,7 @@ function EmployeesPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employment Type <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employment Type <span className="text-rose-400">*</span></label>
                         <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           <option value="full_time">Full Time</option>
@@ -709,7 +709,7 @@ function EmployeesPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Work Mode <span className="text-red-400">*</span></label>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Work Mode <span className="text-rose-400">*</span></label>
                         <select value={workMode} onChange={(e) => setWorkMode(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           <option value="on-site">On-Site</option>
@@ -763,7 +763,7 @@ function EmployeesPage() {
                       </div>
                       <div className="col-span-full">
                         <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Permanent Address <span className="text-red-400">*</span></label>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Permanent Address <span className="text-rose-400">*</span></label>
                           <label className="flex items-center gap-1.5 cursor-pointer group">
                             <input 
                               type="checkbox" 
@@ -802,7 +802,7 @@ function EmployeesPage() {
 
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0 bg-slate-50/50 rounded-b-2xl">
                 {inviteResult.message && (
-                  <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                  <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
                     {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
                     {inviteResult.message}
                   </div>

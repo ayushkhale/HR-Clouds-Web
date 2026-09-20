@@ -126,7 +126,7 @@ function PlanFormDialog({ plan, components, activeCount, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
       <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label={isEdit ? "Edit plan" : "New plan"} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-5 border-b border-purple-100">
           <div>
@@ -318,7 +318,7 @@ function EnrollDialog({ plans, plan, employees, employee, onClose, onEnrolled })
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-purple-950/40 backdrop-blur-sm p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
       <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label="Enroll employee" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-5 border-b border-purple-100">
           <div><h2 className="text-lg font-bold text-slate-800">Enroll in a plan</h2><p className="text-sm text-slate-500 mt-0.5">Cover starts from the date you choose.</p></div>

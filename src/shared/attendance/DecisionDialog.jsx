@@ -146,7 +146,7 @@ export default function DecisionDialog({
 
   return (
     <div
-      className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[100] flex items-center justify-center p-4 sm:p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !busyAction) onClose();
       }}

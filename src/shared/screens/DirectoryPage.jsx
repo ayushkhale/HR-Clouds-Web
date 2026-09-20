@@ -71,12 +71,12 @@ export default function DirectoryPage() {
 
           {/* Directory Grid */}
           {error && !loading ? (
-            <div className="bg-red-50 text-red-700 p-6 rounded-xl text-sm border border-red-200 flex flex-wrap items-center gap-3">
+            <div className="bg-rose-50 text-rose-700 p-6 rounded-xl text-sm border border-rose-200 flex flex-wrap items-center gap-3">
               <span className="font-semibold">{error}</span>
               <button
                 type="button"
                 onClick={fetchDirectory}
-                className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-red-200 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors"
+                className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
               >
                 Try Again
               </button>

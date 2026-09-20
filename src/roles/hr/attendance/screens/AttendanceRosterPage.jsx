@@ -107,7 +107,7 @@ function AssignModal({ onClose, onSaved }) {
   const selectedRotation = rotations.find((r) => String(r.id) === String(form.rotation_pattern_id));
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 sm:p-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="assign-shift-title">
         <div className="flex items-center justify-between px-6 sm:px-10 py-6 border-b border-slate-100 shrink-0">
           <div>
@@ -124,7 +124,7 @@ function AssignModal({ onClose, onSaved }) {
             {error && <InlineAlert tone="rose">{error}</InlineAlert>}
 
             <FormSection title="Employee">
-              <label className={labelClass}>Employee <span className="text-red-400">*</span></label>
+              <label className={labelClass}>Employee <span className="text-rose-400">*</span></label>
               <EmployeePicker value={form.user_id} onChange={(id) => set("user_id", id)} invalid={!!errors.user_id} disabled={loading} />
               <FieldError message={errors.user_id} />
             </FormSection>
@@ -152,7 +152,7 @@ function AssignModal({ onClose, onSaved }) {
                   <InlineAlert tone="rose">{attendanceErrorMessage(dropError, "Couldn't load shifts and rotations.")}</InlineAlert>
                 ) : form.assignType === "shift" ? (
                   <div>
-                    <label htmlFor="assign-shift" className={labelClass}>Shift <span className="text-red-400">*</span></label>
+                    <label htmlFor="assign-shift" className={labelClass}>Shift <span className="text-rose-400">*</span></label>
                     <select id="assign-shift" value={form.shift_id} onChange={(e) => set("shift_id", e.target.value)} className={fieldClass(!!errors.shift_id)}>
                       <option value="">Select a shift…</option>
                       {shifts.map((s) => (
@@ -168,7 +168,7 @@ function AssignModal({ onClose, onSaved }) {
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="assign-rotation" className={labelClass}>Rotation Pattern <span className="text-red-400">*</span></label>
+                    <label htmlFor="assign-rotation" className={labelClass}>Rotation Pattern <span className="text-rose-400">*</span></label>
                     <select id="assign-rotation" value={form.rotation_pattern_id} onChange={(e) => set("rotation_pattern_id", e.target.value)} className={fieldClass(!!errors.rotation_pattern_id)}>
                       <option value="">Select a rotation…</option>
                       {rotations.map((r) => (
@@ -187,7 +187,7 @@ function AssignModal({ onClose, onSaved }) {
             <FormSection title="Dates">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="assign-from" className={labelClass}>Effective From <span className="text-red-400">*</span></label>
+                  <label htmlFor="assign-from" className={labelClass}>Effective From <span className="text-rose-400">*</span></label>
                   <input id="assign-from" type="date" value={form.effective_from} onChange={(e) => set("effective_from", e.target.value)} className={fieldClass(!!errors.effective_from)} />
                   {errors.effective_from ? <FieldError message={errors.effective_from} /> : <p className="text-[10px] text-slate-400 mt-1.5">Attendance from this date is calculated against the selected schedule. Dates already locked for payroll aren&apos;t recalculated.</p>}
                 </div>
@@ -244,7 +244,7 @@ function EndShiftModal({ assignment, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden" role="dialog" aria-modal="true">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div>
@@ -258,7 +258,7 @@ function EndShiftModal({ assignment, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5" noValidate>
           {error && <InlineAlert tone="rose">{error}</InlineAlert>}
           <div>
-            <label htmlFor="end-date" className="block text-xs font-bold text-slate-600 mb-1.5">Last Day on This Schedule <span className="text-red-500">*</span></label>
+            <label htmlFor="end-date" className="block text-xs font-bold text-slate-600 mb-1.5">Last Day on This Schedule <span className="text-rose-500">*</span></label>
             <input id="end-date" type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} min={from || undefined} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
             <p className="text-[10px] text-slate-400 mt-1.5">Started {fmtDate(from)}. The history of this assignment is kept.</p>
           </div>
@@ -296,7 +296,7 @@ function DeleteShiftModal({ assignment, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden" role="dialog" aria-modal="true">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-800">Delete Shift Assignment</h2>
@@ -305,8 +305,8 @@ function DeleteShiftModal({ assignment, onClose, onSaved }) {
           </button>
         </div>
         <div className="p-6">
-          <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
-            <HiTrash className="w-6 h-6 text-red-500" />
+          <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
+            <HiTrash className="w-6 h-6 text-rose-500" />
           </div>
           <p className="text-sm font-semibold text-slate-700 mb-2">This is a permanent delete.</p>
           <p className="text-sm text-slate-500 mb-6">
@@ -315,7 +315,7 @@ function DeleteShiftModal({ assignment, onClose, onSaved }) {
           {error && <InlineAlert tone="rose" className="mb-6">{error}</InlineAlert>}
           <div className="flex gap-3">
             <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">Cancel</button>
-            <button type="button" onClick={handleDelete} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50">
+            <button type="button" onClick={handleDelete} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition-colors disabled:opacity-50">
               {loading && <Spinner />}
               {loading ? "Deleting…" : "Delete Permanently"}
             </button>
@@ -492,7 +492,7 @@ export default function AttendanceRosterPage() {
                                         End Assignment
                                       </button>
                                     )}
-                                    <button onClick={() => { setActiveMenuId(null); setDeleteModalAssignment(a); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
+                                    <button onClick={() => { setActiveMenuId(null); setDeleteModalAssignment(a); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">
                                       Delete
                                     </button>
                                   </div>

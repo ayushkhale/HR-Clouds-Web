@@ -146,7 +146,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 sm:p-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-6 sm:px-10 py-6 border-b border-slate-100">
           <div>
@@ -169,7 +169,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5 items-start">
             <div>
               <label htmlFor="policy-name" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Policy Name <span className="text-red-400">*</span>
+                Policy Name <span className="text-rose-400">*</span>
               </label>
               <input id="policy-name" type="text" maxLength={NAME_MAX} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Standard Office Policy 2026" className={inputClass(!!errors.name)} />
               <FieldError message={errors.name} />
@@ -424,7 +424,7 @@ export default function AttendancePoliciesPage() {
                               {editLoading === p.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
                             </button>
                             {p.is_active && (
-                              <button onClick={() => handleDeactivate(p)} disabled={deactivating === p.id} className="text-[10px] font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1 rounded-lg transition disabled:opacity-50">
+                              <button onClick={() => handleDeactivate(p)} disabled={deactivating === p.id} className="text-[10px] font-semibold text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 px-3 py-1 rounded-lg transition disabled:opacity-50">
                                 {deactivating === p.id ? "…" : "Deactivate"}
                               </button>
                             )}

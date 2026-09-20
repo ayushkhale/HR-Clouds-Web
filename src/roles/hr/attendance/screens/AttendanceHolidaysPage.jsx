@@ -54,7 +54,7 @@ function getHolidayIconInfo(name) {
   if (n.includes("new year")) return { Icon: FaChampagneGlasses, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
   if (n.includes("gandhi")) return { Icon: FaHandsPraying, color: tone("text-violet-600", "bg-violet-50", "group-hover:bg-violet-100") };
   if (n.includes("eid")) return { Icon: FaMoon, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
-  if (n.includes("dussehra")) return { Icon: FaCrown, color: tone("text-red-600", "bg-red-50", "group-hover:bg-red-100") };
+  if (n.includes("dussehra")) return { Icon: FaCrown, color: tone("text-rose-600", "bg-rose-50", "group-hover:bg-rose-100") };
   if (n.includes("good friday")) return { Icon: FaCross, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
   if (n.includes("shivratri")) return { Icon: FaOm, color: tone("text-indigo-600", "bg-indigo-50", "group-hover:bg-indigo-100") };
   if (n.includes("guru nanak")) return { Icon: FaSun, color: tone("text-fuchsia-600", "bg-fuchsia-50", "group-hover:bg-fuchsia-100") };
@@ -193,19 +193,19 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Holiday Name <span className="text-red-400">*</span></label>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Holiday Name <span className="text-rose-400">*</span></label>
               <input type="text" maxLength={150} value={form.name} onChange={(e) => set("name", e.target.value)}
                 placeholder="e.g. Diwali"
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Date <span className="text-red-400">*</span></label>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Date <span className="text-rose-400">*</span></label>
               <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)}
                 className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs" />
             </div>
@@ -634,7 +634,7 @@ export default function AttendanceHolidaysPage() {
                             <HiPencil className="w-4 h-4" />
                           </button>
                           <button onClick={() => handleDelete(h)} disabled={deleting === h.id}
-                            className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition disabled:opacity-50">
+                            className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition disabled:opacity-50">
                             <HiTrash className="w-4 h-4" />
                           </button>
                         </div>

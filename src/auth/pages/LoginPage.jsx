@@ -93,7 +93,7 @@ function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-            Email Address <span className="text-red-400">*</span>
+            Email Address <span className="text-rose-400">*</span>
           </label>
           <input
             type="email"
@@ -109,7 +109,7 @@ function LoginPage() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-sm font-semibold text-gray-700">
-              Password <span className="text-red-400">*</span>
+              Password <span className="text-rose-400">*</span>
             </label>
             <Link to="/auth/forgot-password" state={{ identifier }} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
               Forgot password?
@@ -136,7 +136,7 @@ function LoginPage() {
         </div>
 
         {error && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
             {error}
           </p>
         )}

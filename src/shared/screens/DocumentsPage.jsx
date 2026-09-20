@@ -186,7 +186,7 @@ function DocumentsPage() {
                               
                               {policy.late_count_half_day_threshold && (
                                 <li className="flex items-start gap-2.5">
-                                  <HiExclamation className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                                  <HiExclamation className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
                                   <span>
                                     Deduction Rule: <strong>Half Day</strong> deducted per <strong>{policy.late_count_half_day_threshold} late marks</strong>
                                   </span>

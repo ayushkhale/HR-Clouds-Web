@@ -4,7 +4,7 @@ import { formatDecimalHours } from "../../../shared/utils/formatUtils";
 
 function MonthlySnapshotCard({ summary }) {
   return (
-    <div className="bg-gradient-to-br from-primary-800 to-primary-600 rounded-2xl p-6 sm:p-8 shadow-md text-white relative overflow-hidden">
+    <div className="bg-gradient-to-br from-purple-950 to-purple-800 rounded-2xl p-6 sm:p-8 shadow-md text-white relative overflow-hidden">
       <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-10 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
       
       <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">

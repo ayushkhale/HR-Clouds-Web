@@ -10,8 +10,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -29,7 +29,7 @@ const STATUS_PILL = {
   pending: "bg-fuchsia-100 text-fuchsia-700",
   approved: "bg-violet-100 text-violet-700",
   active: "bg-violet-100 text-violet-700",
-  rejected: "bg-red-100 text-red-700",
+  rejected: "bg-rose-100 text-rose-700",
   cancelled: "bg-slate-100 text-slate-600",
 };
 const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{s}</span>;
@@ -50,7 +50,7 @@ function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
   const outstanding = loan.outstanding_amount ?? loan.outstanding_balance;
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -284,7 +284,7 @@ export default function ManagerAdjustmentsPage() {
                           <td className="px-6 py-4"><Pill s={a.status} /></td>
                           <td className="px-6 py-4 text-right">
                             {a.status === "pending" ? (
-                              <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
+                              <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
                             ) : (
                               <span className="text-xs text-slate-400">N/A</span>
                             )}
@@ -354,7 +354,7 @@ export default function ManagerAdjustmentsPage() {
 
       {/* Propose Adjustment */}
       {modal === "adj" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose Adjustment</h2>
@@ -362,7 +362,7 @@ export default function ManagerAdjustmentsPage() {
             </div>
             <form onSubmit={submitAdj} className="p-6 space-y-4">
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
                 <select required value={adjForm.user_id} onChange={(e) => setAdjForm({ ...adjForm, user_id: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                   <option value="">-- Select Report --</option>
                   {team.map((m) => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
@@ -377,7 +377,7 @@ export default function ManagerAdjustmentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Amount <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Amount <span className="text-rose-500">*</span></label>
                   <input type="number" required min="1" value={adjForm.amount} onChange={(e) => setAdjForm({ ...adjForm, amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
@@ -398,7 +398,7 @@ export default function ManagerAdjustmentsPage() {
                 <input type="text" value={adjForm.component_name} onChange={(e) => setAdjForm({ ...adjForm, component_name: e.target.value })} placeholder="e.g. Spot Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <input type="text" required value={adjForm.reason} onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <p className="text-xs text-slate-400 italic">Sent to HR for final approval before it reaches payroll.</p>
@@ -413,7 +413,7 @@ export default function ManagerAdjustmentsPage() {
 
       {/* Propose Bonus */}
       {modal === "bonus" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose Team Bonus</h2>
@@ -421,7 +421,7 @@ export default function ManagerAdjustmentsPage() {
             </div>
             <form onSubmit={submitBonus} className="p-6 space-y-4 overflow-y-auto">
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-rose-500">*</span></label>
                 <input type="text" required value={bonusForm.name} onChange={(e) => setBonusForm({ ...bonusForm, name: e.target.value })} placeholder="e.g. Sprint Delivery Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -434,7 +434,7 @@ export default function ManagerAdjustmentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Value <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Value <span className="text-rose-500">*</span></label>
                   <input type="number" required min="0.01" step="0.01" value={bonusForm.value} onChange={(e) => setBonusForm({ ...bonusForm, value: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
@@ -451,7 +451,7 @@ export default function ManagerAdjustmentsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reports <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reports <span className="text-rose-500">*</span></label>
                 <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-3 space-y-1.5 bg-slate-50/50">
                   {team.map((m) => {
                     const id = m.id || m._id;
@@ -466,7 +466,7 @@ export default function ManagerAdjustmentsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={bonusForm.reason} onChange={(e) => setBonusForm({ ...bonusForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
               <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
@@ -480,7 +480,7 @@ export default function ManagerAdjustmentsPage() {
 
       {/* Recommend Loan */}
       {modal === "loan" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Recommend Loan / Advance</h2>
@@ -488,7 +488,7 @@ export default function ManagerAdjustmentsPage() {
             </div>
             <form onSubmit={submitLoan} className="p-6 space-y-4">
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
                 <select required value={loanForm.user_id} onChange={(e) => setLoanForm({ ...loanForm, user_id: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                   <option value="">-- Select Report --</option>
                   {team.map((m) => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
@@ -503,7 +503,7 @@ export default function ManagerAdjustmentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Principal (₹) <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Principal (₹) <span className="text-rose-500">*</span></label>
                   <input type="number" required min="1" value={loanForm.principal_amount} onChange={(e) => setLoanForm({ ...loanForm, principal_amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
@@ -524,7 +524,7 @@ export default function ManagerAdjustmentsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={loanForm.reason} onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
               <p className="text-xs text-slate-400 italic">HR reviews and, if approved, generates the EMI schedule.</p>

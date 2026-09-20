@@ -57,7 +57,7 @@ function ForgotPasswordPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address <span className="text-red-400">*</span></label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address <span className="text-rose-400">*</span></label>
           <input
             type="email"
             value={identifier}
@@ -70,7 +70,7 @@ function ForgotPasswordPage() {
         </div>
 
         {error && (
-          <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-500 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
             {error}
           </p>
         )}

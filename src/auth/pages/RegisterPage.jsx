@@ -63,7 +63,7 @@ function RegisterPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-            Work Email <span className="text-red-400">*</span>
+            Work Email <span className="text-rose-400">*</span>
           </label>
           <input
             type="email"
@@ -80,7 +80,7 @@ function RegisterPage() {
         </div>
 
         {error && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
             {error}
           </p>
         )}

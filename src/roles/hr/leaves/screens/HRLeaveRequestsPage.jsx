@@ -46,7 +46,7 @@ const dateRange = (req) =>
 
 const STATUS_STYLES = {
   approved: "bg-violet-50 text-violet-700 border-violet-200",
-  rejected: "bg-red-50 text-red-700 border-red-200",
+  rejected: "bg-rose-50 text-rose-700 border-rose-200",
   cancelled: "bg-slate-100 text-slate-600 border-slate-200",
   terminated_cancelled: "bg-slate-100 text-slate-500 border-slate-200",
   pending: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
@@ -66,8 +66,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -98,7 +98,7 @@ function RejectModal({ request, onClose, onRejected }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -113,19 +113,19 @@ function RejectModal({ request, onClose, onRejected }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rejection Reason <span className="text-red-400">*</span></label>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rejection Reason <span className="text-rose-400">*</span></label>
             <textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} maxLength={1000}
               placeholder="Explain why the leave cannot be approved..."
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition resize-none" />
             <p className="text-[10px] text-slate-400 mt-1 text-right">{reason.length}/1000</p>
           </div>
           <div className="flex gap-3">
-            <button type="submit" disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
+            <button type="submit" disabled={loading} className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
               {loading ? "Submitting…" : (isCancellation ? "Deny Cancellation" : "Confirm Reject")}
             </button>
             <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>

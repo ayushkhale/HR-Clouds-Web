@@ -13,8 +13,8 @@ function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -92,7 +92,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -105,13 +105,13 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Policy Name <span className="text-red-400">*</span>
+              Policy Name <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
@@ -205,7 +205,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div>
@@ -218,7 +218,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
@@ -226,7 +226,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           {/* Leave Type */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Leave Type <span className="text-red-400">*</span>
+              Leave Type <span className="text-rose-400">*</span>
               {isEdit && <span className="ml-2 text-[10px] text-fuchsia-500 normal-case font-semibold">(Immutable — cannot change)</span>}
             </label>
             <select
@@ -249,7 +249,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Days Per Year <span className="text-red-400">*</span>
+                Days Per Year <span className="text-rose-400">*</span>
               </label>
               <input
                 type="number"
@@ -389,7 +389,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
           <button onClick={() => onEditPolicy(policy)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit policy">
             <HiPencil className="w-4 h-4" />
           </button>
-          <button onClick={() => onDeletePolicy(policy)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition" title="Delete policy">
+          <button onClick={() => onDeletePolicy(policy)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition" title="Delete policy">
             <HiTrash className="w-4 h-4" />
           </button>
         </div>
@@ -448,7 +448,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                         <button onClick={() => setEntitlementModal(ent)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition">
                           <HiPencil className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteEntitlement(ent.id)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition">
+                        <button onClick={() => handleDeleteEntitlement(ent.id)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition">
                           <HiTrash className="w-3.5 h-3.5" />
                         </button>
                       </div>
