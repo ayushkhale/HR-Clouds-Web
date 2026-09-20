@@ -588,27 +588,27 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 
 | # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 195 | `/api/v1/payroll/hr/exits` | POST | Yes | `hr` | hr | Records a first-class employee exit (last working day, notice, type). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ] | [ ] |
-| 196 | `/api/v1/payroll/hr/exits` | GET | Yes | `hr` | hr | Lists exits (filters: status, user_id, from/to, exit_type). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ] | [ ] |
-| 197 | `/api/v1/payroll/hr/exits/:id` | GET | Yes | `hr` | hr | Exit detail with prepared artefacts and the linked F&F run. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ] | [ ] |
-| 198 | `/api/v1/payroll/hr/exits/:id` | PATCH | Yes | `hr` | hr | Corrects last working day / notice / type / reason (refused once settled or prepared). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ] | [ ] |
-| 199 | `/api/v1/payroll/hr/exits/:id/cancel` | POST | Yes | `hr` | hr | Cancels an exit (reason required; auto-resets if prepared). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ] | [ ] |
-| 200 | `/api/v1/payroll/hr/exits/:id/settlement-preview` | GET | Yes | `hr` | hr | Full & Final settlement plan, read-only (nothing persisted). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `fnf_settlement.service.js` | [ ] | [ ] | [ ] |
-| 201 | `/api/v1/payroll/hr/exits/:id/prepare-settlement` | POST | Yes | `hr` | hr | Idempotent; creates the notice/encashment/loan adjustment inputs in one transaction. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `fnf_settlement.service.js` | [ ] | [ ] | [ ] |
-| 202 | `/api/v1/payroll/hr/exits/:id/settlement/reset` | POST | Yes | `hr` | hr | Reverses prepared artefacts (reason required); exact inverse. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `fnf_settlement.service.js` | [ ] | [ ] | [ ] |
-| 203 | `/api/v1/payroll/hr/arrears/drift` | GET | Yes | `hr` | hr | Read-only frozen-vs-live drift report for a closed period. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_arrear.service.js` | [ ] | [ ] | [ ] |
-| 204 | `/api/v1/payroll/hr/arrears/reconcile` | POST | Yes | `hr` | hr | Commits arrear adjustments into the next open run (one transaction). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_arrear.service.js` | [ ] | [ ] | [ ] |
-| 205 | `/api/v1/payroll/hr/arrears` | GET | Yes | `hr` | hr | Lists arrear adjustments with provenance (source period, batch, applied run). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_arrear.service.js` | [ ] | [ ] | [ ] |
-| 206 | `/api/v1/payroll/hr/employees/:userId/encashments` | POST | Yes | `hr` | hr | Creates a comp-off or leave-balance encashment (Tier C direct). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 207 | `/api/v1/payroll/hr/encashments` | GET | Yes | `hr` | hr | Lists encashments (filters: status, user_id, period_month, source_kind). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 208 | `/api/v1/payroll/hr/encashments/:id` | GET | Yes | `hr` | hr | Encashment detail, org-scoped. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 209 | `/api/v1/payroll/hr/encashments/:id/approve` | POST | Yes | `hr` | hr | Approves an encashment: dual source debit + approved adjustment (§5.5). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 210 | `/api/v1/payroll/hr/encashments/:id/reject` | POST | Yes | `hr` | hr | Rejects a pending encashment (reason required). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 211 | `/api/v1/payroll/hr/encashments/:id/cancel` | POST | Yes | `hr` | hr | Cancels a pending encashment, or reverses an approved one while un-applied. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 212 | `/api/v1/payroll/hr/jobs/calendar-reminders/run` | POST | Yes | `hr` | hr | Manually runs the four calendar reminders for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ] | [ ] |
-| 213 | `/api/v1/payroll/hr/jobs/auto-draft/run` | POST | Yes | `hr` | hr | Manually creates the due auto-draft run for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ] | [ ] |
-| 214 | `/api/v1/payroll/hr/jobs/run-sweeper/run` | POST | Yes | `hr` | hr | Manually sweeps stale `calculating` runs for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ] | [ ] |
-| 215 | `/api/v1/payroll/hr/jobs/attachment-sweeper/run` | POST | Yes | `hr` | hr | Manually sweeps pending/retention attachments for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ] | [ ] |
+| 195 | `/api/v1/payroll/hr/exits` | POST | Yes | `hr` | hr | Records a first-class employee exit (last working day, notice, type). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ✅ ] | [ ] |
+| 196 | `/api/v1/payroll/hr/exits` | GET | Yes | `hr` | hr | Lists exits (filters: status, user_id, from/to, exit_type). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ✅ ] | [ ] |
+| 197 | `/api/v1/payroll/hr/exits/:id` | GET | Yes | `hr` | hr | Exit detail with prepared artefacts and the linked F&F run. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ✅ ] | [ ] |
+| 198 | `/api/v1/payroll/hr/exits/:id` | PATCH | Yes | `hr` | hr | Corrects last working day / notice / type / reason (refused once settled or prepared). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ✅ ] | [ ] |
+| 199 | `/api/v1/payroll/hr/exits/:id/cancel` | POST | Yes | `hr` | hr | Cancels an exit (reason required; auto-resets if prepared). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `employee_exit.service.js` | [ ] | [ ✅ ] | [ ] |
+| 200 | `/api/v1/payroll/hr/exits/:id/settlement-preview` | GET | Yes | `hr` | hr | Full & Final settlement plan, read-only (nothing persisted). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `fnf_settlement.service.js` | [ ] | [ ✅ ] | [ ] |
+| 201 | `/api/v1/payroll/hr/exits/:id/prepare-settlement` | POST | Yes | `hr` | hr | Idempotent; creates the notice/encashment/loan adjustment inputs in one transaction. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `fnf_settlement.service.js` | [ ] | [ ✅ ] | [ ] |
+| 202 | `/api/v1/payroll/hr/exits/:id/settlement/reset` | POST | Yes | `hr` | hr | Reverses prepared artefacts (reason required); exact inverse. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `fnf_settlement.service.js` | [ ] | [ ✅ ] | [ ] |
+| 203 | `/api/v1/payroll/hr/arrears/drift` | GET | Yes | `hr` | hr | Read-only frozen-vs-live drift report for a closed period. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_arrear.service.js` | [ ] | [ ✅ ] | [ ] |
+| 204 | `/api/v1/payroll/hr/arrears/reconcile` | POST | Yes | `hr` | hr | Commits arrear adjustments into the next open run (one transaction). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_arrear.service.js` | [ ] | [ ✅ ] | [ ] |
+| 205 | `/api/v1/payroll/hr/arrears` | GET | Yes | `hr` | hr | Lists arrear adjustments with provenance (source period, batch, applied run). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_arrear.service.js` | [ ] | [ ✅ ] | [ ] |
+| 206 | `/api/v1/payroll/hr/employees/:userId/encashments` | POST | Yes | `hr` | hr | Creates a comp-off or leave-balance encashment (Tier C direct). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 207 | `/api/v1/payroll/hr/encashments` | GET | Yes | `hr` | hr | Lists encashments (filters: status, user_id, period_month, source_kind). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 208 | `/api/v1/payroll/hr/encashments/:id` | GET | Yes | `hr` | hr | Encashment detail, org-scoped. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 209 | `/api/v1/payroll/hr/encashments/:id/approve` | POST | Yes | `hr` | hr | Approves an encashment: dual source debit + approved adjustment (§5.5). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 210 | `/api/v1/payroll/hr/encashments/:id/reject` | POST | Yes | `hr` | hr | Rejects a pending encashment (reason required). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 211 | `/api/v1/payroll/hr/encashments/:id/cancel` | POST | Yes | `hr` | hr | Cancels a pending encashment, or reverses an approved one while un-applied. | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `encashment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 212 | `/api/v1/payroll/hr/jobs/calendar-reminders/run` | POST | Yes | `hr` | hr | Manually runs the four calendar reminders for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 213 | `/api/v1/payroll/hr/jobs/auto-draft/run` | POST | Yes | `hr` | hr | Manually creates the due auto-draft run for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 214 | `/api/v1/payroll/hr/jobs/run-sweeper/run` | POST | Yes | `hr` | hr | Manually sweeps stale `calculating` runs for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 215 | `/api/v1/payroll/hr/jobs/attachment-sweeper/run` | POST | Yes | `hr` | hr | Manually sweeps pending/retention attachments for the caller's org (org-scoped, idempotent). | `payroll_hr.routes.js` | `payroll_hr.controller.js` | `payroll_automation.service.js` | [ ] | [ ✅ ] | [ ] |
 
 ## Payroll Module - Manager Operations (Phase 7 — Corrections, Exits & Automation)
 
@@ -616,8 +616,8 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 
 | # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 216 | `/api/v1/payroll/manager/employees/:userId/encashments` | POST | Yes | `manager`, `hr` | manager | Proposes an encashment for a direct report (lands pending unless direct-compensation authority). | `payroll_manager.routes.js` | `payroll_manager.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
-| 217 | `/api/v1/payroll/manager/encashments` | GET | Yes | `manager`, `hr` | manager | Lists team encashments (scoped to accessible users; amounts hidden per EC-25). | `payroll_manager.routes.js` | `payroll_manager.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
+| 216 | `/api/v1/payroll/manager/employees/:userId/encashments` | POST | Yes | `manager`, `hr` | manager | Proposes an encashment for a direct report (lands pending unless direct-compensation authority). | `payroll_manager.routes.js` | `payroll_manager.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ✅ ] |
+| 217 | `/api/v1/payroll/manager/encashments` | GET | Yes | `manager`, `hr` | manager | Lists team encashments (scoped to accessible users; amounts hidden per EC-25). | `payroll_manager.routes.js` | `payroll_manager.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ✅ ] |
 
 ## Payroll Module - Employee Self-Service (Phase 7 — Corrections, Exits & Automation)
 
@@ -625,6 +625,6 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 
 | # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 218 | `/api/v1/payroll/me/encashments` | GET | Yes | `any tenant role` | employee | Employee views own encashment history (days, amount, status, period, payslip link). | `payroll_self.routes.js` | `payroll_self.controller.js` | `encashment.service.js` | [ ] | [ ] | [ ] |
+| 218 | `/api/v1/payroll/me/encashments` | GET | Yes | `any tenant role` | employee | Employee views own encashment history (days, amount, status, period, payslip link). | `payroll_self.routes.js` | `payroll_self.controller.js` | `encashment.service.js` | [ ✅ ] | [ ] | [ ] |
 
 

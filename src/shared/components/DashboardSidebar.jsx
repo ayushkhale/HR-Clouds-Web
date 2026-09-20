@@ -43,6 +43,7 @@ import {
   HiChartBar,
   HiCash,
   HiLogout,
+  HiSwitchHorizontal,
   HiDocumentText,
   HiUserCircle,
   HiCloudDownload,
@@ -238,6 +239,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Loans & Advances", "/dashboard/hr/payroll/loans", HiCash),
             link("Encashments", "/dashboard/hr/payroll/encashments", HiCash),
             link("Exits & Settlements", "/dashboard/hr/payroll/exits", HiLogout),
+            link("Pay Differences", "/dashboard/hr/payroll/arrears", HiSwitchHorizontal),
             link("Bank Verification", "/dashboard/hr/payroll/bank-verification", HiShieldCheck),
             link("Payroll Runs", "/dashboard/hr/payroll/runs", HiPlay, { nested: true }),
             link("Payslips & Documents", "/dashboard/hr/payroll/payslips", HiDocumentText),
@@ -285,6 +287,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Structure Templates", "/dashboard/hr/payroll/templates", HiDocumentReport),
             link("Benefit Plans", "/dashboard/hr/payroll/benefits", HiHeart),
             link("Payroll Settings", "/dashboard/hr/payroll/settings", HiCog),
+            link("Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
           ],
         },
         {
