@@ -7,11 +7,11 @@ import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { StatutorySummary, StatutoryUnavailableNotice } from "../../../../shared/components/StatutoryBreakdown";
+import { StatutorySummary, StatutoryUnavailableNotice, RecalculationPendingNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
-import { costFromPreview, employeeStatutoryDeductions, componentFlagsByCode, hasBalancingLine, solveCtcForTargetCost } from "../../../../shared/utils/employerStatutoryCost";
+import { costFromPreview, deductionsFromPreview, componentFlagsByCode, hasBalancingLine, solveCtcForTargetCost } from "../../../../shared/utils/employerStatutoryCost";
 import CtcMoneyFlow from "../CtcMoneyFlow";
 
 function Toast({ toast, onClose }) {
@@ -174,7 +174,12 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
     const lines = preview.lines || [];
     const c = costFromPreview({ preview, flags: componentFlags, config: statutoryConfig });
     const enteredCtc = parseFloat(form.annual_ctc) || 0;
-    const deductions = employeeStatutoryDeductions({ lines, flags: componentFlags, config: statutoryConfig });
+    // Since 2026-09-20 the preview is employee-scoped and carries the server's
+    // own `statutory_breakdown`, which resolves professional tax and TDS. Those
+    // two used to render as "Not estimated" because no client can know the
+    // employee's state or declarations. Prefer the server block; fall back to
+    // the local estimate only when it is absent.
+    const deductions = deductionsFromPreview({ preview, flags: componentFlags, config: statutoryConfig });
     // Compare on the with-extras total: the evaluator reserves EDLI and PF admin
     // charges inside the CTC too, so leaving them out understated the real cost
     // by ₹1,800 a year on the live payload and produced a phantom negative gap.
@@ -205,7 +210,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
     }
     setPreviewing(true);
     try {
-      const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: form.annual_ctc });
+      const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: form.annual_ctc, user_id: userId(user) });
       setPreview(res.data || res);
     } catch (err) {
       // Evaluator 422s (NO_BASIC_COMPONENT, CTC_BELOW_FIXED_COMPONENTS, …) surface here, before commit.
@@ -224,7 +229,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
       const result = await solveCtcForTargetCost({
         target,
         previewAt: async (ctc) => {
-          const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: Math.round(ctc).toString() });
+          const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: Math.round(ctc).toString(), user_id: userId(user) });
           return res.data || res;
         },
         costOf: (p) => costFromPreview({ preview: p, flags: componentFlags, config: statutoryConfig }).annualCostWithExtras,
@@ -233,7 +238,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
       const ctc = Math.round(result.ctc).toString();
       // Re-preview first, then commit both together: updating the CTC on its own
       // would leave `cost` comparing the new figure against the old split.
-      const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: ctc });
+      const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: ctc, user_id: userId(user) });
       setForm((f) => ({ ...f, annual_ctc: ctc }));
       setPreview(res.data || res);
       showToast(result.converged
@@ -247,9 +252,30 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
   };
 
   const reasonRequired = hasCurrent;
+
+  // The preview is the only thing that knows whether this template can actually
+  // be evaluated at this CTC. Assigning without one is how an unbalanced
+  // structure reaches an employee's record and has to be corrected afterwards,
+  // so the preview is a precondition, not a convenience: `reconciled` must be
+  // true and the evaluated cost must land on the CTC that was typed in.
+  const previewCtcCost = preview?.statutory_breakdown?.figures?.ctc_cost;
+  const ctcMatches = previewCtcCost === undefined || previewCtcCost === null
+    // An older backend sends no `ctc_cost`; `reconciled` is then all there is.
+    ? true
+    : Math.abs(Math.round(Number.parseFloat(previewCtcCost) * 100) - Math.round(((parseFloat(form.annual_ctc) || 0) / 12) * 100)) <= 1;
+
+  const blockedReason = !preview
+    ? "Preview the split before assigning."
+    : !preview.reconciled
+      ? "The components don't add up — this can't be assigned."
+      : !ctcMatches
+        ? "The evaluated cost doesn't match the CTC entered — re-preview before assigning."
+        : "";
+
   const canSubmit =
     form.template_id && form.annual_ctc && form.effective_from &&
-    (!reasonRequired || form.revision_reason.trim());
+    (!reasonRequired || form.revision_reason.trim()) &&
+    !blockedReason;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -308,6 +334,9 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
                   <p className="text-sm font-semibold text-slate-600">{formatDate(current.effective_from)}{current.version != null ? ` · v${current.version}` : ""}</p>
                 </div>
               </div>
+              {/* Stale-model warning goes above the figures it applies to, so it
+                  is read before them rather than as a footnote. */}
+              <RecalculationPendingNotice statutory={currentStatutory} />
               {currentStatutory
                 ? <StatutorySummary statutory={currentStatutory} componentDeductions={currentComponentDeductions} />
                 : <StatutoryUnavailableNotice compact />}
@@ -435,12 +464,22 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
             </div>
           </div>
 
-          <div className="shrink-0 flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+          <div className="shrink-0 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+            {/* A disabled Assign button with no stated reason reads as a broken
+                page. Name the one thing standing in the way. */}
+            {blockedReason && (
+              <p className="flex items-start gap-1.5 mb-2.5 text-[11px] font-semibold text-slate-500">
+                <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 text-purple-500 mt-px" />
+                <span>{blockedReason}</span>
+              </p>
+            )}
+            <div className="flex gap-3">
             <button type="button" onClick={onClose} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
             <button type="submit" disabled={!canSubmit || submitting}
               className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
               {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (hasCurrent ? "Assign revision" : "Assign structure")}
             </button>
+            </div>
           </div>
         </form>
       </div>

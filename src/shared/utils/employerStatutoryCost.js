@@ -58,6 +58,8 @@
 // planned; if not, that flag should drive a column on the HR salary grid.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { normalizeStatutory, statutoryTotals } from "./statutoryBreakdown";
+
 const toAmount = (v) => {
   const n = Number.parseFloat(v);
   return Number.isFinite(n) ? n : 0;
@@ -258,6 +260,57 @@ export function employeeStatutoryDeductions({ lines, flags = {}, config = {} } =
     takeHome: base.monthlyGross - known,
     complete: unresolved.length === 0,
   };
+}
+
+/**
+ * Employee-side deductions for a preview, preferring the server's own numbers.
+ *
+ * As of 2026-09-20 the template preview returns `statutory_breakdown` — the same
+ * block the employee sees on their own salary page — because the request now
+ * carries `user_id`, so the backend can resolve the two heads this module can
+ * never work out on its own: professional tax (a state slab) and TDS (the
+ * employee's regime and declarations). When that block is present it wins
+ * outright and nothing here is estimated.
+ *
+ * The client estimate stays as the fallback for an older backend, for a preview
+ * that came back without the block, and for callers that have lines but no
+ * preview. It resolves PF and ESI exactly and names PT and TDS as unresolved
+ * rather than guessing them.
+ *
+ * Both branches return the same shape, so `CtcMoneyFlow` renders either without
+ * knowing which it got; `source` says which, for the wording that depends on it.
+ *
+ * @returns {{source:"server"|"estimated", lines:Array, unresolved:Array,
+ *            known:number, monthlyGross:number, takeHome:number, complete:boolean}}
+ */
+const amountOfLine = (lines, key) => toAmount((lines || []).find((l) => l?.key === key)?.amount);
+
+export function deductionsFromPreview({ preview, flags = {}, config = {} } = {}) {
+  const server = normalizeStatutory(preview);
+  if (server) {
+    // Deduction-type components are contractual, not statutory: the backend's
+    // `net_pay` nets only the statutory heads, so netting them here as well is
+    // what keeps "gross − withheld = take-home" true on screen. `statutoryTotals`
+    // is the single place that derivation lives.
+    const componentDeductions = (preview?.lines || [])
+      .filter((l) => (l?.component_type || "earning") === "deduction")
+      .reduce((sum, l) => sum + toAmount(l.monthly_amount), 0);
+    const totals = statutoryTotals(server, { componentDeductions });
+    return {
+      source: "server",
+      // `normalizeStatutory` exposes the heads as rows, not as named fields;
+      // read them back off the rows rather than widening its contract.
+      pfEmployee: amountOfLine(server.employeeLines, "pf"),
+      esiEmployee: amountOfLine(server.employeeLines, "esi"),
+      lines: server.employeeLines,
+      unresolved: [],
+      known: totals.deductions,
+      monthlyGross: totals.gross,
+      takeHome: totals.net,
+      complete: true,
+    };
+  }
+  return { source: "estimated", ...employeeStatutoryDeductions({ lines: preview?.lines, flags, config }) };
 }
 
 /** True when a template's components include the single balancing line. */

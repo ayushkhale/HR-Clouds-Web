@@ -60,6 +60,36 @@ export function StatutorySummary({ statutory, componentDeductions = 0, className
 }
 
 /**
+ * Non-blocking banner for a structure that predates the CTC-inclusive cost
+ * model (integration note 2026-09-20, §4).
+ *
+ * Those structures were priced with the whole CTC becoming gross pay and the
+ * employer's contributions charged on top, so `ctc_cost` does not equal
+ * annual_ctc / 12 and every figure derived from them understates what the
+ * company actually pays. Re-saving the structure re-runs it through the fixed
+ * evaluator. Deliberately non-blocking: the numbers are stale, not unusable,
+ * and hiding the page would leave HR with nothing at all.
+ *
+ * Renders nothing unless `statutory.needsRecalculation` — safe to drop in
+ * anywhere a normalized breakdown is in scope.
+ */
+export function RecalculationPendingNotice({ statutory, className = "" }) {
+  if (!statutory?.needsRecalculation) return null;
+  return (
+    <div className={`flex items-start gap-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-3.5 py-2.5 ${className}`}>
+      <HiExclamation className="w-4 h-4 shrink-0 text-fuchsia-500 mt-px" />
+      <p className="text-[11px] font-semibold leading-relaxed text-fuchsia-800">
+        This salary structure was created under the previous cost model and is pending recalculation. The figures below
+        may not reflect the final cost to company — re-save (revise) the structure to refresh it.
+        <span className="block mt-0.5 font-medium text-fuchsia-700">
+          Costs {formatMoney(statutory.companyCost)} a month against a contracted {formatMoney(statutory.contractedMonthly)}.
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/**
  * Shown where the panel would be when a payload carries no `statutory_breakdown`
  * at all — an older backend, or one of the reads that was never enriched.
  *

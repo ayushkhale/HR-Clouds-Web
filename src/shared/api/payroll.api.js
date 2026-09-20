@@ -47,7 +47,18 @@ export const payrollAPI = {
   addTemplateComponent: (id, payload) => request(`/payroll/hr/structure-templates/${id}/components`, { method: "POST", body: JSON.stringify(payload) }),
   updateTemplateComponent: (id, compId, payload) => request(`/payroll/hr/structure-templates/${id}/components/${compId}`, { method: "PUT", body: JSON.stringify(payload) }),
   removeTemplateComponent: (id, compId) => request(`/payroll/hr/structure-templates/${id}/components/${compId}`, { method: "DELETE" }),
-  previewTemplate: (id, payload) => request(`/payroll/hr/structure-templates/${id}/preview`, { method: "POST", body: JSON.stringify(payload) }),
+  // `user_id` became REQUIRED on 2026-09-20: professional tax depends on the
+  // employee's work state and TDS on their declarations, so the evaluator has to
+  // know who the preview is for. It is also what makes the response carry
+  // `statutory_breakdown`, identical in shape to GET /payroll/me/salary-structure.
+  // Omitting it is a 400 from the server; the guard turns that into a message
+  // that names the actual mistake instead of a generic validation failure.
+  previewTemplate: (id, payload) => {
+    if (!payload?.user_id) {
+      return Promise.reject(new Error("Preview needs an employee to evaluate against — user_id is required."));
+    }
+    return request(`/payroll/hr/structure-templates/${id}/preview`, { method: "POST", body: JSON.stringify(payload) });
+  },
 
   // Employee Structures (HR)
   // Every employee's active structure in one paginated list (page, limit ≤ 100),

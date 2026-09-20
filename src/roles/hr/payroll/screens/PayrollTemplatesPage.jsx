@@ -1,13 +1,27 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiDocumentText, HiEye, HiCog, HiCheck } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiDocumentText, HiEye, HiCog, HiCheck, HiInformationCircle } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import CtcBudgetBar from "../CtcBudgetBar";
+import { useAuth } from "../../../../shared/contexts/AuthContext";
 import {
   CTC_PRESETS, formatINR, readTarget, writeTarget, readFlatUnit, writeFlatUnit, flatUnitFrom,
   componentMeta, budgetFromPreview, estimateBudget, rowAnnual, estimateLine, moYr, buildSuggestions,
 } from "../ctcBudget";
+
+/** One figure of the preview summary. Tones stay in the purple family; rose is reserved for money taken away. */
+function FigureTile({ label, value, hint, tone = "plain" }) {
+  const box = tone === "accent" ? "bg-violet-50 border-violet-200" : tone === "minus" ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200";
+  const text = tone === "accent" ? "text-violet-800" : tone === "minus" ? "text-rose-700" : "text-slate-800";
+  return (
+    <div className={`rounded-xl border px-3.5 py-2.5 ${box}`}>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`text-sm font-black tabular-nums mt-0.5 ${text}`}>{tone === "minus" ? "− " : ""}{value}</p>
+      {hint && <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{hint}</p>}
+    </div>
+  );
+}
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -22,6 +36,17 @@ function Toast({ toast, onClose }) {
 }
 
 export default function PayrollTemplatesPage() {
+  // The preview endpoint became employee-scoped on 2026-09-20: professional tax
+  // follows the employee's work state and TDS their declarations, so it now
+  // requires a `user_id`. This page previews a *template*, not a person, and has
+  // no employee in scope — so it evaluates against the signed-in HR user, who is
+  // always a valid profile in their own org. The component split (which is what
+  // this screen exists to show) is identical whoever it is evaluated for; only
+  // PT and TDS would differ, and neither is rendered here. The modal says so
+  // rather than letting the figures imply they are universal.
+  const { user } = useAuth();
+  const previewUserId = user?.id || null;
+
   const [templates, setTemplates] = useState([]);
   const [components, setComponents] = useState([]);
   // The evaluator reserves the employer's statutory share out of the CTC before
@@ -150,6 +175,11 @@ export default function PayrollTemplatesPage() {
     setPreviewError("");
   };
 
+  // Absent on an older backend, and on any preview that predates the
+  // employee-scoped contract — the tiles below it stay hidden rather than
+  // rendering zeroes that would read as "nothing is deducted".
+  const previewFigures = previewData?.statutory_breakdown?.figures || null;
+
   const runPreview = async (e) => {
     e?.preventDefault();
     const ctc = Number(previewCTC);
@@ -160,7 +190,7 @@ export default function PayrollTemplatesPage() {
     setIsPreviewLoading(true);
     setPreviewError("");
     try {
-      const res = await payrollAPI.previewTemplate(previewTpl.id, { annual_ctc: ctc });
+      const res = await payrollAPI.previewTemplate(previewTpl.id, { annual_ctc: ctc, user_id: previewUserId });
       setPreviewData(res.data || res);
       learnFlatUnit(res.data || res);
     } catch (err) {
@@ -297,7 +327,7 @@ export default function PayrollTemplatesPage() {
     setBudgetLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await payrollAPI.previewTemplate(managingId, { annual_ctc: ctc });
+        const res = await payrollAPI.previewTemplate(managingId, { annual_ctc: ctc, user_id: previewUserId });
         if (reqId !== budgetReq.current) return;
         setBudgetPreview(res.data || res);
         setBudgetError("");
@@ -311,7 +341,7 @@ export default function PayrollTemplatesPage() {
       }
     }, 450);
     return () => clearTimeout(timer);
-  }, [isComponentModalOpen, managingId, componentSig, budgetTarget, learnFlatUnit]);
+  }, [isComponentModalOpen, managingId, componentSig, budgetTarget, learnFlatUnit, previewUserId]);
 
   const isCtcDriven = managingTemplate?.definition_mode !== "component_driven";
 
@@ -707,16 +737,39 @@ export default function PayrollTemplatesPage() {
 
             {previewData && (
             <div className="p-6 overflow-y-auto">
-               <div className="grid grid-cols-2 gap-4 mb-6">
+               <div className="grid grid-cols-2 gap-4 mb-4">
                  <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
                    <p className="text-[10px] font-bold text-purple-400 uppercase">Annual CTC</p>
                    <p className="text-2xl font-black text-purple-700">{formatINR(previewData.annual_ctc)}</p>
+                   <p className="text-[10px] font-semibold text-purple-400 mt-0.5">{formatINR(Number(previewData.annual_ctc) / 12)} / month</p>
                  </div>
                  <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
                    <p className="text-[10px] font-bold text-purple-400 uppercase">Monthly Gross</p>
                    <p className="text-2xl font-black text-purple-700">{formatINR(previewData.monthly_gross)}</p>
+                   <p className="text-[10px] font-semibold text-purple-400 mt-0.5">Before deductions — not take-home</p>
                  </div>
                </div>
+
+               {/* The preview now returns the employee-scoped statutory block.
+                   Gross, deductions and take-home are three different numbers;
+                   showing gross alone is what made this screen read as if the
+                   employee banked it. */}
+               {previewFigures && (
+                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                   <FigureTile label="Employee deductions" value={formatINR(previewFigures.total_deductions)} tone="minus" />
+                   <FigureTile label="Net take-home" value={formatINR(previewFigures.net_pay)} tone="accent" />
+                   <FigureTile label="Employer contributions" value={formatINR(previewFigures.total_employer_contributions)} hint="Inside the CTC, not paid to the employee" />
+                 </div>
+               )}
+
+               <p className="flex items-start gap-1.5 mb-5 text-[11px] leading-relaxed text-slate-500">
+                 <HiInformationCircle className="w-3.5 h-3.5 shrink-0 text-purple-500 mt-px" />
+                 <span>
+                   The component split is the same for everyone on this template. Professional tax and income tax
+                   depend on the employee, so they are evaluated here against your own profile — check the figure on
+                   the employee&apos;s salary page before assigning.
+                 </span>
+               </p>
 
                <h3 className="text-sm font-bold text-slate-800 mb-4">Component Breakdown</h3>
                <div className="overflow-x-auto">
@@ -737,7 +790,12 @@ export default function PayrollTemplatesPage() {
                          <span className="font-bold text-purple-500">
                            {line.calculation_type?.split(/[_\s]+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
                          </span>
-                         <span className="text-slate-400 ml-1">({line.value})</span>
+                         {/* `value` is the stored rule input. For a balancing
+                             line it is not an amount at all, so showing it next
+                             to one invites it to be read as the figure. */}
+                         {line.calculation_type !== "balancing" && line.value != null && line.value !== "" && (
+                           <span className="text-slate-400 ml-1">({line.value})</span>
+                         )}
                        </td>
                        <td className="px-4 py-3 text-right font-semibold text-slate-700">{formatINR(line.monthly_amount)}</td>
                        <td className="px-4 py-3 text-right font-bold text-slate-800">{formatINR(line.annual_amount)}</td>

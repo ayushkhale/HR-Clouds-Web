@@ -213,6 +213,17 @@ export function normalizeStatutory(structure) {
   const contractedMonthly = toAmount(structure.annual_ctc) / 12;
   const costAboveContractedCtc = contractedMonthly > 0 && companyCost - contractedMonthly > 1;
 
+  // Stale-structure detection, per the 2026-09-20 integration note. Under the
+  // CTC-inclusive model the evaluator reserves the employer's share out of the
+  // CTC, so `ctc_cost` must equal annual_ctc / 12. A structure assigned before
+  // that fix was built on the old formula — the whole CTC became gross and the
+  // employer's share was charged on top — so the two disagree and the figures
+  // below are not the final cost. Compared in paise, and two-sided: a cost that
+  // came out *under* the CTC is just as much a sign of a stale calculation.
+  const ctcCostPaise = Math.round(companyCost * 100);
+  const monthlyCtcPaise = Math.round(contractedMonthly * 100);
+  const needsRecalculation = contractedMonthly > 0 && Math.abs(ctcCostPaise - monthlyCtcPaise) > 1;
+
   const statusKey = String(raw.status || "").trim().toLowerCase();
   const meta = STATUS_META[statusKey] || STATUS_META.estimated;
 
@@ -231,6 +242,7 @@ export function normalizeStatutory(structure) {
     companyCost,
     contractedMonthly,
     costAboveContractedCtc,
+    needsRecalculation,
 
     employeeLines,
     employerLines,
