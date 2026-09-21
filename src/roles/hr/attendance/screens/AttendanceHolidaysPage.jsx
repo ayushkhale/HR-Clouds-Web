@@ -3,6 +3,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI } from "../../../../shared/api";
 import MultiSelectDropdown from "../../../../shared/components/MultiSelectDropdown";
+import { PersonMultiSelect } from "../../../../shared/components/PersonPicker";
 import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
 import { listFrom } from "../../../../shared/attendance/normalize";
 import { parseYMDLocal, ymdOnly } from "../../../../shared/attendance/dates";
@@ -264,20 +265,14 @@ function HolidayModal({ editHoliday, onClose, onSaved }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MultiSelectDropdown
-              label="Force Include Employees"
-              placeholder="None"
-              options={withSelected(targeting.employeeOptions, form.included_users, "Former employee")}
-              value={form.included_users}
-              onChange={v => set("included_users", v)}
-            />
-            <MultiSelectDropdown
-              label="Force Exclude Employees"
-              placeholder="None"
-              options={withSelected(targeting.employeeOptions, form.excluded_users, "Former employee")}
-              value={form.excluded_users}
-              onChange={v => set("excluded_users", v)}
-            />
+<div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Force Include Employees</label>
+              <PersonMultiSelect people={targeting.employeePeople} value={form.included_users} onChange={v => set("included_users", v)} placeholder="None" unknownLabel="Former employee" loading={targeting.loading} aria-label="Force Include Employees" />
+            </div>
+<div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Force Exclude Employees</label>
+              <PersonMultiSelect people={targeting.employeePeople} value={form.excluded_users} onChange={v => set("excluded_users", v)} placeholder="None" unknownLabel="Former employee" loading={targeting.loading} aria-label="Force Exclude Employees" />
+            </div>
           </div>
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-1">
             <button type="button" onClick={onClose} disabled={loading}
@@ -411,7 +406,7 @@ export default function AttendanceHolidaysPage() {
 
   return (
     <>
-        <DashboardTopBar title="Attendance" />
+        <DashboardTopBar title="Holidays" />
         <main className="flex-1 overflow-y-auto px-8 py-8">
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
@@ -420,7 +415,7 @@ export default function AttendanceHolidaysPage() {
                 <HiCalendar className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-800">Holiday Calendar</h1>
+                <h1 className="text-xl font-bold text-slate-800">Holidays</h1>
                 <p className="text-xs text-slate-400 mt-0.5">Manage your organisation's holiday calendar.</p>
               </div>
             </div>

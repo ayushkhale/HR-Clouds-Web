@@ -16,7 +16,6 @@ import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
-import { matchesEmployee } from "../variablePayMeta";
 import { plural } from "../runMeta";
 import { parseMoney } from "../../../../shared/utils/reimbursementMeta";
 import {
@@ -24,6 +23,7 @@ import {
   normalizePlanDetail, chargeNoticeForStart, chargeNoticeForEnd, NO_TAX_EFFECT_NOTE, NO_PRORATION_NOTE,
   ENROLLMENT_STATUS_FILTERS,
 } from "../../../../shared/utils/benefitMeta";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -249,7 +249,6 @@ function PlanFormDialog({ plan, components, activeCount, onClose, onSaved }) {
 function EnrollDialog({ plans, plan, employees, employee, onClose, onEnrolled }) {
   const lockEmployee = !!employee;
   const lockPlan = !!plan;
-  const [empQuery, setEmpQuery] = useState("");
   const [form, setForm] = useState({ user_id: employee?.id || "", plan_id: plan?.id || "", enrolled_from: new Date().toISOString().slice(0, 10), employee_override: "", employer_override: "" });
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -261,7 +260,6 @@ function EnrollDialog({ plans, plan, employees, employee, onClose, onEnrolled })
   useEffect(() => { const onKey = (e) => { if (e.key === "Escape") closeRef.current(); }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
 
   const selectedPlan = plan || plans.find((p) => p.id === form.plan_id) || null;
-  const employeeChoices = useMemo(() => employees.filter((e) => e.id === form.user_id || matchesEmployee(e, empQuery)), [employees, empQuery, form.user_id]);
 
   const errors = {};
   if (!form.user_id) errors.user_id = "Choose an employee.";
@@ -339,15 +337,7 @@ function EnrollDialog({ plans, plan, employees, employee, onClose, onEnrolled })
           <div>
             <label htmlFor="enr-emp" className={labelCls}>Employee <span className="text-rose-500">*</span></label>
             {lockEmployee ? <p className="text-sm font-semibold text-slate-800">{employee.name}{employee.code ? ` (${employee.code})` : ""}</p> : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="relative"><HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input value={empQuery} onChange={(e) => setEmpQuery(e.target.value)} placeholder="Search name or code" aria-label="Search employees" className={`${fieldCls} pl-9`} />
-                </div>
-                <select id="enr-emp" value={form.user_id} onChange={(e) => set({ user_id: e.target.value })} className={fieldCls} aria-invalid={!!show("user_id")}>
-                  <option value="">{employeeChoices.length ? `Choose (${employeeChoices.length})` : "No employees match"}</option>
-                  {employeeChoices.map((e) => <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ""}</option>)}
-                </select>
-              </div>
+              <PersonSelect id="enr-emp" people={employees} value={form.user_id} onChange={(id) => set({ user_id: id })} placeholder="Choose an employee" invalid={!!show("user_id")} />
             )}
             {show("user_id") && <p className={errorTextCls}>{show("user_id")}</p>}
           </div>
@@ -690,7 +680,6 @@ function PlansTab({ showToast, directory, nameOf }) {
 
 // ── By-employee tab ──────────────────────────────────────────────────────────
 function EmployeesTab({ showToast, directory }) {
-  const [empQuery, setEmpQuery] = useState("");
   const [userId, setUserId] = useState("");
   const [status, setStatus] = useState("active");
   const [plans, setPlans] = useState([]);
@@ -700,7 +689,6 @@ function EmployeesTab({ showToast, directory }) {
 
   useEffect(() => { let c = false; payrollAPI.getBenefitPlans({ is_active: "true" }).then((res) => { if (!c) setPlans(listFrom(res, ["plans", "rows", "records"])); }).catch(() => {}); return () => { c = true; }; }, []);
 
-  const employeeChoices = useMemo(() => directory.options.filter((e) => e.id === userId || matchesEmployee(e, empQuery)), [directory, empQuery, userId]);
   const filterKey = `${userId}|${status}|${refreshKey}`;
   const fetchPage = useCallback(({ page, limit }) => payrollAPI.getEmployeeBenefitEnrollments(userId, status ? { status, page, limit } : { page, limit }), [userId, status]);
   const list = usePagedList(fetchPage, { limit: PAGE_SIZE, keys: ["enrollments", "rows", "records"], filterKey, enabled: !!userId });
@@ -711,15 +699,7 @@ function EmployeesTab({ showToast, directory }) {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Employee</label>
-          <div className="flex gap-2">
-            <div className="relative"><HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input value={empQuery} onChange={(e) => setEmpQuery(e.target.value)} placeholder="Search name or code" aria-label="Search employees" className="h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none w-56" />
-            </div>
-            <select aria-label="Employee" value={userId} onChange={(e) => setUserId(e.target.value)} className={selectCls}>
-              <option value="">{employeeChoices.length ? `Choose (${employeeChoices.length})` : "No employees match"}</option>
-              {employeeChoices.map((e) => <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ""}</option>)}
-            </select>
-          </div>
+          <PersonSelect className="w-72" people={directory.options} value={userId} onChange={(id) => setUserId(id)} placeholder="Choose an employee" aria-label="Employee" />
         </div>
         {userId && (
           <>
@@ -822,10 +802,10 @@ export default function PayrollBenefitsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Benefits" />
+      <DashboardTopBar title="Benefit Plans" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Benefits</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Benefit Plans</h1>
           <p className="text-sm text-slate-500 mt-1">Define benefit plans, enroll employees and see what each plan costs.</p>
         </div>
 

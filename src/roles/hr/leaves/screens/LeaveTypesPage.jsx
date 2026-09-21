@@ -405,7 +405,7 @@ export default function LeaveTypesPage() {
 
   return (
     <>
-        <DashboardTopBar title="Leave Management" />
+        <DashboardTopBar title="Leave Types" />
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
 
           {/* Page Header */}

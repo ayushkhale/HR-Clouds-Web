@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { HiCheck, HiSelector, HiX } from "react-icons/hi";
+import { HiCheck, HiSearch, HiSelector, HiX } from "react-icons/hi";
 import GenderAvatar from "./GenderAvatar";
 
 export default function MultiSelectDropdown({ 
@@ -70,14 +70,19 @@ export default function MultiSelectDropdown({
         <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-60 flex flex-col overflow-hidden">
           {options.length > 5 && (
             <div className="p-2 border-b border-slate-100 shrink-0">
-              <input 
-                type="text" 
-                placeholder="Search..." 
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:bg-white"
-                onClick={e => e.stopPropagation()}
-              />
+              {/* Same search box as the people picker (PersonPicker). */}
+              <div className="relative">
+                <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  aria-label="Search options"
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-purple-500"
+                  onClick={e => e.stopPropagation()}
+                />
+              </div>
             </div>
           )}
           <div className="overflow-y-auto flex-1">

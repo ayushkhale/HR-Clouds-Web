@@ -11,7 +11,7 @@ import { InlineAlert } from "../../../../shared/attendance/ui";
 export default function AttendanceRegularizationsHRPage() {
   return (
     <>
-      <DashboardTopBar title="Regularization Requests" />
+      <DashboardTopBar title="Regularizations" />
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Regularizations</h1>

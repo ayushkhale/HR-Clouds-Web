@@ -114,10 +114,10 @@ export default function PayrollAutomationPage() {
 
   return (
     <>
-      <DashboardTopBar title="Automation" />
+      <DashboardTopBar title="Payroll Automation" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-4xl mx-auto w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Automatic jobs</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Payroll Automation</h1>
           <p className="text-sm text-slate-500 mt-1">
             Routine work payroll does on its own. You can also run any of it now if you need the result straight away.
           </p>

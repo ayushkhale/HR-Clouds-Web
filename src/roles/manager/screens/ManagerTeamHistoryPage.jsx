@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiFilter, HiClock, HiUser, HiPencil } from "react-icons/hi";
-import { usePagedList } from "../../../shared/attendance/usePagedList";
+import { normalizePaginated } from "../../../shared/attendance/normalize";
 import { useOrgEmployees } from "../../../shared/attendance/EmployeePicker";
 import { humanize } from "../../../shared/attendance/enums";
 import { addDaysYMD, fmtDate, fmtHours, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
+import { PersonSelect } from "../../../shared/components/PersonPicker";
 
 // Contract §2 C15 / §8.1: GET /manager/team/history ignores every query
 // parameter and returns all records ever for the whole team, unbounded — so it
@@ -15,6 +16,52 @@ import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared
 // GET /manager/team/member/:userId/history, which is filtered by from/to and
 // paginated (`total_pages`). The member list is the org roster, which the
 // server scopes to the caller's reports.
+const PAGE_SIZE = 25;
+const FETCH_LIMIT = 100; // backend maximum per request
+const MAX_FETCHES = 20;  // ~5 years of days; a safety stop
+
+// The endpoint has no sort parameter and pages oldest-first, so reversing one
+// page at a time still showed the oldest page first. The whole range is read
+// (100 days a request), sorted newest-first, and paged here.
+function useWholeRangeHistory(applied) {
+  const [state, setState] = useState({ items: [], loading: false, error: null });
+  const [page, setPage] = useState(1);
+  const reqId = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!applied) return;
+    const id = ++reqId.current;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      const fetchPage = (p) => attendanceAPI.getTeamMemberHistory(applied.userId, { from: applied.from, to: applied.to, page: p, limit: FETCH_LIMIT });
+      const first = normalizePaginated(await fetchPage(1), ["records"], { page: 1, limit: FETCH_LIMIT });
+      const pages = Math.min(MAX_FETCHES, first.totalPages || 1);
+      const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => fetchPage(i + 2)));
+      const items = [...first.items, ...rest.flatMap((res) => normalizePaginated(res, ["records"]).items)]
+        .sort((a, b) => (ymdOnly(b.date) || "").localeCompare(ymdOnly(a.date) || ""));
+      if (id === reqId.current) setState({ items, loading: false, error: null });
+    } catch (error) {
+      if (id === reqId.current) setState({ items: [], loading: false, error });
+    }
+  }, [applied]);
+
+  useEffect(() => { setPage(1); load(); }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(state.items.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  return {
+    items: state.items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    total: state.items.length,
+    totalPages,
+    page: safePage,
+    limit: PAGE_SIZE,
+    setPage,
+    loading: state.loading,
+    error: state.error,
+    reload: load,
+  };
+}
+
 function ManagerTeamHistoryPage() {
   const today = todayYMD();
   const team = useOrgEmployees("shift_assignment");
@@ -22,10 +69,7 @@ function ManagerTeamHistoryPage() {
   const [applied, setApplied] = useState(null); // { userId, from, to } once a member is chosen
   const [formError, setFormError] = useState("");
 
-  const list = usePagedList(
-    ({ page, limit }) => attendanceAPI.getTeamMemberHistory(applied.userId, { from: applied.from, to: applied.to, page, limit }),
-    { limit: 25, keys: ["records"], filterKey: applied ? `${applied.userId}_${applied.from}_${applied.to}` : "none", enabled: !!applied }
-  );
+  const list = useWholeRangeHistory(applied);
 
   const applyFilter = (e) => {
     e.preventDefault();
@@ -43,28 +87,26 @@ function ManagerTeamHistoryPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team History" />
+      <DashboardTopBar title="Attendance History" />
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Historical Attendance</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Attendance History</h1>
           <p className="text-sm text-slate-500 mt-1">Past attendance for a member of your reporting line over a date range.</p>
         </div>
 
         <form onSubmit={applyFilter} className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-5 sm:p-6 flex flex-col lg:flex-row lg:items-end gap-4" noValidate>
           <div className="flex-[2] min-w-0">
             <label htmlFor="th-member" className="block text-xs font-semibold text-slate-500 mb-1">Team member</label>
-            <select
+            <PersonSelect
               id="th-member"
+              people={team.options}
               value={draft.userId}
-              onChange={(e) => setDraft((d) => ({ ...d, userId: e.target.value }))}
-              disabled={team.loading || !!team.error}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-slate-50"
-            >
-              <option value="">{team.loading ? "Loading your team…" : team.error ? "Couldn't load your team" : team.options.length === 0 ? "No team members found" : "Select a team member…"}</option>
-              {team.options.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}{o.code ? ` · ${o.code}` : ""}</option>
-              ))}
-            </select>
+              onChange={(id) => setDraft((d) => ({ ...d, userId: id }))}
+              placeholder="Select a team member…"
+              loading={team.loading}
+              error={team.error ? "Couldn't load your team." : ""}
+              emptyText="No team members found."
+            />
           </div>
           <div className="flex-1">
             <label htmlFor="th-from" className="block text-xs font-semibold text-slate-500 mb-1">From</label>
@@ -122,18 +164,20 @@ function ManagerTeamHistoryPage() {
                           const overtime = metric(r.overtime_minutes);
                           const chip = dayChip(r);
                           const due = isWorkingDay(r);
-                          const dash = <span className="text-slate-300">—</span>;
+                          // No data reads N/A; a duration with nothing recorded reads 0m.
+                          const na = <span className="text-slate-400">N/A</span>;
+                          const zero = <span className="text-slate-400">0m</span>;
                           return (
                             <tr key={r.id || `${r.date}-${idx}`} className={isSynthesizedDay(r) ? (due ? "" : "bg-slate-50/40") : "hover:bg-slate-50/80 transition-colors"}>
                               <td className="px-5 py-3 text-xs font-medium whitespace-nowrap">{fmtDate(ymdOnly(r.date), { weekday: "short", day: "numeric", month: "short", year: "numeric" })}{r.is_regularized && <span title="Corrected through a regularization request" className="ml-1.5 inline-flex items-center justify-center w-4 h-4 align-middle rounded-full bg-purple-100 text-purple-600"><HiPencil className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only">Corrected</span></span>}</td>
                               <td className="px-5 py-3">
                                 <StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} />
                               </td>
-                              <td className="px-5 py-3 text-xs">{r.clock_in_time ? fmtTime(r.clock_in_time) : dash}</td>
-                              <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : dash}</td>
-                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null ? dash : fmtHours(r.effective_hours)}</td>
+                              <td className="px-5 py-3 text-xs">{r.clock_in_time ? fmtTime(r.clock_in_time) : na}</td>
+                              <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : na}</td>
+                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null ? zero : fmtHours(r.effective_hours)}</td>
                               <td className="px-5 py-3 text-xs">
-                                {late === null && early === null ? dash : (
+                                {late === null && early === null ? na : (
                                   <>
                                     {late > 0 && <span className="block text-rose-600 font-bold">{fmtMinutes(late)} late</span>}
                                     {early > 0 && <span className="block text-fuchsia-600 font-bold">{fmtMinutes(early)} early</span>}
@@ -141,8 +185,8 @@ function ManagerTeamHistoryPage() {
                                   </>
                                 )}
                               </td>
-                              <td className="px-5 py-3 text-xs">{overtime === null ? dash : overtime > 0 ? <span className="text-violet-600 font-bold">+{fmtMinutes(overtime)}</span> : <span className="text-slate-400">0m</span>}</td>
-                              <td className="px-5 py-3 text-xs text-slate-500">{r.work_mode ? humanize(r.work_mode) : dash}</td>
+                              <td className="px-5 py-3 text-xs">{overtime === null ? zero : overtime > 0 ? <span className="text-violet-600 font-bold">+{fmtMinutes(overtime)}</span> : <span className="text-slate-400">0m</span>}</td>
+                              <td className="px-5 py-3 text-xs text-slate-500">{r.work_mode ? humanize(r.work_mode) : na}</td>
                             </tr>
                           );
                         })}

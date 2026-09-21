@@ -5,6 +5,7 @@ import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { PersonMultiSelect, PersonSelect } from "../../../../shared/components/PersonPicker";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -19,9 +20,11 @@ function Toast({ toast, onClose }) {
 }
 
 const MONTHS = Array.from({ length: 12 }).map((_, i) => new Date(0, i).toLocaleString("default", { month: "long" }));
-const money = (v) => (v === null || v === undefined || v === "" ? "—" : `₹${parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+// The org roster keys people by `user_id`; the proposal endpoints need that GUID.
+const memberId = (m) => m.user_id || m.id || m._id;
+const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : `₹${parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
 const fmtPeriod = (pm) => {
-  if (!pm) return "-";
+  if (!pm) return "N/A";
   const [y, m] = pm.split("-");
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
 };
@@ -149,11 +152,14 @@ export default function ManagerAdjustmentsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const teamName = (id) => team.find((m) => (m.id || m._id || m.user_id) === id)?.name || id;
+  const teamName = (id) => team.find((m) => memberId(m) === id)?.name || id;
+  // Only a pending proposal can be cancelled; with none, the column is dropped.
+  const hasCancellable = adjustments.some((a) => a.status === "pending");
   const period = (f) => `${f.year}-${String(f.month).padStart(2, "0")}`;
 
   const submitAdj = async (e) => {
     e.preventDefault();
+    if (!adjForm.user_id) return showToast("Choose a team member", "error");
     try {
       await payrollAPI.proposeTeamAdjustment(adjForm.user_id, {
         period_month: period(adjForm),
@@ -194,6 +200,7 @@ export default function ManagerAdjustmentsPage() {
 
   const submitLoan = async (e) => {
     e.preventDefault();
+    if (!loanForm.user_id) return showToast("Choose a team member", "error");
     try {
       await payrollAPI.recommendTeamLoan(loanForm.user_id, {
         loan_type: loanForm.loan_type,
@@ -224,11 +231,6 @@ export default function ManagerAdjustmentsPage() {
     }
   };
 
-  const toggleReport = (id) => setBonusForm((f) => ({
-    ...f,
-    user_ids: f.user_ids.includes(id) ? f.user_ids.filter((x) => x !== id) : [...f.user_ids, id],
-  }));
-
   const addBtn = {
     adjustments: { label: "Propose Adjustment", onClick: () => setModal("adj") },
     bonuses: { label: "Propose Bonus", onClick: () => setModal("bonus") },
@@ -237,13 +239,12 @@ export default function ManagerAdjustmentsPage() {
 
   return (
     <>
-        <DashboardTopBar title="Team Variable Pay" />
+        <DashboardTopBar title="Variable Pay" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
 
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Team Variable Pay
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-900">Variable Pay</h1>
               <p className="text-sm text-slate-500 mt-1">Propose bonuses, one-off adjustments and loan recommendations — HR gives the final approval.</p>
             </div>
             <button onClick={addBtn.onClick} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
@@ -271,7 +272,7 @@ export default function ManagerAdjustmentsPage() {
                         <th className="px-6 py-4 border-b border-slate-100">Type</th>
                         <th className="px-6 py-4 border-b border-slate-100">Amount</th>
                         <th className="px-6 py-4 border-b border-slate-100">Status</th>
-                        <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
+                        {hasCancellable && <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
@@ -282,16 +283,16 @@ export default function ManagerAdjustmentsPage() {
                           <td className="px-6 py-4 capitalize text-slate-600">{a.adjustment_type}<span className="block text-[10px] text-slate-400 font-bold">{a.category?.replace(/_/g, " ")}</span></td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(a.amount)}</td>
                           <td className="px-6 py-4"><Pill s={a.status} /></td>
-                          <td className="px-6 py-4 text-right">
-                            {a.status === "pending" ? (
-                              <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
-                            ) : (
-                              <span className="text-xs text-slate-400">N/A</span>
-                            )}
-                          </td>
+                          {hasCancellable && (
+                            <td className="px-6 py-4 text-right">
+                              {a.status === "pending" && (
+                                <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
-                      {adjustments.length === 0 && <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-500">No adjustment proposals yet.</td></tr>}
+                      {adjustments.length === 0 && <tr><td colSpan={hasCancellable ? 6 : 5} className="px-6 py-10 text-center text-slate-500">No adjustment proposals yet.</td></tr>}
                     </tbody>
                   </>
                 )}
@@ -363,10 +364,7 @@ export default function ManagerAdjustmentsPage() {
             <form onSubmit={submitAdj} className="p-6 space-y-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
-                <select required value={adjForm.user_id} onChange={(e) => setAdjForm({ ...adjForm, user_id: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                  <option value="">-- Select Report --</option>
-                  {team.map((m) => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
-                </select>
+                <PersonSelect people={team} value={adjForm.user_id} onChange={(id) => setAdjForm({ ...adjForm, user_id: id })} placeholder="Choose a report" emptyText="No reports found." />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -452,18 +450,7 @@ export default function ManagerAdjustmentsPage() {
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reports <span className="text-rose-500">*</span></label>
-                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-3 space-y-1.5 bg-slate-50/50">
-                  {team.map((m) => {
-                    const id = m.id || m._id;
-                    return (
-                      <label key={id} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" checked={bonusForm.user_ids.includes(id)} onChange={() => toggleReport(id)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                        <span className="text-slate-700">{m.name || m.identifier}</span>
-                      </label>
-                    );
-                  })}
-                  {team.length === 0 && <p className="text-xs text-slate-400">No reports found.</p>}
-                </div>
+                <PersonMultiSelect people={team} value={bonusForm.user_ids} onChange={(ids) => setBonusForm((f) => ({ ...f, user_ids: ids }))} placeholder="Choose reports" emptyText="No reports found." />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
@@ -489,10 +476,7 @@ export default function ManagerAdjustmentsPage() {
             <form onSubmit={submitLoan} className="p-6 space-y-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
-                <select required value={loanForm.user_id} onChange={(e) => setLoanForm({ ...loanForm, user_id: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                  <option value="">-- Select Report --</option>
-                  {team.map((m) => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
-                </select>
+                <PersonSelect people={team} value={loanForm.user_id} onChange={(id) => setLoanForm({ ...loanForm, user_id: id })} placeholder="Choose a report" emptyText="No reports found." />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

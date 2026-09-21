@@ -133,10 +133,10 @@ function ManagerApprovalsInbox() {
 
   return (
     <>
-      <DashboardTopBar title="Approvals Inbox" />
+      <DashboardTopBar title="Inbox" />
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Approvals Inbox</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
           <p className="text-sm text-slate-500 mt-1">Review and action pending requests from your reporting line.</p>
         </div>
 

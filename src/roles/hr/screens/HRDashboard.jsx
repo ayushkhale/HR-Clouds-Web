@@ -74,7 +74,7 @@ function MonthStepper({ period, onChange }) {
 // figures (not-marked people count as absent), so they win over the raw ones.
 const countOf = (dept, keys) => num(dept[keys.find((k) => dept[k] != null)]);
 
-function DepartmentCard({ dept }) {
+export function DepartmentCard({ dept }) {
   const total = num(dept.total_employees);
   const denom = total || 1;
   const present = countOf(dept, ["final_present_count", "present", "present_count"]);
@@ -217,7 +217,7 @@ function HRDashboard() {
 
   return (
     <>
-      <DashboardTopBar title="HR Dashboard" />
+      <DashboardTopBar title="Dashboard" />
       <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
         <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
           <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />

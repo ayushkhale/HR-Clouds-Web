@@ -8,11 +8,12 @@
 // one writes a row in the export audit trail before the first byte.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { downloadFile } from "../../../shared/utils/download";
 import { payrollErrorMessage } from "../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod } from "../../../shared/utils/formatUtils";
 import Skeleton from "../../../shared/components/Skeleton";
+import MultiSelectDropdown from "../../../shared/components/MultiSelectDropdown";
 import {
   REPORTS, currentPeriodMonth, exportFileName, reportByKey, reportRangeProblem, shiftPeriodMonth,
 } from "./phase6Meta";
@@ -25,7 +26,16 @@ const fieldCls = "w-full h-[42px] px-3 bg-slate-50 border border-slate-200 round
 
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
 const count = (v) => (v === null || v === undefined || v === "" ? "N/A" : v);
-const codesToArray = (text) => String(text || "").split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+
+/** Unique `{ code, name }` pairs from component-report rows, by name. */
+function componentsFromRows(rows) {
+  const byCode = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((r) => {
+    const code = r?.component_code;
+    if (code && !byCode.has(code)) byCode.set(code, { code, name: r.component_name || code });
+  });
+  return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
 
 /** Column sets per report family. `dynamic` pulls the component columns the response declares. */
 function columnsFor(reportKey, data) {
@@ -103,6 +113,10 @@ export default function PayrollReportsView({
   allowRunPicker = true,
   departments = [],
   locations = [],
+  // `{ code, name }` list for the component filter. When the caller has no
+  // catalogue (managers can't read /payroll/hr/components), the view reads
+  // the codes off an unfiltered component report for the chosen period.
+  componentOptions,
   note,
   showToast,
 }) {
@@ -113,7 +127,8 @@ export default function PayrollReportsView({
   const [periodTo, setPeriodTo] = useState(() => currentPeriodMonth());
   const [departmentId, setDepartmentId] = useState("");
   const [locationId, setLocationId] = useState("");
-  const [componentCodes, setComponentCodes] = useState("");
+  const [componentCodes, setComponentCodes] = useState([]);
+  const [derivedComponents, setDerivedComponents] = useState({ list: [], loading: false });
   const [groupBy, setGroupBy] = useState("department");
 
   const [result, setResult] = useState(null);
@@ -133,8 +148,7 @@ export default function PayrollReportsView({
     if (departmentId) next.department_id = departmentId;
     if (locationId) next.location_id = locationId;
     if (report.key === "components") {
-      const codes = codesToArray(componentCodes);
-      if (codes.length) next.component_code = codes;
+      if (componentCodes.length) next.component_code = componentCodes;
     }
     if (report.groupBy) next.group_by = groupBy === "department,location" ? "department,location" : "department";
     return next;
@@ -145,6 +159,32 @@ export default function PayrollReportsView({
     periodFrom: mode === "period" ? periodFrom : "",
     periodTo: mode === "period" ? periodTo : "",
   });
+
+  const needsDerivedComponents = report.key === "components" && !componentOptions;
+  const optionScope = mode === "run" && runId ? { run_id: runId } : { period_from: periodFrom, period_to: periodTo };
+  const optionScopeKey = JSON.stringify(optionScope);
+  useEffect(() => {
+    if (!needsDerivedComponents || rangeProblem) return undefined;
+    let alive = true;
+    setDerivedComponents((d) => ({ ...d, loading: true }));
+    fetchers.components(JSON.parse(optionScopeKey))
+      .then((res) => { if (alive) setDerivedComponents({ list: componentsFromRows(res?.data?.rows), loading: false }); })
+      .catch(() => { if (alive) setDerivedComponents({ list: [], loading: false }); });
+    return () => { alive = false; };
+  }, [needsDerivedComponents, optionScopeKey, rangeProblem, fetchers]);
+
+  const componentChoices = useMemo(() => {
+    const list = componentOptions || derivedComponents.list;
+    return list.map((c) => ({ value: c.code, label: c.name && c.name !== c.code ? `${c.name} (${c.code})` : c.code }));
+  }, [componentOptions, derivedComponents.list]);
+
+  // A component picked for one period may not exist in the next; a hidden
+  // selection would still filter the report, so drop it.
+  useEffect(() => {
+    if (derivedComponents.loading) return;
+    const valid = new Set(componentChoices.map((c) => c.value));
+    setComponentCodes((codes) => (codes.every((c) => valid.has(c)) ? codes : codes.filter((c) => valid.has(c))));
+  }, [componentChoices, derivedComponents.loading]);
 
   const runReport = useCallback(async () => {
     if (rangeProblem) { setError(rangeProblem); return; }
@@ -287,15 +327,18 @@ export default function PayrollReportsView({
 
           {report.key === "components" && (
             <div className="sm:col-span-2">
-              <label className={labelCls} htmlFor="report-codes">Component codes</label>
-              <input
-                id="report-codes"
+              <span className={labelCls}>Components</span>
+              <MultiSelectDropdown
+                options={componentChoices}
                 value={componentCodes}
-                onChange={(e) => setComponentCodes(e.target.value)}
-                placeholder="e.g. BASIC, HRA, SPECIAL_ALLOWANCE"
-                className={fieldCls}
+                onChange={setComponentCodes}
+                placeholder={derivedComponents.loading ? "Loading components…" : "Every component"}
               />
-              <p className="text-[11px] text-slate-400 mt-1.5">Separate codes with commas. Leave empty for every component.</p>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                {!derivedComponents.loading && componentChoices.length === 0
+                  ? "No components were paid in this period, so every component is included."
+                  : "Pick one or more. Leave empty for every component."}
+              </p>
             </div>
           )}
         </div>

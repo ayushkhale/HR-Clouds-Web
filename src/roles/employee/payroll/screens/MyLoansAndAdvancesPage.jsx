@@ -22,7 +22,7 @@ function Toast({ toast, onClose }) {
 
 const money = (v) => `₹${parseFloat(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const fmtPeriod = (pm) => {
-  if (!pm) return "-";
+  if (!pm) return "N/A";
   const [y, m] = String(pm).split("-");
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
 };

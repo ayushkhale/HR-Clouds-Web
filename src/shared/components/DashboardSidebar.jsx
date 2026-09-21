@@ -4,12 +4,12 @@ import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSidebar } from "../contexts/SidebarContext";
-import { tokenHelper, attendanceAPI } from "../api";
+import { tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
-import { listFrom } from "../attendance/normalize";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
 import { SELF_SERVICE_BASE } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
+import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
 import {
   HiTemplate,
   HiChatAlt2,
@@ -49,59 +49,13 @@ import {
   HiCloudDownload,
 } from "react-icons/hi";
 
-let cachedInboxCount = 0;
-let lastInboxFetchTime = 0;
-let inboxFetchPromise = null;
-let inboxCacheToken = null;
-const INBOX_CACHE_DURATION = 60000; // 1 minute
-
-// Pending attendance items across the four manager queues. Shared module-level
-// cache so remounts don't refetch; `force` bypasses it after a decision.
-// The cache belongs to one session token — a different login starts from zero.
-async function fetchInboxCount(force = false) {
-  const token = tokenHelper.get();
-  if (token !== inboxCacheToken) {
-    inboxCacheToken = token;
-    cachedInboxCount = 0;
-    lastInboxFetchTime = 0;
-  }
-  if (!force && Date.now() - lastInboxFetchTime < INBOX_CACHE_DURATION) return cachedInboxCount;
-  if (inboxFetchPromise) {
-    if (!force) return inboxFetchPromise;
-    await inboxFetchPromise.catch(() => {});
-  }
-  if (!tokenHelper.get()) return 0;
-
-  inboxFetchPromise = Promise.allSettled([
-    attendanceAPI.getManagerPendingRegularizations(),
-    attendanceAPI.getManagerPendingOvertime(),
-    attendanceAPI.getManagerCompOffs(),
-    attendanceAPI.getManagerAnomalies(),
-  ])
-    .then((results) => {
-      const count = results.reduce(
-        (sum, r) => sum + (r.status === "fulfilled" ? listFrom(r.value, ["requests", "anomalies", "comp_offs", "overtime"]).length : 0),
-        0
-      );
-      if (inboxCacheToken === token) {
-        cachedInboxCount = count;
-        lastInboxFetchTime = Date.now();
-      }
-      return count;
-    })
-    .finally(() => {
-      inboxFetchPromise = null;
-    });
-  return inboxFetchPromise;
-}
-
 function DashboardSidebar({ role = "guest" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar } = useSidebar();
   const [inboxCount, setInboxCount] = useState(() => {
-    if (role === "manager") return inboxCacheToken === tokenHelper.get() ? cachedInboxCount : 0;
+    if (role === "manager") return inboxTotal(peekManagerInboxCounts());
     if (role === "hr") return inboxTotal(peekHrInboxCounts());
     return 0;
   });
@@ -109,7 +63,8 @@ function DashboardSidebar({ role = "guest" }) {
   useEffect(() => {
     if (role !== "manager") return undefined;
     let alive = true;
-    fetchInboxCount().then((count) => alive && setInboxCount(count)).catch(() => {});
+    // Shared with the dashboard's "Needs your attention" list (one round of requests).
+    fetchManagerInboxCounts().then((counts) => alive && setInboxCount(inboxTotal(counts))).catch(() => {});
     return () => {
       alive = false;
     };
@@ -129,7 +84,7 @@ function DashboardSidebar({ role = "guest" }) {
 
   // Approvals, rejections and resolutions anywhere in the app refresh the badge.
   useAttendanceChanged(INBOX_EVENT_KINDS, () => {
-    if (role === "manager") fetchInboxCount(true).then(setInboxCount).catch(() => {});
+    if (role === "manager") fetchManagerInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
     else if (role === "hr") fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
   });
 
@@ -145,25 +100,31 @@ function DashboardSidebar({ role = "guest" }) {
     navigate("/");
   }
 
-  // Self-service attendance is authorised for every org role; managers and HR
-  // get the same pages mounted inside their own workspace.
-  const selfServiceSection = (workspace) => {
+  // `nested`: also active on child routes (an employee profile, a payroll run).
+  const link = (label, path, icon, extra = {}) => ({
+    label,
+    path,
+    icon,
+    ...extra,
+    active: location.pathname === path || (!!extra.nested && location.pathname.startsWith(`${path}/`)),
+  });
+  const heading = (text) => ({ heading: text });
+  const COMP_OFF = DICTIONARY.TERMS.COMP_OFF;
+  const inboxBadge = { badge: inboxCount > 0 ? inboxCount : null };
+
+  // Self-service pages are shared by every role, so they carry the same label
+  // everywhere, and each page's heading uses that label too.
+  const myAttendanceLinks = (workspace) => {
     const base = SELF_SERVICE_BASE[workspace];
-    const item = (label, suffix, icon) => ({ label, path: `${base}${suffix}`, icon, active: location.pathname === `${base}${suffix}` });
-    return {
-      title: "MY ATTENDANCE",
-      icon: HiClock,
-      items: [
-        item("My Attendance", "", HiClock),
-        item("My Regularizations", "/regularizations", HiClipboardList),
-        item("My Flags", "/anomalies", HiExclamationCircle),
-        item("My Overtime", "/overtime", HiClock),
-        item(`My ${DICTIONARY.TERMS.COMP_OFF}s`, "/comp-offs", HiGift),
-      ],
-    };
+    return [
+      link("My Attendance", base, HiClock),
+      link("My Regularizations", `${base}/regularizations`, HiClipboardList),
+      link("My Flags", `${base}/anomalies`, HiExclamationCircle),
+      link("My Overtime", `${base}/overtime`, HiLightningBolt),
+      link(`My ${COMP_OFF}s`, `${base}/comp-offs`, HiGift),
+    ];
   };
 
-  // Sidebar link items based on role
   const getNavSections = () => {
     if (role === "guest") {
       return [
@@ -187,17 +148,6 @@ function DashboardSidebar({ role = "guest" }) {
     }
 
     if (role === "hr") {
-      // `nested`: also active on child routes (an employee profile, a payroll run).
-      const link = (label, path, icon, extra = {}) => ({
-        label,
-        path,
-        icon,
-        ...extra,
-        active: location.pathname === path || (!!extra.nested && location.pathname.startsWith(`${path}/`)),
-      });
-      const heading = (text) => ({ heading: text });
-      const COMP_OFF = DICTIONARY.TERMS.COMP_OFF;
-
       // Ordered by how often HR needs each area: daily approvals first,
       // the monthly payroll cycle in order, seasonal tax work, then one-time setup.
       return [
@@ -206,7 +156,7 @@ function DashboardSidebar({ role = "guest" }) {
           flat: true,
           items: [
             link("Dashboard", "/dashboard/hr", HiViewGrid),
-            link("HR Inbox", "/dashboard/hr/inbox", HiInboxIn, { badge: inboxCount > 0 ? inboxCount : null }),
+            link("Inbox", "/dashboard/hr/inbox", HiInboxIn, inboxBadge),
           ],
         },
         {
@@ -233,7 +183,7 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiCurrencyRupee,
           items: [
             link("Lock Attendance", "/dashboard/hr/attendance/lock-periods", HiLockClosed),
-            link("Adjustments", "/dashboard/hr/payroll/adjustments", HiAdjustments),
+            link("Salary Adjustments", "/dashboard/hr/payroll/adjustments", HiAdjustments),
             link("Bonus Rules", "/dashboard/hr/payroll/bonus-rules", HiGift),
             link("Claims", "/dashboard/hr/payroll/reimbursements", HiReceiptRefund),
             link("Loans & Advances", "/dashboard/hr/payroll/loans", HiCash),
@@ -281,13 +231,13 @@ function DashboardSidebar({ role = "guest" }) {
             heading("Leave"),
             link("Leave Types", "/dashboard/hr/leaves/types", HiClipboardList),
             link("Leave Policies", "/dashboard/hr/leaves/policies", HiTemplate),
-            link("Automation", "/dashboard/hr/leaves/automation", HiLightningBolt),
+            link("Leave Automation", "/dashboard/hr/leaves/automation", HiLightningBolt),
             heading("Pay"),
             link("Salary Components", "/dashboard/hr/payroll/components", HiTemplate),
             link("Structure Templates", "/dashboard/hr/payroll/templates", HiDocumentReport),
             link("Benefit Plans", "/dashboard/hr/payroll/benefits", HiHeart),
             link("Payroll Settings", "/dashboard/hr/payroll/settings", HiCog),
-            link("Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
+            link("Payroll Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
           ],
         },
         {
@@ -295,93 +245,108 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiUserCircle,
           defaultCollapsed: true,
           items: [
-            link("My Attendance", SELF_SERVICE_BASE.hr, HiClock),
-            link("My Regularizations", `${SELF_SERVICE_BASE.hr}/regularizations`, HiClipboardList),
-            link("My Flags", `${SELF_SERVICE_BASE.hr}/anomalies`, HiExclamationCircle),
-            link("My Overtime", `${SELF_SERVICE_BASE.hr}/overtime`, HiLightningBolt),
-            link(`My ${COMP_OFF}s`, `${SELF_SERVICE_BASE.hr}/comp-offs`, HiGift),
-            link("My Claims", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
+            ...myAttendanceLinks("hr"),
+            link("My Claims & Benefits", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
             link("My Salary & Bank", "/dashboard/hr/my-salary", HiCurrencyRupee),
           ],
         },
       ];
     }
 
+    if (role === "manager") {
+      const M = "/dashboard/manager";
+      // Same shape and names as the HR sidebar: the same job carries the same
+      // label in both workspaces (Team, Leave Requests, Payroll Reports…).
+      return [
+        {
+          title: "MAIN",
+          flat: true,
+          items: [
+            link("Dashboard", M, HiViewGrid),
+            link("Inbox", `${M}/requests/inbox`, HiInboxIn, inboxBadge),
+          ],
+        },
+        {
+          title: "PEOPLE",
+          icon: HiUserGroup,
+          forceDropdown: true,
+          items: [
+            // Member profiles live under /team/member/, not /team/, because
+            // /team/today and /team/history are separate sidebar entries.
+            { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
+          ],
+        },
+        {
+          title: "TIME & LEAVE",
+          icon: HiClock,
+          items: [
+            link("Live Attendance", `${M}/team/today`, HiClock),
+            link("Attendance History", `${M}/team/history`, HiCalendar),
+            link("Leave Requests", `${M}/requests/leaves`, HiInboxIn),
+            link("Regularizations", `${M}/requests/regularizations`, HiClipboardList),
+            link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
+            link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
+            link(`${COMP_OFF}s`, `${M}/requests/comp-offs`, HiGift),
+          ],
+        },
+        {
+          title: "PAYROLL",
+          icon: HiCurrencyRupee,
+          items: [
+            link("Variable Pay", `${M}/payroll/adjustments`, HiAdjustments),
+            link("Claims & Benefits", `${M}/payroll/reimbursements`, HiReceiptRefund),
+            link("Encashments", `${M}/payroll/encashments`, HiCash),
+            link("Payslips", `${M}/payroll/team-payslips`, HiDocumentText),
+            link("Employee Salaries", `${M}/payroll/team-salary`, HiCurrencyRupee),
+          ],
+        },
+        {
+          title: "INSIGHTS",
+          icon: HiChartBar,
+          forceDropdown: true,
+          items: [
+            link("Payroll Reports", `${M}/payroll/reports`, HiDocumentReport),
+          ],
+        },
+        {
+          title: "ME",
+          icon: HiUserCircle,
+          defaultCollapsed: true,
+          items: [
+            ...myAttendanceLinks("manager"),
+            link("My Claims & Benefits", `${M}/my-reimbursements`, HiReceiptRefund),
+            link("My Salary & Bank", `${M}/my-salary`, HiCurrencyRupee),
+          ],
+        },
+      ];
+    }
+
+    const E = "/dashboard/employee";
     return [
       {
-        title: "OVERVIEW",
-        icon: HiTemplate,
-        items: [
-          { label: "Dashboard", path: `/dashboard/${role}`, icon: HiViewGrid, active: location.pathname === `/dashboard/${role}` },
-          ...(role === "employee" ? [
-            { label: "My Leaves", path: "/dashboard/employee/leaves", icon: HiCalendar, active: location.pathname === "/dashboard/employee/leaves" },
-          ] : []),
-        ],
+        title: "MAIN",
+        flat: true,
+        items: [link("Dashboard", E, HiViewGrid)],
       },
-      ...(role === "employee" ? [{
-        title: "ATTENDANCE",
+      {
+        title: "TIME & LEAVE",
         icon: HiClock,
         items: [
-          { label: "My Attendance", path: `/dashboard/${role}/attendance`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance` },
-          { label: "Regularizations", path: `/dashboard/${role}/attendance/regularizations`, icon: HiClipboardList, active: location.pathname === `/dashboard/${role}/attendance/regularizations` },
-          { label: "Anomalies", path: `/dashboard/${role}/attendance/anomalies`, icon: HiExclamationCircle, active: location.pathname === `/dashboard/${role}/attendance/anomalies` },
-          { label: "Overtime", path: `/dashboard/${role}/attendance/overtime`, icon: HiClock, active: location.pathname === `/dashboard/${role}/attendance/overtime` },
-          { label: `${DICTIONARY.TERMS.COMP_OFF}s`, path: `/dashboard/${role}/attendance/comp-offs`, icon: HiGift, active: location.pathname === `/dashboard/${role}/attendance/comp-offs` },
+          ...myAttendanceLinks("employee"),
+          link("My Leaves", `${E}/leaves`, HiCalendar),
         ],
       },
       {
-        title: "PAYROLL & COMP",
+        title: "PAY",
         icon: HiCurrencyRupee,
         items: [
-          { label: "My Salary & Bank", path: "/dashboard/employee/payroll/my-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/employee/payroll/my-salary" },
-          { label: "My Payslips", path: "/dashboard/employee/payroll/my-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/my-payslips" },
-          { label: "Loans & Variable Pay", path: "/dashboard/employee/payroll/loans", icon: HiAdjustments, active: location.pathname === "/dashboard/employee/payroll/loans" },
-          { label: "Tax & Investments", path: "/dashboard/employee/payroll/tax", icon: HiDocumentReport, active: location.pathname === "/dashboard/employee/payroll/tax" },
-          { label: "Claims & Benefits", path: "/dashboard/employee/payroll/reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/employee/payroll/reimbursements" },
-        ],
-      }] : []),
-      ...(role === "manager" ? [selfServiceSection("manager"), {
-        title: "REQUESTS",
-        icon: HiClipboardList,
-        items: [
-          {
-            label: "Approvals Inbox",
-            path: "/dashboard/manager/requests/inbox",
-            icon: HiInboxIn,
-            active: location.pathname === "/dashboard/manager/requests/inbox",
-            badge: inboxCount > 0 ? inboxCount : null
-          },
-          { label: "Regularization Requests", path: "/dashboard/manager/requests/regularizations", icon: HiClock, active: location.pathname === "/dashboard/manager/requests/regularizations" },
-          { label: "OverTime Requests", path: "/dashboard/manager/requests/overtime", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/overtime" },
-          { label: "Anomalies", path: "/dashboard/manager/team/anomalies", icon: HiChatAlt2, active: location.pathname === "/dashboard/manager/team/anomalies" },
-          { label: `${DICTIONARY.TERMS.COMP_OFF} Requests`, path: "/dashboard/manager/requests/comp-offs", icon: HiCalendar, active: location.pathname === "/dashboard/manager/requests/comp-offs" },
-          { label: "Leave Requests", path: "/dashboard/manager/requests/leaves", icon: HiClipboardList, active: location.pathname === "/dashboard/manager/requests/leaves" },
+          link("My Salary & Bank", `${E}/payroll/my-salary`, HiCurrencyRupee),
+          link("My Payslips", `${E}/payroll/my-payslips`, HiDocumentReport),
+          link("My Claims & Benefits", `${E}/payroll/reimbursements`, HiReceiptRefund),
+          link("Loans & Variable Pay", `${E}/payroll/loans`, HiAdjustments),
+          link("Tax & Investments", `${E}/payroll/tax`, HiScale),
         ],
       },
-      {
-        title: "TEAM",
-        icon: HiUserGroup,
-        forceDropdown: true,
-        items: [
-          { label: "Team Roster", path: "/dashboard/manager/team/roster", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/roster" },
-          { label: "Status", path: "/dashboard/manager/team/today", icon: HiUserGroup, active: location.pathname === "/dashboard/manager/team/today" },
-          { label: "History", path: "/dashboard/manager/team/history", icon: HiCalendar, active: location.pathname === "/dashboard/manager/team/history" },
-        ],
-      },
-      {
-        title: "PAYROLL & COMP",
-        icon: HiCurrencyRupee,
-        items: [
-          { label: "Team Compensation", path: "/dashboard/manager/payroll/team-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/payroll/team-salary" },
-          { label: "Team Payslips", path: "/dashboard/manager/payroll/team-payslips", icon: HiDocumentReport, active: location.pathname === "/dashboard/manager/payroll/team-payslips" },
-          { label: "Team Reports", path: "/dashboard/manager/payroll/reports", icon: HiChartBar, active: location.pathname === "/dashboard/manager/payroll/reports" },
-          { label: "Team Variable Pay", path: "/dashboard/manager/payroll/adjustments", icon: HiAdjustments, active: location.pathname === "/dashboard/manager/payroll/adjustments" },
-          { label: "Team Claims & Benefits", path: "/dashboard/manager/payroll/reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/payroll/reimbursements" },
-          { label: "Team Encashments", path: "/dashboard/manager/payroll/encashments", icon: HiCash, active: location.pathname === "/dashboard/manager/payroll/encashments" },
-          { label: "My Claims & Benefits", path: "/dashboard/manager/my-reimbursements", icon: HiReceiptRefund, active: location.pathname === "/dashboard/manager/my-reimbursements" },
-          { label: "My Salary & Bank", path: "/dashboard/manager/my-salary", icon: HiCurrencyRupee, active: location.pathname === "/dashboard/manager/my-salary" },
-        ],
-      }] : [])
     ];
   };
 

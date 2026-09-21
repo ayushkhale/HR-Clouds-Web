@@ -142,11 +142,11 @@ function AttendanceLockPeriodsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Lock Periods" />
+      <DashboardTopBar title="Lock Attendance" />
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Period Locking & Maintenance</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Lock Attendance</h1>
             <p className="text-sm text-slate-500 mt-1">Freeze attendance for payroll processing and run maintenance tasks.</p>
           </div>
           <button onClick={() => setShowForm((v) => !v)} className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">

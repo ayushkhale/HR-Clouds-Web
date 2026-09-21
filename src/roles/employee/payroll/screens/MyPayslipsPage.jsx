@@ -314,7 +314,7 @@ export default function MyPayslipsPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">My Pay Documents</h1>
+            <h1 className="text-2xl font-bold text-slate-900">My Payslips</h1>
             <p className="text-sm text-slate-500 mt-1">Your monthly payslips, your statement for the year, and your Form 16.</p>
           </div>
           <div className="flex bg-slate-100 p-1 rounded-xl" role="tablist">

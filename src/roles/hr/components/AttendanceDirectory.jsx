@@ -27,7 +27,10 @@ const TABS = [
 const AUTO_REFRESH_MS = 120_000;
 const SEARCH_DEBOUNCE_MS = 350;
 
-function AttendanceDirectory() {
+// `title` lets the Live Attendance page use its sidebar name; the dashboard
+// keeps the section heading "Attendance Directory".
+function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, headingLevel = "h2" }) {
+  const Heading = headingLevel;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("employees");
   const [date, setDate] = useState(todayYMD());
@@ -88,7 +91,7 @@ function AttendanceDirectory() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-800">{DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY}</h1>
+        <Heading className={`${headingLevel === "h1" ? "text-2xl text-slate-900" : "text-xl text-slate-800"} font-bold tracking-tight`}>{title}</Heading>
         <p className="text-sm font-medium text-slate-500 mt-1">{DICTIONARY.DESCRIPTIONS.ATTENDANCE_DIRECTORY}</p>
       </div>
 

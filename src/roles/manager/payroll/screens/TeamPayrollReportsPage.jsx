@@ -26,10 +26,10 @@ export default function TeamPayrollReportsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Reports" />
+      <DashboardTopBar title="Payroll Reports" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Team Reports</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Payroll Reports</h1>
           <p className="text-sm text-slate-500 mt-1">
             Payroll figures for the people who report to you, for closed payroll months. View them here, or download CSV and PDF.
           </p>

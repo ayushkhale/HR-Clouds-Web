@@ -5,6 +5,7 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
 } from "react-icons/hi";
+import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
 
 function DepartmentsPage() {
   const [departments, setDepartments] = useState([]);
@@ -334,18 +335,13 @@ function DepartmentsPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Head of Department</label>
-                <select
+                <PersonSelect
+                  people={hodOptions.map((emp) => ({ ...toPersonOption(emp), sub: [String(emp.role || "").toUpperCase(), toPersonOption(emp).sub].filter(Boolean).join(" · ") }))}
                   value={headOfDepartmentId}
-                  onChange={(e) => setHeadOfDepartmentId(e.target.value)}
-                  className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                >
-                  {!hasExistingHod && <option value="">---Select HOD---</option>}
-                  {hodOptions.map(emp => (
-                    <option key={emp.user_id || emp.id} value={emp.user_id || emp.id}>
-                      {emp.name || emp.full_name || emp.email} ({(emp.role || "").toUpperCase()})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(id) => setHeadOfDepartmentId(id)}
+                  placeholder="Select head of department"
+                  emptyText="No managers or HR found."
+                />
                 <p className="text-[11px] text-slate-500 mt-1">
                   {hasExistingHod
                     ? "Only Managers and HR Admins can lead a department. Choose a successor to hand over — a department cannot be left headless."

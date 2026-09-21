@@ -5,7 +5,7 @@ function ManagerOvertimePage() {
   return (
     <ManagerQueuePage
       type="overtime"
-      title="Overtime Requests"
+      title="Overtime"
       description="Review overtime recorded for your team. Approved overtime flows into payroll."
     />
   );

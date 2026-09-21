@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { organizationAPI, payrollAPI, payrollFiles } from "../../../../shared/api";
-import { normalizePaginated } from "../../../../shared/attendance/normalize";
+import { listFrom, normalizePaginated } from "../../../../shared/attendance/normalize";
 import PayrollReportsView from "../PayrollReportsView";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
@@ -26,6 +26,7 @@ export default function PayrollReportsPage() {
   const [runs, setRuns] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [components, setComponents] = useState(undefined);
   const { toast, showToast, hideToast } = useToast();
 
   useEffect(() => {
@@ -44,6 +45,16 @@ export default function PayrollReportsPage() {
       .catch(() => {});
     organizationAPI.getLocations()
       .then((res) => { if (alive) setLocations(res?.data || []); })
+      .catch(() => {});
+    payrollAPI.getComponents()
+      .then((res) => {
+        if (!alive) return;
+        const list = listFrom(res, ["components", "records"])
+          .filter((c) => c?.code)
+          .map((c) => ({ code: c.code, name: c.name || c.code }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setComponents(list);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -65,6 +76,7 @@ export default function PayrollReportsPage() {
           runs={runs}
           departments={departments}
           locations={locations}
+          componentOptions={components}
           showToast={showToast}
           note="Departments and locations come from the payslip as it was at approval, so a later transfer never re-writes past months. Every download is recorded under Exports."
         />

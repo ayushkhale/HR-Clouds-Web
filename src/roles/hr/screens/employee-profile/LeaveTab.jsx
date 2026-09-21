@@ -30,7 +30,7 @@ const CARD_COLORS = [
 ];
 
 /** Up to 4 balances share one row; larger sets use a column count that divides evenly. */
-function balanceGridCols(count) {
+export function balanceGridCols(count) {
   if (count <= 1) return "grid-cols-1";
   if (count === 2) return "grid-cols-1 sm:grid-cols-2";
   if (count === 3) return "grid-cols-1 sm:grid-cols-3";
@@ -41,7 +41,7 @@ function balanceGridCols(count) {
 
 const fmtDays = (n) => (Number.isFinite(n) ? (Number.isInteger(n) ? `${n}` : n.toFixed(1)) : "0");
 
-function BalanceCard({ balance, index }) {
+export function BalanceCard({ balance, index }) {
   const color = CARD_COLORS[index % CARD_COLORS.length];
   const current = parseFloat(balance.current_balance);
   const earned = parseFloat(balance.total_accrued);

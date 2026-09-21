@@ -20,13 +20,14 @@ import { useAuth } from "../../../../shared/contexts/AuthContext";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
-import { periodOptions, matchesEmployee } from "../variablePayMeta";
+import { periodOptions } from "../variablePayMeta";
 import { plural } from "../runMeta";
 import {
   claimStatusMeta, claimStage, claimActions, normalizeClaimDetail, limitViolations,
   parseMoney, claimLimitText, periodLimitText, receiptRuleText, LIMIT_PERIOD_LABEL,
   CLAIM_STATUS_FILTERS, CATEGORY_STATUS_FILTERS,
 } from "../../../../shared/utils/reimbursementMeta";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -496,7 +497,6 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
   const { user } = useAuth();
   const viewerId = user?.id;
   const [filters, setFilters] = useState({ status: seedStatus || "", user_id: "", category_id: "", payout_period_month: "", created_from: "", created_to: "" });
-  const [empQuery, setEmpQuery] = useState("");
   const [search, setSearch] = useState("");
   const [categories, setCategories] = useState([]);
   const months = useMemo(() => periodOptions({ back: 18, ahead: 6 }), []);
@@ -595,7 +595,6 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
     }
   };
 
-  const employeeChoices = useMemo(() => directory.options.filter((e) => e.id === filters.user_id || matchesEmployee(e, empQuery)), [directory, empQuery, filters.user_id]);
   const query = search.trim().toLowerCase();
   const visible = query ? list.items.filter((c) => [nameOf(c.user_id), c.claim_number, c.title].some((v) => (v || "").toLowerCase().includes(query))) : list.items;
 
@@ -618,11 +617,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
             <option value="">Any pay month</option>
             {months.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
-          <input value={empQuery} onChange={(e) => setEmpQuery(e.target.value)} placeholder="Search employee" aria-label="Search employee" className={selectCls} />
-          <select aria-label="Employee" value={filters.user_id} onChange={(e) => setFilter("user_id", e.target.value)} className={selectCls}>
-            <option value="">Any employee</option>
-            {employeeChoices.map((e) => <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ""}</option>)}
-          </select>
+          <PersonSelect className="w-64" people={directory.options} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} clearLabel="Any employee" aria-label="Employee" />
           <input type="date" aria-label="Submitted from" value={filters.created_from} onChange={(e) => setFilter("created_from", e.target.value)} className={selectCls} />
           <input type="date" aria-label="Submitted to" value={filters.created_to} onChange={(e) => setFilter("created_to", e.target.value)} className={selectCls} />
         </div>
@@ -785,10 +780,10 @@ export default function PayrollReimbursementsPage({ embedded = false } = {}) {
 
   return (
     <>
-      <DashboardTopBar title="Reimbursements" />
+      <DashboardTopBar title="Claims" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Reimbursements</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Claims</h1>
           <p className="text-sm text-slate-500 mt-1">Review every claim in the organisation and keep the category catalog employees claim against.</p>
         </div>
 

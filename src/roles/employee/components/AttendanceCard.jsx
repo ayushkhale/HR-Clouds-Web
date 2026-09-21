@@ -36,14 +36,17 @@ const RING = 2 * Math.PI * 40;
 
 function Stat({ label, value }) {
   return (
-    <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 min-w-0">
+    <div className="bg-slate-50/80 rounded-xl px-3 py-2.5 border border-slate-100 min-w-0">
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate">{label}</p>
       <p className="text-sm font-bold text-slate-700 mt-0.5 truncate">{value}</p>
     </div>
   );
 }
 
-function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading = false, error = null, className }) {
+// layout: "stacked" (a dashboard column) or "horizontal" (one full-width row:
+// the day on the left, hours in the middle, actions on the right).
+function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading = false, error = null, className, layout = "stacked" }) {
+  const horizontal = layout === "horizontal";
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(null); // clock-in | clock-out | break-start | break-end | locating
   const busyRef = useRef(false);
@@ -87,7 +90,16 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     ? computeWorkedMs({ clockIn, breaks: today?.breaks, activeBreak: today?.active_break, breakMinutes: today?.break_duration_minutes, now })
     : null;
   const result = phase === "done" ? { ...today, ...(lastResult || {}) } : null;
-  const workedMinutes = worked ? worked.workedMs / 60000 : result ? (parseFloat(result.effective_hours) || 0) * 60 : 0;
+  // Breaks longer than the time between punches make the server's figure
+  // negative; hours worked can't go below zero, so it reads 0m.
+  const effectiveHours = result && result.effective_hours != null ? Math.max(0, parseFloat(result.effective_hours) || 0) : result?.effective_hours;
+  const workedMinutes = worked ? worked.workedMs / 60000 : result ? (effectiveHours || 0) * 60 : 0;
+  const dayNotes = result ? [
+    Number(result.late_minutes) > 0 && ["Late by", fmtMinutes(result.late_minutes)],
+    Number(result.early_exit_minutes) > 0 && ["Left early", fmtMinutes(result.early_exit_minutes)],
+    Number(result.overtime_minutes) > 0 && ["Overtime", fmtMinutes(result.overtime_minutes)],
+    result.half_day_type && ["Half day", humanize(result.half_day_type)],
+  ].filter(Boolean) : [];
   const progress = fullDayMinutes && phase !== "idle" ? Math.min(1, workedMinutes / fullDayMinutes) : 0;
   // Server `break_duration_minutes` (closed breaks) + live open-break time (§2 C22).
   const breakMinutes = totalBreakMinutes(today?.breaks, now, today?.break_duration_minutes, today?.active_break);
@@ -201,14 +213,18 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   };
 
   const disabled = !!busy;
-  const cardClass = className !== undefined ? className : "bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-100 flex flex-col h-full";
+  const cardClass = className !== undefined
+    ? className
+    : horizontal
+      ? "bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-100 flex flex-col lg:flex-row lg:items-center gap-5 lg:gap-8"
+      : "bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-100 flex flex-col h-full";
 
   if (!today && loading) {
     return (
       <div className={cardClass} aria-busy="true">
-        <div className="h-5 w-24 bg-slate-100 rounded animate-pulse mb-6" />
-        <div className="h-32 bg-slate-100/70 rounded-2xl animate-pulse mb-6" />
-        <div className="h-12 bg-slate-100 rounded-xl animate-pulse" />
+        <div className={`h-5 w-24 bg-slate-100 rounded animate-pulse ${horizontal ? "" : "mb-6"}`} />
+        <div className={`bg-slate-100/70 rounded-2xl animate-pulse ${horizontal ? "h-24 w-24 rounded-full" : "h-32 mb-6"}`} />
+        <div className={`h-12 bg-slate-100 rounded-xl animate-pulse ${horizontal ? "flex-1 w-full" : ""}`} />
       </div>
     );
   }
@@ -245,9 +261,9 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     setShowNotes(!showNotes);
   };
 
-  return (
-    <div className={cardClass}>
-      <div className="flex justify-between items-start gap-3 mb-4">
+  const dayHeader = (
+    <>
+      <div className={`flex justify-between items-start gap-3 ${horizontal ? "" : "mb-4"}`}>
         <div className="min-w-0">
           <h3 className="text-lg font-bold text-slate-800">{carriedOver ? "Open shift" : "Today"}</h3>
           {today?.date && <p className="text-xs text-slate-400 font-medium">{carriedOver ? "Started " : ""}{fmtDate(recordDate, { weekday: "long", day: "numeric", month: "short" }, "")}</p>}
@@ -261,15 +277,21 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
         {badge}
       </div>
 
-      {hint && <p className="text-xs font-medium text-slate-500 mb-4">{hint}</p>}
+      {hint && <p className={`text-xs font-medium text-slate-500 ${horizontal ? "mt-3" : "mb-4"}`}>{hint}</p>}
 
       {carriedOver && (
-        <p className="text-[11px] font-semibold text-indigo-600 mb-4">Your shift from {fmtDate(recordDate, { weekday: "short", day: "numeric", month: "short" })} is still open. Clock out to finish it before starting a new day.</p>
+        <p className={`text-[11px] font-semibold text-indigo-600 ${horizontal ? "mt-3" : "mb-4"}`}>Your shift from {fmtDate(recordDate, { weekday: "short", day: "numeric", month: "short" })} is still open. Clock out to finish it before starting a new day.</p>
       )}
+    </>
+  );
+
+  return (
+    <div className={cardClass}>
+      {horizontal ? <div className="lg:w-72 shrink-0 min-w-0">{dayHeader}</div> : dayHeader}
 
       {phase !== "idle" && (
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div className="flex-1 min-w-0 space-y-1">
+      <div className={horizontal ? "flex flex-row-reverse justify-end items-center gap-4 shrink-0 lg:px-8 lg:border-x lg:border-slate-100" : "flex items-center justify-between gap-4 mb-5"}>
+        <div className={`${horizontal ? "max-w-[220px]" : "flex-1"} min-w-0 space-y-1`}>
           {phase === "working" && (
             <p className="text-sm font-medium text-slate-500">
               {onBreak ? `On break since ${fmtTime(today.active_break?.start_time)}.` : `Clocked in at ${fmtTime(clockIn)}.`}
@@ -288,7 +310,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
             <span className="text-lg font-extrabold text-slate-800 tracking-tight tabular-nums">
-              {phase === "working" ? fmtDuration(worked.workedMs).slice(0, 5) : phase === "done" ? fmtHours(result.effective_hours, "--:--") : "--:--"}
+              {phase === "working" ? fmtDuration(worked.workedMs).slice(0, 5) : phase === "done" ? fmtHours(effectiveHours, "--:--") : "--:--"}
             </span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
               {phase === "working" ? (worked.breaksKnown ? "worked" : "elapsed") : phase === "done" ? "effective" : "hrs"}
@@ -298,7 +320,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       </div>
       )}
 
-      <div className="w-full space-y-3 mt-auto">
+      <div className={horizontal ? "w-full lg:flex-1 lg:max-w-xl lg:ml-auto space-y-3 min-w-0" : "w-full space-y-3 mt-auto"}>
         {inlineError && <InlineAlert tone="rose">{inlineError}</InlineAlert>}
 
         {geoIssue && (
@@ -373,15 +395,24 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
         )}
 
         {phase === "done" && result && (
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
-            <Stat label="Clock In" value={fmtTime(result.clock_in_time)} />
-            <Stat label="Clock Out" value={fmtTime(result.clock_out_time)} />
-            <Stat label="Effective" value={fmtHours(result.effective_hours)} />
-            <Stat label="Breaks" value={fmtMinutes(result.break_duration_minutes ?? breakMinutes, "0m")} />
-            {Number(result.late_minutes) > 0 && <Stat label="Late by" value={fmtMinutes(result.late_minutes)} />}
-            {Number(result.early_exit_minutes) > 0 && <Stat label="Left early" value={fmtMinutes(result.early_exit_minutes)} />}
-            {Number(result.overtime_minutes) > 0 && <Stat label="Overtime" value={fmtMinutes(result.overtime_minutes)} />}
-            {result.half_day_type && <Stat label="Half day" value={humanize(result.half_day_type)} />}
+          // One compact row, so a finished day is no taller than an open one;
+          // the exceptions (late, left early…) are pills, not extra boxes.
+          <div className="pt-4 border-t border-slate-100 space-y-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <Stat label="Clock In" value={fmtTime(result.clock_in_time)} />
+              <Stat label="Clock Out" value={fmtTime(result.clock_out_time)} />
+              <Stat label="Effective" value={fmtHours(effectiveHours)} />
+              <Stat label="Breaks" value={fmtMinutes(result.break_duration_minutes ?? breakMinutes, "0m")} />
+            </div>
+            {dayNotes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {dayNotes.map(([label, value]) => (
+                  <span key={label} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-fuchsia-50 border border-fuchsia-100 text-[11px] font-semibold text-fuchsia-700">
+                    {label} <span className="font-bold">{value}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

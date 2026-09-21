@@ -10,6 +10,7 @@ import {
   HiThumbUp, HiThumbDown, HiInformationCircle, HiDocumentText, HiSearch,
   HiChevronLeft, HiChevronRight, HiScale,
 } from "react-icons/hi";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // Leave endpoints nest the applicant under `applicant` {id, first_name, last_name, email}.
@@ -509,13 +510,7 @@ export default function HRLeaveRequestsPage() {
                 <option value="cancellation_pending">Cancellation Pending</option>
                 <option value="terminated_cancelled">Terminated Cancelled</option>
               </select>
-              <select value={userFilter} onChange={e => changeUser(e.target.value)}
-                className="px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white sm:max-w-xs">
-                <option value="">All employees</option>
-                {employees.map(e => (
-                  <option key={empId(e)} value={empId(e)}>{empLabel(e)}</option>
-                ))}
-              </select>
+              <PersonSelect className="sm:w-72" people={employees} value={userFilter} onChange={(id) => changeUser(id)} clearLabel="All employees" aria-label="Filter by employee" />
             </div>
 
             {historyLoading ? (

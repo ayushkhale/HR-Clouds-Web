@@ -19,12 +19,13 @@ import useToast from "../useToast";
 import PeriodPicker from "../PeriodPicker";
 import { toCount, plural } from "../runMeta";
 import {
-  currentPeriod, isPeriod, periodOptions, parseAmount, matchesEmployee,
+  currentPeriod, isPeriod, periodOptions, parseAmount,
   approvalStatusMeta, isPendingStatus, APPROVAL_STATUS_FILTERS, ADJUSTMENT_TYPE_LABEL, ADJUSTMENT_CATEGORY_LABEL,
   CATEGORIES_BY_TYPE, FILTER_CATEGORIES, adjustmentSource, canCancelAdjustment, isAppliedAdjustment, adjustmentLockedReason,
   codeFromName, componentCodeProblem, BULK_CSV_HEADERS, BULK_OPTIONAL_HEADERS, BULK_CSV_SAMPLE, BULK_MAX_ROWS,
   bulkRowMessage, bulkTotals, csvDataRowCount, csvHeaderProblem, embeddedEmployee, actorName,
 } from "../variablePayMeta";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 const PAGE_SIZE = 20;
 const CUSTOM_COMPONENT = "__custom__";
@@ -81,7 +82,6 @@ const ADJUSTMENT_ERROR_KEY = {
 
 function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
   const [form, setForm] = useState(emptyForm);
-  const [empQuery, setEmpQuery] = useState("");
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
@@ -99,10 +99,6 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
     [components, form.adjustment_type],
   );
   const selectedComponent = catalog.find((c) => c.id === form.component_id) || null;
-  const employeeChoices = useMemo(
-    () => employees.filter((e) => e.id === form.user_id || matchesEmployee(e, empQuery)),
-    [employees, empQuery, form.user_id],
-  );
 
   const errors = validateAdjustment(form);
   const show = (key) => (touched && errors[key]) || serverFields[key] || "";
@@ -185,16 +181,7 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-5">
             <div>
               <label htmlFor="adj-employee" className={labelCls}>Employee <span className="text-rose-500">*</span></label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="relative">
-                  <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input value={empQuery} onChange={(e) => setEmpQuery(e.target.value)} placeholder="Search name or code" aria-label="Search employees" className={`${fieldCls} pl-9`} />
-                </div>
-                <select id="adj-employee" value={form.user_id} onChange={(e) => set({ user_id: e.target.value })} className={fieldCls} aria-invalid={!!show("user_id")}>
-                  <option value="">{employeeChoices.length ? `Choose (${employeeChoices.length})` : "No employees match"}</option>
-                  {employeeChoices.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}{emp.code ? ` (${emp.code})` : ""}</option>)}
-                </select>
-              </div>
+              <PersonSelect id="adj-employee" people={employees} value={form.user_id} onChange={(id) => set({ user_id: id })} placeholder="Choose an employee" invalid={!!show("user_id")} />
               {show("user_id") && <p className={errorTextCls}>{show("user_id")}</p>}
             </div>
             <div>

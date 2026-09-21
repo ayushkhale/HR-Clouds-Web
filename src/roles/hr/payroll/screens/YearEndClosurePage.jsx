@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import useEmployeeDirectory from "../useEmployeeDirectory";
-import { matchesEmployee } from "../variablePayMeta";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiUser, HiSearch, HiEye, HiLink } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiEye, HiLink } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
 import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
 import AttachmentUploadButton from "../../../../shared/components/AttachmentUploadButton";
 import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
 import { PART_A_UPLOAD_ENABLED, PART_A_TYPES, PART_A_ACCEPT_ATTR } from "../../../../shared/utils/payrollAttachments";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -45,7 +45,6 @@ export default function YearEndClosurePage() {
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [finalizeResult, setFinalizeResult] = useState(null);
 
-  const [empQuery, setEmpQuery] = useState("");
   const [empPanel, setEmpPanel] = useState(null); // { employee, summary }
 
   const showToast = (message, type = "success") => {
@@ -107,7 +106,6 @@ export default function YearEndClosurePage() {
   // An open panel holds the previous year's figures; close it when the year changes.
   useEffect(() => { setEmpPanel(null); }, [fy]);
 
-  const filteredEmp = empQuery.trim() ? people.directory.options.filter((e) => matchesEmployee(e, empQuery)).slice(0, 8) : [];
 
   return (
     <>
@@ -115,8 +113,7 @@ export default function YearEndClosurePage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Year-End Closure &amp; Form 16
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-900">Year-End &amp; Form 16</h1>
               <p className="text-sm text-slate-500 mt-1">Statutory challan summary, FY finalization, and per-employee Form 16.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -175,21 +172,8 @@ export default function YearEndClosurePage() {
               {/* Per-employee lookup */}
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <h2 className="font-bold text-slate-800 mb-3">Employee Tax &amp; Form 16</h2>
-                <div className="relative max-w-sm">
-                  <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input value={empQuery} onChange={(e) => setEmpQuery(e.target.value)} placeholder="Search employee…" className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:border-purple-400" />
-                </div>
-                {empQuery && (
-                  <div className="mt-2 border border-slate-100 rounded-xl divide-y divide-slate-50">
-                    {filteredEmp.map((e) => (
-                      <button key={e.id} onClick={() => { openEmployee(e); setEmpQuery(""); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex items-center gap-2">
-                        <HiUser className="w-4 h-4 text-slate-400" /> {e.name}
-                        {(e.code || !e.active) && <span className="text-xs text-slate-400">{[e.code, e.active ? "" : "left"].filter(Boolean).join(" · ")}</span>}
-                      </button>
-                    ))}
-                    {filteredEmp.length === 0 && <p className="px-4 py-2.5 text-sm text-slate-400">No match.</p>}
-                  </div>
-                )}
+                {/* Picking a person opens their tax and Form 16; the picker resets for the next one. */}
+                <PersonSelect className="max-w-sm" people={people.directory.options} value="" onChange={(id, option) => option && openEmployee(people.directory.byId.get(id) || option)} placeholder="Choose an employee…" />
               </div>
             </div>
           )}

@@ -3,6 +3,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI } from "../../../../shared/api";
 import MultiSelectDropdown from "../../../../shared/components/MultiSelectDropdown";
+import { PersonMultiSelect } from "../../../../shared/components/PersonPicker";
 import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
 import { listFrom } from "../../../../shared/attendance/normalize";
 import { WEEKDAYS } from "../../../../shared/attendance/enums";
@@ -154,7 +155,10 @@ function WeeklyOffModal({ shifts, onClose, onSaved, editRule }) {
             <MultiSelectDropdown label="Applicable Locations" placeholder="All Locations" options={withSelected(targeting.locationOptions, form.target_locations)} value={form.target_locations} onChange={(v) => set("target_locations", v)} />
             <MultiSelectDropdown label="Employment Types" placeholder="All Types" options={withSelected(targeting.employmentTypeOptions, form.target_employment_types)} value={form.target_employment_types} onChange={(v) => set("target_employment_types", v)} />
             <MultiSelectDropdown label="Job Statuses" placeholder="All Statuses" options={withSelected(targeting.jobStatusOptions, form.target_job_statuses)} value={form.target_job_statuses} onChange={(v) => set("target_job_statuses", v)} />
-            <MultiSelectDropdown label="Specific Employees" placeholder="None" options={withSelected(targeting.employeeOptions, form.target_users, "Former employee")} value={form.target_users} onChange={(v) => set("target_users", v)} />
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Specific Employees</label>
+              <PersonMultiSelect people={targeting.employeePeople} value={form.target_users} onChange={(v) => set("target_users", v)} placeholder="None" unknownLabel="Former employee" loading={targeting.loading} aria-label="Specific Employees" />
+            </div>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-1">
@@ -287,11 +291,11 @@ export default function AttendanceWeeklyOffsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Attendance" />
+      <DashboardTopBar title="Weekly Offs" />
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Weekly Off Configuration</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Weekly Offs</h1>
             <p className="text-sm text-slate-500 mt-1">Define which days of the week are non-working for your teams.</p>
           </div>
           <button onClick={() => setModalRule("create")} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">

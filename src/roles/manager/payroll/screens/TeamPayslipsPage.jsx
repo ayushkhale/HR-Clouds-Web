@@ -6,6 +6,7 @@ import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiOutlineDoc
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -19,6 +20,9 @@ function Toast({ toast, onClose }) {
   );
 }
 
+// The org roster keys people by `user_id`; there is no `id` on those rows, so
+// reading `id` sent the option's text (the name) to the server as the userId.
+const memberId = (m) => m.user_id || m.id || m._id;
 const slipRunId = (s) => s.run_id || s.payroll_run?.id || s.runId;
 const slipPeriod = (s) => s.period_month || s.payroll_run?.period_month;
 
@@ -206,7 +210,7 @@ export default function TeamPayslipsPage() {
       .then((res) => {
         const members = res.data?.records || (Array.isArray(res.data) ? res.data : res.data?.employees) || [];
         setTeamMembers(members);
-        if (members.length > 0) setSelectedUserId(members[0].id || members[0]._id);
+        if (members.length > 0) setSelectedUserId(memberId(members[0]));
       })
       .catch((err) => showToast(payrollErrorMessage(err, "Failed to load your team"), "error"))
       .finally(() => setLoadingTeam(false));
@@ -226,19 +230,15 @@ export default function TeamPayslipsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Payslips" />
+      <DashboardTopBar title="Payslips" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Team Payslips
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-900">Payslips</h1>
             <p className="text-sm text-slate-500 mt-1">Finalized payslips for your direct reports. Open a run to see the whole team's cost.</p>
           </div>
           {!loadingTeam && teamMembers.length > 0 && (
-            <select value={selectedUserId || ""} onChange={(e) => setSelectedUserId(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-purple-400 shadow-sm">
-              {teamMembers.map((m) => (<option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>))}
-            </select>
+            <PersonSelect className="sm:w-72" people={teamMembers} value={selectedUserId || ""} onChange={(id) => id && setSelectedUserId(id)} aria-label="Team member" />
           )}
         </div>
 

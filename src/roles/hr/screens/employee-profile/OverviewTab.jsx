@@ -13,7 +13,7 @@ import { ErrorState, StatusBadge } from "../../../../shared/attendance/ui";
 const LIVE_REFRESH_MS = 60_000;
 
 
-export default function OverviewTab({ userId, employeeRole }) {
+export default function OverviewTab({ userId, employeeRole, viewer = "hr" }) {
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [state, setState] = useState({ summary: null, history: [], loading: true, error: null });
@@ -22,7 +22,7 @@ export default function OverviewTab({ userId, employeeRole }) {
 
   const load = useCallback(async () => {
     if (!userId) return;
-    const api = memberAttendanceApi(employeeRole);
+    const api = memberAttendanceApi(employeeRole, viewer);
     const id = ++reqId.current;
     setState((s) => ({ ...s, loading: true, error: null }));
     const [sum, hist] = await Promise.allSettled([
@@ -41,7 +41,7 @@ export default function OverviewTab({ userId, employeeRole }) {
       error: failed ? sum.reason : null,
     });
     if (!failed) setUpdatedAt(new Date());
-  }, [userId, employeeRole, period.month, period.year]);
+  }, [userId, employeeRole, viewer, period.month, period.year]);
 
   useEffect(() => { load(); }, [load]);
 

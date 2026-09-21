@@ -24,8 +24,10 @@ import PeriodPicker from "../../../hr/payroll/PeriodPicker";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
+import CompOffPicker from "../../../../shared/components/CompOffPicker";
 import { useTeamNames } from "../../../../shared/attendance/useTeamNames";
 import { ENCASHMENT_STATUS, encashmentStatusMeta, sourceKindLabel, toneClass, amount } from "../../../hr/payroll/phase7Meta";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 const PAGE_SIZE = 20;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -46,13 +48,13 @@ function StatusPill({ status }) {
 
 function ProposeDialog({ onClose, onDone, showToast, team }) {
   const [form, setForm] = useState({ user_id: "", period_month: currentPeriod() });
-  const [compOffIds, setCompOffIds] = useState("");
+  const [compOffIds, setCompOffIds] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const ids = compOffIds.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+  const ids = compOffIds;
   const problem = !form.user_id ? "Choose who this is for."
-    : ids.length === 0 ? "Add at least one comp-off." : "";
+    : ids.length === 0 ? "HR needs to cash this out for now (see above)." : "";
 
   const submit = async (e) => {
     e.preventDefault();
@@ -90,19 +92,27 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
         <div className="px-6 py-5 space-y-4">
           <div>
             <label className={labelCls}>Who it is for</label>
-            <select value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className={fieldCls}>
-              <option value="">{team.length === 0 ? "Loading your team…" : "Choose someone"}</option>
-              {team.map(([id, person]) => <option key={id} value={id}>{person.name}{person.code ? ` · ${person.code}` : ""}</option>)}
-            </select>
+            <PersonSelect
+              people={team.map(([id, person]) => ({ id, name: person.name, code: person.code || "" }))}
+              value={form.user_id}
+              onChange={(id) => setForm({ ...form, user_id: id })}
+              placeholder="Choose someone"
+              loading={team.length === 0}
+            />
             <p className="text-[11px] text-slate-400 mt-1.5">Only people who report to you.</p>
           </div>
           <div>
-            <label className={labelCls}>Comp-off references</label>
-            <textarea rows={3} value={compOffIds} onChange={(e) => setCompOffIds(e.target.value)}
-              placeholder="Paste the comp-off ids, one per line" className={`${fieldCls} font-mono text-xs`} />
-            <p className="text-[11px] text-slate-400 mt-1.5">
-              Each must be approved and unused. {ids.length > 0 && <span className="font-semibold text-purple-600">{ids.length} added.</span>}
-            </p>
+            <span className={labelCls}>Which days to cash out</span>
+            {/* The API needs the comp-off ids, and no manager endpoint lists a
+                report's approved comp-offs (only /manager/comp-offs/pending,
+                which are not approved yet). Until the backend adds one, the
+                picker explains instead of asking for ids nobody can see. */}
+            <CompOffPicker
+              userId={form.user_id}
+              value={compOffIds}
+              onChange={setCompOffIds}
+              unavailable="Picking comp-off days isn't available to managers yet: the system doesn't give managers a list of their team's approved comp-offs. Ask HR to cash this out from Payroll › Encashments, where they can tick the days."
+            />
           </div>
           <div>
             <label className={labelCls}>Pay it in</label>
@@ -176,12 +186,12 @@ export default function TeamEncashmentsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Encashments" />
+      <DashboardTopBar title="Encashments" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Comp-off cash-outs</h1>
-            <p className="text-sm text-slate-500 mt-1">Pay your team for days they worked instead of them taking the time off.</p>
+            <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
+            <p className="text-sm text-slate-500 mt-1">Comp-off cash-outs: pay your team for days they worked instead of them taking the time off.</p>
           </div>
           <button onClick={() => setProposing(true)} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 flex items-center gap-2">
             <HiPlus className="w-4 h-4" /> Cash out a comp-off
@@ -233,7 +243,7 @@ export default function TeamEncashmentsPage() {
                           <td className="px-6 py-3.5 font-semibold text-slate-800">{nameOf(row.user_id) || row.employee_code || "Team member"}</td>
                           <td className="px-6 py-3.5 text-slate-600">{sourceKindLabel(row.source_kind)}{row.leave_type_code ? ` · ${row.leave_type_code}` : ""}</td>
                           <td className="px-6 py-3.5 text-slate-600">{fmtDays(row.days)}</td>
-                          {showMoney && <td className="px-6 py-3.5 text-right font-bold tabular-nums text-slate-800">{amount(row.amount) === null ? <span className="text-slate-300">—</span> : formatMoney(row.amount)}</td>}
+                          {showMoney && <td className="px-6 py-3.5 text-right font-bold tabular-nums text-slate-800">{amount(row.amount) === null ? <span className="text-slate-400 font-semibold">N/A</span> : formatMoney(row.amount)}</td>}
                           <td className="px-6 py-3.5 text-slate-600">{formatPeriod(row.period_month)}</td>
                           <td className="px-6 py-3.5"><StatusPill status={row.status} /></td>
                         </tr>

@@ -31,11 +31,16 @@ const STATUS_PILL = {
 // Members are documented as { user, current_ctc }; fall back to the member
 // object itself so a flat { id, name, current_ctc } shape still resolves.
 const memberUser = (m) => m.user || m.employee || m;
+// The row's id key isn't pinned by the docs: the embedded user may carry
+// `user_id` or `id`, and the member itself may carry `user_id`. Reading only
+// `user.id` sent ".../employees/undefined/..." (400 "userId must be a valid GUID").
+const memberId = (m) => m?.user_id || m?.user?.user_id || m?.user?.id || m?.employee?.user_id || m?.employee?.id || m?.id || "";
 const memberCtc = (m) => m.current_ctc ?? m.annual_ctc;
 
 // ── Report's current + history, manager-scoped (#28, #29) ──────────────────
 function HistoryModal({ member, onClose, showToast }) {
   const u = memberUser(member);
+  const id = memberId(member);
   const [current, setCurrent] = useState(undefined);
   const [rows, setRows] = useState(undefined);
   const [denied, setDenied] = useState(false);
@@ -50,10 +55,12 @@ function HistoryModal({ member, onClose, showToast }) {
   );
 
   useEffect(() => {
+    // Without an id there is nothing to ask for; show the empty history.
+    if (!id) { setCurrent(null); setRows([]); return undefined; }
     let cancelled = false;
     Promise.allSettled([
-      payrollAPI.getTeamMemberCurrentStructure(u.id),
-      payrollAPI.getTeamMemberStructureHistory(u.id),
+      payrollAPI.getTeamMemberCurrentStructure(id),
+      payrollAPI.getTeamMemberStructureHistory(id),
     ]).then(([curR, histR]) => {
       if (cancelled) return;
       const denialCode = "COMPENSATION_VIEW_DISABLED";
@@ -63,7 +70,7 @@ function HistoryModal({ member, onClose, showToast }) {
       setRows(histR.status === "fulfilled" ? (histR.value.data?.records || histR.value.data || []) : []);
     });
     return () => { cancelled = true; };
-  }, [u.id]);
+  }, [id]);
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
@@ -174,7 +181,9 @@ export default function TeamSalaryPage() {
 
   // Map user_id → name for proposals that only carry an id (never show a UUID).
   const nameById = {};
-  (members || []).forEach((m) => { const u = memberUser(m); if (u.id) nameById[u.id] = u.name || u.identifier; });
+  (members || []).forEach((m) => { const u = memberUser(m); const id = memberId(m); if (id) nameById[id] = u.name || u.identifier; });
+  // Only a proposal still waiting on HR can be cancelled; otherwise no column.
+  const hasCancellable = proposals.some((p) => p.status === "proposed");
   const proposalName = (p) => p.user?.name || p.employee?.name || nameById[p.user_id] || "Team member";
 
   const openPropose = (member) => {
@@ -186,8 +195,9 @@ export default function TeamSalaryPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const u = memberUser(proposeMember);
-      await payrollAPI.proposeTeamMemberStructure(u.id, {
+      const id = memberId(proposeMember);
+      if (!id) throw new Error("Couldn't tell who this proposal is for. Reload the page and try again.");
+      await payrollAPI.proposeTeamMemberStructure(id, {
         annual_ctc: form.annual_ctc,
         effective_from: form.effective_from,
         revision_type: form.revision_type,
@@ -216,11 +226,10 @@ export default function TeamSalaryPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Compensation" />
+      <DashboardTopBar title="Employee Salaries" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Team Compensation
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Employee Salaries</h1>
           <p className="text-sm text-slate-500 mt-1">Review your direct reports' pay and propose revisions for HR approval.</p>
         </div>
 
@@ -272,7 +281,7 @@ export default function TeamSalaryPage() {
                       {(members || []).map((m, i) => {
                         const u = memberUser(m);
                         return (
-                          <tr key={u.id || i} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={memberId(m) || i} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <p className="font-bold text-slate-800">{u.name || u.identifier || "N/A"}</p>
                               {u.email && <p className="text-xs text-slate-400">{u.email}</p>}
@@ -314,7 +323,7 @@ export default function TeamSalaryPage() {
                     <th className="px-6 py-4 text-right">Proposed CTC</th>
                     <th className="px-6 py-4">Effective from</th>
                     <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
+                    {hasCancellable && <th className="px-6 py-4 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -327,15 +336,15 @@ export default function TeamSalaryPage() {
                         <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${STATUS_PILL[p.status] || "bg-slate-100 text-slate-500"}`}>{p.status}</span>
                         {p.status === "rejected" && p.rejection_reason && <p className="text-[11px] text-rose-500 mt-1">{p.rejection_reason}</p>}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        {p.status === "proposed"
-                          ? <button onClick={() => cancelProposal(p)} className="px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition">Cancel</button>
-                          : <span className="text-xs text-slate-300">N/A</span>}
-                      </td>
+                      {hasCancellable && (
+                        <td className="px-6 py-4 text-right">
+                          {p.status === "proposed" && <button onClick={() => cancelProposal(p)} className="px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition">Cancel</button>}
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {proposals.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">You haven't proposed any revisions yet.</td></tr>
+                    <tr><td colSpan={hasCancellable ? 5 : 4} className="px-6 py-8 text-center text-slate-500">You haven't proposed any revisions yet.</td></tr>
                   )}
                 </tbody>
               </table>

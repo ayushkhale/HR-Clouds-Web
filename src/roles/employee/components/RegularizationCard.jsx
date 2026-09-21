@@ -150,6 +150,10 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
   const visible = statusFilter === "all"
     ? list.items
     : list.items.filter((r) => String(r.status || "pending").toLowerCase() === statusFilter);
+  // Only a pending request can be withdrawn; with none on screen the
+  // Actions column is dropped rather than left empty.
+  const canWithdraw = (req) => (req.status || "pending").toLowerCase() === "pending" && !!entityId(req);
+  const hasActions = visible.some(canWithdraw);
   const filterLabel = REGULARIZATION_FILTERS.find((f) => f.value === statusFilter)?.label.toLowerCase() || statusFilter;
 
   // Deep link from history / daily log: /regularizations?date=YYYY-MM-DD
@@ -211,7 +215,7 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
             <p className="text-[11px] text-slate-400 mb-2">Showing {filterLabel} requests from this page of results.</p>
           )}
           <div className={`overflow-x-auto rounded-xl border border-slate-100 ${list.loading ? "opacity-60" : ""}`}>
-            <table className="w-full text-left text-sm min-w-[860px]">
+            <table className={`w-full text-left text-sm ${hasActions ? "min-w-[860px]" : "min-w-[760px]"}`}>
               <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="px-5 py-3.5">Date</th>
@@ -220,7 +224,7 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
                   <th className="px-5 py-3.5">Reason</th>
                   <th className="px-5 py-3.5">Status</th>
                   <th className="px-5 py-3.5">Submitted</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
+                  {hasActions && <th className="px-5 py-3.5 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -238,13 +242,15 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
                       </td>
                       <td className="px-5 py-3.5"><StatusBadge kind="regularization" status={req.status || "pending"} /></td>
                       <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(req.created_at)}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        {(req.status || "pending").toLowerCase() === "pending" && id && (
-                          <button type="button" onClick={() => handleCancel(req)} disabled={!!cancelling} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                            {cancelling === id && <Spinner className="w-3 h-3" />} Withdraw
-                          </button>
-                        )}
-                      </td>
+                      {hasActions && (
+                        <td className="px-5 py-3.5 text-right">
+                          {canWithdraw(req) && (
+                            <button type="button" onClick={() => handleCancel(req)} disabled={!!cancelling} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                              {cancelling === id && <Spinner className="w-3 h-3" />} Withdraw
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

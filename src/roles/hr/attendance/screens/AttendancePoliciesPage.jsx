@@ -343,7 +343,7 @@ export default function AttendancePoliciesPage() {
 
   return (
     <>
-      <DashboardTopBar title="Attendance" />
+      <DashboardTopBar title="Attendance Policies" />
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
           <div>

@@ -46,6 +46,7 @@ import ManagerOvertimePage from "../roles/manager/screens/ManagerOvertimePage";
 import ManagerTeamPage from "../roles/manager/screens/ManagerTeamPage";
 import ManagerTeamHistoryPage from "../roles/manager/screens/ManagerTeamHistoryPage";
 import ManagerTeamRosterPage from "../roles/manager/screens/ManagerTeamRosterPage";
+import ManagerMemberProfilePage from "../roles/manager/screens/ManagerMemberProfilePage";
 import ManagerAnomaliesPage from "../roles/manager/screens/ManagerAnomaliesPage";
 import ManagerApprovalsInbox from "../roles/manager/screens/ManagerApprovalsInbox";
 
@@ -302,7 +303,10 @@ function AppRoutes() {
         <Route path="/dashboard/manager/requests/leaves" element={<ManagerLeavePage />} />
         <Route path="/dashboard/manager/team/today" element={<ManagerTeamPage />} />
         <Route path="/dashboard/manager/team/history" element={<ManagerTeamHistoryPage />} />
-        <Route path="/dashboard/manager/team/roster" element={<ManagerTeamRosterPage />} />
+        <Route path="/dashboard/manager/team" element={<ManagerTeamRosterPage />} />
+        <Route path="/dashboard/manager/team/member/:userId" element={<ManagerMemberProfilePage />} />
+        {/* The page was called "Team Roster"; it is "Team" now, like HR's. */}
+        <Route path="/dashboard/manager/team/roster" element={<Navigate to="/dashboard/manager/team" replace />} />
         <Route path="/dashboard/manager/team/anomalies" element={<ManagerAnomaliesPage />} />
 
         {/* Manager payroll */}

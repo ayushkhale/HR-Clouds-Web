@@ -34,7 +34,7 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
   // owed. A real zero still prints as 0m.
   if (!clockInTime) {
     return effectiveHours === null || effectiveHours === undefined
-      ? <span className="text-xs text-slate-300">—</span>
+      ? <span className="text-xs text-slate-400">N/A</span>
       : <span className="text-xs text-slate-400">{fmtHours(effectiveHours, "0m")}</span>;
   }
 

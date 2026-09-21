@@ -16,12 +16,11 @@ function AttendanceAnomaliesPage() {
 
   return (
     <>
-      <DashboardTopBar title="My Anomalies" />
+      <DashboardTopBar title="My Flags" />
       <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Attendance Flags
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-900">My Flags</h1>
             <p className="text-sm text-slate-500 mt-1">Punches the system flagged for review — e.g. outside the office geofence or breaks over the limit.</p>
           </div>
           <FilterTabs options={ANOMALY_FILTERS} value={status} onChange={setStatus} />

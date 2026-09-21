@@ -33,6 +33,7 @@ import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate, formatPeriod } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import { EXIT_TYPES, EXIT_STATUS, exitTypeLabel, exitStatusMeta, exitActions, toneClass } from "../phase7Meta";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 const PAGE_SIZE = 20;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -119,14 +120,7 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
           {!editing && (
             <div>
               <label className={labelCls}>Who is leaving</label>
-              <select required value={form.user_id} onChange={(e) => set({ user_id: e.target.value })} className={fieldCls}>
-                <option value="">{dirStatus === "loading" ? "Loading people…" : "Choose an employee"}</option>
-                {people.map((p) => {
-                  const id = p.user_id ?? p.id;
-                  const name = p.name || [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || "Unnamed";
-                  return <option key={id} value={id}>{name}</option>;
-                })}
-              </select>
+              <PersonSelect people={people} value={form.user_id} onChange={(id) => set({ user_id: id })} placeholder="Choose an employee" loading={dirStatus === "loading"} />
             </div>
           )}
 
@@ -163,7 +157,7 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
               <div>
                 <label className={labelCls}>Notice they served</label>
                 <div className="relative">
-                  <input type="number" min="0" max="365" value={form.notice_served_days} onChange={(e) => set({ notice_served_days: e.target.value })} placeholder="—" className={`${fieldCls} pr-14`} />
+                  <input type="number" min="0" max="365" value={form.notice_served_days} onChange={(e) => set({ notice_served_days: e.target.value })} placeholder="0" className={`${fieldCls} pr-14`} />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">days</span>
                 </div>
               </div>
@@ -433,7 +427,7 @@ export default function PayrollExitsPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">People leaving</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Exits &amp; Settlements</h1>
             <p className="text-sm text-slate-500 mt-1">Record a last working day, then work out and pay the final settlement.</p>
           </div>
           <button onClick={() => setCreating(true)} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 flex items-center gap-2">
@@ -487,7 +481,7 @@ export default function PayrollExitsPage() {
                             <td className="px-6 py-3.5 text-slate-600">{exitTypeLabel(row.exit_type)}</td>
                             <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap">{formatDate(row.last_working_day)}</td>
                             <td className="px-6 py-3.5 text-xs">
-                              {short === null ? <span className="text-slate-300">—</span>
+                              {short === null ? <span className="text-slate-400">N/A</span>
                                 : row.notice_recovery_waived ? <span className="text-slate-500">Waived</span>
                                 : short > 0 ? <span className="font-bold text-fuchsia-600">{short}d short</span>
                                 : <span className="text-violet-600 font-semibold">Full</span>}

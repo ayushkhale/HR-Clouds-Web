@@ -8,6 +8,7 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -130,6 +131,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.user_id) return showToast("Choose an employee", "error");
     try {
       const payload = {
         loan_type: form.loan_type,
@@ -319,11 +321,15 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-4">
                   <div>
                     <label className={labelClass}>Employee <span className="text-rose-500">*</span></label>
-                    <select required value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className={fieldClass}>
-                      <option value="">{people.status === "loading" ? "Loading employees…" : people.status === "error" ? "Couldn't load employees" : "Select employee"}</option>
-                      {/* Loans are granted to current employees only. */}
-                      {people.directory.activeOptions.map((e) => <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ""}</option>)}
-                    </select>
+                    <PersonSelect
+                      // Loans are granted to current employees only.
+                      people={people.directory.activeOptions}
+                      value={form.user_id}
+                      onChange={(id) => setForm({ ...form, user_id: id })}
+                      placeholder="Select employee"
+                      loading={people.status === "loading"}
+                      error={people.status === "error" ? "Couldn't load employees." : ""}
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Type</label>

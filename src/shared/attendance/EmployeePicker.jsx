@@ -4,12 +4,11 @@
 // so HR never types or reads a raw UUID.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useEffect, useMemo, useState } from "react";
-import { HiCheckCircle, HiSearch } from "react-icons/hi";
+import { useEffect, useState } from "react";
 import { organizationAPI, tokenHelper } from "../api";
 import { attendanceErrorMessage } from "../utils/attendanceErrors.js";
 import { isUuid, listFrom } from "./normalize.js";
-import GenderAvatar from "../components/GenderAvatar.jsx";
+import { PersonSelect } from "../components/PersonPicker.jsx";
 
 const firstString = (...values) => values.find((v) => typeof v === "string" && v.trim() && !isUuid(v))?.trim() || "";
 
@@ -21,7 +20,7 @@ export function toEmployeeOption(e) {
   const email = firstString(e?.email, e?.identifier, e?.user?.identifier, e?.user?.email);
   const name = firstString(profile.display_name, e?.display_name, e?.name, e?.user?.name) || joined || email || "Unnamed employee";
   const code = firstString(e?.employee_code, profile.employee_code, e?.user?.employee_profile?.employee_code);
-  return { id, name, code, email, raw: e };
+  return { id, name, code, email, sub: "", raw: e };
 }
 
 // Keyed by the session token so a logout → login (another user or org) in the
@@ -65,73 +64,21 @@ export function useOrgEmployees(purpose = "shift_assignment") {
   return state;
 }
 
-export default function EmployeePicker({ value, onChange, purpose = "shift_assignment", disabled = false, invalid = false, maxHeight = "max-h-44" }) {
+/** Roster-backed PersonSelect. Value is the employee's `user_id`. */
+export default function EmployeePicker({ value, onChange, purpose = "shift_assignment", disabled = false, invalid = false, placeholder = "Choose an employee", id }) {
   const { options, loading, error } = useOrgEmployees(purpose);
-  const [search, setSearch] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((o) => [o.name, o.code, o.email].some((f) => f && f.toLowerCase().includes(q)));
-  }, [options, search]);
-
-  const selected = options.find((o) => o.id === value);
-
   return (
-    <div>
-      <div className="relative mb-2">
-        <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, employee code or email…"
-          disabled={disabled}
-          className={`w-full pl-9 pr-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${invalid ? "border-rose-300" : "border-slate-200"}`}
-        />
-      </div>
-      <div className={`${maxHeight} overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-50`} role="listbox">
-        {loading ? (
-          <p className="px-4 py-3 text-xs text-slate-400">Loading employees…</p>
-        ) : error ? (
-          <p className="px-4 py-3 text-xs text-rose-600">{attendanceErrorMessage(error, "Couldn't load employees.")}</p>
-        ) : filtered.length === 0 ? (
-          <p className="px-4 py-3 text-xs text-slate-400">{options.length === 0 ? "No employees found. Invite employees first." : "No matching employees."}</p>
-        ) : (
-          filtered.map((o) => {
-            const isSelected = o.id === value;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                disabled={disabled}
-                onClick={() => onChange(o.id, o)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition ${isSelected ? "bg-purple-50" : "hover:bg-slate-50"}`}
-              >
-                <div className={`w-7 h-7 rounded-full overflow-hidden shrink-0 text-[10px] ${isSelected ? "ring-2 ring-purple-500" : ""}`}>
-                  <GenderAvatar person={o.raw || o} gender={o.gender} name={o.name} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xs font-semibold truncate ${isSelected ? "text-purple-700" : "text-slate-800"}`}>
-                    {o.name}
-                    {o.code && <span className="ml-1.5 text-[10px] font-bold text-slate-400">{o.code}</span>}
-                  </p>
-                  {o.email && o.email !== o.name && <p className="text-[10px] text-slate-400 truncate">{o.email}</p>}
-                </div>
-                {isSelected && <HiCheckCircle className="w-4 h-4 text-purple-500 ml-auto shrink-0" />}
-              </button>
-            );
-          })
-        )}
-      </div>
-      {selected && (
-        <p className="text-[11px] text-slate-500 mt-1.5">
-          Selected: <span className="font-bold text-slate-700">{selected.name}</span>
-          {selected.code ? ` · ${selected.code}` : ""}
-        </p>
-      )}
-    </div>
+    <PersonSelect
+      id={id}
+      people={options}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      disabled={disabled}
+      invalid={invalid}
+      loading={loading}
+      error={error ? attendanceErrorMessage(error, "Couldn't load employees.") : ""}
+      emptyText="No employees found. Invite employees first."
+    />
   );
 }

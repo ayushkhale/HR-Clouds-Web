@@ -24,6 +24,7 @@ import {
   HiCurrencyRupee, HiDocumentDownload, HiDocumentReport, HiDocumentText,
   HiExclamationCircle, HiRefresh, HiUser, HiX,
 } from "react-icons/hi";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 const TABS = [
   ["payslips", "Payslip history"],
@@ -424,12 +425,7 @@ export default function PayrollPayslipsPage() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 flex flex-wrap items-end gap-4">
           <div className="min-w-[260px]">
             <label htmlFor="payslip-employee" className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Employee</label>
-            <select id="payslip-employee" value={userId} onChange={(e) => setUserId(e.target.value)} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
-              {options.length === 0 && <option value="">{directoryStatus === "loading" ? "Loading people…" : "No employees found"}</option>}
-              {options.map((person) => (
-                <option key={person.id} value={person.id}>{person.name}{person.code ? ` (${person.code})` : ""}{person.active ? "" : " · left"}</option>
-              ))}
-            </select>
+            <PersonSelect id="payslip-employee" people={options} value={userId} onChange={(id) => setUserId(id)} placeholder="Choose an employee" loading={directoryStatus === "loading"} emptyText="No employees found." />
           </div>
           <div className="flex bg-slate-100 p-1 rounded-xl" role="tablist">
             {TABS.map(([value, label]) => (

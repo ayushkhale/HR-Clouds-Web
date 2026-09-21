@@ -3,7 +3,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDocumentText, HiCurrencyRupee,
-  HiScale, HiPlus, HiTrash, HiSparkles, HiPencil
+  HiScale, HiPlus, HiTrash, HiSparkles, HiPencil, HiChevronDown
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
@@ -146,11 +146,10 @@ export default function TaxConfigurationsPage() {
 
   return (
     <>
-        <DashboardTopBar title="Statutory & Tax Setup" />
+        <DashboardTopBar title="Statutory & Tax" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Statutory &amp; Tax Setup
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-900">Statutory &amp; Tax</h1>
             <p className="text-sm text-slate-500 mt-1">Organisation-wide PF, ESI, Professional Tax and Income-Tax rules that drive every payroll run.</p>
           </div>
 
@@ -178,6 +177,8 @@ function ConfigTab({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [affected, setAffected] = useState([]);
+  // Groups folded by their chevron (open by default).
+  const [folded, setFolded] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -233,15 +234,29 @@ function ConfigTab({ showToast }) {
             <div key={g.toggle} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 bg-slate-50/50">
                 <h2 className="font-bold text-slate-800">{g.title}</h2>
-                <button
-                  type="button"
-                  onClick={() => set(g.toggle, !on)}
-                  className={`relative w-11 h-6 rounded-full transition ${on ? "bg-purple-600" : "bg-slate-300"}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition ${on ? "translate-x-5" : ""}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => set(g.toggle, !on)}
+                    aria-label={`${on ? "Turn off" : "Turn on"} ${g.title}`}
+                    className={`relative w-11 h-6 rounded-full transition ${on ? "bg-purple-600" : "bg-slate-300"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition ${on ? "translate-x-5" : ""}`} />
+                  </button>
+                  {g.fields.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFolded((f) => ({ ...f, [g.toggle]: !f[g.toggle] }))}
+                      aria-expanded={!folded[g.toggle]}
+                      aria-label={`${folded[g.toggle] ? "Expand" : "Collapse"} ${g.title}`}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-white transition-colors"
+                    >
+                      <HiChevronDown className={`w-4 h-4 transition-transform duration-200 ${folded[g.toggle] ? "" : "rotate-180"}`} />
+                    </button>
+                  )}
+                </div>
               </div>
-              {g.fields.length > 0 && (
+              {g.fields.length > 0 && !folded[g.toggle] && (
                 <div className={`p-5 grid grid-cols-2 gap-4 ${on ? "" : "opacity-40 pointer-events-none"}`}>
                   {g.fields.map((f) => (
                     <div key={f.key} className={f.type === "bool" ? "col-span-2" : ""}>

@@ -24,6 +24,7 @@ import {
   EMPLOYMENT_TYPE_LABEL, MAX_PERCENT, CONFIRM_PERCENT_ABOVE, skipReasonText, normalizeImpact, usesUserIds, isUnavailableSource,
   embeddedEmployee, actorName,
 } from "../variablePayMeta";
+import { PersonMultiSelect } from "../../../../shared/components/PersonPicker";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
@@ -234,10 +235,8 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
   });
 
   // Offer active people and departments, plus anything this rule already picked.
-  const employeeItems = useMemo(
-    () => employees
-      .filter((e) => e.active || form.user_ids.includes(e.id))
-      .map((e) => ({ id: e.id, label: e.active ? e.name : `${e.name} (inactive)`, sub: [e.code, e.department].filter(Boolean).join(" · ") })),
+  const employeePeople = useMemo(
+    () => employees.filter((e) => e.active || form.user_ids.includes(e.id)),
     [employees, form.user_ids],
   );
   const departmentItems = useMemo(
@@ -372,7 +371,7 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
                 <ChecklistPicker items={departmentItems} selected={form.department_ids} onChange={(ids) => set({ department_ids: ids })} emptyText="No departments found." searchPlaceholder="Search departments" />
               )}
               {usesUserIds(form.eligibility_source) && (
-                <ChecklistPicker items={employeeItems} selected={form.user_ids} onChange={(ids) => set({ user_ids: ids })} emptyText="No employees found." searchPlaceholder="Search name, code or department" />
+                <PersonMultiSelect people={employeePeople} value={form.user_ids} onChange={(ids) => set({ user_ids: ids })} placeholder="Choose employees" emptyText="No employees found." unknownLabel="No longer in the list" />
               )}
               {show("eligibility") && <p className={errorTextCls}>{show("eligibility")}</p>}
             </div>

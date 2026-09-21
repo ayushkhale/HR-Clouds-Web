@@ -10,6 +10,7 @@ import {
   CTC_PRESETS, formatINR, readTarget, writeTarget, readFlatUnit, writeFlatUnit, flatUnitFrom,
   componentMeta, budgetFromPreview, estimateBudget, rowAnnual, estimateLine, moYr, buildSuggestions,
 } from "../ctcBudget";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 // Org employee rows carry `user_id`; payroll rows carry `id`. Accept either.
 const orgUserId = (u) => u?.user_id ?? u?.id ?? u?._id;
@@ -456,7 +457,7 @@ export default function PayrollTemplatesPage() {
 
   return (
     <>
-        <DashboardTopBar title="Salary Templates" />
+        <DashboardTopBar title="Structure Templates" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           
           <div className="flex items-center justify-between mb-8">
@@ -730,19 +731,14 @@ export default function PayrollTemplatesPage() {
               {/* Employee first: the split is template-wide, but PT and TDS are
                   this person's, and the breakdown below shows both. */}
               <label htmlFor="preview-user" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Evaluate for</label>
-              <select
+              <PersonSelect
                 id="preview-user"
+                className="mb-1.5"
+                people={[...(user?.id ? [{ id: user.id, name: selfLabel, code: "", sub: "You" }] : []), ...others]}
                 value={previewUserId || ""}
-                onChange={(e) => { setPreviewUserId(e.target.value || null); setPreviewError(""); }}
-                className="w-full px-4 py-2.5 mb-1.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-              >
-                {user?.id && <option value={user.id}>{selfLabel}</option>}
-                {others.length > 0 && (
-                  <optgroup label="Other employees">
-                    {others.map((p) => <option key={orgUserId(p)} value={orgUserId(p)}>{orgUserName(p)}</option>)}
-                  </optgroup>
-                )}
-              </select>
+                onChange={(id) => { setPreviewUserId(id || null); setPreviewError(""); }}
+                placeholder="Choose who to preview for"
+              />
               <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
                 The component split is the same for everyone on this template. Professional tax and income tax depend on
                 the employee.

@@ -107,11 +107,11 @@ export default function HRInboxPage() {
 
   return (
     <>
-      <DashboardTopBar title="HR Inbox" />
+      <DashboardTopBar title="Inbox" />
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">HR Inbox</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
             <p className="text-sm text-slate-500 mt-1">
               {loading && !waiting ? "Checking every approval queue…" : `${waiting} item${waiting === 1 ? "" : "s"} waiting across the organisation.`}
             </p>

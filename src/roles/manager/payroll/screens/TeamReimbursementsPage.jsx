@@ -365,10 +365,10 @@ export default function TeamReimbursementsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Claims & Benefits" />
+      <DashboardTopBar title="Claims & Benefits" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Team Claims & Benefits</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Claims & Benefits</h1>
           <p className="text-sm text-slate-500 mt-1">Approve or reject your team&apos;s reimbursement claims, and look up their benefit cover.</p>
         </div>
 

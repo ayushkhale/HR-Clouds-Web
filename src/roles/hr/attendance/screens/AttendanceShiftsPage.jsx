@@ -562,7 +562,7 @@ export default function AttendanceShiftsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Attendance" />
+      <DashboardTopBar title="Work Shifts" />
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8">
         {loadError && !loading && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
@@ -573,7 +573,7 @@ export default function AttendanceShiftsPage() {
         <div>
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Shift Templates</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Work Shifts</h1>
               <p className="text-sm text-slate-500 mt-1">Define working hours, and link each shift to an attendance policy.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">

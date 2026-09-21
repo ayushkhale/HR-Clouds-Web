@@ -15,6 +15,7 @@ import {
   HiOutlineCalendar, HiOutlineOfficeBuilding,
   HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
 } from "react-icons/hi";
+import { PersonSelect } from "../../../shared/components/PersonPicker";
 
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
@@ -67,6 +68,8 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   };
 
   const isManagerial = employeeRole === "manager" || employeeRole === "hr";
+  // Managers and HR who can take over, never the person being transferred.
+  const hodCandidates = employees.filter((x) => canBeHOD(x.role) && String(x.user_id || x.id) !== String(userId));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -179,20 +182,13 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5">New Manager (Optional)</label>
-                <select 
-                  name="new_manager_id" 
-                  value={form.new_manager_id} 
-                  onChange={handleChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                >
-                  <option value="">Select a manager...</option>
-                  {employees.filter(x => canBeHOD(x.role)).map(e => {
-                    const id = e.user_id || e.id;
-                    const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
-                    if (String(id) === String(userId)) return null;
-                    return <option key={id} value={id}>{name}</option>;
-                  })}
-                </select>
+                <PersonSelect
+                    people={hodCandidates}
+                    value={form.new_manager_id}
+                    onChange={(id) => handleChange({ target: { name: "new_manager_id", value: id } })}
+                    placeholder="Select a manager…"
+                    emptyText="No managers or HR found."
+                  />
                 <p className="text-[10px] text-slate-400 mt-1">Required if the user&apos;s new department has no HOD, or if moving them to &ldquo;No Department&rdquo;. Ignored for HR/Manager roles.</p>
                 {employees.filter(x => canBeHOD(x.role)).length === 0 && (
                   <p className="text-[10px] text-fuchsia-600 font-semibold mt-1">
@@ -219,20 +215,13 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
               {form.is_current_hod && (
                 <div className="pl-8">
                   <label className="block text-xs font-bold text-slate-600 mb-1.5">Replacement HOD <span className="text-rose-500">*</span></label>
-                  <select 
-                    name="replacement_hod_id" 
-                    value={form.replacement_hod_id} 
-                    onChange={handleChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                  >
-                    <option value="">Who will take over?</option>
-                    {employees.filter(x => canBeHOD(x.role)).map(e => {
-                      const id = e.user_id || e.id;
-                      const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
-                      if (String(id) === String(userId)) return null;
-                      return <option key={id} value={id}>{name}</option>;
-                    })}
-                  </select>
+                  <PersonSelect
+                    people={hodCandidates}
+                    value={form.replacement_hod_id}
+                    onChange={(id) => handleChange({ target: { name: "replacement_hod_id", value: id } })}
+                    placeholder="Who will take over?"
+                    emptyText="No managers or HR found."
+                  />
                 </div>
               )}
 
@@ -252,20 +241,13 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
                 <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 mt-2">
                   <label className="block text-xs font-bold text-fuchsia-800 mb-1.5">Fallback Manager <span className="text-rose-500">*</span></label>
                   <p className="text-xs text-fuchsia-700 mb-2">The old department has no HOD. Select a manager to inherit this user's subordinates.</p>
-                  <select 
-                    name="old_dept_fallback_manager_id" 
-                    value={form.old_dept_fallback_manager_id} 
-                    onChange={handleChange}
-                    className="w-full bg-white border border-fuchsia-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-fuchsia-900 outline-none focus:border-fuchsia-500 transition-all"
-                  >
-                    <option value="">Select fallback manager...</option>
-                    {employees.filter(x => canBeHOD(x.role)).map(e => {
-                      const id = e.user_id || e.id;
-                      const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
-                      if (String(id) === String(userId)) return null;
-                      return <option key={id} value={id}>{name}</option>;
-                    })}
-                  </select>
+                  <PersonSelect
+                    people={hodCandidates}
+                    value={form.old_dept_fallback_manager_id}
+                    onChange={(id) => handleChange({ target: { name: "old_dept_fallback_manager_id", value: id } })}
+                    placeholder="Select fallback manager…"
+                    emptyText="No managers or HR found."
+                  />
                 </div>
               )}
               </>)}

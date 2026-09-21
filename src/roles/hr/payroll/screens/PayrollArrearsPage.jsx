@@ -47,7 +47,7 @@ function StatusPill({ status }) {
 /** Signed money: a negative delta is money being taken back, not paid. */
 function Delta({ value }) {
   const n = amount(value);
-  if (n === null) return <span className="text-slate-300">—</span>;
+  if (n === null) return <span className="text-slate-400">N/A</span>;
   if (n === 0) return <span className="text-slate-400 tabular-nums">{formatMoney(0)}</span>;
   return (
     <span className={`font-bold tabular-nums ${n > 0 ? "text-violet-700" : "text-rose-700"}`}>
@@ -273,7 +273,7 @@ export default function PayrollArrearsPage() {
       <DashboardTopBar title="Pay Differences" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Pay differences</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Pay Differences</h1>
           <p className="text-sm text-slate-500 mt-1">
             When something changes after a month has been paid, the difference is made up in the next open month.
           </p>

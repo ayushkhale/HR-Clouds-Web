@@ -7,8 +7,8 @@
 // Empty values always render as "N/A" (never "—" or "-").
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useRef } from "react";
-import { HiX, HiInformationCircle } from "react-icons/hi";
+import { useEffect, useId, useRef, useState } from "react";
+import { HiX, HiInformationCircle, HiChevronDown } from "react-icons/hi";
 
 /** null / undefined / "" / NaN → "N/A". Numbers (including 0) are kept. */
 export function displayValue(value, fallback = "N/A") {
@@ -118,22 +118,59 @@ export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, bad
   );
 }
 
-/** A titled card, styled like the invite form's sections. */
-export function DetailSection({ title, icon: Icon, action, children, className = "" }) {
+/**
+ * A titled card, styled like the invite form's sections.
+ * Every titled section collapses from a chevron in its header, so a long popup
+ * can be folded down to the parts you need. `defaultOpen={false}` starts it
+ * folded (for long tables); `collapsible={false}` pins it open.
+ */
+export function DetailSection({ title, icon: Icon, action, children, className = "", collapsible = true, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
+  const canCollapse = collapsible && !!title;
+  const heading = title && (
+    <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 min-w-0">
+      {Icon && <Icon className="w-4 h-4 text-purple-600 shrink-0" />}
+      <span className="truncate">{title}</span>
+    </h4>
+  );
   return (
     <section className={`border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs ${className}`}>
       {(title || action) && (
-        <div className="px-5 py-3.5 flex items-center justify-between gap-3 bg-slate-50/80 border-b border-slate-100">
-          {title && (
-            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-              {Icon && <Icon className="w-4 h-4 text-purple-600 shrink-0" />}
-              {title}
-            </h4>
+        <div className={`flex items-center justify-between gap-3 bg-slate-50/80 ${open ? "border-b border-slate-100" : ""}`}>
+          {canCollapse ? (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-controls={bodyId}
+              className="flex-1 min-w-0 flex items-center gap-2 px-5 py-3.5 text-left hover:bg-slate-100/60 transition-colors"
+            >
+              {heading}
+            </button>
+          ) : (
+            <div className="flex-1 min-w-0 px-5 py-3.5">{heading}</div>
           )}
-          {action}
+          {(action || canCollapse) && (
+            <div className="flex items-center gap-2 pr-3 shrink-0">
+              {action}
+              {canCollapse && (
+                <button
+                  type="button"
+                  onClick={() => setOpen((v) => !v)}
+                  aria-expanded={open}
+                  aria-controls={bodyId}
+                  aria-label={open ? `Collapse ${typeof title === "string" ? title : "section"}` : `Expand ${typeof title === "string" ? title : "section"}`}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-white transition-colors"
+                >
+                  <HiChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
-      <div className="p-5">{children}</div>
+      {open && <div id={bodyId} className="p-5">{children}</div>}
     </section>
   );
 }

@@ -9,6 +9,7 @@ import {
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -130,7 +131,7 @@ export default function PayrollAuditLogPage() {
       <DashboardTopBar title="Audit Log" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Payroll Audit Log</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Audit Log</h1>
           <p className="text-sm text-slate-500 mt-1">An append-only record of every payroll change — who did what, and when. Click a row to see the full entry.</p>
         </div>
 
@@ -149,10 +150,7 @@ export default function PayrollAuditLogPage() {
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Employee</label>
-              <select value={draft.target_user_id} onChange={(e) => setDraft({ ...draft, target_user_id: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
-                <option value="">Anyone</option>
-                {directory.options.map((e) => <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ""}{e.active ? "" : " (inactive)"}</option>)}
-              </select>
+              <PersonSelect people={directory.options} value={draft.target_user_id} onChange={(id) => setDraft({ ...draft, target_user_id: id })} clearLabel="Anyone" aria-label="Employee" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">From</label>

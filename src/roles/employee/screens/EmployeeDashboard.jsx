@@ -101,7 +101,7 @@ function EmployeeDashboard() {
 
   return (
     <>
-      <DashboardTopBar title="Employee Portal" />
+      <DashboardTopBar title="Dashboard" />
 
       <main className="p-4 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6">
         <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm">

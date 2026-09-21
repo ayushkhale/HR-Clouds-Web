@@ -666,7 +666,7 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
   const [statusFilter, setStatusFilter] = useState("");
 
   function fmtDate(d) {
-    if (!d) return "—";
+    if (!d) return "N/A";
     return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   }
 
@@ -930,9 +930,7 @@ export default function LeaveDashboard() {
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">
-                My Leave Dashboard
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-800">My Leaves</h1>
               <p className="text-sm text-slate-500 mt-1">View your leave balances and manage your requests.</p>
             </div>
             <button

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCog } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiCog, HiChevronDown } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 
@@ -20,13 +20,26 @@ function Toast({ toast, onClose }) {
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
 const labelCls = "block text-[11px] font-bold text-slate-500 uppercase mb-2";
 
-/** A titled block of settings, matching the page's existing section rhythm. */
-function Section({ title, blurb, children }) {
+/** A titled block of settings. The chevron folds it so a long page reads as a list of groups. */
+function Section({ title, blurb, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
-      <h3 className="text-base font-bold text-slate-800 mb-1 border-b border-slate-100 pb-2">{title}</h3>
-      {blurb && <p className="text-xs text-slate-500 mt-2 mb-4 leading-relaxed">{blurb}</p>}
-      <div className={blurb ? "" : "mt-4"}>{children}</div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 text-left border-b border-slate-100 pb-2 group"
+      >
+        <h3 className="text-base font-bold text-slate-800 group-hover:text-purple-700 transition-colors">{title}</h3>
+        <HiChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          {blurb && <p className="text-xs text-slate-500 mt-2 mb-4 leading-relaxed">{blurb}</p>}
+          <div className={blurb ? "" : "mt-4"}>{children}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -219,8 +232,7 @@ export default function PayrollSettingsPage() {
               <form onSubmit={handleSubmit} className="space-y-8">
                 
                 {/* General Settings */}
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Calculation Policies</h3>
+                <Section title="Calculation Policies">
                   <div className="grid sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">LOP Divisor Basis</label>
@@ -239,11 +251,10 @@ export default function PayrollSettingsPage() {
                       </select>
                     </div>
                   </div>
-                </div>
+                </Section>
 
                 {/* Manager Permissions */}
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Manager Permissions</h3>
+                <Section title="Manager Permissions">
                   <div className="space-y-4">
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input type="checkbox" checked={settings.manager_can_view_team_compensation} onChange={e => setSettings({...settings, manager_can_view_team_compensation: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
@@ -260,11 +271,10 @@ export default function PayrollSettingsPage() {
                       </div>
                     </label>
                   </div>
-                </div>
+                </Section>
 
                 {/* HR Approvals */}
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">HR Approval Policies</h3>
+                <Section title="HR Approval Policies">
                   <div className="space-y-4">
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input type="checkbox" checked={settings.payroll_require_separate_checker} onChange={e => setSettings({...settings, payroll_require_separate_checker: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
@@ -274,11 +284,10 @@ export default function PayrollSettingsPage() {
                       </div>
                     </label>
                   </div>
-                </div>
+                </Section>
 
                 {/* Reimbursements & Benefits */}
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Reimbursements & Benefits</h3>
+                <Section title="Reimbursements & Benefits">
                   <div className="space-y-6">
                     <div className="grid sm:grid-cols-2 gap-6">
                       <div>
@@ -320,11 +329,10 @@ export default function PayrollSettingsPage() {
                       </div>
                     </label>
                   </div>
-                </div>
+                </Section>
 
                 {/* Payslip delivery */}
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Payslip Delivery</h3>
+                <Section title="Payslip Delivery">
                   <div className="space-y-4">
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input type="checkbox" checked={settings.payslip_auto_publish !== false} onChange={e => setSettings({ ...settings, payslip_auto_publish: e.target.checked })} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
@@ -341,7 +349,7 @@ export default function PayrollSettingsPage() {
                       </div>
                     </label>
                   </div>
-                </div>
+                </Section>
 
                 {/* ── Phase 7 · Final settlement (registry #55) ───────────── */}
                 <Section

@@ -99,7 +99,7 @@ export function RecalculationPendingNotice({ statutory, className = "" }) {
  * figures rather than imply there are none — the same reason the HR grid keeps
  * a LOAD_ERROR state instead of falling back to "Not set".
  */
-export function StatutoryUnavailableNotice({ compact = false, className = "" }) {
+export function StatutoryUnavailableNotice({ compact = false, className = "", defaultOpen = true }) {
   const text = "PF, ESI, professional tax and income tax aren't included here — they're worked out when payroll runs. Actual take-home will be lower than the figure shown.";
   if (compact) {
     return (
@@ -109,7 +109,7 @@ export function StatutoryUnavailableNotice({ compact = false, className = "" }) 
     );
   }
   return (
-    <DetailSection title="Statutory deductions" icon={HiShieldCheck} className={className}>
+    <DetailSection title="Statutory deductions" icon={HiShieldCheck} className={className} defaultOpen={defaultOpen}>
       <p className="flex items-start gap-2 text-xs leading-relaxed text-slate-600 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3.5">
         <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500 mt-px" /> <span>{text}</span>
       </p>
@@ -152,13 +152,14 @@ function AmountTable({ rows, empty, sign = "" }) {
  * The itemised view. Render inside a DetailDialog body or straight onto a page —
  * DetailSection is a self-contained card either way.
  */
-export default function StatutoryBreakdownPanel({ statutory, componentDeductions = 0, showEmployer = true, showDetail = true }) {
+export default function StatutoryBreakdownPanel({ statutory, componentDeductions = 0, showEmployer = true, showDetail = true, defaultOpen = true }) {
   if (!statutory) return null;
   const totals = statutoryTotals(statutory, { componentDeductions });
 
   return (
     <div className="space-y-5">
       <DetailSection
+        defaultOpen={defaultOpen}
         title="Statutory deductions"
         icon={HiShieldCheck}
         action={<span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">{statutory.statusLabel}</span>}
@@ -198,7 +199,7 @@ export default function StatutoryBreakdownPanel({ statutory, componentDeductions
       </DetailSection>
 
       {showEmployer && (
-        <DetailSection title="Paid by the company (not deducted from you)" icon={HiOfficeBuilding}>
+        <DetailSection title="Paid by the company (not deducted from you)" icon={HiOfficeBuilding} defaultOpen={defaultOpen}>
           <AmountTable rows={statutory.employerLines} empty="The company makes no statutory contribution on this structure." />
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5">
             <span className="text-xs font-semibold text-slate-600">Total monthly cost to the company</span>
@@ -220,7 +221,7 @@ export default function StatutoryBreakdownPanel({ statutory, componentDeductions
       )}
 
       {showDetail && statutory.detailGroups.length > 0 && (
-        <DetailSection title="How this was worked out" icon={HiCalculator}>
+        <DetailSection title="How this was worked out" icon={HiCalculator} defaultOpen={defaultOpen}>
           <div className="space-y-4">
             {statutory.detailGroups.map((g) => (
               <div key={g.key}>

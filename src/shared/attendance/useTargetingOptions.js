@@ -58,7 +58,8 @@ export function useTargetingOptions({ shifts = EMPTY } = {}) {
       loading: org.loading || employees.loading,
       locationOptions: org.locations.filter((l) => l.is_active !== false).map((l) => ({ value: l.id, label: l.name || "Unnamed location" })),
       departmentOptions: org.departments.filter((d) => d.is_active !== false).map((d) => ({ value: d.id || d._id, label: d.name || "Unnamed department" })),
-      employeeOptions: activeEmployees.map((o) => ({ value: o.id, label: o.name, subtitle: o.code || o.email, avatarIdentifier: o.email || o.name, gender: o.raw?.gender ?? o.raw?.profile?.gender })),
+      // For PersonMultiSelect, the one people picker used app-wide.
+      employeePeople: activeEmployees,
       employmentTypeOptions: (employmentTypes.length ? employmentTypes : FALLBACK_EMPLOYMENT_TYPES).map((v) => ({ value: v, label: v })),
       jobStatusOptions: (jobStatuses.length ? jobStatuses : FALLBACK_JOB_STATUSES).map((v) => ({ value: v, label: v })),
       shiftOptions: shifts.map((s) => ({ value: s.id, label: s.name || "Unnamed shift" })),

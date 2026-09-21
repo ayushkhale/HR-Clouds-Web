@@ -28,10 +28,10 @@ function AttendanceRegularizationsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Attendance Regularizations" />
+      <DashboardTopBar title="My Regularizations" />
       <main className="p-4 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Attendance Regularizations</h1>
+          <h1 className="text-2xl font-bold text-slate-900">My Regularizations</h1>
           <p className="text-sm text-slate-500 mt-1">Request corrections for missed or wrong punches and track their approval.</p>
         </div>
         <RegularizationCard list={list} statusFilter={status} onStatusChange={setStatus} initialDate={initialDate} onPrefillConsumed={consumePrefill} />

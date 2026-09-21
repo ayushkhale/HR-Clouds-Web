@@ -10,6 +10,7 @@ import {
 } from "react-icons/hi";
 
 import GenderAvatar, { avatarUrlOf, genderOf, normalizeGender } from "../../../shared/components/GenderAvatar";
+import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -389,12 +390,12 @@ function EmployeesPage() {
 
   return (
     <>
-        <DashboardTopBar title="Employees" />
+        <DashboardTopBar title="Team" />
 
         <main className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Team Directory</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Team</h1>
               <p className="text-sm text-slate-500 mt-1">Manage all organization personnel and pending invitations.</p>
             </div>
             <button
@@ -662,22 +663,16 @@ function EmployeesPage() {
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                           Reporting Person <span className="text-rose-400">*</span>
                         </label>
-                        <select 
-                          value={reportingManager} 
-                          onChange={(e) => setReportingManager(e.target.value)} 
-                          required 
-                          className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                        >
-                          <option value="">---Select Manager---</option>
-                          {((role === "manager" || role === "hr") 
+                        <PersonSelect
+                          people={((role === "manager" || role === "hr")
                             ? (hrList.length > 0 ? hrList : employees.filter(e => e.role === "hr"))
                             : managers
-                          ).map(m => (
-                            <option key={m.user_id || m.id || m._id} value={m.user_id || m.id || m._id}>
-                              {m.name || m.full_name || m.email} {(m.role || "").toUpperCase() ? `(${m.role.toUpperCase()})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                          ).map((m) => ({ ...toPersonOption(m), sub: [String(m.role || "").toUpperCase(), toPersonOption(m).sub].filter(Boolean).join(" · ") }))}
+                          value={reportingManager}
+                          onChange={(id) => setReportingManager(id)}
+                          placeholder="Select a reporting person"
+                          emptyText="No one can be picked as reporting person yet."
+                        />
                         {role === "employee" ? (
                           <p className="text-[11px] text-slate-500 mt-1">Defaults to Department HOD if available.</p>
                         ) : (

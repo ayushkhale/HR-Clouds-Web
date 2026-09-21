@@ -32,6 +32,8 @@ import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
   ENCASHMENT_STATUS, SOURCE_KINDS, encashmentStatusMeta, sourceKindLabel, encashmentActions, toneClass, amount,
 } from "../phase7Meta";
+import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import CompOffPicker, { loadHrCompOffsFor } from "../../../../shared/components/CompOffPicker";
 
 const PAGE_SIZE = 20;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -61,7 +63,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
   const [form, setForm] = useState({
     user_id: "", source_kind: "comp_off", leave_type_code: "EL", days: "", period_month: currentPeriod(),
   });
-  const [compOffIds, setCompOffIds] = useState("");
+  const [compOffIds, setCompOffIds] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -74,11 +76,12 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
     : (settings && settings.fnf_leave_encashment_enabled === false
       ? "Paying out leave balances is switched off in Payroll Settings." : "");
 
-  const ids = compOffIds.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+  const ids = compOffIds;
+  const personName = people.find((p) => (p.user_id ?? p.id) === form.user_id)?.name || "This person";
   const problem = !form.user_id ? "Choose an employee."
     : disabledReason
       || (isCompOff
-        ? (ids.length === 0 ? "Add at least one comp-off." : "")
+        ? (ids.length === 0 ? "Tick at least one comp-off." : "")
         : (!form.leave_type_code.trim() ? "Enter the leave type." : !(parseFloat(form.days) > 0) ? "Enter how many days." : ""));
 
   const submit = async (e) => {
@@ -116,14 +119,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
         <div className="px-6 py-5 space-y-4 overflow-y-auto">
           <div>
             <label className={labelCls}>Employee</label>
-            <select required value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className={fieldCls}>
-              <option value="">{dirStatus === "loading" ? "Loading people…" : "Choose an employee"}</option>
-              {people.map((p) => {
-                const id = p.user_id ?? p.id;
-                const name = p.name || [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || "Unnamed";
-                return <option key={id} value={id}>{name}</option>;
-              })}
-            </select>
+            <PersonSelect people={people} value={form.user_id} onChange={(id) => setForm({ ...form, user_id: id })} placeholder="Choose an employee" loading={dirStatus === "loading"} />
           </div>
 
           <div>
@@ -143,12 +139,8 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
 
           {isCompOff ? (
             <div>
-              <label className={labelCls}>Comp-off references</label>
-              <textarea rows={3} value={compOffIds} onChange={(e) => setCompOffIds(e.target.value)}
-                placeholder="Paste the comp-off ids, one per line" className={`${fieldCls} font-mono text-xs`} />
-              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                Each one must be approved and still unused. {ids.length > 0 && <span className="font-semibold text-purple-600">{ids.length} added.</span>}
-              </p>
+              <span className={labelCls}>Which days to cash out</span>
+              <CompOffPicker userId={form.user_id} value={compOffIds} onChange={setCompOffIds} load={loadHrCompOffsFor} personName={personName} />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -347,7 +339,7 @@ export default function PayrollEncashmentsPage() {
                             </td>
                             <td className="px-6 py-3.5 text-slate-600">{sourceKindLabel(row.source_kind)}{row.leave_type_code ? ` · ${row.leave_type_code}` : ""}</td>
                             <td className="px-6 py-3.5 text-slate-600">{fmtDays(row.days)}</td>
-                            <td className="px-6 py-3.5 text-right font-bold tabular-nums text-slate-800">{amt === null ? <span className="text-slate-300">—</span> : formatMoney(amt)}</td>
+                            <td className="px-6 py-3.5 text-right font-bold tabular-nums text-slate-800">{amt === null ? <span className="text-slate-400 font-semibold">N/A</span> : formatMoney(amt)}</td>
                             <td className="px-6 py-3.5 text-slate-600">{formatPeriod(row.period_month)}</td>
                             <td className="px-6 py-3.5"><StatusPill status={row.status} /></td>
                             <td className="px-6 py-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -360,7 +352,7 @@ export default function PayrollEncashmentsPage() {
                                 <span className="text-[10px] font-semibold text-slate-400" title={acts.approveReason}>Needs another approver</span>
                               ) : acts.canCancel ? (
                                 <button onClick={() => setReasonFor({ row, action: "cancel" })} disabled={busyId === row.id} title="Cancel" className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-40"><HiX className="w-4 h-4" /></button>
-                              ) : <span className="text-slate-300">—</span>}
+                              ) : null}
                             </td>
                           </tr>
                         );

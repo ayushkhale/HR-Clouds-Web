@@ -251,11 +251,11 @@ export default function MySalaryPage() {
 
   return (
     <>
-      <DashboardTopBar title="My Salary Details" />
+      <DashboardTopBar title="My Salary & Bank" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 w-full">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Salary & Bank Details</h1>
+            <h1 className="text-2xl font-bold text-slate-900">My Salary &amp; Bank</h1>
             <p className="text-sm text-slate-500 mt-1">Your current salary structure, how it has changed, and where your salary is paid.</p>
           </div>
           <button
@@ -500,12 +500,13 @@ export default function MySalaryPage() {
               </DetailSection>
             )}
 
-            <DetailSection title={`Earnings · ${formatMoney(b.monthlyGross)} / month`} icon={HiTrendingUp}>
+            {/* The long tables start folded; their totals are in the headers. */}
+            <DetailSection title={`Earnings · ${formatMoney(b.monthlyGross)} / month`} icon={HiTrendingUp} defaultOpen={false}>
               <ComponentTable rows={b.earnings} />
             </DetailSection>
 
             {b.deductions.length > 0 && (
-              <DetailSection title={`Salary deductions · − ${formatMoney(b.componentDeductions)} / month`} icon={HiTrendingDown}>
+              <DetailSection title={`Salary deductions · − ${formatMoney(b.componentDeductions)} / month`} icon={HiTrendingDown} defaultOpen={false}>
                 <ComponentTable rows={b.deductions} sign="− " />
               </DetailSection>
             )}
@@ -514,8 +515,8 @@ export default function MySalaryPage() {
                 current structure, so past revisions say so rather than showing
                 a take-home that silently ignores PF and tax. */}
             {b.statutory
-              ? <StatutoryBreakdownPanel statutory={b.statutory} componentDeductions={b.componentDeductions} />
-              : <StatutoryUnavailableNotice />}
+              ? <StatutoryBreakdownPanel statutory={b.statutory} componentDeductions={b.componentDeductions} defaultOpen={false} />
+              : <StatutoryUnavailableNotice defaultOpen={false} />}
           </DetailDialog>
         );
       })()}

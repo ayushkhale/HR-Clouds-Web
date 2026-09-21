@@ -91,11 +91,11 @@ export default function LeaveAutomationPage() {
 
   return (
     <>
-        <DashboardTopBar title="Leave Automation & Maintenance" />
+        <DashboardTopBar title="Leave Automation" />
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
 
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Automation Engine</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Leave Automation</h1>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-4xl">
               The "brain" of the leave system. Automatically calculates and updates employee leave balances via scheduled background jobs. 
               When triggering manually across a year boundary, always run <strong className="text-slate-700">Year-End Rollover before the January accrual</strong>. Both engines are safe to re-run.
