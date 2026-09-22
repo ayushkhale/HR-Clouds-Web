@@ -86,7 +86,7 @@ const ChatbotWidget = () => {
   const messagesEndRef = useRef(null);
   const textareaRef    = useRef(null);
 
-  const { messages, sendMessage, clearMessages, isLoading, isStreaming, error, config } = useDocMindChat();
+  const { messages, sendMessage, clearMessages, stopStreaming, isLoading, isStreaming, error, config } = useDocMindChat();
   const { hidden } = useMayaVisibility(); // toggled from My Profile
 
   /* Config values */
@@ -143,7 +143,9 @@ const ChatbotWidget = () => {
   const charsLeft = maxLen - inputValue.length;
   const charWarn  = charsLeft < 100;
 
-  // Stays mounted while hidden, so the conversation survives a hide/show.
+  // Hiding Maya from My Profile unmounts her entirely — the chat hook lives in
+  // this component, so the conversation does not survive a hide/show. That is
+  // intentional: a hidden assistant should hold nothing and cost nothing.
   if (hidden) return null;
 
   return (
@@ -151,6 +153,11 @@ const ChatbotWidget = () => {
 
       {/* ══ Chat Window ══ */}
       <div
+        id="maya-chat-panel"
+        role="dialog"
+        aria-label="Chat with Maya, the HR Clouds assistant"
+        aria-hidden={!isOpen}
+        {...(isOpen ? {} : { inert: "" })}
         className={`transition-all duration-300 ease-in-out origin-bottom-right mb-3 rounded-2xl
           shadow-2xl bg-white flex flex-col overflow-hidden border border-purple-100
           ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
@@ -177,15 +184,19 @@ const ChatbotWidget = () => {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => { clearMessages(); setInputValue(''); }} title="Clear chat"
+            <button onClick={() => { clearMessages(); setInputValue(''); }}
+              aria-label="Clear chat" title="Clear chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiArrowPath className="w-4 h-4" />
             </button>
-            <button onClick={() => setIsExpanded(p => !p)} title={isExpanded ? 'Shrink' : 'Enlarge'}
+            <button onClick={() => setIsExpanded(p => !p)}
+              aria-label={isExpanded ? 'Shrink chat window' : 'Enlarge chat window'}
+              title={isExpanded ? 'Shrink' : 'Enlarge'}
               className="hidden sm:block p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               {isExpanded ? <HiArrowsPointingIn className="w-4 h-4" /> : <HiArrowsPointingOut className="w-4 h-4" />}
             </button>
             <button onClick={() => setIsOpen(false)}
+              aria-label="Close chat" title="Close chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiXMark className="w-4 h-4" />
             </button>
@@ -309,9 +320,10 @@ const ChatbotWidget = () => {
               style={{ minHeight: '44px', maxHeight: '128px' }}
             />
             {busy ? (
-              <button type="button" onClick={() => { clearMessages(); setInputValue(''); }}
+              <button type="button" onClick={stopStreaming}
                 className="p-3 rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all flex-shrink-0 shadow-sm"
-                title="Stop">
+                aria-label="Stop generating"
+                title="Stop generating">
                 <HiStop className="w-5 h-5" />
               </button>
             ) : (
@@ -333,6 +345,9 @@ const ChatbotWidget = () => {
       {/* ══ FAB pill ══ */}
       <button
         onClick={() => setIsOpen(p => !p)}
+        aria-expanded={isOpen}
+        aria-controls="maya-chat-panel"
+        aria-label={isOpen ? 'Close the Maya assistant' : 'Open the Maya assistant'}
         className={`flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full shadow-xl transition-all
           hover:scale-105 active:scale-95 z-50 relative pointer-events-auto
           ${isOpen ? 'bg-slate-700' : 'bg-gradient-to-r from-purple-700 to-purple-500'}

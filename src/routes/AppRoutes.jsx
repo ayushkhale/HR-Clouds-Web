@@ -11,6 +11,11 @@ import Home from "../landing/pages/Home";
 import About from "../landing/pages/About";
 import Services from "../landing/pages/Services";
 import PricingPage from "../landing/pages/Pricing";
+import Contact from "../landing/pages/Contact";
+import PrivacyPolicy from "../landing/pages/legal/PrivacyPolicy";
+import TermsOfService from "../landing/pages/legal/TermsOfService";
+import CookiePolicy from "../landing/pages/legal/CookiePolicy";
+import StatutoryGuidelines from "../landing/pages/legal/StatutoryGuidelines";
 
 // Auth Layout & Pages
 import AuthLayout from "../auth/AuthLayout";
@@ -151,7 +156,7 @@ const loginPathFrom = (location) =>
   `/auth/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
 
 // Landing, auth and invitation pages don't need a session, so expiry leaves them alone.
-const PUBLIC_PATH = /^\/(about|services|pricing|auth|invitation)?(\/|$)/;
+const PUBLIC_PATH = /^\/(about|services|pricing|contact|legal|auth|invitation)?(\/|$)/;
 
 /* ─── Session expiry ─────────────────────────────────────────────────────────
    When the session ends on its own (401 from the API or token past its expiry),
@@ -208,6 +213,14 @@ function AppRoutes() {
         <Route path="about" element={<About />} />
         <Route path="services" element={<Services />} />
         <Route path="pricing" element={<PricingPage />} />
+        <Route path="contact" element={<Contact />} />
+
+        {/* Legal — linked from the footer, the auth layout and the login page.
+            Every one of these was an href="#" placeholder until now. */}
+        <Route path="legal/privacy" element={<PrivacyPolicy />} />
+        <Route path="legal/terms" element={<TermsOfService />} />
+        <Route path="legal/cookies" element={<CookiePolicy />} />
+        <Route path="legal/statutory" element={<StatutoryGuidelines />} />
       </Route>
 
       {/* ─── AUTHENTICATION ROUTES ─── */}

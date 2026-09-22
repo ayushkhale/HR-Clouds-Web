@@ -16,16 +16,19 @@ function Hero() {
             <ul className="flex">
               {reviewImgs.map((headshot) => (
                 <li className="-mr-4 last:-mr-0" key={headshot.id}>
+                  {/* Decorative trust signal — the names are stock, so announcing
+                      them tells a screen-reader user nothing useful. */}
                   <img
                     src={headshot.image}
-                    alt={headshot.name}
+                    alt=""
                     className="border-4 border-white rounded-full h-10 sm:h-12"
                   />
                 </li>
               ))}
             </ul>
             <p className="font-medium text-primary-800 sm:text-lg">
-              <span className="font-bold text-purple-800">100+</span> Corporates trust us in 2025
+              <span className="font-bold text-purple-800">100+</span> Corporates trust us in{" "}
+              {new Date().getFullYear()}
             </p>
           </div>
         </AnimateOnScroll>
@@ -33,7 +36,7 @@ function Hero() {
           <figure>
             <div className="lg:flex justify-center items-center hidden xl:mr-8 rounded-full w-52 h-52 outline outline-1 outline-primary-800 animate-float">
               <div className="flex flex-col justify-center items-center bg-primary-800 rounded-full w-44 h-44">
-                <p className="font-bold text-5xl text-white">24x7</p>
+                <p className="font-bold text-5xl text-white">24/7</p>
                 <p className="font-bold text-white text-xl">Support</p>
               </div>
             </div>

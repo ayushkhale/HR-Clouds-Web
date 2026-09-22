@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
+import GetStartedLink from "../../../../shared/components/GetStartedLink";
 import { HiOutlineMenu, HiOutlineX } from "react-icons/hi";
 import hrcloudsLogo from "../../../../assets/logo2.png";
 
@@ -48,12 +49,9 @@ function Navigation() {
         >
           Sign In
         </Link>
-        <Link 
-          to="/auth/login" 
-          className="px-6 py-2.5 text-sm font-bold text-primary-800 bg-gradient-to-t from-purple-500 to-purple-200 rounded-full shadow-md hover:drop-shadow-[0_0px_25px_rgba(139,92,246,0.3)] hover:text-white hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
-        >
+        <GetStartedLink className="px-6 py-2.5 text-sm font-bold text-primary-800 bg-gradient-to-t from-purple-500 to-purple-200 rounded-full shadow-md hover:drop-shadow-[0_0px_25px_rgba(139,92,246,0.3)] hover:text-white hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
           Get Started
-        </Link>
+        </GetStartedLink>
       </div>
 
       {/* Mobile Menu Button */}
@@ -82,13 +80,20 @@ function Navigation() {
             
             <div className="h-px w-full bg-gray-200/50 my-2"></div>
 
-            <Link 
+            <Link
               to="/auth/login"
               onClick={() => setOpen(false)}
-              className="w-full px-4 py-2 mt-1 font-bold text-center text-primary-800 hover:text-white text-sm bg-gradient-to-t from-purple-500 to-purple-200 rounded-xl shadow-md cursor-pointer transition-all duration-200 block"
+              className="w-full px-4 py-2 font-semibold text-center text-gray-700 hover:text-purple-700 text-sm rounded-xl transition-colors duration-200 block"
             >
               Sign In
             </Link>
+
+            <GetStartedLink
+              onNavigate={() => setOpen(false)}
+              className="w-full px-4 py-2 font-bold text-center text-primary-800 hover:text-white text-sm bg-gradient-to-t from-purple-500 to-purple-200 rounded-xl shadow-md cursor-pointer transition-all duration-200 block"
+            >
+              Get Started
+            </GetStartedLink>
           </div>
         )}
       </div>

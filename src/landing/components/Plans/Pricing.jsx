@@ -1,13 +1,14 @@
 import { useState } from "react";
 import Toggle from "../../../shared/components/Toggle";
 import PricingCard from "./PricingCard";
-import { pricingCards } from "../../../shared/utils/constants";
+import { PLANS, bestYearlySavingPct } from "../../../shared/config/plans";
 
 function Pricing() {
-  const [paymentPlan, setPaymentPlan] = useState("monthly");
+  const [billing, setBilling] = useState("monthly");
+  const saving = bestYearlySavingPct();
 
   function handlePaymentPlanChange() {
-    setPaymentPlan((plan) => (plan === "monthly" ? "annual" : "monthly"));
+    setBilling((plan) => (plan === "monthly" ? "yearly" : "monthly"));
   }
 
   return (
@@ -22,12 +23,19 @@ function Pricing() {
             handleToggle={handlePaymentPlanChange}
             toggleLabel="Toggle between monthly and annual plans"
           />
-          <p className="text-primary-500 xl:text-lg tracking-tight">Annual</p>
+          <p className="text-primary-500 xl:text-lg tracking-tight">
+            Annual
+            {saving > 0 && (
+              <span className="ml-2 align-middle text-[11px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                save {saving}%
+              </span>
+            )}
+          </p>
         </div>
 
-        <div className="gap-8 grid md:grid-cols-2 lg:grid-cols-3 mt-12 w-full">
-          {pricingCards.map((card, idx) => (
-            <PricingCard key={idx} card={card} paymentPlan={paymentPlan} />
+        <div className="gap-8 grid md:grid-cols-2 lg:grid-cols-3 mt-12 w-full items-stretch">
+          {PLANS.map((plan) => (
+            <PricingCard key={plan.tier} plan={plan} billing={billing} />
           ))}
         </div>
       </div>

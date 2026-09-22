@@ -102,12 +102,16 @@ const OurTeam = () => {
                 {/* Links */}
                 <div className="relative z-10 mt-6 flex justify-center gap-4 text-white/50">
                   {member.linkedin && (
-                    <a href={member.linkedin} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors duration-200">
+                    <a href={member.linkedin} target="_blank" rel="noopener noreferrer"
+                      aria-label={`${member.name} on LinkedIn`}
+                      className="hover:text-white transition-colors duration-200">
                       <FaLinkedin size={20} />
                     </a>
                   )}
                   {member.email && (
-                    <a href={`mailto:${member.email}`} className="hover:text-white transition-colors duration-200">
+                    <a href={`mailto:${member.email}`}
+                      aria-label={`Email ${member.name}`}
+                      className="hover:text-white transition-colors duration-200">
                       <FaEnvelope size={20} />
                     </a>
                   )}

@@ -7,19 +7,16 @@ import hrcloudsLogo from "../assets/logo2.png";
 
 // ── Left panel — Photo with right-fade blend ─────────────────────────────────
 function BrandPanel() {
-  const VIDEO = "https://www.pexels.com/download/video/8034431/";
-
   return (
-    <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-slate-900">
-      {/* Full-cover background video */}
-      <video
-        src={VIDEO}
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover object-center"
-      />
+    <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-[#1a0b2e]">
+      {/* Brand field. Replaced a <video> pointed at a Pexels download URL —
+          that endpoint redirects rather than serving a file, so it rendered as
+          a black rectangle and hotlinked a third party's bandwidth when it
+          didn't. Drop a self-hosted mp4 in here if a moving background is
+          wanted later. */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#2b0f4d] via-[#4c1d95] to-[#1a0b2e]" />
+      <div className="absolute -top-24 -left-24 w-[34rem] h-[34rem] rounded-full bg-purple-500/25 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-8rem] right-[-6rem] w-[28rem] h-[28rem] rounded-full bg-fuchsia-500/20 blur-[110px] pointer-events-none" />
 
       {/* Top Left: Back arrow to landing page */}
       <Link
@@ -124,9 +121,9 @@ function AuthLayout() {
 
         {/* Footer */}
         <div className="mt-auto pt-10 text-center text-[11px] text-gray-400">
-          <a href="#" className="text-purple-600 hover:underline">Terms & Conditions</a>
+          <Link to="/legal/terms" className="text-purple-600 hover:underline">Terms & Conditions</Link>
           &nbsp;|&nbsp;
-          <a href="#" className="text-purple-600 hover:underline">Privacy Policy</a>
+          <Link to="/legal/privacy" className="text-purple-600 hover:underline">Privacy Policy</Link>
         </div>
       </div>
     </div>

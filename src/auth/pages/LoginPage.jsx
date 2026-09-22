@@ -152,9 +152,9 @@ function LoginPage() {
 
       <p className="text-center text-[11px] text-gray-400 mt-7 leading-relaxed">
         By signing in, you agree to our{" "}
-        <a href="#" className="text-purple-600 hover:underline">Terms of Service</a>{" "}
+        <Link to="/legal/terms" className="text-purple-600 hover:underline">Terms of Service</Link>{" "}
         and{" "}
-        <a href="#" className="text-purple-600 hover:underline">Privacy Policy</a>.
+        <Link to="/legal/privacy" className="text-purple-600 hover:underline">Privacy Policy</Link>.
       </p>
     </div>
   );

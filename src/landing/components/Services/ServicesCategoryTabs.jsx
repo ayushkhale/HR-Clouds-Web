@@ -1,11 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Solutions } from "../../../shared/utils/constants";
 import ServiceCard from "./ServiceCard";
+import { slugFor } from "./slug";
 
 const categories = [...new Set(Solutions.map((s) => s.category))];
 
+// Only the active tab's cards are in the DOM, so a link like /services#payroll
+// has to switch tabs before the target exists to scroll to.
+const categoryForSlug = (slug) =>
+  Solutions.find((s) => slugFor(s) === slug)?.category;
+
 function ServicesCategoryTabs() {
-  const [active, setActive] = useState(categories[0] || "");
+  const { hash } = useLocation();
+  const slug = hash.replace("#", "");
+  const [active, setActive] = useState(
+    () => categoryForSlug(slug) || categories[0] || ""
+  );
+
+  useEffect(() => {
+    if (!slug) return;
+    const category = categoryForSlug(slug);
+    if (!category) return;
+    setActive(category);
+    // Wait for the tab switch to paint before scrolling to the card.
+    const id = requestAnimationFrame(() => {
+      document.getElementById(slug)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [slug]);
 
   const filtered = Solutions.filter((s) => s.category === active);
 
@@ -31,6 +54,7 @@ function ServicesCategoryTabs() {
           <button
             key={cat}
             onClick={() => setActive(cat)}
+            aria-pressed={active === cat}
             className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ${
               active === cat
                 ? "bg-gradient-to-t from-purple-500 to-purple-200 text-primary-500 shadow-[0_4px_14px_rgba(139,92,246,0.25)] border-transparent"
@@ -45,7 +69,7 @@ function ServicesCategoryTabs() {
       {/* Cards grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filtered.map((item, index) => (
-          <ServiceCard solution={item} key={`${item.category}-${index}`} />
+          <ServiceCard solution={item} key={slugFor(item) || `${item.category}-${index}`} />
         ))}
       </div>
     </section>

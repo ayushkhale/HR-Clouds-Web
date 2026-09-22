@@ -105,104 +105,6 @@ const features = [
   },
 ];
 
-const footerCols = [
-  {
-    id: 1,
-    heading: "Company",
-    links: [
-      { name: "About Us", path: "/about" },
-      { name: "Services & Modules", path: "/services" },
-      { name: "Pricing Plans", path: "/pricing" },
-    ],
-  },
-  {
-    id: 2,
-    heading: "HR Modules",
-    links: [
-      { name: "Payroll Automation", path: "/services" },
-      { name: "Leave & Attendance", path: "/services" },
-      { name: "Employee Onboarding", path: "/services" },
-      { name: "Performance & OKRs", path: "/services" },
-    ],
-  },
-  {
-    id: 3,
-    heading: "Support & Legal",
-    links: [
-      { name: "Help Center", path: "#" },
-      { name: "Privacy Policy", path: "#" },
-      { name: "Terms of Service", path: "#" },
-      { name: "Statutory Guidelines", path: "#" },
-    ],
-  },
-];
-
-const footerSocials = [
-  { id: 1, name: "LinkedIn", path: "#" },
-  { id: 2, name: "Twitter", path: "#" },
-  { id: 3, name: "Facebook", path: "#" },
-];
-
-const pricingCards = [
-  {
-    primary: true,
-    mostPopular: false,
-    program: "Free Plan",
-    price: {
-      monthly: "Free",
-      annual: "Free",
-    },
-    subheading: "Basic features for small teams",
-    bullets: [
-      "Up to 10 employees & 2 managers",
-      "Employee Management",
-      "Attendance & Leave",
-      "Payroll",
-      "Basic support",
-    ],
-    cta: "Try Free",
-  },
-  {
-    primary: true,
-    mostPopular: true,
-    program: "Starter",
-    price: {
-      monthly: "₹49",
-      annual: "₹500",
-    },
-    subheading: "Great for growing teams",
-    bullets: [
-      "Up to 20 employees & 5 managers",
-      "Employee Management",
-      "Attendance & Leave",
-      "Payroll",
-      "Priority support",
-      "Advanced reporting",
-    ],
-    cta: "Get Started",
-  },
-  {
-    primary: true,
-    mostPopular: false,
-    program: "Growth",
-    price: {
-      monthly: "₹99",
-      annual: "₹990",
-    },
-    subheading: "For large organizations",
-    bullets: [
-      "Up to 300 employees & 10 managers",
-      "Employee Management",
-      "Attendance & Geofencing",
-      "Payroll & Leave",
-      "Recruitment",
-      "24/7 support",
-      "Custom integrations",
-    ],
-    cta: "Talk to Sales",
-  },
-];
-
 const testimonials = [
   {
     program: "growth",
@@ -344,6 +246,7 @@ const Solutions = [
     title: "OKR & Goal Tracking",
     description: "Set company-wide, departmental, and individual objectives with real-time milestone tracking.",
     link: "/services#okr",
+    comingSoon: true,
   },
   {
     category: "Performance & Culture",
@@ -351,6 +254,7 @@ const Solutions = [
     title: "360° Appraisal Reviews",
     description: "Run structured quarterly or annual performance reviews with self, peer, and manager feedback.",
     link: "/services#appraisals",
+    comingSoon: true,
   },
   {
     category: "Performance & Culture",
@@ -358,6 +262,7 @@ const Solutions = [
     title: "Continuous Feedback & Recognition",
     description: "Foster positive culture with peer badges, shout-outs, and instant manager praise.",
     link: "/services#feedback",
+    comingSoon: true,
   },
   {
     category: "Performance & Culture",
@@ -365,6 +270,7 @@ const Solutions = [
     title: "Training & Skill Development",
     description: "Track employee certifications, upskilling modules, and learning plans across teams.",
     link: "/services#training",
+    comingSoon: true,
   },
 
   // Workforce Analytics
@@ -381,6 +287,7 @@ const Solutions = [
     title: "Attrition & Retention Insights",
     description: "Analyze turnover rates, exit interview feedback, and department retention risks proactively.",
     link: "/services#retention",
+    comingSoon: true,
   },
   {
     category: "Workforce Analytics",
@@ -388,6 +295,7 @@ const Solutions = [
     title: "Custom Report Builder",
     description: "Design custom reports with drag-and-drop columns and export cleanly to Excel, CSV, or PDF.",
     link: "/services#reports",
+    comingSoon: true,
   },
   {
     category: "Workforce Analytics",
@@ -437,6 +345,7 @@ const featureHighlights = [
   {
     id: 3,
     label: "Integration",
+    comingSoon: true,
     title: "Seamless Platform Integration",
     description:
       "Connect HR Clouds with your existing tools effortlessly. Our platform integrates with popular accounting software, communication tools, and third-party apps through robust APIs.",
@@ -456,9 +365,6 @@ export {
   appStatsImgs,
   appStats,
   features,
-  footerCols,
-  footerSocials,
-  pricingCards,
   testimonials,
   Solutions,
   servicesStats,

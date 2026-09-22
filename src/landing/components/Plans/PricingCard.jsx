@@ -1,6 +1,18 @@
 import { CiCircleCheck } from "react-icons/ci";
+import GetStartedLink from "../../../shared/components/GetStartedLink";
+import {
+  formatPlanPrice,
+  planPeriodLabel,
+  planPriceCaption,
+  planBullets,
+} from "../../../shared/config/plans";
 
-function PricingCard({ card, paymentPlan }) {
+// Every tier sends the buyer to the same place — the org registration flow,
+// which is where a plan is actually chosen and paid for. The tier is passed
+// along so the picker can pre-select it.
+const ctaLabel = (plan) => (plan.tier === "free" ? "Start free" : `Choose ${plan.name}`);
+
+function PricingCard({ plan, billing }) {
   const pclass = {
     container: "pb-12 lg:pb-14",
     bulletColor: "stroke-purple-500",
@@ -10,21 +22,16 @@ function PricingCard({ card, paymentPlan }) {
       drop-shadow-[0_0px_35px_rgba(139,92,246,0.25)] hover:drop-shadow-[0_0px_45px_rgba(139,92,246,0.35)]",
   };
 
-  const price = card.price[paymentPlan];
-  const priceDisplay = price;
-  const hidePlanPeriod = price === "Free" || price === "Contact Us" || price === "Custom";
-  const paymentPlanText = hidePlanPeriod
-    ? ""
-    : paymentPlan === "monthly"
-    ? "per month"
-    : "per year";
+  const price = formatPlanPrice(plan, billing);
+  const period = planPeriodLabel(plan, billing);
+  const bullets = planBullets(plan);
 
   return (
     <div
-      className={`bg-primary-500 px-8 pt-8 rounded-2xl relative overflow-hidden ${pclass.container}`}
+      className={`bg-primary-500 px-8 pt-8 rounded-2xl relative overflow-hidden flex flex-col ${pclass.container}`}
     >
       {/* Gradient Tags and Highlights */}
-      {card.mostPopular && (
+      {plan.popular && (
         <>
           <div className="top-0 right-0 z-10 absolute bg-gradient-to-b from-purple-500 to-purple-200 py-[.125rem] rounded-tr-2xl rounded-bl-2xl">
             <p className="bg-purple-500 bg-gradient-to-t from-purple-500 to-purple-200 px-4 py-2 rounded-tr-xl rounded-bl-2xl text-xs text-white">
@@ -37,24 +44,28 @@ function PricingCard({ card, paymentPlan }) {
       )}
 
       {/* Plan Name */}
-      <p className="opacity-80 mb-12 px-6 py-2 border rounded-2xl max-w-min text-sm text-white capitalize">
-        {card.program}
+      <p className="opacity-80 mb-10 px-6 py-2 border rounded-2xl max-w-min text-sm text-white capitalize whitespace-nowrap">
+        {plan.name}
       </p>
 
       {/* Price */}
-      <div className="flex items-end gap-x-2 mb-2">
+      <div className="flex items-end gap-x-2 mb-1">
         <p className="font-bold text-4xl sm:text-5xl lg:text-[4rem]/[4rem] text-white">
-          {priceDisplay}
+          {price}
         </p>
-        <span className="text-white text-sm pb-1">{paymentPlanText}</span>
+        <span className="text-white text-sm pb-1">{period}</span>
       </div>
 
-      <p className="opacity-80 mb-8 text-sm text-white">{card.subheading}</p>
+      {/* Spells out what the price covers — a bare "₹49" used to leave people
+          guessing whether it was per employee or for the whole workspace. */}
+      <p className="opacity-70 mb-6 text-xs text-white">{planPriceCaption(plan)}</p>
+
+      <p className="opacity-80 mb-8 text-sm text-white">{plan.description}</p>
 
       {/* Bullets */}
-      <ul className="space-y-4 mb-10">
-        {card.bullets.map((bullet, idx) => (
-          <li key={idx} className="flex items-center gap-x-3 text-white/90 text-sm">
+      <ul className="space-y-4 mb-10 flex-1">
+        {bullets.map((bullet) => (
+          <li key={bullet} className="flex items-center gap-x-3 text-white/90 text-sm">
             <CiCircleCheck className={`w-6 h-6 flex-shrink-0 ${pclass.bulletColor}`} />
             <span>{bullet}</span>
           </li>
@@ -63,12 +74,13 @@ function PricingCard({ card, paymentPlan }) {
 
       {/* CTA Button */}
       <div className={pclass.ctaWrapper}>
-        <button
-          type="button"
-          className={`w-full py-3 text-center rounded-[.875rem] font-bold text-sm text-primary-500 hover:text-white transition-all duration-200 ${pclass.cta}`}
+        <GetStartedLink
+          plan={plan.tier}
+          billing={billing}
+          className={`block w-full py-3 text-center rounded-[.875rem] font-bold text-sm text-primary-500 hover:text-white transition-all duration-200 ${pclass.cta}`}
         >
-          {card.cta}
-        </button>
+          {ctaLabel(plan)}
+        </GetStartedLink>
       </div>
     </div>
   );

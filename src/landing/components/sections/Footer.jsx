@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FaFacebookF, FaTwitter, FaLinkedinIn, FaInstagram, FaYoutube, FaArrowRight } from "react-icons/fa";
 import { FiSend } from "react-icons/fi";
 import hrcloudsLogo from "../../../assets/logo2.png";
+import { COMPANY } from "../../../shared/config/company";
 
 const footerCols = [
   {
@@ -16,29 +17,30 @@ const footerCols = [
   {
     heading: "HR Modules",
     links: [
-      { name: "Payroll Automation", path: "/services" },
-      { name: "Leave & Attendance", path: "/services" },
-      { name: "Employee Onboarding", path: "/services" },
-      { name: "Performance & OKRs", path: "/services" },
+      { name: "Payroll Automation", path: "/services#payroll" },
+      { name: "Leave & Attendance", path: "/services#attendance" },
+      { name: "Employee Onboarding", path: "/services#onboarding" },
+      { name: "Performance & OKRs", path: "/services#okr" },
     ],
   },
   {
     heading: "Support & Legal",
     links: [
-      { name: "Help Center", path: "#" },
-      { name: "Privacy Policy", path: "#" },
-      { name: "Terms of Service", path: "#" },
-      { name: "Statutory Guidelines", path: "#" },
+      { name: "Contact & Support", path: "/contact" },
+      { name: "Privacy Policy", path: "/legal/privacy" },
+      { name: "Terms of Service", path: "/legal/terms" },
+      { name: "Statutory Guidelines", path: "/legal/statutory" },
     ],
   },
 ];
 
+// Only networks with a real profile URL in company.js are shown.
 const socialLinks = [
-  { icon: <FaLinkedinIn />, href: "https://linkedin.com", label: "LinkedIn" },
-  { icon: <FaTwitter />, href: "https://twitter.com", label: "Twitter" },
-  { icon: <FaFacebookF />, href: "https://facebook.com", label: "Facebook" },
-  { icon: <FaInstagram />, href: "https://instagram.com", label: "Instagram" },
-];
+  { icon: <FaLinkedinIn />, href: COMPANY.social.linkedin, label: "LinkedIn" },
+  { icon: <FaTwitter />, href: COMPANY.social.twitter, label: "Twitter" },
+  { icon: <FaFacebookF />, href: COMPANY.social.facebook, label: "Facebook" },
+  { icon: <FaInstagram />, href: COMPANY.social.instagram, label: "Instagram" },
+].filter((s) => s.href);
 
 function Footer() {
   const [email, setEmail] = useState("");
@@ -77,7 +79,9 @@ function Footer() {
               Empowering organizations across India with automated payroll, ESI/PF statutory compliance engines, biometric attendance, and intelligent HR analytics.
             </p>
 
-            {/* Social Icons */}
+            {/* Social Icons — the row disappears entirely when no profile URLs
+                are configured, rather than leaving an empty strip of padding. */}
+            {socialLinks.length > 0 && (
             <div className="flex items-center gap-3 pt-2">
               {socialLinks.map((item, idx) => (
                 <a
@@ -92,6 +96,7 @@ function Footer() {
                 </a>
               ))}
             </div>
+            )}
           </div>
 
           {/* Quick Links (Columns 1 & 2) */}
@@ -156,9 +161,9 @@ function Footer() {
           <p>© {new Date().getFullYear()} HR Vista Soft Solutions LLP. All rights reserved.</p>
           
           <div className="flex gap-x-6">
-            <a href="#" className="hover:text-white transition-colors duration-200">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors duration-200">Terms</a>
-            <a href="#" className="hover:text-white transition-colors duration-200">Cookies</a>
+            <Link to="/legal/privacy" className="hover:text-white transition-colors duration-200">Privacy</Link>
+            <Link to="/legal/terms" className="hover:text-white transition-colors duration-200">Terms</Link>
+            <Link to="/legal/cookies" className="hover:text-white transition-colors duration-200">Cookies</Link>
           </div>
         </div>
 

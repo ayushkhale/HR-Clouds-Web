@@ -1,22 +1,16 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
 import Pricing from "../components/Plans/Pricing";
 import { HiChevronDown, HiCheck, HiMinus } from "react-icons/hi";
 import pricingills from "../../assets/testimonials/pricingills.png";
 import AnimateOnScroll from "../../shared/components/AnimateOnScroll";
+import { PLANS, comparisonRows } from "../../shared/config/plans";
+import GetStartedLink from "../../shared/components/GetStartedLink";
 
 // ─── Essential Feature Comparison ──────────────────────────────
-const comparisonFeatures = [
-  { label: "Employee Limit", starter: "Up to 10", growth: "Up to 250", enterprise: "Unlimited" },
-  { label: "Attendance & Leave Tracking", starter: true, growth: true, enterprise: true },
-  { label: "Payroll Processing", starter: "Manual", growth: "Automated", enterprise: "Automated" },
-  { label: "Statutory Compliance (PF, ESI)", starter: false, growth: true, enterprise: true },
-  { label: "Custom Workflows & OKRs", starter: false, growth: true, enterprise: true },
-  { label: "Custom Analytics & Reports", starter: "Basic", growth: "Advanced", enterprise: "Custom" },
-  { label: "Third-party Integrations", starter: false, growth: "5 apps", enterprise: "Unlimited" },
-  { label: "SSO & Role-based Security", starter: "Basic", growth: true, enterprise: "Advanced" },
-  { label: "Dedicated Account Support", starter: "Email only", growth: "Priority", enterprise: "24/7 SLA" },
-];
+// Rows come from the plan catalog so this table can never contradict the
+// cards above it or the checkout. It previously listed an Enterprise tier
+// that doesn't exist and omitted the Free plan that does.
+const comparisonFeatures = comparisonRows();
 
 // ─── Simplified FAQ ──────────────────────────────────────────
 const faqs = [
@@ -26,11 +20,11 @@ const faqs = [
   },
   {
     q: "How quickly can we get started?",
-    a: "Growth and Starter plans come with instant digital setup — no credit card needed. Enterprise plans get a fully guided proof-of-concept period managed by your dedicated account executive.",
+    a: "Every plan sets up instantly online — no credit card needed for the Free plan. Paid plans activate the moment payment clears, and our team helps import your roster at no extra cost.",
   },
   {
     q: "How does annual billing work?",
-    a: "Annual plans are invoiced once per year and carry a ~15-20% discount vs. monthly. You receive a single GST-compliant invoice at the start of each year.",
+    a: "Annual plans are invoiced once per year and save you about 17% against paying monthly. You receive a single GST-compliant invoice at the start of each year.",
   },
   {
     q: "What happens if we exceed our employee limit?",
@@ -58,6 +52,14 @@ function CompCell({ value }) {
     return (
       <span className="inline-flex items-center justify-center w-7 h-7">
         <HiMinus className="w-4 h-4 text-white/20" />
+      </span>
+    );
+  // A feature the plan grants but the product hasn't shipped yet reads as a
+  // dated badge, never a tick — a tick would promise a screen that isn't there.
+  if (value === "Coming soon")
+    return (
+      <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-[10px] font-bold uppercase tracking-wide text-white/55 whitespace-nowrap">
+        Coming soon
       </span>
     );
   return <span className="text-xs sm:text-sm font-medium text-white/75 text-center">{value}</span>;
@@ -128,7 +130,7 @@ const PricingPage = () => {
                 </span>
               </h1>
               <p className="text-gray-500 text-lg sm:text-xl max-w-2xl leading-relaxed mb-12">
-                Whether you're a 5-person startup or a 5,000-person enterprise, HR Clouds has
+                Whether you're a 5-person startup or a 300-person organization, HR Clouds has
                 a plan built around your scale — one unified platform covering HRMS, Payroll,
                 Compliance, and Analytics. No hidden fees. No lock-ins.
               </p>
@@ -170,8 +172,8 @@ const PricingPage = () => {
 
           <div className="grid grid-cols-4 border-b border-white/10 px-4 sm:px-8 py-5 sticky top-0 bg-primary-500 z-10">
             <div className="text-white/40 text-xs font-bold uppercase tracking-widest">Feature</div>
-            {[{ name: "Starter", popular: false }, { name: "Growth", popular: true }, { name: "Enterprise", popular: false }].map(({ name, popular }) => (
-              <div key={name} className="text-center">
+            {PLANS.map(({ tier, name, popular }) => (
+              <div key={tier} className="text-center">
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${popular ? "bg-gradient-to-r from-purple-500 to-purple-300 text-white" : "bg-white/10 text-white/70"}`}>
                   {name}
                 </span>
@@ -187,9 +189,11 @@ const PricingPage = () => {
               }`}
             >
               <span className="text-white/80 text-xs sm:text-sm font-medium">{feat.label}</span>
-              <div className="flex justify-center"><CompCell value={feat.starter} /></div>
-              <div className="flex justify-center"><CompCell value={feat.growth} /></div>
-              <div className="flex justify-center"><CompCell value={feat.enterprise} /></div>
+              {feat.values.map((value, col) => (
+                <div key={PLANS[col].tier} className="flex justify-center">
+                  <CompCell value={value} />
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -232,12 +236,12 @@ const PricingPage = () => {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
-              <Link
-                to="/auth/register"
+              <GetStartedLink
+                plan="free"
                 className="px-7 py-3.5 rounded-2xl font-bold text-sm text-primary-800 bg-gradient-to-t from-purple-500 to-purple-200 border border-purple-400/30 hover:text-white transition-all duration-200 text-center cursor-pointer"
               >
                 Get Started Free
-              </Link>
+              </GetStartedLink>
               <a
                 href="mailto:hello@hrclouds.in"
                 className="px-7 py-3.5 rounded-2xl font-semibold text-sm text-white/80 border border-white/20 hover:bg-white/10 transition-all duration-200 text-center"

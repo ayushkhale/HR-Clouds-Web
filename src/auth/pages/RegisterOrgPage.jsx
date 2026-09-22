@@ -1,37 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { organizationAPI, tokenHelper } from "../../shared/api";
 import { useAuth } from "../../shared/contexts/AuthContext";
 import { HiCheck, HiArrowLeft, HiArrowRight, HiOfficeBuilding } from "react-icons/hi";
 import hrcloudsLogo from "../../assets/logo2.png";
-
-const PLANS = [
-  {
-    code: "free",
-    name: "Free Plan",
-    tagline: "For small teams getting started",
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    features: ["Up to 5 employees", "Basic attendance tracking", "Leave management", "Email support"],
-  },
-  {
-    code: "starter",
-    name: "Starter Plan",
-    tagline: "For growing teams up to 50",
-    monthlyPrice: 499,
-    yearlyPrice: 4999,
-    popular: true,
-    features: ["Up to 50 employees", "Automated payroll processing", "Biometric/Geo attendance", "Priority email & chat support", "Custom reports export"],
-  },
-  {
-    code: "growth",
-    name: "Growth Plan",
-    tagline: "For scaling organizations",
-    monthlyPrice: 999,
-    yearlyPrice: 9999,
-    features: ["Up to 250 employees", "Full compliance (PF, ESI, PT, TDS)", "Custom workflows & OKRs", "Advanced analytics dashboards", "5 external app integrations", "24/7 dedicated support"],
-  },
-];
+import {
+  PLANS,
+  PLAN_BY_TIER,
+  planCodeFor,
+  formatPlanPrice,
+  planBullets,
+  bestYearlySavingPct,
+} from "../../shared/config/plans";
+import { readPlanIntent, clearPlanIntent } from "../../shared/config/planIntent";
 
 const INDUSTRIES = [
   "Software Development", "IT Services", "E-Commerce", "Healthcare",
@@ -39,6 +20,13 @@ const INDUSTRIES = [
 ];
 
 const SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
+
+// A size bucket is offerable when its smallest team still fits the plan's seat
+// limit. Derived from the catalog so a limit change can't leave a stale list
+// that lets someone pick "201-500" on a 20-seat plan.
+const bucketFloor = (bucket) => parseInt(bucket, 10) || 0;
+const sizesForPlan = (plan) =>
+  plan ? SIZES.filter((b) => bucketFloor(b) <= plan.limits.employees) : SIZES;
 
 function loadRazorpayScript() {
   return new Promise((resolve) => {
@@ -59,6 +47,7 @@ const PENDING_ORG_KEY = "hrclouds_pending_org_id";
 
 function RegisterOrgPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, getDashboardPath, role } = useAuth();
 
   // Step 1: select plan; Step 2: enter details
@@ -78,6 +67,29 @@ function RegisterOrgPage() {
 
   useEffect(() => { loadRazorpayScript(); }, []);
 
+  // A pricing-page card links here as ?plan=starter&billing=yearly. Honour it
+  // so the plan the buyer clicked is the plan they land on — picking again
+  // from a second, identical list is how the two lists drifted apart before.
+  useEffect(() => {
+    // Either the query string (already signed in, straight from a card) or the
+    // intent parked before the signup detour. Query wins — it is the more
+    // recent click.
+    const parked = readPlanIntent();
+    const tier = searchParams.get("plan") || parked?.tier;
+    const cycle = searchParams.get("billing") || parked?.billing;
+
+    if (cycle === "yearly" || cycle === "monthly") setBilling(cycle);
+    const preset = tier && PLAN_BY_TIER[tier];
+    if (preset) {
+      setSelectedPlan(preset);
+      setStep(2);
+    }
+    clearPlanIntent(); // honoured once; re-picking here must stick
+
+    // Read once on entry — later edits to the picker must not be overwritten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!tokenHelper.get()) {
       navigate("/auth/login", { replace: true });
@@ -91,16 +103,12 @@ function RegisterOrgPage() {
   }, [navigate, role, getDashboardPath]);
 
   useEffect(() => {
-    if (selectedPlan?.code === "free") {
+    if (selectedPlan?.tier === "free") {
       setForm((prev) => ({ ...prev, size: "1-10" }));
     }
   }, [selectedPlan]);
 
-  const availableSizes = selectedPlan?.code === "free"
-    ? ["1-10"]
-    : selectedPlan?.code === "starter"
-    ? ["1-10", "11-50"]
-    : SIZES;
+  const availableSizes = sizesForPlan(selectedPlan);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -113,9 +121,7 @@ function RegisterOrgPage() {
     setError("");
     setLoading(true);
 
-    const planCode = billing === "yearly"
-      ? `${selectedPlan.code}_yearly`
-      : selectedPlan.code === "free" ? "free" : `${selectedPlan.code}_monthly`;
+    const planCode = planCodeFor(selectedPlan, billing);
 
     try {
       const res = await organizationAPI.initiateRegistration({
@@ -292,7 +298,7 @@ function RegisterOrgPage() {
                 >
                   Yearly billing
                   <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-bold">
-                    Save ~15%
+                    Save {bestYearlySavingPct()}%
                   </span>
                 </button>
               </div>
@@ -301,10 +307,11 @@ function RegisterOrgPage() {
             {/* Clean 3-Card Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
               {PLANS.map((plan) => {
-                const price = billing === "yearly" ? plan.yearlyPrice : plan.monthlyPrice;
+                const price = formatPlanPrice(plan, billing);
+                const isFree = plan.monthly.amount === 0;
                 return (
                   <div
-                    key={plan.code}
+                    key={plan.tier}
                     className={`bg-white rounded-2xl p-7 flex flex-col justify-between transition-all duration-200 relative
                       ${plan.popular
                         ? "border-2 border-purple-600 bg-purple-50/10 shadow-md shadow-purple-100"
@@ -319,21 +326,24 @@ function RegisterOrgPage() {
 
                     <div>
                       <h3 className="font-bold text-lg text-gray-900 mb-1">{plan.name}</h3>
-                      <p className="text-xs text-gray-500 mb-6">{plan.tagline}</p>
+                      <p className="text-xs text-gray-500 mb-6">{plan.description}</p>
 
-                      <div className="mb-6 flex items-baseline">
+                      <div className="mb-1 flex items-baseline">
                         <span className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-                          {price === 0 ? "Free" : `₹${price.toLocaleString("en-IN")}`}
+                          {price}
                         </span>
-                        {price > 0 && (
-                          <span className="text-xs text-gray-400 ml-1 capitalize">
+                        {!isFree && (
+                          <span className="text-xs text-gray-400 ml-1">
                             /{billing === "yearly" ? "year" : "month"}
                           </span>
                         )}
                       </div>
+                      <p className="text-[11px] text-gray-400 mb-6">
+                        for the whole workspace
+                      </p>
 
                       <ul className="space-y-2.5 mb-8">
-                        {plan.features.map((f) => (
+                        {planBullets(plan).map((f) => (
                           <li key={f} className="flex items-center gap-2 text-xs text-gray-600">
                             <HiCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
                             <span>{f}</span>
@@ -353,7 +363,7 @@ function RegisterOrgPage() {
                           : "bg-gray-100 hover:bg-gray-200 text-gray-900"
                         }`}
                     >
-                      {price === 0 ? "Get Started Free" : "Select Plan"}
+                      {isFree ? "Get Started Free" : "Select Plan"}
                       <HiArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -452,9 +462,9 @@ function RegisterOrgPage() {
                     <option value="">Select size</option>
                     {availableSizes.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
-                  {selectedPlan?.code === "free" && (
+                  {selectedPlan && (
                     <p className="text-[11px] text-purple-600 font-medium mt-1">
-                      Free plan is limited to teams of 1-10 employees.
+                      {selectedPlan.name} covers up to {selectedPlan.limits.employees} employees.
                     </p>
                   )}
                 </div>

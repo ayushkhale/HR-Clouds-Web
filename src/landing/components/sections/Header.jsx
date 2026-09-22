@@ -15,7 +15,9 @@ function Header({ children }) {
     <header 
       className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 ${
         scrolled 
-          ? "py-3 bg-white/50 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.04)] border-b border-white/40 supports-[backdrop-filter]:bg-white/40" 
+          // No backdrop-blur here: the nav pill inside already blurs, and
+          // stacking two backdrop filters produced a visible smear band.
+          ? "py-3 bg-white/70 shadow-[0_4px_30px_rgba(0,0,0,0.04)] border-b border-white/40" 
           : "py-5 bg-transparent"
       }`}
     >
