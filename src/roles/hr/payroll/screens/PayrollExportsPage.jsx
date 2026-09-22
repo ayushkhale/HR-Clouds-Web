@@ -16,7 +16,7 @@ import { formatPeriod } from "../../../../shared/utils/formatUtils";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
-import { EXPORT_SCOPE_LABEL, EXPORT_STATUS, EXPORT_TYPE_LABEL, meta } from "../phase6Meta";
+import { EXPORT_SCOPE_LABEL, EXPORT_STATUS, EXPORT_TYPE_LABEL, exportStatusKey, meta } from "../phase6Meta";
 import {
   HiChevronLeft, HiChevronRight, HiCloudDownload, HiCode, HiDocumentText, HiFilter, HiRefresh, HiX,
 } from "react-icons/hi";
@@ -25,7 +25,7 @@ const PAGE_SIZE = 20;
 
 const TYPE_FILTERS = [["", "All exports"], ...Object.entries(EXPORT_TYPE_LABEL)];
 const FORMAT_FILTERS = [["", "Any format"], ["csv", "CSV"], ["pdf", "PDF"], ["zip", "ZIP"], ["json", "On screen (JSON)"]];
-const STATUS_FILTERS = [["", "Any outcome"], ["completed", "Completed"], ["started", "In progress"], ["failed", "Failed"]];
+const STATUS_FILTERS = [["", "Any outcome"], ["completed", "Completed"], ["no_data", "Empty · no data"], ["started", "In progress"], ["failed", "Failed"]];
 
 const emptyFilters = { report_type: "", format: "", status: "" };
 
@@ -172,7 +172,7 @@ export default function PayrollExportsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {rows.map((row, i) => {
-                    const status = meta(EXPORT_STATUS, row.status);
+                    const status = meta(EXPORT_STATUS, exportStatusKey(row));
                     return (
                       <tr key={row.id || i} {...rowPreviewProps(() => setPreview(row), "View export record")}>
                         <td className="px-6 py-4 text-slate-600 whitespace-nowrap">{fmtWhen(row.created_at || row.started_at)}</td>
@@ -223,7 +223,7 @@ export default function PayrollExportsPage() {
           icon={HiCloudDownload}
           title={EXPORT_TYPE_LABEL[preview.report_type] || preview.report_type || "Export"}
           subtitle={fmtWhen(preview.created_at || preview.started_at)}
-          badge={<DetailPill tone="onDark">{meta(EXPORT_STATUS, preview.status).label}</DetailPill>}
+          badge={<DetailPill tone="onDark">{meta(EXPORT_STATUS, exportStatusKey(preview)).label}</DetailPill>}
           onClose={() => setPreview(null)}
         >
           <DetailSection title="What left the system" icon={HiDocumentText}>

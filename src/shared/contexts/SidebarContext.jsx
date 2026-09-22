@@ -5,7 +5,14 @@ const SidebarContext = createContext();
 
 export function SidebarProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  // The sidebar publishes its menu here so the top bar's page search and
+  // notification bell use exactly the pages and inbox the sidebar shows.
+  const [nav, setNavState] = useState({ items: [], inbox: null });
   const location = useLocation();
+
+  const setNav = useCallback((next) => {
+    setNavState((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+  }, []);
 
   const toggleSidebar = useCallback(() => {
     setIsMobileSidebarOpen(prev => !prev);
@@ -33,7 +40,7 @@ export function SidebarProvider({ children }) {
   }, [isMobileSidebarOpen]);
 
   return (
-    <SidebarContext.Provider value={{ isMobileSidebarOpen, toggleSidebar, closeSidebar }}>
+    <SidebarContext.Provider value={{ isMobileSidebarOpen, toggleSidebar, closeSidebar, nav, setNav }}>
       {children}
     </SidebarContext.Provider>
   );

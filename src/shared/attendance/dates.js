@@ -206,12 +206,36 @@ export function fmtMinutes(value, fallback = "0m") {
   return `${sign}${h}h ${m}m`;
 }
 
-/** Decimal hours (number or "8.50") → "8h 30m". null → fallback. */
+/**
+ * Decimal hours (number or "8.50") → "8h 30m". null → fallback.
+ * Every caller shows a duration (worked, effective, thresholds), which is never
+ * below zero; the server can return e.g. -0.02 when breaks outlast the punches,
+ * so negatives read "0m" instead of "-1m".
+ */
 export function fmtHours(value, fallback = "0m") {
   if (value === null || value === undefined || value === "") return fallback;
   const n = parseFloat(value);
   if (!Number.isFinite(n)) return fallback;
-  return fmtMinutes(Math.round(n * 60), fallback);
+  return fmtMinutes(Math.max(0, Math.round(n * 60)), fallback);
+}
+
+/**
+ * Time worked on a day, as the backend states it. `worked_duration_formatted`
+ * ("8h 32m", breaks already taken off, the same figure the policy and overtime
+ * use) is the source of truth; `effective_hours` is only the fallback for reads
+ * that don't carry it yet. Never derive it from clock-in/out.
+ */
+export function workedLabel(record, fallback = "0m") {
+  const text = typeof record?.worked_duration_formatted === "string" ? record.worked_duration_formatted.trim() : "";
+  if (text) return text;
+  return fmtHours(record?.effective_hours, fallback);
+}
+
+/** A month's total worked time: `total_worked_duration_formatted`, else `total_hours_worked`. */
+export function totalWorkedLabel(summary, fallback = "0m") {
+  const text = typeof summary?.total_worked_duration_formatted === "string" ? summary.total_worked_duration_formatted.trim() : "";
+  if (text) return text;
+  return fmtHours(summary?.total_hours_worked, fallback);
 }
 
 /** Elapsed milliseconds → "HH:MM:SS". */

@@ -19,6 +19,7 @@ const MAX_LENGTH = 1000;
  * @param {string} [props.confirmLabel]
  * @param {"primary"|"danger"} [props.tone]
  * @param {number} [props.minLength]             trimmed length required
+ * @param {number} [props.maxLength]             the server's cap (default 1000)
  * @param {boolean} [props.busy]
  * @param {string} [props.error]                 server error to show inline
  * @param {React.ReactNode} [props.children]     extra fields rendered above the reason
@@ -34,6 +35,7 @@ export default function ReasonDialog({
   confirmLabel = "Confirm",
   tone = "primary",
   minLength = 3,
+  maxLength = MAX_LENGTH,
   busy = false,
   error = "",
   children,
@@ -116,7 +118,7 @@ export default function ReasonDialog({
             <textarea
               ref={fieldRef}
               value={reason}
-              onChange={(e) => setReason(e.target.value.slice(0, MAX_LENGTH))}
+              onChange={(e) => setReason(e.target.value.slice(0, maxLength))}
               onBlur={() => setTouched(true)}
               rows={4}
               placeholder={placeholder}
@@ -127,7 +129,7 @@ export default function ReasonDialog({
               <span className={touched && tooShort ? "text-rose-600 font-semibold" : "text-slate-400"}>
                 {touched && tooShort ? `Please write at least ${minLength} characters.` : "This is saved in the audit log."}
               </span>
-              <span className="text-slate-400 tabular-nums">{reason.length}/{MAX_LENGTH}</span>
+              <span className="text-slate-400 tabular-nums">{reason.length}/{maxLength}</span>
             </div>
           </div>
           {error && (

@@ -18,11 +18,12 @@ function App() {
               <SidebarProvider>
                 <AppRoutes />
               </SidebarProvider>
+              {/* Inside the router so it can close itself on navigation. */}
+              <ChatbotWidget />
             </Router>
           </ModalContextProvider>
         </AuthContextProvider>
       </GoogleOAuthProvider>
-      <ChatbotWidget />
     </GlobalAlertProvider>
   );
 }

@@ -21,7 +21,31 @@ export const EMAIL_STATUS = {
   sending: { label: "Sending", pill: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   sent: { label: "Sent", pill: "bg-violet-50 text-violet-700 border-violet-200" },
   failed: { label: "Failed", pill: "bg-rose-50 text-rose-700 border-rose-200" },
+  // backend_api_updates_2026_09_22 §2: an export that matched nothing. No file
+  // worth opening was produced.
+  no_data: { label: "Empty · no data", pill: "bg-slate-50 text-slate-600 border-slate-200" },
 };
+
+/**
+ * The export's real outcome. Exports recorded before the backend fix say
+ * `completed` with `row_count: 0`; those were empty too, so they read the same.
+ */
+/**
+ * Whether the employee can see this payslip. A withdrawn or replaced payslip is
+ * never visible, whatever `visible_to_employee` says: payslips revoked before
+ * backend fix BACKEND-007 (2026-09-22) still carry `true`.
+ * @returns {{ visible: boolean, label: string, held: boolean }}  `held` = not
+ *   released yet but still releasable (what "Publish" acts on).
+ */
+export function payslipVisibility(row) {
+  if (row?.status === "revoked") return { visible: false, label: "No — withdrawn", held: false };
+  if (row?.status === "superseded") return { visible: false, label: "No — replaced", held: false };
+  if (row?.visible_to_employee) return { visible: true, label: "Yes", held: false };
+  return { visible: false, label: "Held back", held: true };
+}
+
+export const exportStatusKey = (row) =>
+  row?.status === "completed" && row?.row_count !== null && row?.row_count !== undefined && Number(row.row_count) === 0 ? "no_data" : row?.status;
 
 export const EXPORT_STATUS = {
   started: { label: "In progress", pill: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },

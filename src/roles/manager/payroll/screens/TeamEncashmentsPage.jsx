@@ -277,7 +277,7 @@ export default function TeamEncashmentsPage() {
             { label: "Paid in", value: formatPeriod(detail.period_month), icon: HiCalendar },
           ]} />
           <DetailSection title="Request" icon={HiUser}>
-            <DetailGrid rows={[
+            <DetailGrid items={[
               ["Sent on", formatDate(detail.created_at)],
               ["Decided on", formatDate(detail.approved_at || detail.rejected_at)],
               ["Leave type", detail.leave_type_code || null],

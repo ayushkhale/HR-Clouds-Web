@@ -11,7 +11,10 @@ import { HiX, HiExternalLink, HiDownload, HiRefresh, HiExclamationCircle } from 
 import { fetchViewUrl, isImageType, isPdfType, isReferenceAttachment } from "../utils/payrollAttachments";
 import { payrollErrorMessage } from "../utils/payrollErrors";
 
-export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose }) {
+// `errorMessage` maps a failure to text (payroll's map by default). With
+// `fetchReferences`, external links are also resolved through `getViewUrl`
+// (the Documents module audits every view, links included).
+export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose, errorMessage = payrollErrorMessage, fetchReferences = false }) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -26,7 +29,7 @@ export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose
 
   const load = useCallback(async () => {
     if (!id) return;
-    if (isReference && referenceUrl) {
+    if (isReference && referenceUrl && !fetchReferences) {
       setUrl(referenceUrl);
       setLoading(false);
       setError("");
@@ -42,11 +45,11 @@ export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose
       setUrl(view_url);
     } catch (err) {
       if (reqId !== reqRef.current) return;
-      setError(payrollErrorMessage(err, "Couldn't open this file."));
+      setError(errorMessage(err, "Couldn't open this file."));
     } finally {
       if (reqId === reqRef.current) setLoading(false);
     }
-  }, [id, getViewUrl, isReference, referenceUrl]);
+  }, [id, getViewUrl, isReference, referenceUrl, fetchReferences, errorMessage]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -78,7 +81,7 @@ export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose
       a.click();
       a.remove();
     } catch (err) {
-      setError(payrollErrorMessage(err, "Couldn't download this file."));
+      setError(errorMessage(err, "Couldn't download this file."));
     } finally {
       setDownloading(false);
     }

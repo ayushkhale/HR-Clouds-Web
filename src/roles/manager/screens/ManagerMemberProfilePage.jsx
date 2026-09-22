@@ -1,21 +1,24 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { HiBan, HiCheckCircle, HiOutlineCalendar, HiOutlineChartSquareBar, HiOutlineClock, HiOutlineUser, HiPencil, HiX } from "react-icons/hi";
+import { HiBan, HiCheckCircle, HiOutlineCalendar, HiOutlineChartSquareBar, HiOutlineClock, HiOutlineFolder, HiOutlineUser, HiPencil, HiX } from "react-icons/hi";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { organizationAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
+import { normalizeRole, roleLabel } from "../../../shared/auth/permissions";
 import { fmtDate, ymdOnly } from "../../../shared/attendance/dates";
 import OverviewTab from "../../hr/screens/employee-profile/OverviewTab";
 import AttendanceTab from "../../hr/screens/employee-profile/AttendanceTab";
 import TeamMemberLeaveTab from "../components/TeamMemberLeaveTab";
 import EditMemberProfileModal from "../components/EditMemberProfileModal";
+import SubjectDocumentsPanel from "../../../shared/documents/SubjectDocumentsPanel";
 
 const TEAM_PATH = "/dashboard/manager/team";
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
+  { key: "documents", label: "Documents", icon: HiOutlineFolder },
 ];
 
 function InfoRow({ label, value, accent = false }) {
@@ -73,7 +76,7 @@ export default function ManagerMemberProfilePage() {
   }, [toast]);
 
   const name = employee?.name || employee?.full_name || "Team member";
-  const role = employee?.role || "employee";
+  const role = normalizeRole(employee?.role) || "employee";
   const code = employee?.employee_code || employee?.emp_id;
   const inactive = employee?.is_active === false;
   const joined = employee?.joining_date || employee?.date_of_joining;
@@ -138,7 +141,7 @@ export default function ManagerMemberProfilePage() {
                     <div className="space-y-2.5">
                       <InfoRow label="Department" value={typeof employee.department === "string" ? employee.department : employee.department?.name} />
                       <InfoRow label="Designation" value={employee.designation} />
-                      <InfoRow label="Role" value={role} accent />
+                      <InfoRow label="Role" value={roleLabel(role)} accent />
                       <InfoRow label="Work location" value={employee.work_location?.name || employee.work_location} />
                       <InfoRow label="Joined" value={joined ? fmtDate(ymdOnly(joined), { day: "numeric", month: "short", year: "numeric" }) : null} />
                     </div>
@@ -184,6 +187,7 @@ export default function ManagerMemberProfilePage() {
                     {activeTab === "overview" && <OverviewTab key={userId} userId={userId} employeeRole={role} viewer="manager" />}
                     {activeTab === "attendance" && <AttendanceTab key={userId} userId={userId} employeeRole={role} viewer="manager" />}
                     {activeTab === "leave" && <TeamMemberLeaveTab key={userId} userId={userId} />}
+                    {activeTab === "documents" && <SubjectDocumentsPanel key={userId} planeKey="manager" userId={userId} subjectName={name} nameOf={(id, fallback) => (id === userId ? name : fallback ?? "Team member")} />}
                   </>
                 )}
               </div>

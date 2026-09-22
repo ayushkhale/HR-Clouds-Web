@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { attendanceAPI } from "../../../shared/api";
+import { attendanceAPI, organizationAPI } from "../../../shared/api";
 import { HiFilter, HiClock, HiUser, HiPencil } from "react-icons/hi";
 import { normalizePaginated } from "../../../shared/attendance/normalize";
 import { useOrgEmployees } from "../../../shared/attendance/EmployeePicker";
 import { humanize } from "../../../shared/attendance/enums";
-import { addDaysYMD, fmtDate, fmtHours, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
@@ -47,11 +47,20 @@ function useWholeRangeHistory(applied) {
 
   useEffect(() => { setPage(1); load(); }, [load]);
 
-  const totalPages = Math.max(1, Math.ceil(state.items.length / PAGE_SIZE));
+  // The server fills every day in the range, including days before the person
+  // joined, which then read "Absent". Those synthesized days are dropped; a real
+  // record (a punch) before the joining date is still shown.
+  const joined = useJoiningDate(applied?.userId);
+  const items = joined ? state.items.filter((r) => !isSynthesizedDay(r) || (ymdOnly(r.date) || "") >= joined) : state.items;
+  const hiddenBeforeJoining = state.items.length - items.length;
+
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   return {
-    items: state.items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    total: state.items.length,
+    items: items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    total: items.length,
+    joined,
+    hiddenBeforeJoining,
     totalPages,
     page: safePage,
     limit: PAGE_SIZE,
@@ -60,6 +69,26 @@ function useWholeRangeHistory(applied) {
     error: state.error,
     reload: load,
   };
+}
+
+/** The member's joining date (YYYY-MM-DD) from their profile, or null. */
+function useJoiningDate(userId) {
+  const [joined, setJoined] = useState({ userId: null, date: null });
+  useEffect(() => {
+    if (!userId) return undefined;
+    let alive = true;
+    organizationAPI.getEmployee(userId)
+      .then((res) => {
+        const e = res?.data || {};
+        const date = ymdOnly(e.joining_date || e.date_of_joining || e.profile?.joining_date || e.profile?.date_of_joining) || null;
+        if (alive) setJoined({ userId, date });
+      })
+      .catch(() => alive && setJoined({ userId, date: null }));
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  return joined.userId === userId ? joined.date : null;
 }
 
 function ManagerTeamHistoryPage() {
@@ -131,13 +160,16 @@ function ManagerTeamHistoryPage() {
                 <HiClock className="text-purple-600" />
                 <h2 className="text-sm font-bold text-slate-800">{memberLabel}</h2>
                 <span className="text-xs text-slate-400">· {fmtDate(applied.from)} – {fmtDate(applied.to)}</span>
+                {list.hiddenBeforeJoining > 0 && (
+                  <span className="text-xs text-slate-400">· Joined {fmtDate(list.joined)}; {list.hiddenBeforeJoining} earlier {list.hiddenBeforeJoining === 1 ? "day is" : "days are"} not shown</span>
+                )}
               </div>
               {list.error ? (
                 <ErrorState error={list.error} onRetry={list.reload} fallback="Couldn't load this team member's history." />
               ) : list.loading && list.items.length === 0 ? (
                 <div className="p-6"><LoadingRows rows={5} /></div>
               ) : list.items.length === 0 ? (
-                <EmptyState icon={HiClock} title="No records" message="No attendance was recorded for this person in this period." />
+                <EmptyState icon={HiClock} title="No records" message={list.hiddenBeforeJoining > 0 ? "This person joined after this period." : "No attendance was recorded for this person in this period."} />
               ) : (
                 <>
                   <div className={`overflow-x-auto ${list.loading ? "opacity-60" : ""}`}>
@@ -175,7 +207,7 @@ function ManagerTeamHistoryPage() {
                               </td>
                               <td className="px-5 py-3 text-xs">{r.clock_in_time ? fmtTime(r.clock_in_time) : na}</td>
                               <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : na}</td>
-                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null ? zero : fmtHours(r.effective_hours)}</td>
+                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null && !r.worked_duration_formatted ? zero : workedLabel(r)}</td>
                               <td className="px-5 py-3 text-xs">
                                 {late === null && early === null ? na : (
                                   <>

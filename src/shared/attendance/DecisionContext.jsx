@@ -16,7 +16,7 @@ import { isSynthesizedDay } from "./dayStatus.js";
 import { anomalyTypeLabel, humanize } from "./enums.js";
 import {
   browserTimeZone, clockMinutes, fmtClockMinutes, fmtClockTime, fmtDate, fmtDateTime,
-  fmtHours, fmtMinutes, formatInZone, ymdOnly, zoneMinutesFrom,
+  fmtHours, fmtMinutes, formatInZone, workedLabel, ymdOnly, zoneMinutesFrom,
 } from "./dates.js";
 import { listFrom } from "./normalize.js";
 import { InlineAlert, StatusBadge } from "./ui.jsx";
@@ -306,7 +306,7 @@ function RecordedDaySection({ record, title = "Recorded attendance", showPunches
         )}
         <Stat label="Total time">{fmtHours(record.total_hours, "N/A")}</Stat>
         <Stat label="Breaks">{fmtMinutes(record.break_duration_minutes, "N/A")}</Stat>
-        <Stat label="Effective hours" hint={effectiveHint?.text} hintTone={effectiveHint?.tone}>{fmtHours(record.effective_hours, "N/A")}</Stat>
+        <Stat label="Effective hours" hint={effectiveHint?.text} hintTone={effectiveHint?.tone}>{workedLabel(record, "N/A")}</Stat>
         <Stat label="Work mode">{record.work_mode ? humanize(record.work_mode) : "N/A"}</Stat>
         <Stat label="Late by" hintTone="amber">{Number(record.late_minutes) > 0 ? <span className="text-fuchsia-600">{fmtMinutes(record.late_minutes)}</span> : "Not late"}</Stat>
         <Stat label="Left early by">{Number(record.early_exit_minutes) > 0 ? <span className="text-fuchsia-600">{fmtMinutes(record.early_exit_minutes)}</span> : "No"}</Stat>
@@ -448,7 +448,7 @@ export function RegularizationDetails({ item, person }) {
             <div className="space-y-3">
               <Fact
                 label="Effective hours"
-                value={fmtHours(record.effective_hours, "N/A")}
+                value={workedLabel(record, "N/A")}
                 hint={meetsFullDay === null ? null : `${meetsFullDay ? "Meets" : "Below"} full day (${fmtHours(policy.full_day_min_hours)})`}
               />
               <Fact label="Breaks" value={fmtMinutes(record.break_duration_minutes, "N/A")} />
@@ -537,6 +537,11 @@ export function OvertimeDetails({ item, person, overtimeMinutes }) {
   const win = shiftWindow(shift);
   const minOt = hasNum(policy?.overtime_min_minutes) ? Number(policy.overtime_min_minutes) : null;
   const meetsMin = minOt !== null && hasNum(overtimeMinutes) ? Number(overtimeMinutes) >= minOt : null;
+  // The request carries the backend's worked figure; the record inside it may not.
+  const dayRecord = record && item.worked_duration_formatted ? { ...record, worked_duration_formatted: item.worked_duration_formatted } : record;
+  const worked = dayRecord ? workedLabel(dayRecord, "") : "";
+  const fullDay = hasNum(policy?.full_day_min_hours) ? Number(policy.full_day_min_hours) : null;
+  const breakMin = hasNum(record?.break_duration_minutes) ? Number(record.break_duration_minutes) : 0;
 
   return (
     <div className="space-y-4">
@@ -559,6 +564,16 @@ export function OvertimeDetails({ item, person, overtimeMinutes }) {
             {policy?.overtime_enabled === false && <p className="text-[10px] font-semibold text-rose-600 mt-1">Overtime is disabled in this policy</p>}
           </div>
         </div>
+        {/* Overtime is measured against the policy's full-day hours, not the
+            shift length — say so with the backend's own figures, so a manager
+            comparing it to the shift doesn't read it as a miscalculation. */}
+        {worked && fullDay !== null && hasNum(overtimeMinutes) && (
+          <p className="text-[11px] text-slate-600 mt-3 bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2 leading-relaxed">
+            <span className="font-semibold text-slate-800">How it&apos;s counted:</span> worked <strong>{worked}</strong>
+            {breakMin > 0 ? <> (after {fmtMinutes(breakMin)} of breaks)</> : null} − full day <strong>{fmtHours(fullDay)}</strong> = <strong>{fmtMinutes(overtimeMinutes)}</strong> overtime.
+            {" "}Overtime counts time beyond the attendance policy&apos;s full-day hours, not the shift length.
+          </p>
+        )}
         {(item.remarks || item.reason || item.notes) && (
           <p className="text-xs text-slate-600 mt-3 whitespace-pre-wrap break-words"><span className="font-semibold">Notes:</span> {item.remarks || item.reason || item.notes}</p>
         )}
@@ -574,7 +589,7 @@ export function OvertimeDetails({ item, person, overtimeMinutes }) {
         )}
       </DetailSection>
 
-      {record ? <RecordedDaySection record={record} title="Worked that day" /> : <InlineAlert tone="slate">The attendance record for this day wasn&apos;t included with the request.</InlineAlert>}
+      {record ? <RecordedDaySection record={dayRecord} title="Worked that day" /> : <InlineAlert tone="slate">The attendance record for this day wasn&apos;t included with the request.</InlineAlert>}
       <ShiftPolicySection record={record} />
     </div>
   );

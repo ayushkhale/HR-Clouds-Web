@@ -47,13 +47,15 @@ import {
   HiDocumentText,
   HiUserCircle,
   HiCloudDownload,
+  HiFolderOpen,
+  HiBadgeCheck,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
-  const { isMobileSidebarOpen, closeSidebar } = useSidebar();
+  const { isMobileSidebarOpen, closeSidebar, setNav } = useSidebar();
   const [inboxCount, setInboxCount] = useState(() => {
     if (role === "manager") return inboxTotal(peekManagerInboxCounts());
     if (role === "hr") return inboxTotal(peekHrInboxCounts());
@@ -206,6 +208,14 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         {
+          title: "DOCUMENTS",
+          icon: HiFolderOpen,
+          items: [
+            link("Verification Queue", "/dashboard/hr/documents/verification", HiBadgeCheck),
+            link("Employee Documents", "/dashboard/hr/documents/employees", HiFolderOpen),
+          ],
+        },
+        {
           title: "INSIGHTS",
           icon: HiChartBar,
           items: [
@@ -238,6 +248,9 @@ function DashboardSidebar({ role = "guest" }) {
             link("Benefit Plans", "/dashboard/hr/payroll/benefits", HiHeart),
             link("Payroll Settings", "/dashboard/hr/payroll/settings", HiCog),
             link("Payroll Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
+            heading("Documents"),
+            link("Document Types", "/dashboard/hr/documents/types", HiTemplate),
+            link("Document Settings", "/dashboard/hr/documents/settings", HiCog),
           ],
         },
         {
@@ -248,6 +261,7 @@ function DashboardSidebar({ role = "guest" }) {
             ...myAttendanceLinks("hr"),
             link("My Claims & Benefits", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
             link("My Salary & Bank", "/dashboard/hr/my-salary", HiCurrencyRupee),
+            link("My Documents", "/dashboard/hr/my-documents", HiFolderOpen),
           ],
         },
       ];
@@ -274,6 +288,7 @@ function DashboardSidebar({ role = "guest" }) {
             // Member profiles live under /team/member/, not /team/, because
             // /team/today and /team/history are separate sidebar entries.
             { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
+            link("Team Documents", `${M}/documents`, HiFolderOpen),
           ],
         },
         {
@@ -316,6 +331,7 @@ function DashboardSidebar({ role = "guest" }) {
             ...myAttendanceLinks("manager"),
             link("My Claims & Benefits", `${M}/my-reimbursements`, HiReceiptRefund),
             link("My Salary & Bank", `${M}/my-salary`, HiCurrencyRupee),
+            link("My Documents", `${M}/my-documents`, HiFolderOpen),
           ],
         },
       ];
@@ -347,10 +363,28 @@ function DashboardSidebar({ role = "guest" }) {
           link("Tax & Investments", `${E}/payroll/tax`, HiScale),
         ],
       },
+      {
+        title: "DOCUMENTS",
+        icon: HiFolderOpen,
+        forceDropdown: true,
+        items: [link("My Documents", `${E}/documents`, HiFolderOpen)],
+      },
     ];
   };
 
   const navSections = getNavSections();
+
+  // Flat list of every page in this menu, for the top bar's search, plus the
+  // inbox the bell opens. External links (mailto:) are left out.
+  const navItems = navSections.flatMap((section) =>
+    section.items.flatMap((item) => (item.subItems ? item.subItems : [item]))
+      .filter((item) => item.path && !item.external && !item.heading)
+      .map((item) => ({ label: item.label, path: item.path, section: section.flat ? "" : section.title })));
+  const inboxPath = navItems.find((item) => item.label === "Inbox")?.path;
+  const navKey = JSON.stringify(navItems);
+  useEffect(() => {
+    setNav({ items: JSON.parse(navKey), inbox: inboxPath ? { path: inboxPath, count: inboxCount } : null });
+  }, [navKey, inboxPath, inboxCount, setNav]);
 
   // Sections are open unless the user collapsed them; `defaultCollapsed`
   // sections (HR Setup, Me) start closed until opened or visited.
@@ -551,17 +585,20 @@ function DashboardSidebar({ role = "guest" }) {
         </div>
 
         <div className="mt-auto px-4 pb-4 space-y-2">
-          <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
-            <div className="flex items-center gap-3">
-              <HiQuestionMarkCircle className="w-5 h-5 text-slate-400" />
-              <span>Help Center</span>
-            </div>
-            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">8</span>
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-default">
-            <HiCog className="w-5 h-5 text-slate-400" />
-            <span>Setting</span>
-          </button>
+          {/* Help lives in the in-app Documents guide; settings (Maya, profile,
+              sign-out) live on My Profile. Guests have neither page. */}
+          {role !== "guest" && (
+            <>
+              <Link to="/dashboard/documents" onClick={closeOnMobile} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                <HiQuestionMarkCircle className="w-5 h-5 text-slate-400" />
+                <span>Help Center</span>
+              </Link>
+              <Link to="/dashboard/profile" onClick={closeOnMobile} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                <HiCog className="w-5 h-5 text-slate-400" />
+                <span>Settings</span>
+              </Link>
+            </>
+          )}
         </div>
       </aside>
     </>

@@ -18,7 +18,7 @@ import { formatDate, formatMoney, formatPeriod } from "../../../shared/utils/for
 import { normalizePaginated } from "../../../shared/attendance/normalize";
 import {
   EMAIL_MAX_ATTEMPTS, EMAIL_STATUS, EMAIL_STATUS_FILTERS, PAYSLIP_STATUS,
-  PAYSLIP_STATUS_FILTERS, PAYSLIP_VISIBILITY_FILTERS, meta,
+  PAYSLIP_STATUS_FILTERS, PAYSLIP_VISIBILITY_FILTERS, meta, payslipVisibility,
 } from "./phase6Meta";
 import {
   HiCash, HiChevronLeft, HiChevronRight, HiDocumentDownload, HiExclamationCircle,
@@ -92,7 +92,8 @@ export default function RunPayslipsPanel({ run, showToast }) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadDispatch(); }, [loadDispatch]);
 
-  const heldCount = useMemo(() => rows.filter((r) => r.visible_to_employee === false).length, [rows]);
+  // Withdrawn and replaced payslips are hidden for good, not "held" — Publish can't release them.
+  const heldCount = useMemo(() => rows.filter((r) => payslipVisibility(r).held).length, [rows]);
   const counts = dispatch?.counts || {};
   const failedEmails = Number(counts.failed) || 0;
   const pendingEmails = (Number(counts.pending) || 0) + (Number(counts.sending) || 0);
@@ -302,7 +303,11 @@ export default function RunPayslipsPanel({ run, showToast }) {
                       <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${slipStatus.pill}`}>v{row.version ?? 1} · {slipStatus.label}</span>
                     </td>
                     <td className="px-5 py-3 text-slate-600">
-                      {row.visible_to_employee ? (row.published_at ? formatDate(row.published_at) : "Yes") : <span className="font-semibold text-fuchsia-700">Held back</span>}
+                      {(() => {
+                        const vis = payslipVisibility(row);
+                        if (vis.visible) return row.published_at ? formatDate(row.published_at) : "Yes";
+                        return <span className={`font-semibold ${vis.held ? "text-fuchsia-700" : "text-slate-500"}`}>{vis.label}</span>;
+                      })()}
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${email.pill}`}>{email.label}</span>

@@ -6,6 +6,8 @@ import {
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { PersonMultiSelect, PersonSelect } from "../../../../shared/components/PersonPicker";
+import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { personName } from "../../../../shared/attendance/normalize";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -109,6 +111,7 @@ const TABS = [
 
 export default function ManagerAdjustmentsPage() {
   const [tab, setTab] = useState("adjustments");
+  const { user } = useAuth();
   const [team, setTeam] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
   const [bonuses, setBonuses] = useState([]);
@@ -152,7 +155,18 @@ export default function ManagerAdjustmentsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const teamName = (id) => team.find((m) => memberId(m) === id)?.name || id;
+  // Never show a raw user_id. The list can hold people who are not among the
+  // current direct reports (someone who moved teams, or the manager's own
+  // rows), so fall back through the row's embedded employee, the team, the
+  // signed-in user and finally a plain label.
+  const teamName = (id, row) => {
+    const embedded = personName({ employee: row?.employee, user: row?.user }, "");
+    if (embedded) return embedded;
+    const member = team.find((m) => memberId(m) === id);
+    if (member) return personName(member, "") || "Team member";
+    if (id && id === user?.id) return `${personName(user, "") || "You"} (you)`;
+    return "Former team member";
+  };
   // Only a pending proposal can be cancelled; with none, the column is dropped.
   const hasCancellable = adjustments.some((a) => a.status === "pending");
   const period = (f) => `${f.year}-${String(f.month).padStart(2, "0")}`;
@@ -278,7 +292,7 @@ export default function ManagerAdjustmentsPage() {
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {adjustments.map((a) => (
                         <tr key={a.id} className="hover:bg-slate-50/50">
-                          <td className="px-6 py-4 font-bold text-slate-800">{a.employee?.name || teamName(a.user_id)}</td>
+                          <td className="px-6 py-4 font-bold text-slate-800">{teamName(a.user_id, a)}</td>
                           <td className="px-6 py-4 text-slate-600">{fmtPeriod(a.period_month)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{a.adjustment_type}<span className="block text-[10px] text-slate-400 font-bold">{a.category?.replace(/_/g, " ")}</span></td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(a.amount)}</td>
@@ -336,8 +350,8 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {loans.map((l) => (
-                        <tr key={l.id} onClick={() => setLoanDetail({ id: l.id, name: teamName(l.user_id) })} className="hover:bg-slate-50/50 cursor-pointer">
-                          <td className="px-6 py-4 font-bold text-slate-800">{teamName(l.user_id)}</td>
+                        <tr key={l.id} onClick={() => setLoanDetail({ id: l.id, name: teamName(l.user_id, l) })} className="hover:bg-slate-50/50 cursor-pointer">
+                          <td className="px-6 py-4 font-bold text-slate-800">{teamName(l.user_id, l)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{(l.loan_type || "").replace(/_/g, " ")}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
                           <td className="px-6 py-4 text-slate-600">{l.tenure_months} mo</td>

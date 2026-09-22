@@ -370,6 +370,8 @@ export const payrollAPI = {
 
   // HR — Manual triggers for the four background jobs (#212–#215). All are
   // org-scoped and idempotent: running one twice does not double-apply.
+  // The background jobs with their cron schedules and status (backend_api_updates_2026_09_22 §1).
+  getJobs: () => request("/payroll/hr/jobs"),
   runCalendarReminders: () => request("/payroll/hr/jobs/calendar-reminders/run", { method: "POST" }),
   runAutoDraft: () => request("/payroll/hr/jobs/auto-draft/run", { method: "POST" }),
   runRunSweeper: () => request("/payroll/hr/jobs/run-sweeper/run", { method: "POST" }),

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   HiXMark, HiPaperAirplane,
   HiArrowPath, HiChevronRight, HiStop,
@@ -98,6 +99,21 @@ const ChatbotWidget = () => {
 
   const busy      = isLoading || isStreaming;
   const showEmpty = messages.length === 0;
+
+  // Mounted once for the whole app, so an open panel would otherwise follow the
+  // user to every page and sit over its content. Close it on navigation; the
+  // conversation is kept and "Ask Maya" reopens it.
+  const { pathname } = useLocation();
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen]);
 
   /* Auto-scroll */
   useEffect(() => {

@@ -6,8 +6,9 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiOutlineUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding,
   HiDotsHorizontal, HiUserGroup, HiSearch, HiFilter, HiPlus, HiX,
-  HiMail, HiPhone, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiOfficeBuilding
+  HiMail, HiPhone, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiOfficeBuilding, HiRefresh, HiBan
 } from "react-icons/hi";
+import { Toast, useToast } from "../../../shared/attendance/ui";
 
 import GenderAvatar, { avatarUrlOf, genderOf, normalizeGender } from "../../../shared/components/GenderAvatar";
 import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
@@ -200,27 +201,39 @@ function EmployeesPage() {
     }
   }, [department, departments]);
 
+  // Pending-invite actions run from the cards, outside the invite modal, so
+  // they report through the page toast. One action per address at a time.
+  const { toast, showToast, clearToast } = useToast();
+  const [inviteBusy, setInviteBusy] = useState("");
+
   const handleResendInvitation = async (email) => {
+    if (!email || inviteBusy) return;
+    setInviteBusy(email);
     try {
-      setInviteResult({ type: "info", message: `Resending invitation to ${email}...` });
       await organizationAPI.resendInvitation({ email });
-      setInviteResult({ type: "success", message: `Invitation resent to ${email}` });
+      showToast(`Invitation resent to ${email}`);
     } catch (err) {
-      setInviteResult({ type: "error", message: err.message || "Failed to resend invitation." });
+      showToast(err?.data?.message || err.message || "Couldn't resend the invitation.", "error");
+    } finally {
+      setInviteBusy("");
     }
   };
 
   const handleRevokeInvitation = async (email) => {
-    if (!(await window.confirm(`Are you sure you want to revoke the invitation for ${email}?`))) return;
+    if (!email || inviteBusy) return;
+    if (!(await window.confirm(`Revoke the invitation for ${email}?\n\nThe link in their email stops working. You can invite them again later.`))) return;
+    setInviteBusy(email);
     try {
-      setInviteResult({ type: "info", message: `Revoking invitation for ${email}...` });
       await organizationAPI.revokeInvitation({ email });
-      setInviteResult({ type: "success", message: `Invitation revoked for ${email}` });
-      // Remove from UI
-      setInvitations(prev => prev.filter(inv => inv.email !== email));
-      setEmployees(prev => prev.filter(emp => emp.email !== email));
+      setInvitations((prev) => prev.filter((inv) => inv.email !== email));
+      // The employee list can carry the invitee too (status "Pending"); drop only
+      // that pending row, never an active person who shares the address.
+      setEmployees((prev) => prev.filter((emp) => !(emp.email === email && String(emp.status || "").toLowerCase() === "pending")));
+      showToast(`Invitation revoked for ${email}`);
     } catch (err) {
-      setInviteResult({ type: "error", message: err.message || "Failed to revoke invitation." });
+      showToast(err?.data?.message || err.message || "Couldn't revoke the invitation.", "error");
+    } finally {
+      setInviteBusy("");
     }
   };
 
@@ -483,6 +496,26 @@ function EmployeesPage() {
                             <span className="truncate">{member.department || "No department"}</span>
                           </span>
                         )}
+                        {member.status === "Pending" && member.email && (
+                          <div className="mt-3 flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleResendInvitation(member.email)}
+                              disabled={!!inviteBusy}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-100 hover:bg-purple-100 transition disabled:opacity-50"
+                            >
+                              <HiRefresh className={`w-3.5 h-3.5 ${inviteBusy === member.email ? "animate-spin" : ""}`} /> Resend
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeInvitation(member.email)}
+                              disabled={!!inviteBusy}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
+                            >
+                              <HiBan className="w-3.5 h-3.5" /> Revoke
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -491,6 +524,8 @@ function EmployeesPage() {
             </div>
           </div>
         </main>
+
+      <Toast toast={toast} onClose={clearToast} />
 
       {showAddModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">

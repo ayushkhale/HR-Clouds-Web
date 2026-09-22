@@ -287,7 +287,10 @@ export default function MyPayslipsPage() {
     setLoading(true);
     try {
       const res = await payrollAPI.getMyPayslips();
-      setPayslips(res.data?.records || res.data || []);
+      const list = res.data?.records || res.data || [];
+      // The server already hides withdrawn / replaced payslips; this is the
+      // second line in case an older row still says it is visible (BACKEND-007).
+      setPayslips((Array.isArray(list) ? list : []).filter((p) => p?.visible_to_employee !== false && p?.status !== "revoked" && p?.status !== "superseded"));
     } catch (err) {
       showToast(payrollErrorMessage(err, "Couldn't load your payslips"), "error");
     } finally {

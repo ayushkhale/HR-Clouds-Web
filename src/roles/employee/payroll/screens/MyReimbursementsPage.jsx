@@ -362,7 +362,9 @@ function ClaimEditorDialog({ claim, categories, onClose, onSaved, onSubmitted, s
 // ── My claims tab ────────────────────────────────────────────────────────────
 function ClaimsTab({ showToast, categories }) {
   const [filters, setFilters] = useState({ status: "", payout_period_month: "" });
-  const months = useMemo(() => periodOptions({ back: 18, ahead: 6 }), []);
+  // A claim is paid in the payroll after approval, never further out, so the
+  // filter stops at next month instead of listing empty future months.
+  const months = useMemo(() => periodOptions({ back: 18, ahead: 1 }), []);
   const [editorClaim, setEditorClaim] = useState(undefined); // undefined=closed, null=new, obj=edit
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);

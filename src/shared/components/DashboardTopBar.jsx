@@ -12,9 +12,46 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
   const { user, role, orgId, updateTokens, getDashboardPath } = useAuth();
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, nav } = useSidebar();
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+
+  // Page search over the sidebar's own menu: same pages, same names.
+  const needle = query.trim().toLowerCase();
+  const matches = needle
+    ? (nav?.items || []).filter((item) => `${item.label} ${item.section}`.toLowerCase().includes(needle)).slice(0, 8)
+    : [];
+
+  const goTo = (item) => {
+    if (!item) return;
+    setQuery("");
+    setSearchOpen(false);
+    searchInputRef.current?.blur();
+    navigate(item.path);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(h + 1, Math.max(matches.length - 1, 0)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      goTo(matches[highlight] || matches[0]);
+    } else if (e.key === "Escape") {
+      setQuery("");
+      setSearchOpen(false);
+      searchInputRef.current?.blur();
+    }
+  };
+
+  const inbox = nav?.inbox;
+  const pending = inbox?.count || 0;
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -76,12 +113,43 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
         <input
           ref={searchInputRef}
           type="text"
-          placeholder="Search anything..."
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setHighlight(0); setSearchOpen(true); }}
+          onFocus={() => setSearchOpen(true)}
+          // Delay so a click on a result lands before the list closes.
+          onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="Search pages..."
+          aria-label="Search pages"
+          role="combobox"
+          aria-expanded={searchOpen && !!needle}
+          aria-controls="topbar-search-results"
           className="w-full bg-transparent text-slate-800 placeholder-slate-400 outline-none text-xs font-medium"
         />
         <kbd className="hidden sm:inline-flex items-center gap-1 bg-white border border-slate-200 text-slate-500 font-bold text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 shadow-sm">
           ⌘F
         </kbd>
+        {searchOpen && needle && (
+          <div id="topbar-search-results" role="listbox" className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-xl shadow-lg py-1.5 z-50 max-h-80 overflow-y-auto">
+            {matches.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-slate-500">No pages match &ldquo;{query.trim()}&rdquo;</p>
+            ) : matches.map((item, i) => (
+              <button
+                key={item.path}
+                type="button"
+                role="option"
+                aria-selected={i === highlight}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => goTo(item)}
+                onMouseEnter={() => setHighlight(i)}
+                className={`w-full flex items-center justify-between gap-3 px-4 py-2 text-left transition-colors ${i === highlight ? "bg-purple-50" : "hover:bg-slate-50"}`}
+              >
+                <span className="text-xs font-semibold text-slate-800 truncate">{item.label}</span>
+                {item.section && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">{item.section}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       </div>
 
@@ -96,14 +164,24 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
           <button 
             onClick={() => navigate("/dashboard/documents")}
             className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer"
-            title="Documents"
+            title="Documentation"
+            aria-label="Documentation"
           >
             <HiDocumentText className="w-5 h-5" />
           </button>
-          <button className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer">
-            <HiBell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
-          </button>
+          {/* The bell opens the inbox and only shows a dot when something is
+              actually waiting. Roles without an inbox get no bell. */}
+          {inbox && (
+            <button
+              onClick={() => navigate(inbox.path)}
+              className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-purple-600 transition-colors relative cursor-pointer"
+              title={pending > 0 ? `Inbox — ${pending} waiting for you` : "Inbox — nothing waiting"}
+              aria-label={pending > 0 ? `Inbox, ${pending} waiting` : "Inbox"}
+            >
+              <HiBell className="w-5 h-5" />
+              {pending > 0 && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+            </button>
+          )}
         </div>
 
         {/* Workspace Switcher */}

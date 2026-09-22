@@ -29,6 +29,14 @@ export const ROLE_PRIORITY = {
 // Roles that administer the organization (the "HR / administration" dashboard).
 export const HR_TIER_ROLES = ["super-admin", "admin", "hr"];
 
+const ROLE_LABELS = { "super-admin": "Super Admin", admin: "Admin", hr: "HR", manager: "Manager", employee: "Employee", guest: "Guest" };
+
+/** Display name for a role, whatever casing the API sent ("employee", "Employee" → "Employee"). */
+export function roleLabel(role) {
+  const r = normalizeRole(role);
+  return ROLE_LABELS[r] || (r ? r.charAt(0).toUpperCase() + r.slice(1) : "");
+}
+
 /** Is this role part of the HR/admin administration tier? */
 export function isHRAdmin(role) {
   return HR_TIER_ROLES.includes(normalizeRole(role));

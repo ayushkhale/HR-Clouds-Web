@@ -127,6 +127,14 @@ import MyReimbursementsPage from "../roles/employee/payroll/screens/MyReimbursem
 import DocumentsPage from "../shared/screens/DocumentsPage";
 import MyProfilePage from "../shared/screens/MyProfilePage";
 import DirectoryPage from "../shared/screens/DirectoryPage";
+import MyDocumentsPage from "../shared/screens/MyDocumentsPage";
+
+// Documents module (Phase 1)
+import DocumentVerificationPage from "../roles/hr/documents/screens/DocumentVerificationPage";
+import EmployeeDocumentsPage from "../roles/hr/documents/screens/EmployeeDocumentsPage";
+import DocumentTypesPage from "../roles/hr/documents/screens/DocumentTypesPage";
+import DocumentSettingsPage from "../roles/hr/documents/screens/DocumentSettingsPage";
+import TeamDocumentsPage from "../roles/manager/documents/screens/TeamDocumentsPage";
 
 function CatchAll() {
   const { isAuthenticated } = useAuth();
@@ -286,6 +294,13 @@ function AppRoutes() {
         <Route path="/dashboard/hr/payroll/reports" element={<PayrollReportsPage />} />
         <Route path="/dashboard/hr/payroll/payslips" element={<PayrollPayslipsPage />} />
         <Route path="/dashboard/hr/payroll/exports" element={<PayrollExportsPage />} />
+
+        {/* HR documents */}
+        <Route path="/dashboard/hr/documents/verification" element={<DocumentVerificationPage />} />
+        <Route path="/dashboard/hr/documents/employees" element={<EmployeeDocumentsPage />} />
+        <Route path="/dashboard/hr/documents/types" element={<DocumentTypesPage />} />
+        <Route path="/dashboard/hr/documents/settings" element={<DocumentSettingsPage />} />
+        <Route path="/dashboard/hr/my-documents" element={<MyDocumentsPage />} />
       </Route>
 
       {/* ─── MANAGER WORKSPACE ─── */}
@@ -319,6 +334,9 @@ function AppRoutes() {
         <Route path="/dashboard/manager/my-reimbursements" element={<MyReimbursementsPage />} />
         {/* Manager self-service pay — same reason as the HR mount above. */}
         <Route path="/dashboard/manager/my-salary" element={<MySalaryPage />} />
+        {/* Manager documents */}
+        <Route path="/dashboard/manager/documents" element={<TeamDocumentsPage />} />
+        <Route path="/dashboard/manager/my-documents" element={<MyDocumentsPage />} />
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}
@@ -337,6 +355,7 @@ function AppRoutes() {
         <Route path="/dashboard/employee/payroll/loans" element={<MyLoansAndAdvancesPage />} />
         <Route path="/dashboard/employee/payroll/tax" element={<MyTaxAndInvestmentsPage />} />
         <Route path="/dashboard/employee/payroll/reimbursements" element={<MyReimbursementsPage />} />
+        <Route path="/dashboard/employee/documents" element={<MyDocumentsPage />} />
       </Route>
 
       {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}

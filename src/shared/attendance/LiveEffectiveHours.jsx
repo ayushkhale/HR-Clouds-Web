@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // attendance/LiveEffectiveHours.jsx — One implementation (previously copied in
 // AttendanceDirectory, AttendanceTab and OverviewTab).
-//  • Clocked out → backend `effective_hours` (breaks already deducted).
+//  • Clocked out → backend `worked_duration_formatted` (breaks already
+//    deducted), else `effective_hours`. Never clock-out minus clock-in.
 //  • In progress with break data → live worked time, frozen during a break.
 //  • In progress without break data (list endpoints) → live elapsed time,
 //    explicitly labelled so it's never mistaken for effective hours.
@@ -9,13 +10,13 @@
 
 import React, { useEffect, useState } from "react";
 import { computeWorkedMs } from "./liveHours.js";
-import { fmtHours, fmtMinutes } from "./dates.js";
+import { fmtMinutes, workedLabel } from "./dates.js";
 
 // No real shift runs longer than this; an open record older than that is a
 // missed clock-out awaiting auto clock-out / regularization, not a live day.
 const MAX_OPEN_MS = 24 * 60 * 60 * 1000;
 
-export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockOutTime, breaks, activeBreak, breakMinutes, className = "text-slate-800" }) {
+export default function LiveEffectiveHours({ effectiveHours, formatted, clockInTime, clockOutTime, breaks, activeBreak, breakMinutes, className = "text-slate-800" }) {
   const clockInMs = clockInTime ? new Date(clockInTime).getTime() : NaN;
   const isStale = !clockOutTime && Number.isFinite(clockInMs) && Date.now() - clockInMs > MAX_OPEN_MS;
   const isActive = !!clockInTime && !clockOutTime && !isStale;
@@ -28,6 +29,8 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
     return () => clearInterval(id);
   }, [isActive, clockInTime]);
 
+  const finished = workedLabel({ worked_duration_formatted: formatted, effective_hours: effectiveHours }, "0m");
+
   // No punch at all. Dense history rows arrive with `effective_hours: null` on
   // days where nothing was due (weekly off, holiday, a day still to come), and
   // "0m" there claims the person worked nothing rather than that nothing was
@@ -35,17 +38,17 @@ export default function LiveEffectiveHours({ effectiveHours, clockInTime, clockO
   if (!clockInTime) {
     return effectiveHours === null || effectiveHours === undefined
       ? <span className="text-xs text-slate-400">N/A</span>
-      : <span className="text-xs text-slate-400">{fmtHours(effectiveHours, "0m")}</span>;
+      : <span className="text-xs text-slate-400">{finished}</span>;
   }
 
   if (isStale) {
-    return effectiveHours != null && effectiveHours !== ""
-      ? <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "0m")}</span>
+    return (effectiveHours != null && effectiveHours !== "") || formatted
+      ? <span className={`font-bold ${className}`}>{finished}</span>
       : <span className="text-[11px] font-bold text-fuchsia-600" title="Clocked in but never clocked out. Hours are calculated after auto clock-out or a regularization.">No clock-out</span>;
   }
 
   if (!isActive) {
-    return <span className={`font-bold ${className}`}>{fmtHours(effectiveHours, "0m")}</span>;
+    return <span className={`font-bold ${className}`}>{finished}</span>;
   }
 
   const { workedMs, breaksKnown, onBreak } = computeWorkedMs({ clockIn: clockInTime, breaks, activeBreak, breakMinutes, now });

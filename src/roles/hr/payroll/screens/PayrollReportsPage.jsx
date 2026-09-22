@@ -4,11 +4,12 @@
 // Org-wide scope. Every download is audited; the record appears under Exports.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { organizationAPI, payrollAPI, payrollFiles } from "../../../../shared/api";
 import { listFrom, normalizePaginated } from "../../../../shared/attendance/normalize";
 import PayrollReportsView from "../PayrollReportsView";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
 
@@ -29,26 +30,44 @@ export default function PayrollReportsPage() {
   const [components, setComponents] = useState(undefined);
   const { toast, showToast, hideToast } = useToast();
 
+  const [runsError, setRunsError] = useState("");
+  const alive = useRef(true);
+  // Set on every mount: StrictMode mounts, unmounts and mounts again in development.
   useEffect(() => {
-    let alive = true;
-    // All three are filter inputs: a failure narrows the form, it never blocks
-    // the report, so each one is allowed to fail on its own.
-    payrollAPI.getRuns({ limit: 60 })
-      .then((res) => {
-        if (!alive) return;
-        const list = normalizePaginated(res, ["runs", "records"]).items;
-        setRuns(list.filter((run) => REPORTABLE.has(run.status)));
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+
+  // Closed runs only, asked for by status so cancelled and draft runs (which
+  // pile up) can never push an older paid month out of a "latest N" window.
+  const loadRuns = useCallback(() => {
+    setRunsError("");
+    Promise.all([...REPORTABLE].map((status) => payrollAPI.getRuns({ status, limit: 100 })))
+      .then((responses) => {
+        if (!alive.current) return;
+        const byId = new Map();
+        responses.forEach((res) => normalizePaginated(res, ["runs", "records"]).items.forEach((run) => run?.id && byId.set(run.id, run)));
+        const list = [...byId.values()].sort((a, b) => String(b.period_month || "").localeCompare(String(a.period_month || "")));
+        setRuns(list);
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (alive.current) setRunsError(payrollErrorMessage(err, "Couldn't load the payroll runs."));
+      });
+  }, []);
+
+  useEffect(() => {
+    loadRuns();
+    // Departments, locations and components are filter inputs: a failure
+    // narrows the form, it never blocks the report, so each may fail alone.
     organizationAPI.getDepartments()
-      .then((res) => { if (alive) setDepartments(res?.data || []); })
+      .then((res) => { if (alive.current) setDepartments(res?.data || []); })
       .catch(() => {});
     organizationAPI.getLocations()
-      .then((res) => { if (alive) setLocations(res?.data || []); })
+      .then((res) => { if (alive.current) setLocations(res?.data || []); })
       .catch(() => {});
     payrollAPI.getComponents()
       .then((res) => {
-        if (!alive) return;
+        if (!alive.current) return;
         const list = listFrom(res, ["components", "records"])
           .filter((c) => c?.code)
           .map((c) => ({ code: c.code, name: c.name || c.code }))
@@ -56,8 +75,7 @@ export default function PayrollReportsPage() {
         setComponents(list);
       })
       .catch(() => {});
-    return () => { alive = false; };
-  }, []);
+  }, [loadRuns]);
 
   return (
     <>
@@ -74,6 +92,8 @@ export default function PayrollReportsPage() {
           fetchers={FETCHERS}
           filePath={payrollFiles.hrReport}
           runs={runs}
+          runsError={runsError}
+          onRetryRuns={loadRuns}
           departments={departments}
           locations={locations}
           componentOptions={components}

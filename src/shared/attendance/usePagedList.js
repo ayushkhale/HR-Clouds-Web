@@ -4,6 +4,9 @@
 //    filter that only has 1 page).
 //  • Out-of-order responses are discarded.
 //  • If the current page becomes empty (e.g. last row approved), steps back.
+//  • Rows loaded for another filter (a previous tab, date or search) are never
+//    shown under the new one: until its own response lands the list is empty
+//    and loading, instead of briefly showing the wrong people.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,7 +19,7 @@ import { normalizePaginated } from "./normalize.js";
 export function usePagedList(fetchPage, { limit = 20, keys = [], filterKey = "", enabled = true } = {}) {
   const [pageState, setPageState] = useState({ key: filterKey, page: 1 });
   const page = pageState.key === filterKey ? pageState.page : 1;
-  const [state, setState] = useState({ items: [], total: 0, totalPages: 1, loading: enabled, error: null });
+  const [state, setState] = useState({ items: [], total: 0, totalPages: 1, loading: enabled, error: null, key: filterKey });
 
   const fetchRef = useRef(fetchPage);
   fetchRef.current = fetchPage;
@@ -48,10 +51,10 @@ export function usePagedList(fetchPage, { limit = 20, keys = [], filterKey = "",
           return;
         }
       }
-      setState({ items: n.items, total: n.total, totalPages: n.totalPages, loading: false, error: null });
+      setState({ items: n.items, total: n.total, totalPages: n.totalPages, loading: false, error: null, key: filterKey });
     } catch (error) {
       if (id !== requestId.current) return;
-      setState((s) => ({ ...s, loading: false, error }));
+      setState((s) => ({ ...s, loading: false, error, key: filterKey }));
     }
     // `filterKey` is intentionally a dependency: the fetcher lives in a ref, so a
     // filter change on page 1 would otherwise never trigger a reload.
@@ -62,5 +65,8 @@ export function usePagedList(fetchPage, { limit = 20, keys = [], filterKey = "",
     load();
   }, [load]);
 
-  return { ...state, page, limit, setPage, reload: load };
+  // Same filter → what was loaded (a refresh keeps rows visible while it runs).
+  // Different filter → nothing yet: the rows belong to the previous view.
+  const view = state.key === filterKey ? state : { items: [], total: 0, totalPages: 1, loading: enabled, error: null };
+  return { items: view.items, total: view.total, totalPages: view.totalPages, loading: view.loading, error: view.error, page, limit, setPage, reload: load };
 }

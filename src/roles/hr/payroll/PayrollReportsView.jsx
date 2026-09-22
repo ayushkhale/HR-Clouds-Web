@@ -110,6 +110,9 @@ export default function PayrollReportsView({
   fetchers,
   filePath,
   runs = [],
+  // Why the run list couldn't load (then "no closed runs" would be a lie), and how to retry.
+  runsError = "",
+  onRetryRuns,
   allowRunPicker = true,
   departments = [],
   locations = [],
@@ -132,6 +135,9 @@ export default function PayrollReportsView({
   const [groupBy, setGroupBy] = useState("department");
 
   const [result, setResult] = useState(null);
+  // Which report + filters `result` was built for, so an "empty" preview only
+  // blocks downloading that exact report — not one with different filters.
+  const [resultKey, setResultKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [busyFormat, setBusyFormat] = useState("");
   const [error, setError] = useState("");
@@ -193,6 +199,7 @@ export default function PayrollReportsView({
     try {
       const res = await fetchers[report.key](params);
       setResult(res?.data || null);
+      setResultKey(JSON.stringify([report.key, params]));
     } catch (err) {
       setResult(null);
       setError(payrollErrorMessage(err, "Couldn't build this report"));
@@ -227,6 +234,9 @@ export default function PayrollReportsView({
   const hasRun = result !== null;
   // EC-67: a manager without compensation visibility gets totals but no rows.
   const collapsedToTotals = hasRun && rows.length === 0 && totals.length > 0;
+  // The preview for exactly these filters found nothing: a download would be an
+  // empty file (the export audit records it as `no_data`), so it's not offered.
+  const previewEmpty = hasRun && resultKey === JSON.stringify([report.key, params]) && rows.length === 0 && !collapsedToTotals;
 
   return (
     <div className="space-y-5">
@@ -280,7 +290,11 @@ export default function PayrollReportsView({
                   </option>
                 ))}
               </select>
-              {runs.length === 0 && <p className="text-[11px] text-slate-400 mt-1.5">No approved or paid runs yet — reports only cover closed runs.</p>}
+              {runsError ? (
+                <p className="text-[11px] font-semibold text-rose-600 mt-1.5">
+                  {runsError}{onRetryRuns && <> <button type="button" onClick={onRetryRuns} className="underline font-bold text-purple-700">Try again</button></>}
+                </p>
+              ) : runs.length === 0 && <p className="text-[11px] text-slate-400 mt-1.5">No approved or paid runs yet — reports only cover closed runs.</p>}
             </div>
           ) : (
             <>
@@ -357,7 +371,8 @@ export default function PayrollReportsView({
               key={format}
               type="button"
               onClick={() => exportAs(format)}
-              disabled={!!busyFormat || !!rangeProblem}
+              disabled={!!busyFormat || !!rangeProblem || previewEmpty}
+              title={previewEmpty ? "Nothing to download — this report has no data for these filters." : undefined}
               className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <HiDocumentDownload className="w-4 h-4" />

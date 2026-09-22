@@ -6,6 +6,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import CtcBudgetBar from "../CtcBudgetBar";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
+import { formatComponentValue } from "../../../../shared/utils/formatUtils";
 import {
   CTC_PRESETS, formatINR, readTarget, writeTarget, readFlatUnit, writeFlatUnit, flatUnitFrom,
   componentMeta, budgetFromPreview, estimateBudget, rowAnnual, estimateLine, moYr, buildSuggestions,
@@ -499,7 +500,7 @@ export default function PayrollTemplatesPage() {
                                <span className="font-medium text-slate-400" title="Takes whatever is left of the CTC. Set a target CTC in Manage to see the amount.">Balancing</span>
                              )
                            ) : (
-                             <span className="font-medium text-slate-800">{c.calculation_type === 'flat' ? `₹${c.value}` : `${c.value}%`}</span>
+                             <span className="font-medium text-slate-800">{formatComponentValue(c)}</span>
                            )}
                          </div>
                         );
@@ -632,7 +633,7 @@ export default function PayrollTemplatesPage() {
                           ) : (
                             <td className="px-4 py-3 text-xs">
                               <span className="font-bold text-purple-500 capitalize">{c.calculation_type?.replace(/_/g, ' ')}</span>
-                              <span className="text-slate-500 ml-1">({c.calculation_type === 'flat' ? `₹${c.value}` : c.calculation_type === 'balancing' ? 'BAL' : `${c.value}%`})</span>
+                              <span className="text-slate-500 ml-1">({formatComponentValue(c, { balancingLabel: "BAL" })})</span>
                               {annual != null && (
                                 <div className="text-[11px] text-slate-400 mt-0.5 tabular-nums">
                                   ≈ {moYr(annual)}{componentMeta(c, components).partOfCtc ? "" : " · not in CTC"}

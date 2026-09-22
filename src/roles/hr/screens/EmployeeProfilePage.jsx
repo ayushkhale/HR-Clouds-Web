@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
-import { canBeHOD } from "../../../shared/auth/permissions";
+import { canBeHOD, roleLabel } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
@@ -9,9 +9,10 @@ import ProfileTab from "./employee-profile/ProfileTab";
 import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
 import DepartmentTab from "./employee-profile/DepartmentTab";
+import DocumentsTab from "./employee-profile/DocumentsTab";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
-  HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar,
+  HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar, HiOutlineFolder,
   HiOutlineCalendar, HiOutlineOfficeBuilding,
   HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
 } from "react-icons/hi";
@@ -22,6 +23,7 @@ const TABS = [
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
   { key: "department", label: "Department", icon: HiOutlineOfficeBuilding },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
+  { key: "documents", label: "Documents", icon: HiOutlineFolder },
   { key: "profile", label: "Profile", icon: HiOutlineUser },
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
 ];
@@ -525,7 +527,7 @@ export default function EmployeeProfilePage() {
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Role</span>
-                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded capitalize">{employee.role || employeeRole || "N/A"}</span>
+                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{roleLabel(employee.role || employeeRole) || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Manager</span>
@@ -606,6 +608,9 @@ export default function EmployeeProfilePage() {
               )}
               {activeTab === "leave" && (
                 <LeaveTab userId={userId} />
+              )}
+              {activeTab === "documents" && (
+                <DocumentsTab key={userId} userId={userId} employeeName={displayName} />
               )}
               {activeTab === "profile" && (
                 <ProfileTab employee={employee} />

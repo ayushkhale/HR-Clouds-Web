@@ -3,6 +3,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiCurrencyRupee, HiAdjustments } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { formatComponentValue } from "../../../../shared/utils/formatUtils";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 function Toast({ toast, onClose }) {
@@ -19,8 +20,7 @@ function Toast({ toast, onClose }) {
 
 const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "");
 const yesNo = (v) => (v ? "Yes" : "No");
-const componentValue = (comp) =>
-  comp.calculation_type === "flat" ? `₹${comp.value ?? 0}` : comp.calculation_type === "balancing" ? "Auto (remainder)" : `${comp.value ?? 0}%`;
+const componentValue = (comp) => formatComponentValue(comp);
 
 export default function PayrollComponentsPage() {
   const [components, setComponents] = useState([]);
@@ -55,6 +55,19 @@ export default function PayrollComponentsPage() {
 
   useEffect(() => { fetchComponents(); }, [fetchComponents]);
 
+  // The list row opens the dialog at once; the single-component read then
+  // replaces it so the dialog never shows a row that changed since the list loaded.
+  const openPreview = async (comp) => {
+    setPreview(comp);
+    try {
+      const res = await payrollAPI.getComponent(comp.id);
+      const fresh = res?.data;
+      if (fresh?.id) setPreview((current) => (current?.id === fresh.id ? { ...current, ...fresh } : current));
+    } catch {
+      // Keep showing the list row; it is only at most one refresh stale.
+    }
+  };
+
   const handleBootstrap = async () => {
     try {
       await payrollAPI.bootstrapComponents();
@@ -70,7 +83,7 @@ export default function PayrollComponentsPage() {
       setEditingComp(comp);
       setFormData({
         name: comp.name, code: comp.code, component_type: comp.component_type, calculation_type: comp.calculation_type,
-        value: comp.value || 0, is_basic: comp.is_basic, is_part_of_ctc: comp.is_part_of_ctc, is_taxable: comp.is_taxable,
+        value: Number.isFinite(parseFloat(comp.value)) ? parseFloat(comp.value) : 0, is_basic: comp.is_basic, is_part_of_ctc: comp.is_part_of_ctc, is_taxable: comp.is_taxable,
         is_lop_applicable: comp.is_lop_applicable, is_prorated_on_joining: comp.is_prorated_on_joining,
         pf_applicable: comp.pf_applicable, esi_applicable: comp.esi_applicable, display_order: comp.display_order,
         is_active: comp.is_active !== false
@@ -154,7 +167,7 @@ export default function PayrollComponentsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-sm">
                     {components.map(comp => {
-                      const row = rowPreviewProps(() => setPreview(comp), `View ${comp.name}`);
+                      const row = rowPreviewProps(() => openPreview(comp),`View ${comp.name}`);
                       return (
                         <tr key={comp.id} {...row} className={`${row.className} ${!comp.is_active ? "opacity-50" : ""}`}>
                           <td className="px-6 py-4">

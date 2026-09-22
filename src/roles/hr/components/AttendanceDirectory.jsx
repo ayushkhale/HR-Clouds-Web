@@ -170,7 +170,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                           {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}
                         </td>
                         <td className="px-6 py-3.5 text-right text-sm">
-                          <LiveEffectiveHours effectiveHours={record.effective_hours} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} breakMinutes={record.break_duration_minutes} />
+                          <LiveEffectiveHours effectiveHours={record.effective_hours} formatted={record.worked_duration_formatted} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} breakMinutes={record.break_duration_minutes} />
                         </td>
                       </tr>
                     );

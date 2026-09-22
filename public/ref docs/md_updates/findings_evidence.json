@@ -1,0 +1,212 @@
+[
+  {
+    "id": "DATA-001",
+    "category": "Data Mapping",
+    "module": "Team",
+    "page": "Team Directory (/dashboard/hr/employees)",
+    "uiElement": "Member Cards (.member-card-code)",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/organizations/employees",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr",
+      "Click PEOPLE in the left sidebar",
+      "Click Team (/dashboard/hr/employees)",
+      "Observe employee code under each member card"
+    ],
+    "expectedBehavior": "Member cards should render the employee code (e.g. #EMP-01..#EMP-06, #MNGR-001, #HR-A43457)",
+    "actualBehavior": "All 8 cards display 'No employee code on file'",
+    "severity": "High",
+    "impact": "Confusing identity data across views"
+  },
+
+  {
+    "id": "DATA-002",
+    "category": "Calculation",
+    "module": "HR Inbox",
+    "page": "HR Inbox (/dashboard/hr/inbox)",
+    "uiElement": "Pending Overtime Table (OVERTIME column)",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/attendance/manager/overtime/pending",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/inbox",
+      "Click '1 Overtime' summary card",
+      "Inspect row for Rishi Ganeshe on 20 Sept 2026"
+    ],
+    "expectedBehavior": "Overtime duration should reconcile with (Worked Duration - Shift Duration). 9h 32m - 8h = 1h 32m.",
+    "actualBehavior": "UI displays '2h 32m' for Worked '09:56 am – 07:28 pm' (9h 32m) on Morning Shift (8h)",
+    "severity": "Medium",
+    "impact": "Risk of inaccurate payroll overtime disbursement"
+  },
+
+  {
+    "id": "DATA-003",
+    "category": "Configuration",
+    "module": "Salary Components",
+    "page": "Salary Components (/dashboard/hr/payroll/components)",
+    "uiElement": "Salary Components Table",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/payroll/components",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr",
+      "Click SETUP -> Salary Components",
+      "Inspect the Deductions section"
+    ],
+    "expectedBehavior": "A single canonical component per statutory deduction concept.",
+    "actualBehavior": "Duplicate conflicting components exist: ESICE (Percent Of Ctc 0.25%) vs ESI_EMPLOYEE (Flat ₹0); PFE (12% of CTC) vs PF_EMPLOYEE (12% of Basic); TDDS (10% of CTC) vs TDS (Flat ₹0).",
+    "severity": "High",
+    "impact": "High risk of double deduction or incorrect salary structure configuration"
+  },
+
+  {
+    "id": "DATA-004",
+    "category": "Data Integrity",
+    "module": "Adjustments",
+    "page": "Salary Adjustments (/dashboard/hr/payroll/adjustments)",
+    "uiElement": "Salary Adjustments Table (EMPLOYEE column)",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/payroll/adjustments?page=1",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/payroll/adjustments",
+      "Review Page 1 list of adjustments"
+    ],
+    "expectedBehavior": "Every approved adjustment must link to an active or valid employee record.",
+    "actualBehavior": "Two approved adjustment rows display 'Employee not found N/A' (Sept Ganesh Chaturthy +₹500 and Oct Diwali Bonus +₹2,000).",
+    "severity": "High",
+    "impact": "Orphaned salary adjustments may be disbursed to non-existent personnel or misallocated in payroll"
+  },
+
+  {
+    "id": "DATA-005",
+    "category": "Data Integrity",
+    "module": "Bonus Rules",
+    "page": "Bonus Rules (/dashboard/hr/payroll/bonus-rules)",
+    "uiElement": "Bonus Rules Table (STATUS column)",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/payroll/bonus-rules",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/payroll/bonus-rules",
+      "Inspect status badges for rules where WHO QUALIFIES is 'Everyone'"
+    ],
+    "expectedBehavior": "Applied headcount should match total tenant personnel (8).",
+    "actualBehavior": "Displays 'APPROVED · APPLIED · 9 PEOPLE' for Ganesh Chaturthy and Diwali rules.",
+    "severity": "Medium",
+    "impact": "Inconsistent bonus qualification counts vs organization roster"
+  },
+
+  {
+    "id": "DATA-006",
+    "category": "Data Quality",
+    "module": "Bank Verification",
+    "page": "Bank Verification (/dashboard/hr/payroll/bank-verification)",
+    "uiElement": "Bank Account Detail Modal (ACCOUNT HOLDER)",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/payroll/bank-verification",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/payroll/bank-verification",
+      "Click row for mealex517@gmail.com ('YOU')",
+      "Review Account Details in modal"
+    ],
+    "expectedBehavior": "Account holder should be employee name.",
+    "actualBehavior": "Account holder displays corporate entity 'MealEx Private Limited' on personal salary savings account.",
+    "severity": "Medium",
+    "impact": "Disbursement failure during automated NEFT/penny-drop bank transfers"
+  },
+
+  {
+    "id": "DATA-007",
+    "category": "Calculation",
+    "module": "Payroll Runs",
+    "page": "Payroll Runs (/dashboard/hr/payroll/runs)",
+    "uiElement": "August 2026 Run Card",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/payroll/runs",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/payroll/runs",
+      "Inspect August 2026 run card"
+    ],
+    "expectedBehavior": "A PAID payroll run should reflect actual gross, deduction, and net disbursement totals.",
+    "actualBehavior": "August 2026 run is marked PAID with ₹0 Gross, ₹0 Deductions, and ₹0 Net pay for 1 employee ('1 excluded').",
+    "severity": "High",
+    "impact": "Statutory reporting and historical payroll register distortion"
+  },
+
+  {
+    "id": "DATA-008",
+    "category": "Data Consistency",
+    "module": "Payroll Reports",
+    "page": "Payroll Reports (/dashboard/hr/payroll/reports)",
+    "uiElement": "Payroll Run Selector Dropdown",
+    "networkRequest": {
+      "method": "GET",
+      "endpoint": "/api/v1/payroll/reports/runs",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/payroll/reports",
+      "Inspect 'One payroll run' tab"
+    ],
+    "expectedBehavior": "Closed/Paid runs should be selectable to generate payroll registers and reports.",
+    "actualBehavior": "Dropdown states 'No approved or paid runs yet — reports only cover closed runs' despite August 2026 being marked PAID.",
+    "severity": "Medium",
+    "impact": "Inability to generate payroll reports for historically settled months"
+  },
+
+  {
+    "id": "UI-008",
+    "category": "Accessibility",
+    "module": "Top Bar",
+    "page": "Global Header",
+    "uiElement": "Search Input ('Search anything...')",
+    "networkRequest": null,
+    "reproductionSteps": [
+      "Focus 'Search anything...' input in top bar",
+      "Type search query 'leave' and press Enter"
+    ],
+    "expectedBehavior": "Display quick-search results dropdown or navigate to matching view.",
+    "actualBehavior": "No network request, no suggestion dropdown, no navigation.",
+    "severity": "Medium",
+    "impact": "Global navigation shortcut is non-functional"
+  },
+
+  {
+    "id": "GAP-001",
+    "category": "Architecture",
+    "module": "Organization",
+    "page": "Team / Employee Profile",
+    "uiElement": "Employee Card Actions / Profile Header",
+    "networkRequest": {
+      "method": "DELETE",
+      "endpoint": "/api/v1/organizations/employees/:id",
+      "status": 200
+    },
+    "reproductionSteps": [
+      "Navigate to /dashboard/hr/employees",
+      "Inspect employee cards or profile view"
+    ],
+    "expectedBehavior": "HR administrator should have access to soft-delete employee records as supported by backend.",
+    "actualBehavior": "No delete action or context menu option exists anywhere in the frontend.",
+    "severity": "High",
+    "impact": "Inability for HR to offboard or clean up deleted personnel without direct database access"
+  }
+]

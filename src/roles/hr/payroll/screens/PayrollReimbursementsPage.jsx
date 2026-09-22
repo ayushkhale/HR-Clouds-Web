@@ -499,7 +499,9 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
   const [filters, setFilters] = useState({ status: seedStatus || "", user_id: "", category_id: "", payout_period_month: "", created_from: "", created_to: "" });
   const [search, setSearch] = useState("");
   const [categories, setCategories] = useState([]);
-  const months = useMemo(() => periodOptions({ back: 18, ahead: 6 }), []);
+  // A claim is paid in the payroll after approval, never further out, so the
+  // filter stops at next month instead of listing empty future months.
+  const months = useMemo(() => periodOptions({ back: 18, ahead: 1 }), []);
 
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);

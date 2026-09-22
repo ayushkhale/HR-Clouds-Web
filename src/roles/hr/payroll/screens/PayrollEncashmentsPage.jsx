@@ -227,6 +227,20 @@ export default function PayrollEncashmentsPage() {
     payrollAPI.getSettings().then((res) => setSettings(res?.data || null)).catch(() => {});
   }, []);
 
+  // The row opens the dialog at once; the single-encashment read (#208) then
+  // replaces it so a request another HR user just approved or cancelled shows
+  // its real status before anyone acts on it.
+  const openDetail = async (row) => {
+    setDetail(row);
+    try {
+      const res = await payrollAPI.getEncashment(row.id);
+      const fresh = res?.data;
+      if (fresh?.id) setDetail((current) => (current?.id === fresh.id ? { ...current, ...fresh } : current));
+    } catch {
+      // Keep showing the list row; it is only at most one refresh stale.
+    }
+  };
+
   // Maker–checker: when the organisation requires a separate checker, whoever
   // raised a request may not approve it (§5.5).
   const separateChecker = Boolean(settings?.payroll_require_separate_checker);
@@ -332,7 +346,7 @@ export default function PayrollEncashmentsPage() {
                         const acts = encashmentActions(row, { viewerId, separateChecker });
                         const amt = amount(row.amount);
                         return (
-                          <tr key={row.id} {...rowPreviewProps(() => setDetail(row))} className="hover:bg-purple-50/30 transition-colors cursor-pointer">
+                          <tr key={row.id} {...rowPreviewProps(() => openDetail(row))} className="hover:bg-purple-50/30 transition-colors cursor-pointer">
                             <td className="px-6 py-3.5">
                               <span className="font-semibold text-slate-800">{nameOf(row.user_id, dirStatus === "loading" ? "…" : "Unknown")}</span>
                               {acts.isOwnRequest && <span className="ml-2 text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full">You raised</span>}
@@ -402,7 +416,7 @@ export default function PayrollEncashmentsPage() {
             { label: "Paid in", value: formatPeriod(detail.period_month), icon: HiCalendar },
           ]} />
           <DetailSection title="Request" icon={HiUser}>
-            <DetailGrid rows={[
+            <DetailGrid items={[
               ["Employee", nameOf(detail.user_id, "Unknown")],
               ["What is paid out", sourceKindLabel(detail.source_kind)],
               ["Leave type", detail.leave_type_code || null],

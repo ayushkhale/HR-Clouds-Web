@@ -19,7 +19,7 @@ import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
 import { currentFY, fyOptions } from "../fyUtils";
-import { EMAIL_STATUS, PAYSLIP_STATUS, meta } from "../phase6Meta";
+import { EMAIL_STATUS, PAYSLIP_STATUS, meta, payslipVisibility } from "../phase6Meta";
 import {
   HiCurrencyRupee, HiDocumentDownload, HiDocumentReport, HiDocumentText,
   HiExclamationCircle, HiRefresh, HiUser, HiX,
@@ -212,7 +212,7 @@ function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
             <DetailGrid
               cols={4}
               items={[
-                ["Released to employee", row.visible_to_employee ? "Yes" : "Held back"],
+                ["Released to employee", payslipVisibility(row).label],
                 ["Released on", row.published_at ? formatDate(row.published_at) : "N/A"],
                 ["Email", meta(EMAIL_STATUS, row.email_status).label],
                 ["Version", row.version ?? 1],
@@ -487,7 +487,7 @@ export default function PayrollPayslipsPage() {
                             <td className="px-6 py-4 font-bold text-slate-800">{formatPeriod(row.period_month)}</td>
                             <td className="px-6 py-4 text-slate-600 tabular-nums">v{row.version ?? 1}</td>
                             <td className="px-6 py-4"><span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${status.pill}`}>{status.label}</span></td>
-                            <td className="px-6 py-4 text-slate-600">{row.visible_to_employee ? "Yes" : "Held back"}</td>
+                            <td className="px-6 py-4 text-slate-600">{payslipVisibility(row).label}</td>
                             <td className="px-6 py-4"><span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${email.pill}`}>{email.label}</span></td>
                             <td className="px-6 py-4 text-slate-500">{row.published_at ? formatDate(row.published_at) : "N/A"}</td>
                           </tr>

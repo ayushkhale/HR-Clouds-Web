@@ -13,7 +13,7 @@ import { DECISION_TYPES, runDecision } from "./decisions.js";
 import { resolvePerson, useTeamNames } from "./useTeamNames.js";
 import { entityId, listFrom } from "./normalize.js";
 import { anomalyTypeLabel, humanize } from "./enums.js";
-import { fmtClockTime, fmtDate, fmtHours, fmtMinutes, fmtTime, toLocalYMD, ymdOnly } from "./dates.js";
+import { fmtClockTime, fmtDate, fmtHours, fmtMinutes, fmtTime, toLocalYMD, workedLabel, ymdOnly } from "./dates.js";
 import { useAttendanceChanged } from "./events.js";
 import { isAlreadyProcessed, isHierarchyViolation, isNotFound } from "../utils/attendanceErrors.js";
 import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, StatusBadge, Toast, useToast } from "./ui.jsx";
@@ -123,7 +123,8 @@ const COLUMNS = {
       },
     },
     { header: "Worked", render: (i) => <PunchRange record={recordOf(i)} date={itemDate(i)} /> },
-    { header: "Effective", render: (i) => (recordOf(i)?.effective_hours != null ? fmtHours(recordOf(i).effective_hours) : "N/A") },
+    // The backend's own worked figure (breaks off) — the one overtime is measured against.
+    { header: "Effective", render: (i) => (i.worked_duration_formatted || recordOf(i)?.effective_hours != null ? workedLabel(i.worked_duration_formatted ? i : recordOf(i)) : "N/A") },
   ],
   compoff: [
     { header: "Worked on", render: (i) => fmtDate(itemDate(i)) },

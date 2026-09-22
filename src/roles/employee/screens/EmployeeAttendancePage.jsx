@@ -5,7 +5,7 @@ import { attendanceAPI } from "../../../shared/api";
 import { HiClock, HiChartBar, HiX, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle, HiPencil } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyTypeLabel, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
@@ -68,7 +68,7 @@ function DailyLogModal({ date, onClose, onRequestCorrection }) {
                   {[
                     ["Clock in", fmtTime(record.clock_in_time)],
                     ["Clock out", fmtTime(record.clock_out_time)],
-                    ["Effective", fmtHours(record.effective_hours)],
+                    ["Effective", workedLabel(record)],
                     ["Breaks", minutesOrZero(record.break_duration_minutes)],
                     ["Late", minutesOrZero(record.late_minutes)],
                     ["Overtime", minutesOrZero(record.overtime_minutes)],
@@ -183,7 +183,7 @@ export default function EmployeeAttendancePage() {
     { label: "Present Days", value: num(s.present_days), icon: HiCheckCircle, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Absent Days", value: num(s.absent_days), icon: HiExclamationCircle, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Late Arrivals", value: num(s.late_days), icon: HiClock, color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Hours Worked", value: fmtHours(s.total_hours_worked, "0m"), icon: HiChartBar, color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Hours Worked", value: totalWorkedLabel(s), icon: HiChartBar, color: "text-purple-600", bg: "bg-purple-50" },
   ];
 
   const requestCorrection = (date) => navigate(`${selfPath("regularizations")}?date=${encodeURIComponent(date)}`);
@@ -266,7 +266,7 @@ export default function EmployeeAttendancePage() {
                             </td>
                             <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
                             <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
-                            <td className="px-4 py-3 text-slate-800 font-bold">{fmtHours(record.effective_hours)}</td>
+                            <td className="px-4 py-3 text-slate-800 font-bold">{workedLabel(record)}</td>
                             <td className="px-4 py-3 text-slate-500">{minutesOrZero(record.late_minutes)}</td>
                             <td className="px-4 py-3 text-slate-500">{minutesOrZero(record.early_exit_minutes)}</td>
                             <td className="px-4 py-3 text-purple-600">{minutesOrZero(record.overtime_minutes)}</td>
