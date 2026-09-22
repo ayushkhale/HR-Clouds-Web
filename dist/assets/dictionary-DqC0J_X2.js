@@ -1,0 +1,1 @@
+const e={NAV:{EMPLOYEES:"Team"},STATUS:{PRESENT:"Present",ABSENT:"Absent",LATE:"Late"},HEADERS:{ATTENDANCE_DIRECTORY:"Attendance Directory",TEAM_PERFORMANCE:"Team Performance"},DESCRIPTIONS:{ATTENDANCE_DIRECTORY:"View and manage attendance records for the organization."},TERMS:{COMP_OFF:"Earned Leave",REGULARIZATION:"Attendance Correction"}};export{e as D};

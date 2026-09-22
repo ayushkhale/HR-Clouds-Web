@@ -1,0 +1,1 @@
+function s(t=new Date){const n=t.getFullYear(),r=t.getMonth()>=3?n:n-1;return`${r}-${String((r+1)%100).padStart(2,"0")}`}function o(t=5){const n=parseInt(s().split("-")[0]);return Array.from({length:t}).map((r,e)=>{const a=n-2+e;return`${a}-${String((a+1)%100).padStart(2,"0")}`})}export{s as c,o as f};

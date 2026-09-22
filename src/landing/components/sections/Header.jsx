@@ -13,7 +13,13 @@ function Header({ children }) {
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 ${
+      // Only the properties that actually change — transition-all would also
+      // animate layout properties and force work the compositor can't absorb.
+      // z-[60] sits above every landing section (none go past z-50) but below
+      // the Maya panel at z-[70] and well below the modal band at z-[100]+.
+      // It used to be z-[100], level with dialogs, which is why an enlarged
+      // chat window was painted over by the navbar.
+      className={`fixed top-0 left-0 right-0 z-[60] transition-[padding,background-color,box-shadow] duration-300 ease-out motion-reduce:transition-none ${
         scrolled 
           // No backdrop-blur here: the nav pill inside already blurs, and
           // stacking two backdrop filters produced a visible smear band.

@@ -10,6 +10,46 @@
     font-family: 'Manrope', sans-serif;
   }
 
+  /* Anchor links (/services#payroll and the legal cross-links) glide instead
+     of jumping. `scroll-padding-top` keeps the target clear of the fixed
+     header, which would otherwise cover whatever you just navigated to. */
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 7rem;
+  }
+
+  /* Drives <Reveal priority>: an above-the-fold entrance that moves without
+     ever dropping opacity, so Largest Contentful Paint is not held back by
+     the animation. */
+  @keyframes reveal-settle {
+    from {
+      transform: translate3d(var(--reveal-x, 0), var(--reveal-y, 0), 0) scale(var(--reveal-scale, 1));
+    }
+    to {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  /* Safety net. Every motion primitive already checks prefers-reduced-motion
+     in JS, but this catches anything driven purely by CSS — marquees, the
+     floating illustrations, third-party markup — without having to remember a
+     `motion-reduce:` variant on each one. Near-zero rather than `none` so
+     transitionend and animationend listeners still fire. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   /* No up/down spinners on number inputs anywhere in the app. */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {

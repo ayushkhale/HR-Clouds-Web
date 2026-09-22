@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { COMPANY, POLICY_LAST_UPDATED, hasEntityDetails } from "../../../shared/config/company";
+import { Reveal } from "../../../shared/motion";
 
 /* ─── Prose primitives ─────────────────────────────────────────────────────
    Legal text is long and mostly unstyled, so these keep spacing and rhythm
@@ -8,14 +9,14 @@ import { COMPANY, POLICY_LAST_UPDATED, hasEntityDetails } from "../../../shared/
 
 export function Section({ title, children }) {
   return (
-    <section className="mb-10 scroll-mt-28">
+    <Reveal as="section" variant="riseSmall" className="mb-10 scroll-mt-28">
       <h2 className="font-bold text-xl sm:text-2xl text-primary-800 tracking-tight mb-3">
         {title}
       </h2>
       <div className="space-y-3 text-gray-600 text-sm sm:text-base leading-relaxed">
         {children}
       </div>
-    </section>
+    </Reveal>
   );
 }
 
@@ -49,20 +50,20 @@ function LegalPage({ title, summary, children }) {
         <div className="left-[-10%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-10 blur-3xl rounded-[50%] w-[40rem] h-40 -rotate-45 pointer-events-none" />
         <div className="bottom-0 right-[-10%] absolute bg-gradient-to-r from-purple-500/20 to-transparent blur-3xl rounded-[50%] w-[35rem] h-40 pointer-events-none" />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-8">
-          <p className="text-purple-200 text-xs font-bold uppercase tracking-widest mb-3">
+          <Reveal as="p" variant="riseSmall" className="text-purple-200 text-xs font-bold uppercase tracking-widest mb-3">
             Legal
-          </p>
-          <h1 className="font-bold text-3xl sm:text-5xl text-white tracking-tight mb-4">
+          </Reveal>
+          <Reveal as="h1" delay={90} className="font-bold text-3xl sm:text-5xl text-white tracking-tight mb-4">
             {title}
-          </h1>
+          </Reveal>
           {summary && (
-            <p className="text-white/70 text-base sm:text-lg leading-relaxed max-w-2xl">
+            <Reveal as="p" delay={170} className="text-white/70 text-base sm:text-lg leading-relaxed max-w-2xl">
               {summary}
-            </p>
+            </Reveal>
           )}
-          <p className="mt-6 text-white/50 text-xs">
+          <Reveal as="p" delay={250} className="mt-6 text-white/50 text-xs">
             Last updated {POLICY_LAST_UPDATED}
-          </p>
+          </Reveal>
         </div>
       </section>
 
@@ -89,14 +90,18 @@ function LegalPage({ title, summary, children }) {
             Other policies
           </p>
           <div className="flex flex-wrap gap-3">
-            {LEGAL_LINKS.map(({ to, label }) => (
-              <Link
+            {LEGAL_LINKS.map(({ to, label }, i) => (
+              <Reveal
+                as={Link}
                 key={to}
                 to={to}
-                className="px-4 py-2 rounded-full bg-purple-50 border border-purple-100 text-purple-700 text-sm font-medium hover:bg-purple-100 transition-colors"
+                variant="riseSmall"
+                index={i}
+                stagger={70}
+                className="px-4 py-2 rounded-full bg-purple-50 border border-purple-100 text-purple-700 text-sm font-medium hover:bg-purple-100 hover:-translate-y-0.5 transition-[background-color,transform] duration-200 motion-reduce:transform-none"
               >
                 {label}
-              </Link>
+              </Reveal>
             ))}
           </div>
         </div>

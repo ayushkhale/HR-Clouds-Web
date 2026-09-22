@@ -149,7 +149,15 @@ const ChatbotWidget = () => {
   if (hidden) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end font-sans select-none pointer-events-none">
+    /* Layer order for the app, highest last:
+         landing content        ≤ z-50
+         landing header           z-[60]
+         Maya (this)              z-[70]
+         dialogs / modals         z-[100] – z-[200]
+         global alerts            z-[99999]
+       Maya has to clear the header — enlarged she reaches the top of the
+       viewport — but must stay under dialogs, which should cover her. */
+    <div className="fixed bottom-6 right-6 z-[70] flex flex-col items-end font-sans select-none pointer-events-none">
 
       {/* ══ Chat Window ══ */}
       <div

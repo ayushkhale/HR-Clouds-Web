@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { HiOutlineMail, HiOutlineOfficeBuilding, HiOutlineSupport } from "react-icons/hi";
-import AnimateOnScroll from "../../shared/components/AnimateOnScroll";
+import { Reveal, RevealText } from "../../shared/motion";
 import { COMPANY, privacyContact, hasEntityDetails } from "../../shared/config/company";
 
 /* Each route into the company, with the address that actually reaches a human.
@@ -38,22 +38,24 @@ function Contact() {
           <p className="text-purple-200 text-xs font-bold uppercase tracking-widest mb-3">
             Contact
           </p>
-          <h1 className="font-bold text-3xl sm:text-5xl text-white tracking-tight mb-4">
-            Talk to us
-          </h1>
-          <p className="text-white/70 text-base sm:text-lg leading-relaxed max-w-2xl">
+          <RevealText
+            as="h1"
+            text="Talk to us"
+            className="font-bold text-3xl sm:text-5xl text-white tracking-tight mb-4"
+          />
+          <Reveal as="p" delay={160} className="text-white/70 text-base sm:text-lg leading-relaxed max-w-2xl">
             Every message below reaches a person, not a ticket queue that nobody
             reads. Pick whichever fits and we&rsquo;ll come back to you.
-          </p>
+          </Reveal>
         </div>
       </section>
 
       {/* Channels */}
       <section className="max-w-4xl mx-auto px-4 sm:px-8 py-14 sm:py-20">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-          {CHANNELS.map(({ icon: Icon, title, body, action }) => (
-            <AnimateOnScroll key={title} animation="slide-up" className="h-full">
-              <div className="h-full flex flex-col rounded-2xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-md transition-all duration-200">
+          {CHANNELS.map(({ icon: Icon, title, body, action }, i) => (
+            <Reveal key={title} variant="rise" index={i} className="h-full">
+              <div className="h-full flex flex-col rounded-2xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-lg hover:-translate-y-1 transition-[transform,border-color,box-shadow] duration-300 ease-out motion-reduce:transform-none">
                 <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center mb-4">
                   <Icon className="w-5 h-5 text-purple-600" />
                 </div>
@@ -70,7 +72,7 @@ function Contact() {
                   {action}
                 </a>
               </div>
-            </AnimateOnScroll>
+            </Reveal>
           ))}
         </div>
 

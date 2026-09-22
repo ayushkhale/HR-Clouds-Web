@@ -1,5 +1,6 @@
 import { CiCircleCheck } from "react-icons/ci";
 import GetStartedLink from "../../../shared/components/GetStartedLink";
+import { HOVER } from "../../../shared/motion";
 import {
   formatPlanPrice,
   planPeriodLabel,
@@ -28,7 +29,7 @@ function PricingCard({ plan, billing }) {
 
   return (
     <div
-      className={`bg-primary-500 px-8 pt-8 rounded-2xl relative overflow-hidden flex flex-col ${pclass.container}`}
+      className={`group/plan h-full bg-primary-500 px-8 pt-8 rounded-2xl relative overflow-hidden flex flex-col transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2xl motion-reduce:transform-none motion-reduce:transition-none ${pclass.container}`}
     >
       {/* Gradient Tags and Highlights */}
       {plan.popular && (
@@ -65,7 +66,7 @@ function PricingCard({ plan, billing }) {
       {/* Bullets */}
       <ul className="space-y-4 mb-10 flex-1">
         {bullets.map((bullet) => (
-          <li key={bullet} className="flex items-center gap-x-3 text-white/90 text-sm">
+          <li key={bullet} className="flex items-center gap-x-3 text-white/90 text-sm transition-colors duration-300 group-hover/plan:text-white">
             <CiCircleCheck className={`w-6 h-6 flex-shrink-0 ${pclass.bulletColor}`} />
             <span>{bullet}</span>
           </li>
@@ -77,7 +78,7 @@ function PricingCard({ plan, billing }) {
         <GetStartedLink
           plan={plan.tier}
           billing={billing}
-          className={`block w-full py-3 text-center rounded-[.875rem] font-bold text-sm text-primary-500 hover:text-white transition-all duration-200 ${pclass.cta}`}
+          className={`block w-full py-3 text-center rounded-[.875rem] font-bold text-sm text-primary-500 hover:text-white transition-colors duration-200 ${HOVER.lift} ${pclass.cta}`}
         >
           {ctaLabel(plan)}
         </GetStartedLink>

@@ -1,4 +1,5 @@
 import { TREND_COLORS } from "../../shared/attendance/dayStatus";
+import { useInView, useReducedMotion, EASE_ENTER } from "../../shared/motion";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    ProductPreview — an honest picture of the actual product.
@@ -92,8 +93,12 @@ const DAYS = [
 ];
 
 function AttendanceChart() {
+  const reduced = useReducedMotion();
+  const [ref, inView] = useInView({ threshold: 0.4, skip: reduced });
+  const grown = reduced || inView;
+
   return (
-    <div className="rounded-lg bg-white/[0.04] border border-white/10 p-2.5">
+    <div ref={ref} className="rounded-lg bg-white/[0.04] border border-white/10 p-2.5">
       <div className="flex items-center justify-between mb-2 gap-2">
         <span className="text-[9px] font-semibold text-white/70 truncate">Team Performance</span>
         <div className="flex items-center gap-2 shrink-0">
@@ -111,7 +116,18 @@ function AttendanceChart() {
       </div>
       <div className="flex items-end justify-between gap-[3px] h-16">
         {DAYS.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col justify-end gap-[1px] min-w-0">
+          <div
+            key={i}
+            className="flex-1 flex flex-col justify-end gap-[1px] min-w-0 origin-bottom"
+            style={{
+              // scaleY rather than height: it composites on the GPU and can't
+              // reflow the row of ten bars on every frame.
+              transform: grown ? "scaleY(1)" : "scaleY(0)",
+              transition: reduced
+                ? undefined
+                : `transform 620ms ${EASE_ENTER} ${i * 45}ms`,
+            }}
+          >
             <div style={{ height: `${d.absent}%`, background: TREND_COLORS.absent }} className="rounded-sm" />
             <div style={{ height: `${d.leave}%`, background: TREND_COLORS.on_leave }} className="rounded-sm" />
             <div style={{ height: `${d.present}%`, background: TREND_COLORS.present }} className="rounded-sm" />

@@ -1,7 +1,23 @@
 import { servicesStats } from "../../../shared/utils/constants";
-import AnimateOnScroll from "../../../shared/components/AnimateOnScroll";
+import { Reveal, RevealText, useParallax, useCountUp } from "../../../shared/motion";
+
+/* Stat tile with its figure counting up. "99.9%" counts; "24/7" is left alone
+   because it's a schedule, not a quantity. */
+function Stat({ stat, index }) {
+  const countRef = useCountUp(stat.value);
+  return (
+    <Reveal variant="riseSmall" index={index} stagger={70} delay={320} className="space-y-1">
+      <p ref={countRef} className="font-bold text-3xl sm:text-4xl text-purple-800 tabular-nums">
+        {stat.value}
+      </p>
+      <p className="font-semibold text-primary-800 text-sm">{stat.label}</p>
+      <p className="text-gray-400 text-xs leading-snug">{stat.description}</p>
+    </Reveal>
+  );
+}
 
 function ServicesHeroBanner() {
+  const illustrationParallax = useParallax(34);
   const layerImage = "https://cdn3d.iconscout.com/3d/premium/thumb/layer-3d-illustration-download-in-png-blend-fbx-gltf-file-formats--design-work-graphic-decoration-web-development-pack-business-illustrations-4496045.png";
 
   return (
@@ -11,50 +27,53 @@ function ServicesHeroBanner() {
           
           {/* Left 3D Illustration Column */}
           <div className="w-full lg:w-2/5 flex justify-center lg:justify-start relative">
-            <AnimateOnScroll animation="slide-up" className="relative w-full max-w-[20rem] sm:max-w-[24rem]">
+            <Reveal priority variant="scale" duration={900} className="relative w-full max-w-[20rem] sm:max-w-[24rem]">
               {/* Glowing background gradient blur under the image */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-full blur-[60px] opacity-25 animate-pulse" />
               
-              <img
-                src={layerImage}
-                alt="3D Layer Illustration"
-                className="relative z-10 w-full h-auto object-contain hover:scale-105 transition-transform duration-500 animate-float"
-              />
-            </AnimateOnScroll>
+              {/* Parallax on the wrapper, float keyframes on the image: a
+                  running animation would otherwise overwrite the inline
+                  transform and the drift would never show. */}
+              <div
+                ref={illustrationParallax}
+                style={{ transform: "translate3d(0, var(--parallax-y, 0px), 0)" }}
+              >
+                <img
+                  src={layerImage}
+                  alt="3D Layer Illustration"
+                  className="relative z-10 w-full h-auto object-contain animate-float motion-reduce:animate-none"
+                />
+              </div>
+            </Reveal>
           </div>
 
           {/* Right Content Column */}
           <div className="w-full lg:w-3/5 text-left">
-            <AnimateOnScroll animation="slide-up" delay={150}>
+            <div>
               <h1 className="mb-6 font-bold text-3xl text-primary-800 sm:text-4xl md:text-5xl/[3.5rem] lg:text-6xl/[4rem] xl:text-7xl/[5rem] tracking-tight">
-                Everything You Need to{" "}
-                <span className="bg-clip-text bg-gradient-to-t from-white to-purple-800 text-transparent">
-                  Run & Scale
-                </span>{" "}
-                Your Business
+                <RevealText as="span" text="Everything You Need to" delay={120} />{" "}
+                <Reveal
+                  as="span"
+                  variant="riseSmall"
+                  delay={340}
+                  className="inline-block bg-clip-text bg-gradient-to-t from-white to-purple-800 text-transparent"
+                >
+                  Run &amp; Scale
+                </Reveal>{" "}
+                <RevealText as="span" text="Your Business" delay={420} />
               </h1>
-              <p className="text-primary-200 text-lg sm:text-xl max-w-2xl leading-relaxed mb-12">
+              <Reveal as="p" delay={260} className="text-primary-200 text-lg sm:text-xl max-w-2xl leading-relaxed mb-12">
                 From HRMS to CRM, ERP to Accounting — streamline every department
                 with our integrated cloud platform built for growing organizations.
-              </p>
+              </Reveal>
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-4 border-t border-gray-200/60">
-                {servicesStats.map((stat) => (
-                  <div key={stat.id} className="space-y-1">
-                    <p className="font-bold text-3xl sm:text-4xl text-purple-800">
-                      {stat.value}
-                    </p>
-                    <p className="font-semibold text-primary-800 text-sm">
-                      {stat.label}
-                    </p>
-                    <p className="text-gray-400 text-xs leading-snug">
-                      {stat.description}
-                    </p>
-                  </div>
+                {servicesStats.map((stat, i) => (
+                  <Stat key={stat.id} stat={stat} index={i} />
                 ))}
               </div>
-            </AnimateOnScroll>
+            </div>
           </div>
 
         </div>

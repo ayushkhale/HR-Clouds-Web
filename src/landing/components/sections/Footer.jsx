@@ -4,6 +4,7 @@ import { FaFacebookF, FaTwitter, FaLinkedinIn, FaInstagram, FaYoutube, FaArrowRi
 import { FiSend } from "react-icons/fi";
 import hrcloudsLogo from "../../../assets/logo2.png";
 import { COMPANY } from "../../../shared/config/company";
+import { Reveal } from "../../../shared/motion";
 
 const footerCols = [
   {
@@ -67,7 +68,7 @@ function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8 pb-16">
           
           {/* Brand Info (Span 2 cols on lg) */}
-          <div className="lg:col-span-2 space-y-6">
+          <Reveal variant="riseSmall" className="lg:col-span-2 space-y-6">
             <Link to="/" className="inline-block">
               <img 
                 src={hrcloudsLogo} 
@@ -90,18 +91,18 @@ function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={item.label}
-                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-purple-600 hover:scale-110 transition-all duration-300 border border-white/10"
+                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-purple-600 hover:scale-110 hover:-translate-y-0.5 transition-[background-color,color,transform] duration-300 border border-white/10 motion-reduce:transform-none"
                 >
                   {item.icon}
                 </a>
               ))}
             </div>
             )}
-          </div>
+          </Reveal>
 
           {/* Quick Links (Columns 1 & 2) */}
           {footerCols.slice(0, 2).map((col, idx) => (
-            <div key={idx} className="space-y-4">
+            <Reveal key={idx} variant="riseSmall" index={idx + 1} className="space-y-4">
               <h4 className="text-lg font-bold text-white tracking-wide">{col.heading}</h4>
               <ul className="space-y-3">
                 {col.links.map((link, lIdx) => (
@@ -110,7 +111,9 @@ function Footer() {
                       to={link.path}
                       className="text-gray-300 hover:text-purple-300 transition-colors duration-200 text-sm flex items-center gap-2 group"
                     >
-                      <span className="opacity-0 -ml-3 group-hover:opacity-100 group-hover:ml-0 transition-all duration-200 text-xs">
+                      {/* Caret slides in rather than animating margin, so the
+                          row's layout never shifts under the cursor. */}
+                      <span className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-[opacity,transform] duration-200 text-xs motion-reduce:transition-none">
                         ›
                       </span>
                       {link.name}
@@ -118,11 +121,11 @@ function Footer() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </Reveal>
           ))}
 
           {/* Newsletter Box */}
-          <div className="space-y-4">
+          <Reveal variant="riseSmall" index={3} className="space-y-4">
             <h4 className="text-lg font-bold text-white tracking-wide">Stay Updated</h4>
             <p className="text-gray-300 text-sm font-light leading-relaxed">
               Subscribe to get latest HR compliance updates and feature announcements.
@@ -136,11 +139,11 @@ function Footer() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
-                  className="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:bg-white/15 transition-all duration-200 pr-10"
+                  className="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:bg-white/15 transition-[border-color,background-color] duration-200 pr-10"
                 />
                 <button
                   type="submit"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-gradient-to-r from-purple-500 to-purple-400 text-white rounded-lg hover:opacity-90 transition-opacity"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-gradient-to-r from-purple-500 to-purple-400 text-white rounded-lg hover:opacity-90 transition-[opacity,transform] duration-200 hover:scale-105 active:scale-95 motion-reduce:transform-none"
                   aria-label="Subscribe"
                 >
                   <FiSend className="w-4 h-4" />
@@ -152,7 +155,7 @@ function Footer() {
                 </span>
               )}
             </form>
-          </div>
+          </Reveal>
 
         </div>
 

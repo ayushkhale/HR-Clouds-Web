@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { FaLinkedin, FaEnvelope } from "react-icons/fa";
-import AnimateOnScroll from "../../../shared/components/AnimateOnScroll";
+import { Reveal, RevealText } from "../../../shared/motion";
 
 const OurTeam = () => {
   const teamData = [
@@ -61,25 +61,26 @@ const OurTeam = () => {
       <div className="max-w-[90rem] m-auto flex flex-col gap-y-16">
         
         {/* Section Heading */}
-        <AnimateOnScroll animation="slide-up">
-          <div className="text-center max-w-3xl mx-auto">
-            <h2 className="font-bold text-primary-800 text-3xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight mb-4">
-              A Founding Team with Domain Expertise
-            </h2>
-            <p className="text-gray-600 text-base sm:text-lg md:text-xl font-normal leading-relaxed">
-              Hands-on exposure to HR operations, IT project execution, MIS systems, and government-aligned workflows.
-            </p>
-          </div>
-        </AnimateOnScroll>
+        <div className="text-center max-w-3xl mx-auto">
+          <RevealText
+            as="h2"
+            text="A Founding Team with Domain Expertise"
+            className="font-bold text-primary-800 text-3xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight mb-4"
+          />
+          <Reveal as="p" delay={260} className="text-gray-600 text-base sm:text-lg md:text-xl font-normal leading-relaxed">
+            Hands-on exposure to HR operations, IT project execution, MIS systems, and government-aligned workflows.
+          </Reveal>
+        </div>
 
         {/* Leaders Grid */}
-        <AnimateOnScroll animation="slide-up" delay={150}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {teamData.slice(0, visibleMembers).map((member, index) => (
-              <div
+              <Reveal
                 key={index}
+                variant="rise"
+                index={index}
                 onClick={() => openPopup(member)}
-                className="group cursor-pointer relative overflow-hidden rounded-2xl bg-primary-500 px-8 pt-10 pb-12 shadow-xl hover:-translate-y-1.5 transition-all duration-300 border border-white/5"
+                className="group cursor-pointer relative overflow-hidden rounded-2xl bg-primary-500 px-8 pt-10 pb-12 shadow-xl border border-white/5 transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-purple-400/30 motion-reduce:transform-none"
               >
                 {/* Overlapping white transparent highlights matching pricing cards exactly */}
                 <div className="left-[-20%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />
@@ -90,7 +91,7 @@ const OurTeam = () => {
                   <img
                     src={member.image}
                     alt={member.name}
-                    className="w-40 h-40 object-cover rounded-xl border-4 border-white/10 shadow-md mb-6 transition-all duration-300 group-hover:scale-105"
+                    className="w-40 h-40 object-cover rounded-xl border-4 border-white/10 shadow-md mb-6 transition-transform duration-300 ease-out group-hover:scale-105 motion-reduce:transform-none"
                   />
                 </div>
 
@@ -116,18 +117,17 @@ const OurTeam = () => {
                     </a>
                   )}
                 </div>
-              </div>
+              </Reveal>
             ))}
-          </div>
-        </AnimateOnScroll>
+        </div>
 
         {/* View More Button (Shown only if more than 3 members) */}
         {teamData.length > 3 && (
           <div className="text-center">
-            <div className="bg-gradient-to-b from-purple-500 to-purple-200 p-[2px] rounded-2xl drop-shadow-[0_0px_25px_rgba(139,92,246,0.2)] hover:drop-shadow-[0_0px_35px_rgba(139,92,246,0.35)] transition-all duration-200 inline-block">
+            <div className="bg-gradient-to-b from-purple-500 to-purple-200 p-[2px] rounded-2xl drop-shadow-[0_0px_25px_rgba(139,92,246,0.2)] hover:drop-shadow-[0_0px_35px_rgba(139,92,246,0.35)] transition-[filter] duration-200 inline-block">
               <button
                 onClick={handleViewMore}
-                className="block text-primary-500 py-3 px-8 text-center rounded-2xl hover:bg-purple-600 hover:text-white transition-all duration-200 bg-gradient-to-t bg-purple-500 from-purple-500 to-purple-200 font-bold text-sm"
+                className="block text-primary-500 py-3 px-8 text-center rounded-2xl hover:bg-purple-600 hover:text-white transition-colors duration-200 bg-gradient-to-t bg-purple-500 from-purple-500 to-purple-200 font-bold text-sm active:scale-[0.97] motion-reduce:transform-none"
               >
                 {showMore ? "Show Less" : "View More"}
               </button>

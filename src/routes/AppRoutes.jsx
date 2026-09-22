@@ -1,9 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import { canAccessWorkspace, dashboardPathForRole } from "../shared/auth/permissions";
 import Skeleton from "../shared/components/Skeleton";
-import DashboardLayout from "../shared/layouts/DashboardLayout";
 
 // Landing Layout & Pages
 import LandingLayout from "../landing/LandingLayout";
@@ -26,121 +25,129 @@ import ForgotPasswordPage from "../auth/pages/ForgotPasswordPage";
 import SelectOrgPage from "../auth/pages/SelectOrgPage";
 
 // Organization Registration (standalone layout)
-import RegisterOrgPage from "../auth/pages/RegisterOrgPage";
 
 // Invitation (standalone layout)
-import InvitationAcceptPage from "../auth/pages/InvitationAcceptPage";
 
 // Dashboards
-import DashboardPage from "../roles/DashboardPage";
-import GuestDashboard from "../roles/guest/screens/GuestDashboard";
-import HRDashboard from "../roles/hr/screens/HRDashboard";
-import HRInboxPage from "../roles/hr/screens/HRInboxPage";
-import EmployeesPage from "../roles/hr/screens/EmployeesPage";
-import EmployeeProfilePage from "../roles/hr/screens/EmployeeProfilePage";
-import DepartmentsPage from "../roles/hr/screens/DepartmentsPage";
-import DepartmentDetailPage from "../roles/hr/screens/DepartmentDetailPage";
-import EmployeeDashboard from "../roles/employee/screens/EmployeeDashboard";
-import EmployeeAttendancePage from "../roles/employee/screens/EmployeeAttendancePage";
-import AttendanceRegularizationsPage from "../roles/employee/screens/AttendanceRegularizationsPage";
-import AttendanceAnomaliesPage from "../roles/employee/screens/AttendanceAnomaliesPage";
-import EmployeeOvertimePage from "../roles/employee/screens/EmployeeOvertimePage";
-import EmployeeCompOffsPage from "../roles/employee/screens/EmployeeCompOffsPage";
-import ManagerDashboard from "../roles/manager/screens/ManagerDashboard";
-import ManagerRegularizationsPage from "../roles/manager/screens/ManagerRegularizationsPage";
-import ManagerOvertimePage from "../roles/manager/screens/ManagerOvertimePage";
-import ManagerTeamPage from "../roles/manager/screens/ManagerTeamPage";
-import ManagerTeamHistoryPage from "../roles/manager/screens/ManagerTeamHistoryPage";
-import ManagerTeamRosterPage from "../roles/manager/screens/ManagerTeamRosterPage";
-import ManagerMemberProfilePage from "../roles/manager/screens/ManagerMemberProfilePage";
-import ManagerAnomaliesPage from "../roles/manager/screens/ManagerAnomaliesPage";
-import ManagerApprovalsInbox from "../roles/manager/screens/ManagerApprovalsInbox";
 
 // HR — Attendance
-import HRAttendancePage from "../roles/hr/screens/HRAttendancePage";
-import AttendancePoliciesPage from "../roles/hr/attendance/screens/AttendancePoliciesPage";
-import AttendanceShiftsPage from "../roles/hr/attendance/screens/AttendanceShiftsPage";
-import AttendanceRosterPage from "../roles/hr/attendance/screens/AttendanceRosterPage";
-import AttendanceHolidaysPage from "../roles/hr/attendance/screens/AttendanceHolidaysPage";
-import AttendanceWeeklyOffsPage from "../roles/hr/attendance/screens/AttendanceWeeklyOffsPage";
-import AttendanceRegularizationsHRPage from "../roles/hr/attendance/screens/AttendanceRegularizationsHRPage";
 
 // HR — Phase 5 & 6
-import AttendanceLocationsPage from "../roles/hr/attendance/screens/AttendanceLocationsPage";
-import AttendanceCompOffsPage from "../roles/hr/attendance/screens/AttendanceCompOffsPage";
-import AttendanceCompOffPoliciesPage from "../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage";
-import AttendanceLockPeriodsPage from "../roles/hr/attendance/screens/AttendanceLockPeriodsPage";
-import AttendanceReportsPage from "../roles/hr/attendance/screens/AttendanceReportsPage";
-import BiometricDevicesPage from "../roles/hr/screens/BiometricDevicesPage";
 
 // HR — Leave Management
-import LeaveTypesPage from "../roles/hr/leaves/screens/LeaveTypesPage";
-import LeavePoliciesPage from "../roles/hr/leaves/screens/LeavePoliciesPage";
-import LeaveAutomationPage from "../roles/hr/leaves/screens/LeaveAutomationPage";
-import HRLeaveRequestsPage from "../roles/hr/leaves/screens/HRLeaveRequestsPage";
 
 // Employee — Leave
-import LeaveDashboard from "../roles/employee/screens/LeaveDashboard";
 
 // Manager — Leave
-import ManagerLeavePage from "../roles/manager/screens/ManagerLeavePage";
 
 // Manager — Phase 5
-import ManagerCompOffsPage from "../roles/manager/screens/ManagerCompOffsPage";
 
 // HR — Payroll
-import PayrollComponentsPage from "../roles/hr/payroll/screens/PayrollComponentsPage";
-import PayrollTemplatesPage from "../roles/hr/payroll/screens/PayrollTemplatesPage";
-import EmployeeSalaryStructuresPage from "../roles/hr/payroll/screens/EmployeeSalaryStructuresPage";
-import PayrollApprovalsPage from "../roles/hr/payroll/screens/PayrollApprovalsPage";
-import PayrollSettingsPage from "../roles/hr/payroll/screens/PayrollSettingsPage";
-import PayrollRunDashboard from "../roles/hr/payroll/screens/PayrollRunDashboard";
-import PayrollRunDetailPage from "../roles/hr/payroll/screens/PayrollRunDetailPage";
-import PayrollAdjustmentsPage from "../roles/hr/payroll/screens/PayrollAdjustmentsPage";
-import PayrollBonusRulesPage from "../roles/hr/payroll/screens/PayrollBonusRulesPage";
-import PayrollLoansPage from "../roles/hr/payroll/screens/PayrollLoansPage";
-import TaxConfigurationsPage from "../roles/hr/payroll/screens/TaxConfigurationsPage";
-import TaxDeclarationsPage from "../roles/hr/payroll/screens/TaxDeclarationsPage";
-import YearEndClosurePage from "../roles/hr/payroll/screens/YearEndClosurePage";
-import PayrollReimbursementsPage from "../roles/hr/payroll/screens/PayrollReimbursementsPage";
-import PayrollBenefitsPage from "../roles/hr/payroll/screens/PayrollBenefitsPage";
-import PayrollReportsPage from "../roles/hr/payroll/screens/PayrollReportsPage";
-import PayrollExportsPage from "../roles/hr/payroll/screens/PayrollExportsPage";
-import PayrollPayslipsPage from "../roles/hr/payroll/screens/PayrollPayslipsPage";
-import TeamPayrollReportsPage from "../roles/manager/payroll/screens/TeamPayrollReportsPage";
-import BankVerificationPage from "../roles/hr/payroll/screens/BankVerificationPage";
-import PayrollAuditLogPage from "../roles/hr/payroll/screens/PayrollAuditLogPage";
-import PayrollEncashmentsPage from "../roles/hr/payroll/screens/PayrollEncashmentsPage";
-import PayrollExitsPage from "../roles/hr/payroll/screens/PayrollExitsPage";
-import PayrollArrearsPage from "../roles/hr/payroll/screens/PayrollArrearsPage";
-import PayrollAutomationPage from "../roles/hr/payroll/screens/PayrollAutomationPage";
 
 // Manager — Payroll
-import TeamSalaryPage from "../roles/manager/payroll/screens/TeamSalaryPage";
-import TeamPayslipsPage from "../roles/manager/payroll/screens/TeamPayslipsPage";
-import ManagerAdjustmentsPage from "../roles/manager/payroll/screens/ManagerAdjustmentsPage";
-import TeamReimbursementsPage from "../roles/manager/payroll/screens/TeamReimbursementsPage";
-import TeamEncashmentsPage from "../roles/manager/payroll/screens/TeamEncashmentsPage";
 
 // Employee — Payroll
-import MySalaryPage from "../roles/employee/payroll/screens/MySalaryPage";
-import MyPayslipsPage from "../roles/employee/payroll/screens/MyPayslipsPage";
-import MyLoansAndAdvancesPage from "../roles/employee/payroll/screens/MyLoansAndAdvancesPage";
-import MyTaxAndInvestmentsPage from "../roles/employee/payroll/screens/MyTaxAndInvestmentsPage";
-import MyReimbursementsPage from "../roles/employee/payroll/screens/MyReimbursementsPage";
 
 // Shared Screens
-import DocumentsPage from "../shared/screens/DocumentsPage";
-import MyProfilePage from "../shared/screens/MyProfilePage";
-import DirectoryPage from "../shared/screens/DirectoryPage";
-import MyDocumentsPage from "../shared/screens/MyDocumentsPage";
 
 // Documents module (Phase 1)
-import DocumentVerificationPage from "../roles/hr/documents/screens/DocumentVerificationPage";
-import EmployeeDocumentsPage from "../roles/hr/documents/screens/EmployeeDocumentsPage";
-import DocumentTypesPage from "../roles/hr/documents/screens/DocumentTypesPage";
-import DocumentSettingsPage from "../roles/hr/documents/screens/DocumentSettingsPage";
-import TeamDocumentsPage from "../roles/manager/documents/screens/TeamDocumentsPage";
+
+/* ─── Lazily-loaded workspace screens ──────────────────────────────────────
+   The landing page used to ship the entire signed-in product in one 2.8MB
+   chunk — every payroll screen, every dashboard, and Recharts — which a
+   visitor had to download and parse before reading the homepage. Each of
+   these is now its own chunk, fetched when its route is first visited.
+──────────────────────────────────────────────────────────────────────── */
+const DashboardLayout = lazy(() => import("../shared/layouts/DashboardLayout"));
+const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
+const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
+const DashboardPage = lazy(() => import("../roles/DashboardPage"));
+const GuestDashboard = lazy(() => import("../roles/guest/screens/GuestDashboard"));
+const HRDashboard = lazy(() => import("../roles/hr/screens/HRDashboard"));
+const HRInboxPage = lazy(() => import("../roles/hr/screens/HRInboxPage"));
+const EmployeesPage = lazy(() => import("../roles/hr/screens/EmployeesPage"));
+const EmployeeProfilePage = lazy(() => import("../roles/hr/screens/EmployeeProfilePage"));
+const DepartmentsPage = lazy(() => import("../roles/hr/screens/DepartmentsPage"));
+const DepartmentDetailPage = lazy(() => import("../roles/hr/screens/DepartmentDetailPage"));
+const EmployeeDashboard = lazy(() => import("../roles/employee/screens/EmployeeDashboard"));
+const EmployeeAttendancePage = lazy(() => import("../roles/employee/screens/EmployeeAttendancePage"));
+const AttendanceRegularizationsPage = lazy(() => import("../roles/employee/screens/AttendanceRegularizationsPage"));
+const AttendanceAnomaliesPage = lazy(() => import("../roles/employee/screens/AttendanceAnomaliesPage"));
+const EmployeeOvertimePage = lazy(() => import("../roles/employee/screens/EmployeeOvertimePage"));
+const EmployeeCompOffsPage = lazy(() => import("../roles/employee/screens/EmployeeCompOffsPage"));
+const ManagerDashboard = lazy(() => import("../roles/manager/screens/ManagerDashboard"));
+const ManagerRegularizationsPage = lazy(() => import("../roles/manager/screens/ManagerRegularizationsPage"));
+const ManagerOvertimePage = lazy(() => import("../roles/manager/screens/ManagerOvertimePage"));
+const ManagerTeamPage = lazy(() => import("../roles/manager/screens/ManagerTeamPage"));
+const ManagerTeamHistoryPage = lazy(() => import("../roles/manager/screens/ManagerTeamHistoryPage"));
+const ManagerTeamRosterPage = lazy(() => import("../roles/manager/screens/ManagerTeamRosterPage"));
+const ManagerMemberProfilePage = lazy(() => import("../roles/manager/screens/ManagerMemberProfilePage"));
+const ManagerAnomaliesPage = lazy(() => import("../roles/manager/screens/ManagerAnomaliesPage"));
+const ManagerApprovalsInbox = lazy(() => import("../roles/manager/screens/ManagerApprovalsInbox"));
+const HRAttendancePage = lazy(() => import("../roles/hr/screens/HRAttendancePage"));
+const AttendancePoliciesPage = lazy(() => import("../roles/hr/attendance/screens/AttendancePoliciesPage"));
+const AttendanceShiftsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceShiftsPage"));
+const AttendanceRosterPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceRosterPage"));
+const AttendanceHolidaysPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceHolidaysPage"));
+const AttendanceWeeklyOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceWeeklyOffsPage"));
+const AttendanceRegularizationsHRPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceRegularizationsHRPage"));
+const AttendanceLocationsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLocationsPage"));
+const AttendanceCompOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffsPage"));
+const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage"));
+const AttendanceLockPeriodsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLockPeriodsPage"));
+const AttendanceReportsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceReportsPage"));
+const BiometricDevicesPage = lazy(() => import("../roles/hr/screens/BiometricDevicesPage"));
+const LeaveTypesPage = lazy(() => import("../roles/hr/leaves/screens/LeaveTypesPage"));
+const LeavePoliciesPage = lazy(() => import("../roles/hr/leaves/screens/LeavePoliciesPage"));
+const LeaveAutomationPage = lazy(() => import("../roles/hr/leaves/screens/LeaveAutomationPage"));
+const HRLeaveRequestsPage = lazy(() => import("../roles/hr/leaves/screens/HRLeaveRequestsPage"));
+const LeaveDashboard = lazy(() => import("../roles/employee/screens/LeaveDashboard"));
+const ManagerLeavePage = lazy(() => import("../roles/manager/screens/ManagerLeavePage"));
+const ManagerCompOffsPage = lazy(() => import("../roles/manager/screens/ManagerCompOffsPage"));
+const PayrollComponentsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollComponentsPage"));
+const PayrollTemplatesPage = lazy(() => import("../roles/hr/payroll/screens/PayrollTemplatesPage"));
+const EmployeeSalaryStructuresPage = lazy(() => import("../roles/hr/payroll/screens/EmployeeSalaryStructuresPage"));
+const PayrollApprovalsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollApprovalsPage"));
+const PayrollSettingsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollSettingsPage"));
+const PayrollRunDashboard = lazy(() => import("../roles/hr/payroll/screens/PayrollRunDashboard"));
+const PayrollRunDetailPage = lazy(() => import("../roles/hr/payroll/screens/PayrollRunDetailPage"));
+const PayrollAdjustmentsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollAdjustmentsPage"));
+const PayrollBonusRulesPage = lazy(() => import("../roles/hr/payroll/screens/PayrollBonusRulesPage"));
+const PayrollLoansPage = lazy(() => import("../roles/hr/payroll/screens/PayrollLoansPage"));
+const TaxConfigurationsPage = lazy(() => import("../roles/hr/payroll/screens/TaxConfigurationsPage"));
+const TaxDeclarationsPage = lazy(() => import("../roles/hr/payroll/screens/TaxDeclarationsPage"));
+const YearEndClosurePage = lazy(() => import("../roles/hr/payroll/screens/YearEndClosurePage"));
+const PayrollReimbursementsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollReimbursementsPage"));
+const PayrollBenefitsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollBenefitsPage"));
+const PayrollReportsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollReportsPage"));
+const PayrollExportsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollExportsPage"));
+const PayrollPayslipsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollPayslipsPage"));
+const TeamPayrollReportsPage = lazy(() => import("../roles/manager/payroll/screens/TeamPayrollReportsPage"));
+const BankVerificationPage = lazy(() => import("../roles/hr/payroll/screens/BankVerificationPage"));
+const PayrollAuditLogPage = lazy(() => import("../roles/hr/payroll/screens/PayrollAuditLogPage"));
+const PayrollEncashmentsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollEncashmentsPage"));
+const PayrollExitsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollExitsPage"));
+const PayrollArrearsPage = lazy(() => import("../roles/hr/payroll/screens/PayrollArrearsPage"));
+const PayrollAutomationPage = lazy(() => import("../roles/hr/payroll/screens/PayrollAutomationPage"));
+const TeamSalaryPage = lazy(() => import("../roles/manager/payroll/screens/TeamSalaryPage"));
+const TeamPayslipsPage = lazy(() => import("../roles/manager/payroll/screens/TeamPayslipsPage"));
+const ManagerAdjustmentsPage = lazy(() => import("../roles/manager/payroll/screens/ManagerAdjustmentsPage"));
+const TeamReimbursementsPage = lazy(() => import("../roles/manager/payroll/screens/TeamReimbursementsPage"));
+const TeamEncashmentsPage = lazy(() => import("../roles/manager/payroll/screens/TeamEncashmentsPage"));
+const MySalaryPage = lazy(() => import("../roles/employee/payroll/screens/MySalaryPage"));
+const MyPayslipsPage = lazy(() => import("../roles/employee/payroll/screens/MyPayslipsPage"));
+const MyLoansAndAdvancesPage = lazy(() => import("../roles/employee/payroll/screens/MyLoansAndAdvancesPage"));
+const MyTaxAndInvestmentsPage = lazy(() => import("../roles/employee/payroll/screens/MyTaxAndInvestmentsPage"));
+const MyReimbursementsPage = lazy(() => import("../roles/employee/payroll/screens/MyReimbursementsPage"));
+const DocumentsPage = lazy(() => import("../shared/screens/DocumentsPage"));
+const MyProfilePage = lazy(() => import("../shared/screens/MyProfilePage"));
+const DirectoryPage = lazy(() => import("../shared/screens/DirectoryPage"));
+const MyDocumentsPage = lazy(() => import("../shared/screens/MyDocumentsPage"));
+const DocumentVerificationPage = lazy(() => import("../roles/hr/documents/screens/DocumentVerificationPage"));
+const EmployeeDocumentsPage = lazy(() => import("../roles/hr/documents/screens/EmployeeDocumentsPage"));
+const DocumentTypesPage = lazy(() => import("../roles/hr/documents/screens/DocumentTypesPage"));
+const DocumentSettingsPage = lazy(() => import("../roles/hr/documents/screens/DocumentSettingsPage"));
+const TeamDocumentsPage = lazy(() => import("../roles/manager/documents/screens/TeamDocumentsPage"));
 
 function CatchAll() {
   const { isAuthenticated } = useAuth();
@@ -206,6 +213,11 @@ function AppRoutes() {
   return (
     <>
     <SessionExpiryRedirect />
+    {/* A lazy route's chunk arrives after the click, so there is one frame with
+        nothing to render. The app skeleton fills it — the same one the auth
+        gate already uses, so a cold navigation and a slow auth check look the
+        same rather than flashing two different loading states. */}
+    <Suspense fallback={<Skeleton type="app" />}>
     <Routes>
       {/* ─── PUBLIC LANDING WEBSITE ROUTES ─── */}
       <Route path="/" element={<LandingLayout />}>
@@ -383,6 +395,7 @@ function AppRoutes() {
       {/* ─── CATCH-ALL ─── */}
       <Route path="*" element={<CatchAll />} />
     </Routes>
+    </Suspense>
     </>
   );
 }
