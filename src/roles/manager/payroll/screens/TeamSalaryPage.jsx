@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCurrencyRupee, HiPencil, HiClock, HiLockClosed } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiClock, HiLockClosed } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { StatutorySummary, StatutoryUnavailableNotice } from "../../../../shared/components/StatutoryBreakdown";
+import SalaryStructurePanel from "../../../../shared/components/SalaryStructurePanel";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
-import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -20,7 +19,6 @@ function Toast({ toast, onClose }) {
   );
 }
 
-const REVISION_LABELS = { initial: "Initial", increment: "Increment", promotion: "Promotion", correction: "Correction", restructure: "Restructure" };
 const STATUS_PILL = {
   approved: "bg-violet-50 text-violet-700 border border-violet-200",
   proposed: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
@@ -38,92 +36,26 @@ const memberId = (m) => m?.user_id || m?.user?.user_id || m?.user?.id || m?.empl
 const memberCtc = (m) => m.current_ctc ?? m.annual_ctc;
 
 // ── Report's current + history, manager-scoped (#28, #29) ──────────────────
-function HistoryModal({ member, onClose, showToast }) {
+// The full structure, not a CTC timeline: the same panel HR reads on an
+// employee profile, in a dialog wide enough for the component tables.
+function HistoryModal({ member, onClose }) {
   const u = memberUser(member);
   const id = memberId(member);
-  const [current, setCurrent] = useState(undefined);
-  const [rows, setRows] = useState(undefined);
-  const [denied, setDenied] = useState(false);
-  // #29 enriches the current-structure read with the statutory split. It stays
-  // behind the same COMPENSATION_VIEW_DISABLED gate as the CTC itself.
-  const statutory = useMemo(() => normalizeStatutory(current), [current]);
-  const componentDeductions = useMemo(
-    () => (current?.components || [])
-      .filter((c) => c.component_type === "deduction")
-      .reduce((sum, c) => sum + (Number.parseFloat(c.monthly_amount) || 0), 0),
-    [current],
-  );
-
-  useEffect(() => {
-    // Without an id there is nothing to ask for; show the empty history.
-    if (!id) { setCurrent(null); setRows([]); return undefined; }
-    let cancelled = false;
-    Promise.allSettled([
-      payrollAPI.getTeamMemberCurrentStructure(id),
-      payrollAPI.getTeamMemberStructureHistory(id),
-    ]).then(([curR, histR]) => {
-      if (cancelled) return;
-      const denialCode = "COMPENSATION_VIEW_DISABLED";
-      const wasDenied = [curR, histR].some((r) => r.status === "rejected" && r.reason?.data?.errorCode === denialCode);
-      if (wasDenied) { setDenied(true); setCurrent(null); setRows([]); return; }
-      setCurrent(curR.status === "fulfilled" ? (curR.value.data ?? null) : null);
-      setRows(histR.status === "fulfilled" ? (histR.value.data?.records || histR.value.data || []) : []);
-    });
-    return () => { cancelled = true; };
-  }, [id]);
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Salary history</h2>
+            <h2 className="text-lg font-bold text-slate-800">Salary structure</h2>
             <p className="text-xs text-slate-500">{u.name || u.identifier || "Team member"}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition" aria-label="Close"><HiX className="w-5 h-5" /></button>
         </div>
-        <div className="p-6 overflow-y-auto">
-          {denied ? (
-            <div className="flex flex-col items-center text-center py-8 text-slate-500">
-              <HiLockClosed className="w-8 h-8 mb-2 text-slate-300" />
-              <p className="text-sm font-semibold">Compensation view is disabled</p>
-              <p className="text-xs mt-1">Your organisation's policy prevents managers from seeing per-employee salary figures.</p>
-            </div>
-          ) : rows === undefined ? <Skeleton type="table" rows={4} /> : (
-            <>
-              {current && (
-                <>
-                  <div className="flex items-center justify-between rounded-xl bg-purple-50 border border-purple-100 px-4 py-3 mb-3">
-                    <div><p className="text-[10px] font-bold text-purple-400 uppercase">Current CTC</p><p className="text-sm font-black text-purple-700">{formatMoney(current.annual_ctc)}</p></div>
-                    <div className="text-right"><p className="text-[10px] font-bold text-purple-400 uppercase">Since</p><p className="text-sm font-semibold text-slate-600">{formatDate(current.effective_from)}</p></div>
-                  </div>
-                  {statutory
-                    ? <StatutorySummary statutory={statutory} componentDeductions={componentDeductions} className="mb-5" />
-                    : <StatutoryUnavailableNotice compact className="mb-5" />}
-                </>
-              )}
-              {rows.length === 0 ? (
-                <p className="text-center text-slate-400 py-6">No approved salary history to show.</p>
-              ) : (
-                <ol className="space-y-0">
-                  {rows.map((h, i) => {
-                    const isCurrent = h.status === "approved" && !h.effective_to;
-                    return (
-                      <li key={h.id || i} className="relative pl-6 pb-6 last:pb-0 border-l-2 border-slate-100 last:border-transparent">
-                        <span className={`absolute -left-[7px] top-1 w-3 h-3 rounded-full ring-4 ring-white ${isCurrent ? "bg-purple-600" : "bg-slate-300"}`} />
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm font-bold text-slate-800">{formatMoney(h.annual_ctc)}<span className="text-xs text-slate-400 font-normal ml-1">/ year</span></span>
-                          <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">{REVISION_LABELS[h.revision_type] || h.revision_type || "Revision"}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">{formatDate(h.effective_from)} — {isCurrent ? "Present" : formatDate(h.effective_to)}</p>
-                        {h.revision_reason && <p className="text-xs text-slate-400 mt-1 italic">“{h.revision_reason}”</p>}
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </>
-          )}
+        <div className="p-6 overflow-y-auto bg-slate-50/50">
+          {id
+            ? <SalaryStructurePanel userId={id} viewer="manager" />
+            : <p className="text-center text-slate-400 py-8">This row has no employee id, so their structure can&apos;t be looked up.</p>}
         </div>
       </div>
     </div>
@@ -353,7 +285,7 @@ export default function TeamSalaryPage() {
         ))}
       </main>
 
-      {historyMember && <HistoryModal member={historyMember} onClose={() => setHistoryMember(null)} showToast={showToast} />}
+      {historyMember && <HistoryModal member={historyMember} onClose={() => setHistoryMember(null)} />}
 
       {proposeMember && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">

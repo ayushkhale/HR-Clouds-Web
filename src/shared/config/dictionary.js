@@ -81,6 +81,11 @@ export const DICTIONARY = {
     ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization."
   },
   TERMS: {
-    COMP_OFF: "Complimentary Off"
+    // A day credited for working an off day. Reads as a mass noun — "Earned
+    // Leave" both for one day and for many, never "Earned Leaves" — so count
+    // phrases say "3 earned leave days".
+    COMP_OFF: "Earned Leave",
+    // A request to fix a missed or wrong punch. Pluralises normally.
+    REGULARIZATION: "Attendance Correction"
   }
 };

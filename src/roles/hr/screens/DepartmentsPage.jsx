@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
 import { canBeHOD } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
@@ -8,6 +9,8 @@ import {
 import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
 
 function DepartmentsPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [departments, setDepartments] = useState([]);
   const [locations, setLocations] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -32,6 +35,17 @@ function DepartmentsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // The detail page sends people back here with ?edit=<id> to change a
+  // department; consume the parameter so a refresh doesn't reopen the modal.
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || departments.length === 0) return;
+    const target = departments.find((d) => (d.id || d._id) === editId);
+    if (target) openEditModal(target);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, departments]);
 
   const fetchData = async () => {
     setPageLoading(true);
@@ -220,10 +234,18 @@ function DepartmentsPage() {
                   const hodName = dept.head_of_department_name
                     || (employees.find(e => e.user_id === dept.head_of_department_id || e.id === dept.head_of_department_id) || dept.head_of_department)?.name;
 
+                  const deptId = dept.id || dept._id;
+                  const open = () => navigate(`/dashboard/hr/departments/${deptId}`);
+
                   return (
                     <div
-                      key={dept.id || dept._id}
-                      className={`rounded-[20px] transition-all duration-200 group relative flex flex-col overflow-hidden p-6 ${
+                      key={deptId}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open ${dept.name}`}
+                      onClick={open}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
+                      className={`rounded-[20px] transition-all duration-200 group relative flex flex-col overflow-hidden p-6 cursor-pointer outline-none focus:ring-2 focus:ring-purple-200 ${
                         dept.is_active 
                         ? 'bg-white border border-slate-100 hover:border-purple-200 hover:shadow-md hover:-translate-y-1 shadow-sm' 
                         : 'bg-slate-50 border border-dashed border-slate-300 hover:border-slate-400 opacity-90'
@@ -256,7 +278,9 @@ function DepartmentsPage() {
                             </div>
                           </div>
                           <button
-                            onClick={() => openEditModal(dept)}
+                            title="Edit department"
+                            aria-label={`Edit ${dept.name}`}
+                            onClick={(e) => { e.stopPropagation(); openEditModal(dept); }}
                             className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-purple-600 bg-white hover:bg-purple-50 rounded-xl transition-all shadow-xs border border-slate-100 hover:shadow-sm"
                           >
                             <HiPencil className="w-3.5 h-3.5" />

@@ -6,8 +6,8 @@ function ManagerCompOffsPage() {
   return (
     <ManagerQueuePage
       type="compoff"
-      title={`${DICTIONARY.TERMS.COMP_OFF}s`}
-      description="Compensatory days earned by team members who worked on holidays or weekly offs. Approving credits their leave balance."
+      title={DICTIONARY.TERMS.COMP_OFF}
+      description="Earned leave days from team members who worked on holidays or weekly offs. Approving credits their leave balance."
     />
   );
 }

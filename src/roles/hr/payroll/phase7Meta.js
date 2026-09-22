@@ -115,7 +115,7 @@ export const encashmentStatusMeta = (status) =>
   ENCASHMENT_STATUS[String(status || "").toLowerCase()] || { label: "Unknown", tone: "slate" };
 
 export const SOURCE_KINDS = [
-  { value: "comp_off", label: "Comp-off", blurb: "Days earned for working on an off day." },
+  { value: "comp_off", label: "Earned leave", blurb: "Days credited for working on an off day." },
   { value: "leave_balance", label: "Leave balance", blurb: "Unused leave from the employee's balance." },
 ];
 

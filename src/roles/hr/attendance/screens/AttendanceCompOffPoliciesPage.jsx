@@ -150,7 +150,7 @@ function PolicyModal({ policy, onClose, onSaved }) {
             <input type="checkbox" checked={form.requires_approval} onChange={(e) => set("requires_approval", e.target.checked)} className="w-4 h-4 mt-0.5 rounded text-purple-600 focus:ring-purple-500 border-slate-300" />
             <span>
               <span className="block text-sm font-semibold text-slate-700">Requires manager approval</span>
-              <span className="block text-[11px] text-slate-400">When enabled, earned {TERM.toLowerCase()}s wait for a manager (or HR on their behalf) before they're credited to leave.</span>
+              <span className="block text-[11px] text-slate-400">When enabled, {TERM.toLowerCase()} days wait for a manager (or HR on their behalf) before they're credited to leave.</span>
             </span>
           </label>
 
@@ -235,7 +235,7 @@ function AttendanceCompOffPoliciesPage() {
           </div>
 
           <InlineAlert tone="sky">
-            {TERM}s are only earned when the employee's attendance policy has “Earn {TERM} for Holiday Work” turned on.
+            {TERM} is only earned when the employee's attendance policy has “Earn {TERM} for Holiday Work” turned on.
           </InlineAlert>
 
           <div className="bg-white rounded-2xl shadow-xs border border-slate-100 overflow-hidden">

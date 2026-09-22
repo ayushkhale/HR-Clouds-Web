@@ -61,7 +61,7 @@ function AttendanceCompOffsPage() {
   const handleBulkApprove = async () => {
     if (bulk || selected.length === 0) return;
     const rows = list.items.filter((r) => selected.includes(entityId(r)));
-    if (!(await window.confirm(`Approve ${rows.length} ${TERM.toLowerCase()}${rows.length === 1 ? "" : "s"} on the manager's behalf? Each approval credits the employee's leave balance.`))) return;
+    if (!(await window.confirm(`Approve ${rows.length} ${TERM.toLowerCase()} day${rows.length === 1 ? "" : "s"} on the manager's behalf? Each approval credits the employee's leave balance.`))) return;
 
     const failures = [];
     setBulk({ done: 0, total: rows.length, failures });
@@ -84,7 +84,7 @@ function AttendanceCompOffsPage() {
     if (approved > 0) emitAttendanceChanged(ATTENDANCE_EVENTS.COMPOFF, { action: "bulk_approve", scope: "hr" });
     setSelected([]);
     setBulk(null);
-    if (failures.length === 0) showToast(`${approved} ${TERM.toLowerCase()}${approved === 1 ? "" : "s"} approved.`);
+    if (failures.length === 0) showToast(`${approved} ${TERM.toLowerCase()} day${approved === 1 ? "" : "s"} approved.`);
     else showToast(`${approved} approved, ${failures.length} failed: ${failures.map((f) => `${f.name} (${f.message})`).join("; ")}`, "error");
     // The COMPOFF event already reloads this list when anything was approved.
     if (approved === 0) list.reload();
@@ -94,10 +94,10 @@ function AttendanceCompOffsPage() {
 
   return (
     <>
-      <DashboardTopBar title={`${TERM}s`} />
+      <DashboardTopBar title={TERM} />
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{TERM}s</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{TERM}</h1>
           <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits on the manager's behalf.</p>
         </div>
 
@@ -112,11 +112,11 @@ function AttendanceCompOffsPage() {
           </div>
 
           {list.error ? (
-            <ErrorState error={list.error} onRetry={list.reload} fallback={`Couldn't load ${TERM.toLowerCase()}s.`} />
+            <ErrorState error={list.error} onRetry={list.reload} fallback={`Couldn't load ${TERM.toLowerCase()} days.`} />
           ) : list.loading && list.items.length === 0 ? (
             <div className="p-6"><LoadingRows rows={5} /></div>
           ) : list.items.length === 0 ? (
-            <EmptyState icon={HiGift} title="Nothing here" message={`No ${status ? `${status} ` : ""}${TERM.toLowerCase()}s found.`} />
+            <EmptyState icon={HiGift} title="Nothing here" message={`No ${status ? `${status} ` : ""}${TERM.toLowerCase()} days found.`} />
           ) : (
             <>
               <div className={`overflow-x-auto ${list.loading ? "opacity-60" : ""}`}>

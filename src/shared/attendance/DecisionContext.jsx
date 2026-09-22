@@ -263,7 +263,7 @@ function RecordFlags({ record }) {
       )}
       {(record.is_regularized || record.is_manually_corrected) && (
         <InlineAlert tone="amber">
-          {record.is_regularized && "This day has already been regularized once. "}
+          {record.is_regularized && "This day has already been corrected once. "}
           {record.is_manually_corrected && "HR has manually corrected this day."}
         </InlineAlert>
       )}

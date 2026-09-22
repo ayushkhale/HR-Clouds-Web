@@ -281,7 +281,7 @@ export const ITEM_ERRORS = {
     title: "Day still open at month end",
     explain: "An attendance day at the end of the month was still in progress (for example, checked in but not checked out), and your settings treat that as a problem.",
     fix: `Close or correct that attendance day, then recalculate. ${EXCLUDE_HINT}`,
-    link: { to: "/dashboard/hr/attendance/regularizations", label: "Open regularizations" },
+    link: { to: "/dashboard/hr/attendance/regularizations", label: "Open attendance corrections" },
   },
   CTC_RECONCILIATION_FAILED: {
     title: "Salary parts don't add up",

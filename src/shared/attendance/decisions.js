@@ -14,7 +14,7 @@ const REJECT = { key: "reject", label: "Reject", tone: "rose", requireRemarks: t
 
 export const DECISION_TYPES = {
   regularization: {
-    label: "Regularization",
+    label: "Attendance correction",
     event: ATTENDANCE_EVENTS.REGULARIZATION,
     listKeys: ["requests", "regularizations"],
     fetch: () => attendanceAPI.getManagerPendingRegularizations(),
@@ -24,7 +24,7 @@ export const DECISION_TYPES = {
       action === "approve"
         ? attendanceAPI.approveManagerRegularization(id, { remarks })
         : attendanceAPI.rejectManagerRegularization(id, { remarks }),
-    success: { approve: "Regularization approved — the day has been recalculated.", reject: "Regularization rejected." },
+    success: { approve: "Attendance correction approved — the day has been recalculated.", reject: "Attendance correction rejected." },
   },
   overtime: {
     label: "Overtime",

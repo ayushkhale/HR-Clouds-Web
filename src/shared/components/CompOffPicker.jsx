@@ -77,7 +77,7 @@ export default function CompOffPicker({ userId, value = [], onChange, load, unav
     setState({ items: [], loading: true, error: "" });
     load(userId)
       .then((items) => alive && setState({ items, loading: false, error: "" }))
-      .catch(() => alive && setState({ items: [], loading: false, error: `Couldn't load ${personName}'s ${TERM.toLowerCase()}s.` }));
+      .catch(() => alive && setState({ items: [], loading: false, error: `Couldn't load ${personName}'s ${TERM.toLowerCase()} days.` }));
     return () => { alive = false; };
   }, [userId, load, personName]);
 
@@ -96,13 +96,13 @@ export default function CompOffPicker({ userId, value = [], onChange, load, unav
       </p>
     );
   }
-  if (!userId) return <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3.5 py-3">Choose who this is for to see their {TERM.toLowerCase()}s.</p>;
+  if (!userId) return <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3.5 py-3">Choose who this is for to see their {TERM.toLowerCase()} days.</p>;
   if (state.loading) return <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />)}</div>;
   if (state.error) return <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-3">{state.error}</p>;
   if (state.items.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3">
-        <HiGift className="w-4 h-4 text-slate-400 shrink-0" /> {personName} has no approved, unused {TERM.toLowerCase()}s to cash out.
+        <HiGift className="w-4 h-4 text-slate-400 shrink-0" /> {personName} has no approved, unused {TERM.toLowerCase()} days to cash out.
       </div>
     );
   }

@@ -5,7 +5,7 @@ function ManagerRegularizationsPage() {
   return (
     <ManagerQueuePage
       type="regularization"
-      title="Regularizations"
+      title="Attendance Corrections"
       description="Review attendance corrections requested by your reporting line. Approving recalculates the day."
     />
   );

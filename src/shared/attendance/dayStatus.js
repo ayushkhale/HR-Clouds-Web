@@ -44,6 +44,15 @@ export const isSynthesizedDay = (record) => !!record && (record.id === null || r
  * StatusBadge. Both live here so a chip can never look like one thing in the
  * grid and another in the table.
  */
+// Chart series colours for the attendance trend charts (HR and manager read
+// the same three). Validated as a set: lightness band, chroma floor, and
+// colour-blind separation between every neighbouring pair.
+export const TREND_COLORS = {
+  present: "#7C3AED",  // purple
+  on_leave: "#A78BFA", // mid purple
+  absent: "#C026D3",   // reddish purple
+};
+
 export const DAY_CHIPS = {
   present:    { label: "Present",    tone: "emerald", heat: "bg-purple-700 border-purple-700 text-white" },
   late:       { label: "Late",       tone: "amber",   heat: "bg-purple-400 border-purple-400 text-white" },

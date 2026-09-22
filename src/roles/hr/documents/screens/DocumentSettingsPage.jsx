@@ -36,9 +36,9 @@ const toForm = (s) => ({
   document_retention_days: String(s.document_retention_days ?? 2555),
 });
 
-function Card({ title, icon: Icon, blurb, children }) {
+function Card({ title, icon: Icon, blurb, children, className = "" }) {
   return (
-    <section className="bg-white rounded-2xl border border-slate-100 shadow-xs">
+    <section className={`bg-white rounded-2xl border border-slate-100 shadow-xs ${className}`}>
       <div className="flex items-start gap-3 px-6 pt-5 pb-3">
         <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>
         <div>
@@ -126,13 +126,15 @@ export default function DocumentSettingsPage() {
   const numberField = (key) => {
     const r = NUMBERS[key];
     return (
-      <div key={key} className="py-3">
+      <div key={key} className="min-w-0">
         <label htmlFor={`ds-${key}`} className={LABEL}>{r.label}</label>
-        <div className="flex items-center gap-2 max-w-xs">
+        <div className="flex items-center gap-2">
           <input id={`ds-${key}`} type="number" min={r.min} max={r.max} value={form[key]} onChange={(e) => set(key, e.target.value)} className={FIELD} />
           <span className="text-xs font-semibold text-slate-500 shrink-0">{r.unit}</span>
         </div>
-        {problems[key] ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems[key]}</p> : <p className="text-[10px] text-slate-400 mt-1">Allowed {r.min}–{r.max} {r.unit}.</p>}
+        <p className={`text-[10px] mt-1 ${problems[key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
+          {problems[key] || `${r.min}–${r.max} ${r.unit}`}
+        </p>
       </div>
     );
   };
@@ -140,7 +142,7 @@ export default function DocumentSettingsPage() {
   return (
     <>
       <DashboardTopBar title="Document Settings" />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-4xl w-full mx-auto space-y-6">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Document Settings</h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -152,62 +154,70 @@ export default function DocumentSettingsPage() {
         {error ? (
           <div className="bg-white rounded-2xl border border-slate-100"><DocErrorState error={error} onRetry={load} fallback="Couldn't load the document settings." /></div>
         ) : !form ? (
-          <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="h-40 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">{[0, 1, 2, 3].map((i) => <div key={i} className="h-48 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
         ) : (
           <>
-            <Card title="Managers" icon={HiUserGroup} blurb="How much the reporting manager is involved in their team's documents.">
-              <SwitchRow
-                title="Managers can see their team's documents"
-                description="Non-confidential documents of direct reports, for types that allow manager viewing. Off hides every team document from managers."
-                checked={form.manager_can_view_team_documents}
-                onChange={(v) => set("manager_can_view_team_documents", v)}
-              />
-              <SwitchRow
-                title="Managers decide directly"
-                description="A manager's recommendation becomes the final decision — the document skips HR's Verification Queue."
-                checked={form.manager_direct_document_authority}
-                onChange={(v) => set("manager_direct_document_authority", v)}
-                note={form.manager_direct_document_authority && form.document_require_separate_checker ? "Can't be on together with Separate checker." : ""}
-              />
-            </Card>
+            {/* Two equal columns of people rules, then one full-width card for
+                the numbers. Equal switch counts per column keep the two sides
+                the same height instead of leaving a hole under the short one. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              <div className="flex flex-col gap-6">
+                <Card title="Managers" icon={HiUserGroup} blurb="How much the reporting manager is involved in their team's documents.">
+                  <SwitchRow
+                    title="Managers can see their team's documents"
+                    description="Non-confidential documents of direct reports, for types that allow manager viewing. Off hides every team document from managers."
+                    checked={form.manager_can_view_team_documents}
+                    onChange={(v) => set("manager_can_view_team_documents", v)}
+                  />
+                  <SwitchRow
+                    title="Managers decide directly"
+                    description="A manager's recommendation becomes the final decision — the document skips HR's Verification Queue."
+                    checked={form.manager_direct_document_authority}
+                    onChange={(v) => set("manager_direct_document_authority", v)}
+                    note={form.manager_direct_document_authority && form.document_require_separate_checker ? "Can't be on together with Separate checker." : ""}
+                  />
+                </Card>
+                <Card title="Employees" icon={HiLockClosed} blurb="What employees can do with their own verified documents.">
+                  <SwitchRow
+                    title="Employees can delete verified documents"
+                    description="Only for types that also allow it. Statutory documents (PAN, Aadhaar, Form 16…) are never deletable by employees, whatever this says."
+                    checked={form.employee_can_delete_verified_documents}
+                    onChange={(v) => set("employee_can_delete_verified_documents", v)}
+                  />
+                </Card>
+              </div>
 
-            <Card title="Verification" icon={HiShieldCheck} blurb="The maker–checker rules for HR decisions.">
-              <SwitchRow
-                title="Separate checker"
-                description="The HR person who uploaded or proposed a document can't verify it — another HR administrator must. Needs at least two active HR administrators."
-                checked={form.document_require_separate_checker}
-                onChange={(v) => set("document_require_separate_checker", v)}
-                note={form.document_require_separate_checker && form.manager_direct_document_authority ? "Can't be on together with Managers decide directly." : ""}
-              />
-              <SwitchRow
-                title="New custom types need verification"
-                description="The starting value for “Needs verification” when HR creates a custom type. Existing types don't change."
-                checked={form.document_default_verification_required}
-                onChange={(v) => set("document_default_verification_required", v)}
-              />
-              <SwitchRow
-                title="Scan uploads for viruses"
-                description="Not available yet — no scanning service is connected, so it can't be turned on."
-                checked={false}
-                onChange={() => {}}
-                disabled
-              />
-            </Card>
-
-            <Card title="Employees" icon={HiLockClosed} blurb="What employees can do with their own verified documents.">
-              <SwitchRow
-                title="Employees can delete verified documents"
-                description="Only for types that also allow it. Statutory documents (PAN, Aadhaar, Form 16…) are never deletable by employees, whatever this says."
-                checked={form.employee_can_delete_verified_documents}
-                onChange={(v) => set("employee_can_delete_verified_documents", v)}
-              />
-            </Card>
+              <Card title="Verification" icon={HiShieldCheck} blurb="The maker–checker rules for HR decisions." className="h-full">
+                <SwitchRow
+                  title="Separate checker"
+                  description="The HR person who uploaded or proposed a document can't verify it — another HR administrator must. Needs at least two active HR administrators."
+                  checked={form.document_require_separate_checker}
+                  onChange={(v) => set("document_require_separate_checker", v)}
+                  note={form.document_require_separate_checker && form.manager_direct_document_authority ? "Can't be on together with Managers decide directly." : ""}
+                />
+                <SwitchRow
+                  title="New custom types need verification"
+                  description="The starting value for “Needs verification” when HR creates a custom type. Existing types don't change."
+                  checked={form.document_default_verification_required}
+                  onChange={(v) => set("document_default_verification_required", v)}
+                />
+                <SwitchRow
+                  title="Scan uploads for viruses"
+                  description="Not available yet — no scanning service is connected, so it can't be turned on."
+                  checked={false}
+                  onChange={() => {}}
+                  disabled
+                />
+              </Card>
+            </div>
 
             <Card title="Links & storage" icon={HiEye} blurb="Every view and upload uses a short-lived secure link. A copied link stops working after this time.">
-              {numberField("document_view_url_ttl_seconds")}
-              {numberField("document_upload_url_ttl_seconds")}
-              {numberField("document_max_file_size_mb")}
-              {numberField("document_retention_days")}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-4 py-4">
+                {numberField("document_view_url_ttl_seconds")}
+                {numberField("document_upload_url_ttl_seconds")}
+                {numberField("document_max_file_size_mb")}
+                {numberField("document_retention_days")}
+              </div>
               <p className="flex items-start gap-2 text-[11px] text-slate-500 py-3">
                 <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
                 A document type can only lower the file-size limit, never raise it. Retention is recorded now; automatic purging starts in a later release.
@@ -218,12 +228,17 @@ export default function DocumentSettingsPage() {
               <p className="text-sm font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3" role="alert">{saveError || problems.conflict}</p>
             )}
 
-            <div className="sticky bottom-4 z-10 flex justify-end gap-3">
-              {dirty && <button type="button" onClick={() => { setForm(toForm(saved)); setSaveError(""); }} disabled={saving} className={SECONDARY_BTN}>Discard changes</button>}
-              <button type="button" onClick={save} disabled={!dirty || blocked || saving} className={PRIMARY_BTN}>
-                <HiCog className="w-4 h-4" /> {saving ? "Saving…" : dirty ? `Save ${Object.keys(changes).length} ${Object.keys(changes).length === 1 ? "change" : "changes"}` : "No changes"}
-              </button>
-            </div>
+            {dirty && (
+              <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-end gap-3 bg-white/95 backdrop-blur border border-slate-200 shadow-lg rounded-2xl px-4 py-3">
+                <p className="mr-auto text-xs font-semibold text-slate-600">
+                  {Object.keys(changes).length} unsaved {Object.keys(changes).length === 1 ? "change" : "changes"}
+                </p>
+                <button type="button" onClick={() => { setForm(toForm(saved)); setSaveError(""); }} disabled={saving} className={SECONDARY_BTN}>Discard</button>
+                <button type="button" onClick={save} disabled={blocked || saving} className={PRIMARY_BTN}>
+                  <HiCog className="w-4 h-4" /> {saving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            )}
           </>
         )}
       </main>

@@ -34,6 +34,7 @@ import HRInboxPage from "../roles/hr/screens/HRInboxPage";
 import EmployeesPage from "../roles/hr/screens/EmployeesPage";
 import EmployeeProfilePage from "../roles/hr/screens/EmployeeProfilePage";
 import DepartmentsPage from "../roles/hr/screens/DepartmentsPage";
+import DepartmentDetailPage from "../roles/hr/screens/DepartmentDetailPage";
 import EmployeeDashboard from "../roles/employee/screens/EmployeeDashboard";
 import EmployeeAttendancePage from "../roles/employee/screens/EmployeeAttendancePage";
 import AttendanceRegularizationsPage from "../roles/employee/screens/AttendanceRegularizationsPage";
@@ -240,6 +241,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/employees" element={<EmployeesPage />} />
         <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
         <Route path="/dashboard/hr/departments" element={<DepartmentsPage />} />
+        <Route path="/dashboard/hr/departments/:departmentId" element={<DepartmentDetailPage />} />
         <Route path="/dashboard/hr/attendance/directory" element={<HRAttendancePage />} />
         <Route path="/dashboard/hr/attendance/policies" element={<AttendancePoliciesPage />} />
         <Route path="/dashboard/hr/attendance/shifts" element={<AttendanceShiftsPage />} />

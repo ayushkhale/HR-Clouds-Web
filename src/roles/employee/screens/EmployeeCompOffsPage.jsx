@@ -58,10 +58,10 @@ function EmployeeCompOffsPage() {
 
   return (
     <>
-      <DashboardTopBar title={`My ${TERM}s`} />
+      <DashboardTopBar title={`My ${TERM}`} />
       <main className="p-4 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">My {TERM}s</h1>
+          <h1 className="text-2xl font-bold text-slate-800">My {TERM}</h1>
           <p className="text-sm text-slate-500 mt-1">Days credited for working on holidays or weekly offs.</p>
         </div>
 
@@ -92,7 +92,7 @@ function EmployeeCompOffsPage() {
             <FilterTabs options={COMP_OFF_FILTERS} value={status} onChange={setStatus} />
           </div>
           {list.error ? (
-            <ErrorState error={list.error} onRetry={list.reload} fallback={`Couldn't load your ${TERM.toLowerCase()}s.`} />
+            <ErrorState error={list.error} onRetry={list.reload} fallback={`Couldn't load your ${TERM.toLowerCase()} days.`} />
           ) : list.loading && list.items.length === 0 ? (
             <div className="p-6"><LoadingRows rows={4} /></div>
           ) : list.items.length === 0 ? (

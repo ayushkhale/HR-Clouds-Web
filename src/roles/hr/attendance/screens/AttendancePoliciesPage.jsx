@@ -251,7 +251,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
               )}
             </ToggleRow>
 
-            <ToggleRow title={`Earn ${TERM} for Holiday Work`} description={`Working a holiday or weekly off earns a ${TERM.toLowerCase()}, per the ${TERM.toLowerCase()} policy`} checked={form.comp_off_on_holiday_work} onChange={(v) => set("comp_off_on_holiday_work", v)} />
+            <ToggleRow title={`Earn ${TERM} for Holiday Work`} description={`Working a holiday or weekly off earns ${TERM.toLowerCase()}, per the ${TERM.toLowerCase()} policy`} checked={form.comp_off_on_holiday_work} onChange={(v) => set("comp_off_on_holiday_work", v)} />
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">

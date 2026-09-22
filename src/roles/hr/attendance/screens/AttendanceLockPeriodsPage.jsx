@@ -42,7 +42,7 @@ function UnlockDialog({ lock, onClose, onUnlocked }) {
             <h3 className="text-lg font-bold text-slate-800">Unlock {fmtDate(ymdOnly(lock.start_date))} – {fmtDate(ymdOnly(lock.end_date))}?</h3>
             <button type="button" onClick={onClose} disabled={busy} className="text-slate-400 hover:text-slate-600" aria-label="Close"><HiX className="w-5 h-5" /></button>
           </div>
-          <p className="text-sm text-slate-500">Employees and managers will be able to change punches, regularizations, overtime and {""}comp-offs dated in this range again.</p>
+          <p className="text-sm text-slate-500">Employees and managers will be able to change punches, attendance corrections, overtime and {""}earned leave dated in this range again.</p>
           {payroll && (
             <InlineAlert tone="rose">
               This lock was created by a payroll run. Changing attendance after payroll has been processed can make paid amounts incorrect.
@@ -262,7 +262,7 @@ function AttendanceLockPeriodsPage() {
                 Locking <strong className="text-slate-700">{fmtDate(confirming.start_date)}</strong> to <strong className="text-slate-700">{fmtDate(confirming.end_date)}</strong> freezes attendance for that range.
               </p>
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-700 font-medium text-left">
-                While locked, clock-ins, regularizations and approvals dated in this range are refused. Remove the lock to allow changes again.
+                While locked, clock-ins, attendance corrections and approvals dated in this range are refused. Remove the lock to allow changes again.
               </div>
               {createError && <InlineAlert tone="rose" className="text-left">{createError}</InlineAlert>}
             </div>

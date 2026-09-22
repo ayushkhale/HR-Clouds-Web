@@ -11,10 +11,10 @@ import { InlineAlert } from "../../../../shared/attendance/ui";
 export default function AttendanceRegularizationsHRPage() {
   return (
     <>
-      <DashboardTopBar title="Regularizations" />
+      <DashboardTopBar title="Attendance Corrections" />
       <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Regularizations</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Attendance Corrections</h1>
           <p className="text-sm text-slate-500 mt-1">Pending attendance correction requests across the organisation. HR can approve or reject any of them.</p>
         </div>
 

@@ -76,7 +76,7 @@ export function validateRegularization(form, { today = todayYMD(), now = new Dat
   const reason = String(form.reason || "").trim();
 
   if (!form.date || !parseYMDLocal(form.date)) errors.date = "Select the date you want to correct.";
-  else if (form.date >= today) errors.date = "Only past dates can be regularized.";
+  else if (form.date >= today) errors.date = "Only past dates can be corrected.";
 
   // Schema: .or('requested_clock_in', 'requested_clock_out')
   if (!form.clockIn && !form.clockOut) errors.times = "Enter a corrected clock-in time, clock-out time, or both.";

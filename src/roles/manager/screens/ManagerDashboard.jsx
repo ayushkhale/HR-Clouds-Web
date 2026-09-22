@@ -2,15 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import { useAuth } from "../../../shared/contexts/AuthContext";
 import AttendanceCard from "../../employee/components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
 import Skeleton from "../../../shared/components/Skeleton";
-import { HiUserGroup, HiClock, HiCalendar, HiLightningBolt, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
+import { HiUserGroup, HiClock, HiCalendar, HiSparkles, HiLightningBolt, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
 import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
 import { departmentName, employeeCode, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
 import { fmtClock, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { DepartmentCard } from "../../hr/screens/HRDashboard";
+import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
@@ -40,12 +42,17 @@ function departmentBreakdown(records) {
 const CARD = "bg-white rounded-3xl p-6 shadow-xs border border-slate-100";
 
 /** The one header every dashboard card uses: title, a quiet subtitle, one action. */
-function CardHeader({ title, subtitle, action }) {
+// `icon` and `divider` are opt-in: only the punch card wears them, so the
+// other cards on the dashboard keep their plainer heading.
+function CardHeader({ title, subtitle, action, icon: Icon, divider = false }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-5">
-      <div className="min-w-0">
-        <h3 className="text-lg font-bold text-slate-800 leading-tight">{title}</h3>
-        {subtitle && <p className="text-[11px] font-semibold text-slate-400 mt-1">{subtitle}</p>}
+    <div className={`flex items-start justify-between gap-4 ${divider ? "mb-5 pb-4 border-b border-slate-100" : "mb-5"}`}>
+      <div className="flex items-start gap-3 min-w-0">
+        {Icon && <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>}
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-slate-800 leading-tight">{title}</h3>
+          {subtitle && <p className="text-[11px] font-semibold text-slate-400 mt-1">{subtitle}</p>}
+        </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -207,6 +214,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
 // Three rows, nothing else: my own punch card, the team's month and today at a
 // glance (the same pair as the HR dashboard), then who is in right now.
 function ManagerDashboard() {
+  const { user } = useAuth();
   const { today, shift, loading: todayLoading, error: todayError, refresh } = useTodayAttendance();
   const now = new Date();
   const [summary, setSummary] = useState({ data: null, loading: true, error: null });
@@ -262,11 +270,12 @@ function ManagerDashboard() {
 
   const refreshOverview = () => { loadSummary(); reloadTeam(); };
 
+  // Same three series as HR's chart. The manager payload nests the per-status
+  // counts under `counts`, so leave is lifted to the top level for the bar.
   const daily = listFrom(graph.data, ["daily", "days"]).map((d) => ({
     ...d,
     date: ymdOnly(d.date),
-    // Late is a subset of present, so on-time = present − late (non-overlapping bars).
-    on_time_count: Math.max(0, num(d.final_present_count) - num(d.late_count)),
+    on_leave_count: num(d.on_leave_count ?? d.counts?.on_leave_count),
   }));
   const totalChartPages = Math.max(1, Math.ceil(daily.length / CHART_PAGE_SIZE));
   const safeChartPage = Math.min(chartPage, totalChartPages - 1);
@@ -301,6 +310,18 @@ function ManagerDashboard() {
     <>
       <DashboardTopBar title="Dashboard" />
       <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
+        <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+          <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+          <div className="relative z-10 max-w-2xl space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
+              <HiSparkles className="w-3 h-3 text-purple-200" /> MANAGER WORKSPACE
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">Welcome back, {user?.first_name || user?.name?.split(" ")[0] || user?.identifier || "Manager"}</h1>
+            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Monitor team attendance, review pending requests and track your team&apos;s performance.</p>
+          </div>
+          <img src="https://cdn3d.iconscout.com/3d/premium/thumb/empresario-haciendo-meditacion-3d-icon-png-download-8179740.png" alt="" className="relative z-10 w-28 sm:w-40 md:w-48 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-4 sm:-mb-6" />
+        </div>
+
         {/* Left half: my punch card over the team's month. Right half: today's
             team numbers, stretched to the height of both. Every card uses the
             same shell and header so the two columns line up. */}
@@ -308,9 +329,11 @@ function ManagerDashboard() {
           <div className="flex flex-col gap-6 min-w-0">
             <section className={CARD}>
               <CardHeader
+                icon={HiCalendar}
+                divider
                 title="My attendance"
                 subtitle="Clock in, take breaks and clock out"
-                action={<Link to="/dashboard/manager/attendance" className="text-xs font-bold text-purple-600 hover:text-purple-800 whitespace-nowrap">My history</Link>}
+                action={<Link to="/dashboard/manager/attendance" className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 whitespace-nowrap">My history <HiChevronRight className="w-3.5 h-3.5" /></Link>}
               />
               <AttendanceCard className="flex flex-col" currentState={today} fetchStatus={refresh} shiftData={shift} loading={todayLoading} error={todayError} />
             </section>
@@ -318,7 +341,7 @@ function ManagerDashboard() {
             <section className={`${CARD} flex-1 flex flex-col`}>
               <CardHeader
                 title="Team attendance trends"
-                subtitle="On time, late and absent, day by day"
+                subtitle="Present, on leave and absent, day by day"
                 action={(
                   <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-600">
                     <button type="button" onClick={() => setPeriod((p) => shiftMonth(p.year, p.month, -1))} className="p-1 hover:bg-slate-100 rounded text-slate-400" aria-label="Previous month"><HiChevronLeft className="w-4 h-4" /></button>
@@ -329,8 +352,8 @@ function ManagerDashboard() {
               />
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-4">
-                  {[["On time", "bg-[#8B5CF6]"], ["Late", "bg-[#D946EF]"], ["Absent", "bg-[#DDD6FE]"]].map(([label, dot]) => (
-                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className={`w-2 h-2 rounded-full ${dot}`} /> {label}</span>
+                  {[["Present", TREND_COLORS.present], ["On leave", TREND_COLORS.on_leave], ["Absent", TREND_COLORS.absent]].map(([label, dot]) => (
+                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: dot }} /> {label}</span>
                   ))}
                 </div>
                 {totalChartPages > 1 && (
@@ -359,9 +382,9 @@ function ManagerDashboard() {
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} tickFormatter={(val) => fmtDate(val, { day: "numeric" }, "")} interval="preserveStartEnd" />
                           <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
                           <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
-                          <Bar dataKey="on_time_count" name="On time" fill="#8B5CF6" maxBarSize={8} radius={[3, 3, 0, 0]} />
-                          <Bar dataKey="late_count" name="Late" fill="#D946EF" maxBarSize={8} radius={[3, 3, 0, 0]} />
-                          <Bar dataKey="final_absent_count" name="Absent" fill="#DDD6FE" maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="final_present_count" name="Present" fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="on_leave_count" name="On leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="final_absent_count" name="Absent" fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}

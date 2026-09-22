@@ -180,7 +180,7 @@ function DocumentsPage() {
                               <li className="flex items-start gap-2.5">
                                 <HiCheckCircle className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
                                 <span>
-                                  Regularization Window: <strong>{policy.regularization_window_days} days</strong>
+                                  Correction window: <strong>{policy.regularization_window_days} days</strong>
                                 </span>
                               </li>
                               

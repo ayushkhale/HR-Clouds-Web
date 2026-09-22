@@ -159,24 +159,27 @@ export default function PayrollAutomationPage() {
   return (
     <>
       <DashboardTopBar title="Payroll Automation" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-4xl mx-auto w-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Payroll Automation</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Routine work payroll does on its own. You can also run any of it now if you need the result straight away.
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-6">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-slate-900">Payroll Automation</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Routine work payroll does on its own. You can also run any of it now if you need the result straight away.
+            </p>
+          </div>
+
+          <p className="flex items-start gap-2 lg:max-w-md shrink-0 text-[11px] leading-relaxed text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+            <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500 mt-px" />
+            <span>
+              Running a job now is safe to repeat — nobody is emailed twice for the same thing and no duplicate drafts
+              are created. Only your organisation is affected. Schedules are set by the platform and can&apos;t be
+              changed here.
+            </span>
           </p>
         </div>
 
-        <p className="flex items-start gap-2 mb-6 text-[11px] leading-relaxed text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
-          <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500 mt-px" />
-          <span>
-            Running a job now is safe to repeat — nobody is emailed twice for the same thing and no duplicate drafts are
-            created. Only your organisation is affected. Schedules are set by the platform and can&apos;t be changed here.
-          </span>
-        </p>
-
         {loading ? <Skeleton type="card" /> : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
             {JOBS.map((job) => {
               const Icon = job.icon;
               // An org switch that is explicitly off wins ("Manual only"). Otherwise
@@ -191,8 +194,8 @@ export default function PayrollAutomationPage() {
               const running = busy === job.key;
               const result = results[job.key];
               return (
-                <section key={job.key} className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                <section key={job.key} className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 h-full">
+                  <div className="flex items-start gap-4">
                     <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${job.danger ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
                       <Icon className="w-5 h-5" />
                     </span>
@@ -246,7 +249,7 @@ export default function PayrollAutomationPage() {
                     <button
                       onClick={() => runJob(job)}
                       disabled={!!busy}
-                      className={`shrink-0 h-10 px-4 rounded-xl font-bold text-xs transition disabled:opacity-50 flex items-center justify-center gap-2 ${
+                      className={`shrink-0 h-9 px-3.5 rounded-xl font-bold text-xs transition disabled:opacity-50 flex items-center justify-center gap-2 ${
                         job.danger
                           ? "bg-white border border-rose-200 text-rose-700 hover:bg-rose-50"
                           : "bg-purple-600 text-white hover:bg-purple-700 shadow-md shadow-purple-200"}`}

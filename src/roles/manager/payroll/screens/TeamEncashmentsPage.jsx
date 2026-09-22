@@ -83,7 +83,7 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Cash out a comp-off</h2>
+            <h2 className="text-lg font-bold text-slate-800">Cash out earned leave</h2>
             <p className="text-xs text-slate-500 mt-0.5">Pay someone for a day they worked instead of them taking it off. HR approves it.</p>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg"><HiX className="w-5 h-5" /></button>
@@ -111,7 +111,7 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
               userId={form.user_id}
               value={compOffIds}
               onChange={setCompOffIds}
-              unavailable="Picking comp-off days isn't available to managers yet: the system doesn't give managers a list of their team's approved comp-offs. Ask HR to cash this out from Payroll › Encashments, where they can tick the days."
+              unavailable="Picking earned leave days isn't available to managers yet: the system doesn't give managers a list of their team's approved earned leave. Ask HR to cash this out from Payroll › Encashments, where they can tick the days."
             />
           </div>
           <div>
@@ -191,10 +191,10 @@ export default function TeamEncashmentsPage() {
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
-            <p className="text-sm text-slate-500 mt-1">Comp-off cash-outs: pay your team for days they worked instead of them taking the time off.</p>
+            <p className="text-sm text-slate-500 mt-1">Earned leave cash-outs: pay your team for days they worked instead of them taking the time off.</p>
           </div>
           <button onClick={() => setProposing(true)} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 flex items-center gap-2">
-            <HiPlus className="w-4 h-4" /> Cash out a comp-off
+            <HiPlus className="w-4 h-4" /> Cash out earned leave
           </button>
         </div>
 

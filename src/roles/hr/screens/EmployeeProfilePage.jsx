@@ -10,10 +10,11 @@ import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
 import DepartmentTab from "./employee-profile/DepartmentTab";
 import DocumentsTab from "./employee-profile/DocumentsTab";
+import SalaryTab from "./employee-profile/SalaryTab";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar, HiOutlineFolder,
-  HiOutlineCalendar, HiOutlineOfficeBuilding,
+  HiOutlineCalendar, HiOutlineOfficeBuilding, HiOutlineCurrencyRupee,
   HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
 } from "react-icons/hi";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
@@ -23,6 +24,7 @@ const TABS = [
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
   { key: "department", label: "Department", icon: HiOutlineOfficeBuilding },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
+  { key: "salary", label: "Salary", icon: HiOutlineCurrencyRupee },
   { key: "documents", label: "Documents", icon: HiOutlineFolder },
   { key: "profile", label: "Profile", icon: HiOutlineUser },
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
@@ -608,6 +610,9 @@ export default function EmployeeProfilePage() {
               )}
               {activeTab === "leave" && (
                 <LeaveTab userId={userId} />
+              )}
+              {activeTab === "salary" && (
+                <SalaryTab key={userId} userId={userId} />
               )}
               {activeTab === "documents" && (
                 <DocumentsTab key={userId} userId={userId} employeeName={displayName} />

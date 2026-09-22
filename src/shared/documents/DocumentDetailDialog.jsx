@@ -22,7 +22,7 @@ import ReasonDialog from "../components/ReasonDialog";
 import { documentErrorMessage, isAlreadyDecided, isStaleRecommendation } from "../utils/documentErrors";
 import { fmtDate, fmtDateTime } from "../attendance/dates";
 import {
-  arrayPayload, auditActionLabel, canReplace, contentTypeLabel, daysToExpiry, displayStatus, docStatusMeta,
+  arrayPayload, auditActionLabel, canOpenFile, canReplace, contentTypeLabel, daysToExpiry, displayStatus, docStatusMeta,
   formatBytes, groupLabel, isReferenceDoc, isReviewable, selfDeleteRule, sourceLabel,
 } from "./documentMeta";
 import { DocStatusBadge, DANGER_BTN, PRIMARY_BTN, SECONDARY_BTN, FIELD, LABEL } from "./ui";
@@ -290,7 +290,9 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
 
   // ── Footer ─────────────────────────────────────────────────────────────
   const reviewable = isReviewable(doc);
-  const canView = doc?.status !== "pending_upload" && doc?.status !== "deleted";
+  const canView = canOpenFile(doc, plane.key);
+  // Listed but unopenable: say so instead of leaving a button that would fail.
+  const hiddenFromManager = plane.key === "manager" && !!doc?.is_confidential;
   const selfDelete = plane.key === "self" ? selfDeleteRule(doc) : null;
   const footer = [];
   let footerNote = "";
@@ -323,6 +325,7 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
     footer.push(<button key="rec" type="button" onClick={() => { setDialogError(""); setRecommending(true); }} disabled={!!busy} className={PRIMARY_BTN}><HiClipboardCheck className="w-4 h-4" /> {doc?.recommendation && doc.recommendation !== "none" ? "Change recommendation" : "Recommend"}</button>);
   }
   if (plane.key === "manager" && !reviewable) footerNote = "Managers can view and recommend; HR verifies, replaces and deletes.";
+  if (hiddenFromManager) footerNote = "This document is confidential — only HR and the employee can open the file.";
   if (plane.key === "self" && selfDelete?.note && selfDelete.allowed && doc?.status === "available") footerNote = selfDelete.note;
   if (plane.key === "self" && doc?.status === "pending_verification") footerNote = "In review. You can still delete it if you uploaded it by mistake.";
 

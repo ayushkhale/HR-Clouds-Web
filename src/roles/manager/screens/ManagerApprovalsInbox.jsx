@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import InboxCard from "../../../shared/components/InboxCard";
 import { attendanceAPI, leaveAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
@@ -8,21 +9,30 @@ import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequest
 import { listFrom } from "../../../shared/attendance/normalize";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../../../shared/attendance/events";
 import {
-  HiCheckCircle, HiXCircle, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText, HiInformationCircle
+  HiCheckCircle, HiXCircle, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
+  HiInformationCircle, HiRefresh,
 } from "react-icons/hi";
 
-// Attendance tabs use the shared approval queue (same dialog, remarks rules and
-// refresh behaviour as the per-type pages). The leave branch is unchanged.
-const ATTENDANCE_TABS = {
-  regularizations: "regularization",
-  overtime: "overtime",
-  compOffs: "compoff",
-  anomalies: "anomaly",
+// Same shape as the HR inbox: one card per queue, the chosen one opens below.
+// Attendance queues run through the shared approval queue (same dialog, remarks
+// rules and refresh behaviour as the per-type pages); leave keeps its own cards.
+const GROUP = {
+  title: "Time & leave",
+  cols: "lg:grid-cols-3 xl:grid-cols-5",
+  items: [
+    { key: "leaves", label: "Leave requests", hint: "Leave and cancellation requests", icon: HiDocumentText },
+    { key: "regularizations", label: DICTIONARY.TERMS.REGULARIZATION + "s", hint: "Missed or wrong punches to fix", icon: HiClock, queue: "regularization" },
+    { key: "overtime", label: "Overtime", hint: "Extra hours waiting for approval", icon: HiCalendar, queue: "overtime" },
+    { key: "compOffs", label: DICTIONARY.TERMS.COMP_OFF, hint: "Holiday work to credit", icon: HiGift, queue: "compoff" },
+    { key: "anomalies", label: "Attendance flags", hint: "Unusual attendance to resolve", icon: HiExclamationCircle, queue: "anomaly" },
+  ],
 };
+const ATTENDANCE_TABS = Object.fromEntries(GROUP.items.filter((i) => i.queue).map((i) => [i.key, i.queue]));
 
 function ManagerApprovalsInbox() {
-  const [activeTab, setActiveTab] = useState("regularizations");
-  const [counts, setCounts] = useState({ regularizations: 0, overtime: 0, compOffs: 0, anomalies: 0 });
+  const [selectedKey, setSelectedKey] = useState("regularizations");
+  const [counts, setCounts] = useState({});
+  const [loading, setLoading] = useState(true);
   const [leaves, setLeaves] = useState([]);
   const [leavesLoading, setLeavesLoading] = useState(true);
   const [actionModal, setActionModal] = useState({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
@@ -35,38 +45,47 @@ function ManagerApprovalsInbox() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // A queue that fails to load shows N/A rather than a confident zero.
   const fetchAttendanceCounts = useCallback(async () => {
+    setLoading(true);
     const [reg, ot, co, an] = await Promise.allSettled([
       attendanceAPI.getManagerPendingRegularizations(),
       attendanceAPI.getManagerPendingOvertime(),
       attendanceAPI.getManagerCompOffs(),
       attendanceAPI.getManagerAnomalies(),
     ]);
-    const size = (r) => (r.status === "fulfilled" ? listFrom(r.value, ["requests", "anomalies", "comp_offs", "overtime"]).length : 0);
-    setCounts({ regularizations: size(reg), overtime: size(ot), compOffs: size(co), anomalies: size(an) });
+    const size = (r) => (r.status === "fulfilled" ? listFrom(r.value, ["requests", "anomalies", "comp_offs", "overtime"]).length : null);
+    setCounts((c) => ({ ...c, regularizations: size(reg), overtime: size(ot), compOffs: size(co), anomalies: size(an) }));
+    setLoading(false);
   }, []);
 
   const fetchLeaves = useCallback(async () => {
     setLeavesLoading(true);
     try {
       const res = await leaveAPI.getTeamPendingRequests();
-      setLeaves(res.success ? (res.data || []) : []);
+      const rows = res.success ? (res.data || []) : [];
+      setLeaves(rows);
+      setCounts((c) => ({ ...c, leaves: rows.length }));
     } catch {
       setLeaves([]);
+      setCounts((c) => ({ ...c, leaves: null }));
     } finally {
       setLeavesLoading(false);
     }
   }, []);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     fetchAttendanceCounts();
     fetchLeaves();
   }, [fetchAttendanceCounts, fetchLeaves]);
+
+  useEffect(() => { refresh(); }, [refresh]);
   useAttendanceChanged(INBOX_EVENT_KINDS, fetchAttendanceCounts);
 
+  // The open attendance queue reports its own length after every reload.
   const onQueueCount = useCallback((type, n) => {
-    const tab = Object.keys(ATTENDANCE_TABS).find((k) => ATTENDANCE_TABS[k] === type);
-    if (tab) setCounts((c) => (c[tab] === n ? c : { ...c, [tab]: n }));
+    const key = Object.keys(ATTENDANCE_TABS).find((k) => ATTENDANCE_TABS[k] === type);
+    if (key) setCounts((c) => (c[key] === n ? c : { ...c, [key]: n }));
   }, []);
 
   const closeLeaveModal = () => {
@@ -97,19 +116,11 @@ function ManagerApprovalsInbox() {
     }
   };
 
-  const tabs = [
-    { id: "leaves", label: "Leaves", icon: HiDocumentText, count: leaves.length },
-    { id: "regularizations", label: "Regularizations", icon: HiClock, count: counts.regularizations },
-    { id: "overtime", label: "Overtime", icon: HiCalendar, count: counts.overtime },
-    { id: "compOffs", label: `${DICTIONARY.TERMS.COMP_OFF}s`, icon: HiGift, count: counts.compOffs },
-    { id: "anomalies", label: "Flags", icon: HiExclamationCircle, count: counts.anomalies },
-  ];
-
   const renderLeaves = () => {
     if (leavesLoading) return <div className="p-8 text-center text-slate-500">Loading requests...</div>;
     if (leaves.length === 0) return <div className="p-12 text-center text-slate-400 font-medium">No pending leave requests.</div>;
     return (
-      <div className="p-4 bg-slate-50/50">
+      <div className="p-4 bg-slate-50/50 space-y-3">
         {leaves.map(item => (
           <LeaveRequestCard
             key={item.id}
@@ -131,43 +142,49 @@ function ManagerApprovalsInbox() {
     );
   };
 
+  const selected = GROUP.items.find((i) => i.key === selectedKey);
+  const waiting = GROUP.items.reduce((sum, i) => sum + (counts[i.key] || 0), 0);
+  const busy = loading || leavesLoading;
+
   return (
     <>
       <DashboardTopBar title="Inbox" />
-      <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
-          <p className="text-sm text-slate-500 mt-1">Review and action pending requests from your reporting line.</p>
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {busy && !waiting ? "Checking every approval queue…" : `${waiting} item${waiting === 1 ? "" : "s"} waiting across your team.`}
+            </p>
+          </div>
+          <button type="button" onClick={refresh} disabled={busy} className="inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+            <HiRefresh className={`w-4 h-4 ${busy ? "animate-spin" : ""}`} /> Refresh
+          </button>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex overflow-x-auto border-b border-slate-100 hide-scrollbar" role="tablist">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? "border-purple-600 text-purple-700 bg-purple-50/50"
-                    : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? "text-purple-600" : "text-slate-400"}`} />
-                {tab.label}
-                {tab.count > 0 && (
-                  <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] ${activeTab === tab.id ? "bg-purple-200 text-purple-800" : "bg-slate-100 text-slate-500"}`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
+        <section className="space-y-4">
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{GROUP.title}</h2>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${GROUP.cols}`}>
+            {GROUP.items.map((item) => (
+              <InboxCard key={item.key} item={item} count={counts[item.key]} loading={busy} selected={item.key === selectedKey} onSelect={setSelectedKey} />
             ))}
           </div>
-          {activeTab === "leaves"
-            ? renderLeaves()
-            : <AttendanceApprovalQueue key={activeTab} type={ATTENDANCE_TABS[activeTab]} onCountChange={onQueueCount} />}
-        </div>
+
+          {selected && (
+            <div key={selected.key} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+                <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center"><selected.icon className="w-4 h-4" /></span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Pending {selected.label.toLowerCase()}</h3>
+                  <p className="text-[11px] text-slate-400">{selected.queue ? "Click a row to review and decide." : "Approve or reject each request below."}</p>
+                </div>
+              </div>
+              {selected.queue
+                ? <AttendanceApprovalQueue key={selected.key} type={selected.queue} onCountChange={onQueueCount} />
+                : renderLeaves()}
+            </div>
+          )}
+        </section>
       </main>
 
       {/* Leave Action Modal */}

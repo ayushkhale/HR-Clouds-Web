@@ -7,8 +7,9 @@ import { HiUserGroup, HiClock, HiSparkles, HiChevronLeft, HiChevronRight, HiChec
 import { attendanceAPI } from "../../../shared/api";
 import AttendanceDirectory from "../components/AttendanceDirectory";
 import { DICTIONARY } from "../../../shared/config/dictionary";
+import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
 import { employeeCode, initials, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, parseYMDLocal, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthLabelShort, parseYMDLocal, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
@@ -21,7 +22,7 @@ const MODE_COLORS = { office: "#7C3AED", remote: "#818CF8", field: "#D946EF", hy
 const isSunday = (ymd) => parseYMDLocal(ymd)?.getDay() === 0;
 
 const SUNDAY_LETTERS = "SUNDAY".split("");
-const SUNDAY_EDGE = 16; // padding above the first letter and below the last
+const SUNDAY_EDGE = 30; // padding above the first letter and below the last
 
 /** Vertical "SUNDAY", letters spread evenly from the top of the plot to the baseline. */
 function SundayLabel({ viewBox }) {
@@ -31,7 +32,7 @@ function SundayLabel({ viewBox }) {
   return (
     <g pointerEvents="none">
       {SUNDAY_LETTERS.map((ch, i) => (
-        <text key={i} x={x} y={y + SUNDAY_EDGE + i * step} textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize={9} fontWeight={700}>
+        <text key={i} x={x} y={y + SUNDAY_EDGE + i * step} textAnchor="middle" dominantBaseline="middle" fill="#cbd5e1" fontSize={9} fontWeight={700}>
           {ch}
         </text>
       ))}
@@ -63,7 +64,7 @@ function MonthStepper({ period, onChange }) {
   return (
     <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
       <button type="button" onClick={() => onChange(shiftMonth(period.year, period.month, -1))} className="p-1 hover:bg-slate-100 rounded text-slate-400" aria-label="Previous month"><HiChevronLeft className="w-4 h-4" /></button>
-      <span className="w-24 text-center select-none">{monthLabel(period.year, period.month)}</span>
+      <span className="w-20 text-center select-none">{monthLabelShort(period.year, period.month)}</span>
       <button type="button" onClick={() => onChange(next)} disabled={isFutureMonth(next.year, next.month)} className="p-1 hover:bg-slate-100 rounded text-slate-400 disabled:opacity-30" aria-label="Next month"><HiChevronRight className="w-4 h-4" /></button>
     </div>
   );
@@ -191,10 +192,12 @@ function HRDashboard() {
   }, [reloadLive]);
   useAttendanceChanged([ATTENDANCE_EVENTS.REGULARIZATION, ATTENDANCE_EVENTS.LOCK], () => { reloadLive(); reloadGraph(); });
 
+  // `final_present_count` is everyone who was there, late or not. The chart has
+  // no Late bar, so counting only on-time arrivals would drop them from view.
   const daily = listFrom(graph.data, ["daily", "days"]).map((d) => ({
     ...d,
     date: ymdOnly(d.date),
-    on_time_count: Math.max(0, num(d.final_present_count) - num(d.late_count)),
+    on_leave_count: num(d.on_leave_count),
   }));
   const totalChartPages = Math.max(1, Math.ceil(daily.length / CHART_PAGE_SIZE));
   const safePage = Math.min(chartPage, totalChartPages - 1);
@@ -259,15 +262,15 @@ function HRDashboard() {
 
           <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100 flex flex-col justify-between order-1">
             <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3 mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
-                <div className="flex items-center gap-4 mt-2">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#8B5CF6]" /> On time</span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#D946EF]" /> Late</span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="w-2 h-2 rounded-full bg-[#DDD6FE]" /> {DICTIONARY.STATUS.ABSENT}</span>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-slate-800 whitespace-nowrap">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: TREND_COLORS.present }} /> {DICTIONARY.STATUS.PRESENT}</span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: TREND_COLORS.on_leave }} /> On leave</span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: TREND_COLORS.absent }} /> {DICTIONARY.STATUS.ABSENT}</span>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 {totalChartPages > 1 && (
                   <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
                     <button type="button" onClick={() => setChartPage(Math.max(0, safePage - 1))} disabled={safePage === 0} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Earlier days"><HiChevronLeft className="w-4 h-4" /></button>
@@ -299,9 +302,11 @@ function HRDashboard() {
                       <ReferenceLine key={d.date} x={d.date} stroke="transparent" zIndex={250} label={SundayLabel} />
                     ))}
                     <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
-                    <Bar dataKey="on_time_count" name="On time" fill="#8B5CF6" maxBarSize={8} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="late_count" name="Late" fill="#D946EF" maxBarSize={8} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill="#DDD6FE" maxBarSize={8} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                    {/* Approved leave is its own count — the server keeps it out of
+                        final_absent_count, so the three bars never double-count a day. */}
+                    <Bar dataKey="on_leave_count" name="On leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

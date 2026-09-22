@@ -72,7 +72,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
   // rather than letting the server refuse after the form is filled in.
   const disabledReason = isCompOff
     ? (settings && settings.compoff_encashment_enabled === false
-      ? "Cashing out comp-offs is switched off in Payroll Settings." : "")
+      ? "Cashing out earned leave is switched off in Payroll Settings." : "")
     : (settings && settings.fnf_leave_encashment_enabled === false
       ? "Paying out leave balances is switched off in Payroll Settings." : "");
 
@@ -81,7 +81,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
   const problem = !form.user_id ? "Choose an employee."
     : disabledReason
       || (isCompOff
-        ? (ids.length === 0 ? "Tick at least one comp-off." : "")
+        ? (ids.length === 0 ? "Tick at least one earned leave day." : "")
         : (!form.leave_type_code.trim() ? "Enter the leave type." : !(parseFloat(form.days) > 0) ? "Enter how many days." : ""));
 
   const submit = async (e) => {
@@ -192,13 +192,13 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
 export default function PayrollEncashmentsPage() {
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
-  const { nameOf, status: dirStatus } = useEmployeeDirectory();
+  const { rows: people, nameOf, status: dirStatus } = useEmployeeDirectory();
 
   const [list, setList] = useState({ items: [], total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({ status: "", source_kind: "", period_month: "" });
+  const [filters, setFilters] = useState({ status: "", source_kind: "", period_month: "", user_id: "" });
   const [settings, setSettings] = useState(null);
   const [creating, setCreating] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -278,6 +278,7 @@ export default function PayrollEncashmentsPage() {
 
   const pending = useMemo(() => list.items.filter((r) => r.status === "pending").length, [list.items]);
   const selectCls = "h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400";
+  const filterLabelCls = "block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1";
 
   return (
     <>
@@ -287,7 +288,7 @@ export default function PayrollEncashmentsPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Pay people for comp-offs and unused leave instead of them taking the time off.
+              Pay people for earned leave and unused leave instead of them taking the time off.
               {pending > 0 && <span className="font-semibold text-fuchsia-700"> {pending} waiting for approval.</span>}
             </p>
           </div>
@@ -296,20 +297,33 @@ export default function PayrollEncashmentsPage() {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 mb-5">
-          <select aria-label="Filter by status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={selectCls}>
-            {STATUS_FILTERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          <select aria-label="Filter by what is paid out" value={filters.source_kind} onChange={(e) => setFilter("source_kind", e.target.value)} className={selectCls}>
-            <option value="">Comp-offs and leave</option>
-            {SOURCE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
-          </select>
-          {/* PeriodPicker always resolves to a month; a filter has to allow
-              "any", so this one is a plain month input that can be cleared. */}
-          <input type="month" aria-label="Filter by pay month" value={filters.period_month}
-            onChange={(e) => setFilter("period_month", e.target.value)} className={selectCls} />
-          {(filters.status || filters.source_kind || filters.period_month) && (
-            <button onClick={() => { setFilters({ status: "", source_kind: "", period_month: "" }); setPage(1); }} className="text-xs font-bold text-purple-600 hover:underline px-2">Clear</button>
+        {/* Every filter is labelled: an unlabelled month box gave no clue what
+            it narrowed. Empty means "any", and the server takes YYYY-MM. */}
+        <div className="flex flex-wrap items-end gap-3 mb-5">
+          <div className="min-w-[9rem]">
+            <label htmlFor="enc-f-status" className={filterLabelCls}>Status</label>
+            <select id="enc-f-status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={`${selectCls} w-full`}>
+              {STATUS_FILTERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div className="min-w-[11rem]">
+            <label htmlFor="enc-f-kind" className={filterLabelCls}>What is paid out</label>
+            <select id="enc-f-kind" value={filters.source_kind} onChange={(e) => setFilter("source_kind", e.target.value)} className={`${selectCls} w-full`}>
+              <option value="">Earned leave and leave balance</option>
+              {SOURCE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+            </select>
+          </div>
+          <div className="min-w-[14rem]">
+            <span className={filterLabelCls}>Employee</span>
+            <PersonSelect people={people} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} placeholder="Anyone" clearLabel="Anyone" loading={dirStatus === "loading"} aria-label="Filter by employee" />
+          </div>
+          <div className="min-w-[10rem]">
+            <label htmlFor="enc-f-month" className={filterLabelCls}>Paid in month</label>
+            <input id="enc-f-month" type="month" value={filters.period_month}
+              onChange={(e) => setFilter("period_month", e.target.value)} className={`${selectCls} w-full`} />
+          </div>
+          {(filters.status || filters.source_kind || filters.period_month || filters.user_id) && (
+            <button onClick={() => { setFilters({ status: "", source_kind: "", period_month: "", user_id: "" }); setPage(1); }} className="h-10 text-xs font-bold text-purple-600 hover:underline px-2">Clear</button>
           )}
         </div>
 

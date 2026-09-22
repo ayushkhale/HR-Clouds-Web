@@ -44,7 +44,7 @@ export default function LiveEffectiveHours({ effectiveHours, formatted, clockInT
   if (isStale) {
     return (effectiveHours != null && effectiveHours !== "") || formatted
       ? <span className={`font-bold ${className}`}>{finished}</span>
-      : <span className="text-[11px] font-bold text-fuchsia-600" title="Clocked in but never clocked out. Hours are calculated after auto clock-out or a regularization.">No clock-out</span>;
+      : <span className="text-[11px] font-bold text-fuchsia-600" title="Clocked in but never clocked out. Hours are calculated after auto clock-out or an attendance correction.">No clock-out</span>;
   }
 
   if (!isActive) {

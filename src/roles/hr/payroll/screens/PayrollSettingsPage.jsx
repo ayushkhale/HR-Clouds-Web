@@ -219,7 +219,7 @@ export default function PayrollSettingsPage() {
   return (
     <>
         <DashboardTopBar title="Payroll Settings" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-4xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900">Payroll Settings
@@ -229,8 +229,8 @@ export default function PayrollSettingsPage() {
 
           {loading ? <Skeleton type="card" /> : (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
-              <form onSubmit={handleSubmit} className="space-y-8">
-                
+              <form onSubmit={handleSubmit}>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-10 gap-y-8 items-start">
                 {/* General Settings */}
                 <Section title="Calculation Policies">
                   <div className="grid sm:grid-cols-2 gap-6">
@@ -413,13 +413,13 @@ export default function PayrollSettingsPage() {
 
                 {/* ── Phase 7 · Comp-off encashment (registry #57) ──────────── */}
                 <Section
-                  title="Cashing out comp-offs"
-                  blurb="Comp-offs are days earned for working on an off day. With this on, a manager can propose paying them out as cash instead, and HR approves."
+                  title="Cashing out earned leave"
+                  blurb="Earned leave is credited for working on an off day. With this on, a manager can propose paying those days out as cash instead, and HR approves."
                 >
                   <div className="space-y-4">
                     <Check checked={set7.compoff_encashment_enabled} onChange={(v) => upd({ compoff_encashment_enabled: v })}
-                      title="Allow comp-offs to be cashed out"
-                      hint="Off by default. While off, comp-off requests are refused." />
+                      title="Allow earned leave to be cashed out"
+                      hint="Off by default. While off, earned leave cash-out requests are refused." />
                     {set7.compoff_encashment_enabled && (
                       <div className="grid sm:grid-cols-2 gap-6 pl-7">
                         <Pick label="Work the daily rate from" value={set7.compoff_encashment_rate_basis} options={RATE_BASIS}
@@ -441,7 +441,9 @@ export default function PayrollSettingsPage() {
                     silently dropped, so the jobs are run from the Automation
                     page instead until the backend adds them. */}
 
-                <div className="pt-4 border-t border-slate-100 flex justify-end">
+                </div>
+
+                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end">
                   <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50">
                     {saving ? "Saving..." : "Save Settings"}
                   </button>

@@ -6,7 +6,7 @@ import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours
 import { unwrap } from "../../../../shared/attendance/normalize";
 import { anomalyStatusKey, anomalyTypeLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
 import { fmtClock, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
-import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../../shared/attendance/dayStatus";
+import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
 
@@ -194,9 +194,6 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
                     <th className="px-6 py-3.5">Status</th>
                     <th className="px-6 py-3.5">Clock in</th>
                     <th className="px-6 py-3.5">Clock out</th>
-                    <th className="px-6 py-3.5">Late</th>
-                    <th className="px-6 py-3.5">Overtime</th>
-                    <th className="px-6 py-3.5">Mode</th>
                     <th className="px-6 py-3.5 text-right">Hours</th>
                   </tr>
                 </thead>
@@ -210,12 +207,9 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
                     const synthetic = isSynthesizedDay(record);
                     const closed = synthetic || !canOpenDay;
                     const due = isWorkingDay(record);
-                    const late = metric(record.late_minutes);
-                    const overtime = metric(record.overtime_minutes);
                     // `null` is "no data", never a measured zero (contract §10):
                     // missing times and modes read N/A; unmeasured durations 0m.
                     const na = <span className="text-slate-400">N/A</span>;
-                    const zero = <span className="text-slate-400">0m</span>;
                     return (
                       <tr
                         key={record.id || ymd}
@@ -231,24 +225,15 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
                           {fmtDate(ymd, { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
                         </td>
                         <td className="px-6 py-3.5">
-                          <StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} />
-                        </td>
-                        <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_in_time ? fmtTime(record.clock_in_time) : na}</td>
-                        <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_out_time ? fmtTime(record.clock_out_time) : na}</td>
-                        <td className="px-6 py-3.5 text-xs">
-                          {late === null ? na : late > 0 ? <span className="text-fuchsia-600 font-bold">{fmtMinutes(late)}</span> : <span className="text-slate-500">0m</span>}
-                        </td>
-                        <td className="px-6 py-3.5 text-xs">
-                          {overtime === null ? zero : overtime > 0 ? <span className="text-violet-600 font-bold">{fmtMinutes(overtime)}</span> : <span className="text-slate-500">0m</span>}
-                        </td>
-                        <td className="px-6 py-3.5 text-xs">
                           <span className="flex items-center gap-1.5">
-                            {record.work_mode ? <span className="text-slate-600 font-semibold">{humanize(record.work_mode)}</span> : na}
+                            <StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} />
                             {record.is_regularized && (
-                              <span className="text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full" title="This day was corrected by a regularization">Fixed</span>
+                              <span className="text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full" title="This day was fixed by an attendance correction">Fixed</span>
                             )}
                           </span>
                         </td>
+                        <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_in_time ? fmtTime(record.clock_in_time) : na}</td>
+                        <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_out_time ? fmtTime(record.clock_out_time) : na}</td>
                         <td className="px-6 py-3.5 text-right">
                           {record.effective_hours === null && !record.clock_in_time
                             ? na

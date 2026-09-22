@@ -159,6 +159,20 @@ export const isReferenceDoc = (doc) => doc?.storage_backend === "reference";
 export const canReplace = (doc) => ["available", "expired"].includes(doc?.status) && !isReferenceDoc(doc);
 
 /** Only `pending_verification` can be verified, rejected or recommended (R-22). */
+/**
+ * Whether this viewer can open the file itself.
+ *
+ * A manager's list DOES include a confidential document — they can see that it
+ * exists and what state it is in — but the manager view-url endpoint answers
+ * DOCUMENT_NOT_FOUND for it (verified against the API). So the View and
+ * Download buttons must not be offered there at all.
+ */
+export const canOpenFile = (doc, planeKey) => {
+  if (!doc) return false;
+  if (doc.status === "pending_upload" || doc.status === "deleted") return false;
+  return !(planeKey === "manager" && doc.is_confidential);
+};
+
 export const isReviewable = (doc) => doc?.status === "pending_verification";
 
 /**

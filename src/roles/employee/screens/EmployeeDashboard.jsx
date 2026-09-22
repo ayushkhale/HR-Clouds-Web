@@ -31,12 +31,17 @@ const HOURS_BAR = "#7C3AED";
 const AXIS_TICK = { fill: "#94a3b8", fontSize: 10, fontWeight: 600 };
 const TOOLTIP_STYLE = { borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: 12 };
 
-function CardHeader({ title, subtitle, action }) {
+// `icon` and `divider` are opt-in: only the punch card wears them, so the
+// other cards on the dashboard keep their plainer heading.
+function CardHeader({ title, subtitle, action, icon: Icon, divider = false }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-5">
-      <div className="min-w-0">
-        <h3 className="text-lg font-bold text-slate-800 leading-tight">{title}</h3>
-        {subtitle && <p className="text-[11px] font-semibold text-slate-400 mt-1">{subtitle}</p>}
+    <div className={`flex items-start justify-between gap-4 ${divider ? "mb-5 pb-4 border-b border-slate-100" : "mb-5"}`}>
+      <div className="flex items-start gap-3 min-w-0">
+        {Icon && <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>}
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-slate-800 leading-tight">{title}</h3>
+          {subtitle && <p className="text-[11px] font-semibold text-slate-400 mt-1">{subtitle}</p>}
+        </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -75,7 +80,6 @@ function EmployeeDashboard() {
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [graph, setGraph] = useState({ data: null, loading: true, error: null });
-  const [holidays, setHolidays] = useState([]);
 
   const loadGraph = useCallback(async () => {
     setGraph((g) => ({ ...g, loading: true, error: null }));
@@ -89,22 +93,6 @@ function EmployeeDashboard() {
 
   useEffect(() => { loadGraph(); }, [loadGraph]);
   useAttendanceChanged([ATTENDANCE_EVENTS.PUNCH, ATTENDANCE_EVENTS.REGULARIZATION], loadGraph);
-
-  useEffect(() => {
-    let alive = true;
-    // `/holidays` takes no parameters (contract §4.3); filter to upcoming dates here.
-    attendanceAPI
-      .getUpcomingHolidays()
-      .then((res) => {
-        if (!alive) return;
-        const from = todayYMD();
-        setHolidays(listFrom(res, ["holidays"]).filter((h) => ymdOnly(h.date) >= from).sort((a, b) => ymdOnly(a.date).localeCompare(ymdOnly(b.date))));
-      })
-      .catch(() => alive && setHolidays([]));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const summary = graph.data?.summary || {};
   const daily = listFrom(graph.data, ["daily", "days"]);
@@ -129,7 +117,6 @@ function EmployeeDashboard() {
   const firstName = user?.first_name || user?.name?.split(" ")[0] || user?.identifier?.split("@")[0] || "there";
   const nextPeriod = shiftMonth(period.year, period.month, 1);
   const atCurrentMonth = isFutureMonth(nextPeriod.year, nextPeriod.month);
-  const nextHoliday = holidays[0];
   const monthName = monthLabel(period.year, period.month);
 
   return (
@@ -146,18 +133,6 @@ function EmployeeDashboard() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-2">{greeting()}, {titleCase(firstName)}!</h1>
             <p className="text-xs sm:text-sm text-purple-100/80 font-normal pt-2">Clock in, track your working hours and keep your attendance record accurate.</p>
-            {nextHoliday && (
-              <div
-                className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 px-3.5 py-2 rounded-full bg-white/10 border border-white/20 text-xs"
-                title={holidays.slice(0, 6).map((h) => `${h.name} · ${fmtDate(ymdOnly(h.date), { weekday: "short", day: "numeric", month: "short" })}`).join("\n")}
-              >
-                <HiCalendar className="w-4 h-4 text-purple-200 shrink-0" />
-                <span className="text-purple-100/80 font-semibold">Next holiday</span>
-                <span className="font-bold text-white">{nextHoliday.name}</span>
-                <span className="text-purple-100 font-semibold">{fmtDate(ymdOnly(nextHoliday.date), { weekday: "short", day: "numeric", month: "short" })}</span>
-                {holidays.length > 1 && <span className="text-purple-200/70 font-semibold">+{holidays.length - 1} more</span>}
-              </div>
-            )}
           </div>
           <img
             src="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
@@ -166,15 +141,19 @@ function EmployeeDashboard() {
           />
         </div>
 
-        {/* Row 1: my punch card beside my month; both stretch to the same height. */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* Row 1: my punch card beside my month. The punch card is as tall as
+            its content — stretching it to the chart's height only padded it out
+            with empty space. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <section className={`${CARD} flex flex-col`}>
             <CardHeader
+              icon={HiCalendar}
+              divider
               title="My attendance"
               subtitle="Clock in, take breaks and clock out"
-              action={<Link to={selfPath("history")} className="text-xs font-bold text-purple-600 hover:text-purple-800 whitespace-nowrap">My history</Link>}
+              action={<Link to={selfPath("history")} className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 whitespace-nowrap">My history <HiChevronRight className="w-3.5 h-3.5" /></Link>}
             />
-            <AttendanceCard className="flex flex-col flex-1" currentState={today} fetchStatus={refresh} shiftData={shift} loading={todayLoading} error={todayError} />
+            <AttendanceCard className="flex flex-col" currentState={today} fetchStatus={refresh} shiftData={shift} loading={todayLoading} error={todayError} />
           </section>
 
           <section className={`${CARD} flex flex-col`}>

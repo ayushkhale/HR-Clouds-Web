@@ -126,7 +126,7 @@ export default function LeaveRequestCard({ request, onApprove, onReject, busy = 
               <div className="flex flex-wrap gap-2 mt-3">
                 {request.source_comp_off_id && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
-                    <HiGift className="w-3 h-3" /> Uses an earned comp-off credit
+                    <HiGift className="w-3 h-3" /> Uses an earned leave credit
                   </span>
                 )}
                 {request.escalated_to_role && (

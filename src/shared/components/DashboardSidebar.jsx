@@ -112,6 +112,7 @@ function DashboardSidebar({ role = "guest" }) {
   });
   const heading = (text) => ({ heading: text });
   const COMP_OFF = DICTIONARY.TERMS.COMP_OFF;
+  const REGULARIZATION = DICTIONARY.TERMS.REGULARIZATION;
   const inboxBadge = { badge: inboxCount > 0 ? inboxCount : null };
 
   // Self-service pages are shared by every role, so they carry the same label
@@ -120,10 +121,10 @@ function DashboardSidebar({ role = "guest" }) {
     const base = SELF_SERVICE_BASE[workspace];
     return [
       link("My Attendance", base, HiClock),
-      link("My Regularizations", `${base}/regularizations`, HiClipboardList),
+      link(`My ${REGULARIZATION}s`, `${base}/regularizations`, HiClipboardList),
       link("My Flags", `${base}/anomalies`, HiExclamationCircle),
       link("My Overtime", `${base}/overtime`, HiLightningBolt),
-      link(`My ${COMP_OFF}s`, `${base}/comp-offs`, HiGift),
+      link(`My ${COMP_OFF}`, `${base}/comp-offs`, HiGift),
     ];
   };
 
@@ -150,8 +151,9 @@ function DashboardSidebar({ role = "guest" }) {
     }
 
     if (role === "hr") {
-      // Ordered by how often HR needs each area: daily approvals first,
-      // the monthly payroll cycle in order, seasonal tax work, then one-time setup.
+      // Ordered by how often HR needs each area: daily approvals first, then
+      // Setup (collapsed until opened), People, and the monthly payroll cycle in
+      // order, followed by seasonal tax work.
       return [
         {
           title: "MAIN",
@@ -159,6 +161,34 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Dashboard", "/dashboard/hr", HiViewGrid),
             link("Inbox", "/dashboard/hr/inbox", HiInboxIn, inboxBadge),
+          ],
+        },
+        {
+          title: "SETUP",
+          icon: HiCog,
+          defaultCollapsed: true,
+          items: [
+            heading("Organization"),
+            link("Office Locations", "/dashboard/hr/attendance/locations", HiLocationMarker),
+            heading("Time"),
+            link("Work Shifts", "/dashboard/hr/attendance/shifts", HiClock),
+            link("Attendance Policies", "/dashboard/hr/attendance/policies", HiClipboardList),
+            link(`${COMP_OFF} Policies`, "/dashboard/hr/attendance/comp-off-policies", HiGift),
+            link("Holidays", "/dashboard/hr/attendance/holidays", HiCalendar),
+            link("Weekly Offs", "/dashboard/hr/attendance/weekly-offs", HiTemplate),
+            heading("Leave"),
+            link("Leave Types", "/dashboard/hr/leaves/types", HiClipboardList),
+            link("Leave Policies", "/dashboard/hr/leaves/policies", HiTemplate),
+            link("Leave Automation", "/dashboard/hr/leaves/automation", HiLightningBolt),
+            heading("Pay"),
+            link("Salary Components", "/dashboard/hr/payroll/components", HiTemplate),
+            link("Structure Templates", "/dashboard/hr/payroll/templates", HiDocumentReport),
+            link("Benefit Plans", "/dashboard/hr/payroll/benefits", HiHeart),
+            link("Payroll Settings", "/dashboard/hr/payroll/settings", HiCog),
+            link("Payroll Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
+            heading("Documents"),
+            link("Document Types", "/dashboard/hr/documents/types", HiTemplate),
+            link("Document Settings", "/dashboard/hr/documents/settings", HiCog),
           ],
         },
         {
@@ -175,8 +205,8 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Live Attendance", "/dashboard/hr/attendance/directory", HiClock),
             link("Leave Requests", "/dashboard/hr/leaves/requests", HiInboxIn),
-            link("Regularizations", "/dashboard/hr/attendance/regularizations", HiClipboardList),
-            link(`${COMP_OFF}s`, "/dashboard/hr/attendance/comp-offs", HiGift),
+            link(`${REGULARIZATION}s`, "/dashboard/hr/attendance/regularizations", HiClipboardList),
+            link(COMP_OFF, "/dashboard/hr/attendance/comp-offs", HiGift),
             link("Shift Roster", "/dashboard/hr/attendance/roster", HiCalendar),
           ],
         },
@@ -226,34 +256,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         {
-          title: "SETUP",
-          icon: HiCog,
-          defaultCollapsed: true,
-          items: [
-            heading("Organization"),
-            link("Office Locations", "/dashboard/hr/attendance/locations", HiLocationMarker),
-            heading("Time"),
-            link("Work Shifts", "/dashboard/hr/attendance/shifts", HiClock),
-            link("Attendance Policies", "/dashboard/hr/attendance/policies", HiClipboardList),
-            link(`${COMP_OFF} Policies`, "/dashboard/hr/attendance/comp-off-policies", HiGift),
-            link("Holidays", "/dashboard/hr/attendance/holidays", HiCalendar),
-            link("Weekly Offs", "/dashboard/hr/attendance/weekly-offs", HiTemplate),
-            heading("Leave"),
-            link("Leave Types", "/dashboard/hr/leaves/types", HiClipboardList),
-            link("Leave Policies", "/dashboard/hr/leaves/policies", HiTemplate),
-            link("Leave Automation", "/dashboard/hr/leaves/automation", HiLightningBolt),
-            heading("Pay"),
-            link("Salary Components", "/dashboard/hr/payroll/components", HiTemplate),
-            link("Structure Templates", "/dashboard/hr/payroll/templates", HiDocumentReport),
-            link("Benefit Plans", "/dashboard/hr/payroll/benefits", HiHeart),
-            link("Payroll Settings", "/dashboard/hr/payroll/settings", HiCog),
-            link("Payroll Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
-            heading("Documents"),
-            link("Document Types", "/dashboard/hr/documents/types", HiTemplate),
-            link("Document Settings", "/dashboard/hr/documents/settings", HiCog),
-          ],
-        },
-        {
           title: "ME",
           icon: HiUserCircle,
           defaultCollapsed: true,
@@ -298,10 +300,10 @@ function DashboardSidebar({ role = "guest" }) {
             link("Live Attendance", `${M}/team/today`, HiClock),
             link("Attendance History", `${M}/team/history`, HiCalendar),
             link("Leave Requests", `${M}/requests/leaves`, HiInboxIn),
-            link("Regularizations", `${M}/requests/regularizations`, HiClipboardList),
+            link(`${REGULARIZATION}s`, `${M}/requests/regularizations`, HiClipboardList),
             link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
             link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
-            link(`${COMP_OFF}s`, `${M}/requests/comp-offs`, HiGift),
+            link(COMP_OFF, `${M}/requests/comp-offs`, HiGift),
           ],
         },
         {

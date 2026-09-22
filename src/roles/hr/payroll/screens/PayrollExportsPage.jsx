@@ -18,7 +18,7 @@ import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
 import { EXPORT_SCOPE_LABEL, EXPORT_STATUS, EXPORT_TYPE_LABEL, exportStatusKey, meta } from "../phase6Meta";
 import {
-  HiChevronLeft, HiChevronRight, HiCloudDownload, HiCode, HiDocumentText, HiFilter, HiRefresh, HiX,
+  HiChevronLeft, HiChevronRight, HiCloudDownload, HiDocumentText, HiFilter, HiRefresh, HiX,
 } from "react-icons/hi";
 
 const PAGE_SIZE = 20;
@@ -257,16 +257,6 @@ export default function PayrollExportsPage() {
             )}
           </DetailSection>
 
-          <DetailSection title="Filters used" icon={HiCode}>
-            {preview.filters && Object.keys(preview.filters).length > 0 ? (
-              <pre className="bg-purple-950 text-purple-100 rounded-xl p-4 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words max-h-[40vh]">
-                {JSON.stringify(preview.filters, null, 2)}
-              </pre>
-            ) : (
-              <p className="text-sm text-slate-500 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">No filters were applied — this export covered everything in its scope.</p>
-            )}
-            <p className="text-[11px] text-slate-400 mt-3">Only ids, codes and period bounds are recorded here. Names, amounts and account numbers are never stored in an export record.</p>
-          </DetailSection>
         </DetailDialog>
       )}
 

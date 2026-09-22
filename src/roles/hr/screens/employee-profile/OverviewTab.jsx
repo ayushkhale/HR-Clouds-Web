@@ -7,7 +7,7 @@ import { memberAttendanceApi } from "../../../../shared/attendance/memberAttenda
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
 import { listFrom, num, unwrap } from "../../../../shared/attendance/normalize";
 import { DAY_CHIPS, DAY_CHIP_ORDER, chipTally, dayChip, isWorkingDay, metric } from "../../../../shared/attendance/dayStatus";
-import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, totalWorkedLabel, ymdOnly } from "../../../../shared/attendance/dates";
+import { fmtDate, fmtHours, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
 import { ErrorState, StatusBadge } from "../../../../shared/attendance/ui";
 
 const LIVE_REFRESH_MS = 60_000;
@@ -85,7 +85,9 @@ export default function OverviewTab({ userId, employeeRole, viewer = "hr" }) {
     { label: "Days absent", value: num(s.absent_days), icon: HiExclamationCircle, tag: "Absent" },
     { label: "Late arrivals", value: num(s.late_days), icon: HiClock, tag: `${num(s.punctuality_percentage)}% on time` },
     { label: "Days on leave", value: num(s.on_leave_days), icon: HiCalendar, tag: "Leave" },
-    { label: "Hours worked", value: totalWorkedLabel(s), icon: HiTrendingUp, tag: `${fmtHours(s.average_hours_per_day, "0m")} / day` },
+    // The month's total says little on its own (a short month reads as a slow
+    // one), so the headline is the daily average.
+    { label: "Hours worked", value: fmtHours(s.average_hours_per_day, "0m"), icon: HiTrendingUp, tag: "Avg / day" },
     { label: "Overtime", value: fmtMinutes(s.total_overtime_minutes, "0m"), icon: HiLightningBolt },
   ];
 

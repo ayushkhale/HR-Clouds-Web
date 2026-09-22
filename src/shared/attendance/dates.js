@@ -84,6 +84,11 @@ export function monthLabel(year, month, locale = "en-IN") {
   return new Date(Number(year), Number(month) - 1, 1).toLocaleString(locale, { month: "long", year: "numeric" });
 }
 
+/** "Sep 2026" — for steppers and chips, where the full name doesn't fit. */
+export function monthLabelShort(year, month, locale = "en-IN") {
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleString(locale, { month: "short", year: "numeric" });
+}
+
 /**
  * Combine a local calendar date and a wall-clock time into an ISO instant.
  * `nextDay` supports overnight shifts (clock-out after midnight).

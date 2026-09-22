@@ -20,7 +20,8 @@ import { PUNCH_SOURCE_WEB, SHIFT_TYPES, WORK_MODES, WORK_MODE_VALUES, humanize }
 import { PUNCH_NOTES_MAX } from "../../../shared/attendance/validation";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import { ErrorState, InlineAlert, Spinner, StatusBadge, Toast, useToast } from "../../../shared/attendance/ui";
-import { HiClock, HiLocationMarker, HiPencilAlt } from "react-icons/hi";
+import { HiClock, HiLocationMarker, HiOutlineClock, HiPencilAlt } from "react-icons/hi";
+import { BiCoffeeTogo, BiStopwatch } from "react-icons/bi";
 
 const WORK_MODE_KEY = "hrclouds_attendance_work_mode";
 const readWorkMode = () => {
@@ -34,11 +35,20 @@ const readWorkMode = () => {
 
 const RING = 2 * Math.PI * 40;
 
-function Stat({ label, value }) {
+const ACTION_BTN = "w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed";
+const PRIMARY_ACTION = `${ACTION_BTN} bg-purple-600 hover:bg-purple-700 text-white`;
+const BREAK_START_ACTION = `${ACTION_BTN} bg-white border-2 border-indigo-100 hover:border-indigo-200 text-indigo-700`;
+const BREAK_END_ACTION = `${ACTION_BTN} bg-indigo-600 hover:bg-indigo-700 text-white`;
+const CLOCK_OUT_ACTION = `${ACTION_BTN} bg-rose-500 hover:bg-rose-600 text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none`;
+
+// One cell of the finished-day strip. The dividers run between cells only, so
+// the first cell of each row keeps its left edge clean at both breakpoints.
+function DayStat({ icon: Icon, label, value, accent = false }) {
   return (
-    <div className="bg-slate-50/80 rounded-xl px-3 py-2.5 border border-slate-100 min-w-0">
+    <div className="min-w-0 px-4 py-3.5 border-slate-100 border-l [&:nth-child(odd)]:border-l-0 sm:[&:nth-child(odd)]:border-l sm:first:border-l-0 border-t [&:nth-child(-n+2)]:border-t-0 sm:border-t-0">
+      <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><Icon className="w-4 h-4" /></span>
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate">{label}</p>
-      <p className="text-sm font-bold text-slate-700 mt-0.5 truncate">{value}</p>
+      <p className={`text-base font-bold mt-0.5 truncate tabular-nums ${accent ? "text-purple-600" : "text-slate-800"}`}>{value}</p>
     </div>
   );
 }
@@ -97,7 +107,6 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const dayNotes = result ? [
     Number(result.late_minutes) > 0 && ["Late by", fmtMinutes(result.late_minutes)],
     Number(result.early_exit_minutes) > 0 && ["Left early", fmtMinutes(result.early_exit_minutes)],
-    Number(result.overtime_minutes) > 0 && ["Overtime", fmtMinutes(result.overtime_minutes)],
     result.half_day_type && ["Half day", humanize(result.half_day_type)],
   ].filter(Boolean) : [];
   const progress = fullDayMinutes && phase !== "idle" ? Math.min(1, workedMinutes / fullDayMinutes) : 0;
@@ -213,11 +222,14 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   };
 
   const disabled = !!busy;
-  const cardClass = className !== undefined
+  const base = className !== undefined
     ? className
     : horizontal
       ? "bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-100 flex flex-col lg:flex-row lg:items-center gap-5 lg:gap-8"
       : "bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-100 flex flex-col h-full";
+  // Clocking in or out must not resize the card: the actions are pinned to the
+  // bottom and the stacked card floors at the height of its tallest state.
+  const cardClass = horizontal ? base : `${base} min-h-[17rem]`;
 
   if (!today && loading) {
     return (
@@ -261,63 +273,79 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     setShowNotes(!showNotes);
   };
 
+  const stateLine = phase === "working" ? (
+    <p className="flex items-start gap-2 text-sm font-medium text-slate-500">
+      <HiOutlineClock className="w-5 h-5 text-slate-400 shrink-0 mt-px" />
+      <span>
+        {onBreak ? `On break since ${fmtTime(today.active_break?.start_time)}.` : `Clocked in at ${fmtTime(clockIn)}.`}
+        {breakMinutes ? ` Breaks so far: ${fmtMinutes(breakMinutes)}.` : ""}
+      </span>
+    </p>
+  ) : phase === "done" ? (
+    <p className="flex items-center gap-2 text-sm font-medium text-slate-500">
+      <HiOutlineClock className="w-5 h-5 text-slate-400 shrink-0" /> Day complete.
+    </p>
+  ) : null;
+
+  const ring = phase === "idle" ? null : (
+    <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex items-center justify-center">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-100" />
+        {progress > 0 && (
+          <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} className={`${onBreak ? "text-fuchsia-400" : "text-purple-600"} transition-all duration-700`} strokeLinecap="round" />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-xl font-extrabold text-slate-800 tracking-tight tabular-nums">
+          {phase === "working" ? fmtDuration(worked.workedMs).slice(0, 5) : phase === "done" ? fmtHours(effectiveHours, "--:--") : "--:--"}
+        </span>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+          {phase === "working" ? (worked.breaksKnown ? "worked" : "elapsed") : phase === "done" ? "effective" : "hrs"}
+        </span>
+      </div>
+    </div>
+  );
+
   const dayHeader = (
     <>
-      <div className={`flex justify-between items-start gap-3 ${horizontal ? "" : "mb-4"}`}>
-        <div className="min-w-0">
-          <h3 className="text-lg font-bold text-slate-800">{carriedOver ? "Open shift" : "Today"}</h3>
-          {today?.date && <p className="text-xs text-slate-400 font-medium">{carriedOver ? "Started " : ""}{fmtDate(recordDate, { weekday: "long", day: "numeric", month: "short" }, "")}</p>}
-          {shiftLabel && (
-            <p className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold mt-1 truncate" title={shiftTitle || undefined}>
-              <HiClock className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-              <span className="truncate">{shiftLabel}</span>
-            </p>
-          )}
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <h3 className="text-xl font-bold text-slate-800">{carriedOver ? "Open shift" : "Today"}</h3>
+          {badge}
         </div>
-        {badge}
+        {today?.date && <p className="text-xs text-slate-400 font-medium mt-0.5">{carriedOver ? "Started " : ""}{fmtDate(recordDate, { weekday: "long", day: "numeric", month: "short" }, "")}</p>}
+        {shiftLabel && (
+          <p className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold mt-1.5 truncate" title={shiftTitle || undefined}>
+            <HiClock className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+            <span className="truncate">{shiftLabel}</span>
+          </p>
+        )}
+        {stateLine && <div className="mt-3">{stateLine}</div>}
       </div>
 
-      {hint && <p className={`text-xs font-medium text-slate-500 ${horizontal ? "mt-3" : "mb-4"}`}>{hint}</p>}
+      {hint && <p className="text-xs font-medium text-slate-500 mt-3">{hint}</p>}
 
       {carriedOver && (
-        <p className={`text-[11px] font-semibold text-indigo-600 ${horizontal ? "mt-3" : "mb-4"}`}>Your shift from {fmtDate(recordDate, { weekday: "short", day: "numeric", month: "short" })} is still open. Clock out to finish it before starting a new day.</p>
+        <p className="text-[11px] font-semibold text-indigo-600 mt-3">Your shift from {fmtDate(recordDate, { weekday: "short", day: "numeric", month: "short" })} is still open. Clock out to finish it before starting a new day.</p>
       )}
     </>
   );
 
   return (
     <div className={cardClass}>
-      {horizontal ? <div className="lg:w-72 shrink-0 min-w-0">{dayHeader}</div> : dayHeader}
-
-      {phase !== "idle" && (
-      <div className={horizontal ? "flex flex-row-reverse justify-end items-center gap-4 shrink-0 lg:px-8 lg:border-x lg:border-slate-100" : "flex items-center justify-between gap-4 mb-5"}>
-        <div className={`${horizontal ? "max-w-[220px]" : "flex-1"} min-w-0 space-y-1`}>
-          {phase === "working" && (
-            <p className="text-sm font-medium text-slate-500">
-              {onBreak ? `On break since ${fmtTime(today.active_break?.start_time)}.` : `Clocked in at ${fmtTime(clockIn)}.`}
-              {breakMinutes ? ` Breaks so far: ${fmtMinutes(breakMinutes)}.` : ""}
-            </p>
-          )}
-          {phase === "done" && <p className="text-xs font-medium text-slate-500">Day complete.</p>}
+      {horizontal ? (
+        <>
+          <div className="lg:w-72 shrink-0 min-w-0">{dayHeader}</div>
+          {ring && <div className="shrink-0 lg:px-8 lg:border-x lg:border-slate-100">{ring}</div>}
+        </>
+      ) : (
+        // The ring sits beside the day rather than under it: the day, the shift
+        // and the state line fill its height, so the card is one block with no
+        // empty band running across the middle.
+        <div className="flex items-center justify-between gap-4 mb-5">
+          <div className="min-w-0">{dayHeader}</div>
+          {ring}
         </div>
-
-        <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
-            <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-100" />
-            {progress > 0 && (
-              <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} className={`${onBreak ? "text-fuchsia-400" : "text-purple-600"} transition-all duration-700`} strokeLinecap="round" />
-            )}
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-lg font-extrabold text-slate-800 tracking-tight tabular-nums">
-              {phase === "working" ? fmtDuration(worked.workedMs).slice(0, 5) : phase === "done" ? fmtHours(effectiveHours, "--:--") : "--:--"}
-            </span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-              {phase === "working" ? (worked.breaksKnown ? "worked" : "elapsed") : phase === "done" ? "effective" : "hrs"}
-            </span>
-          </div>
-        </div>
-      </div>
       )}
 
       <div className={horizontal ? "w-full lg:flex-1 lg:max-w-xl lg:ml-auto space-y-3 min-w-0" : "w-full space-y-3 mt-auto"}>
@@ -368,41 +396,47 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           </div>
         )}
 
-        {phase === "idle" && (
-          <button type="button" className="w-full inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white shadow-sm transition-all py-3.5 rounded-xl font-bold text-sm" onClick={() => punch("clock-in")} disabled={disabled}>
-            {busy === "locating" ? <><HiLocationMarker className="w-4 h-4 animate-pulse" /> Getting your location…</> : busy === "clock-in" ? <><Spinner /> Clocking in…</> : "Clock In"}
-          </button>
-        )}
-
-        {phase === "working" && (
+        {/* One two-button row from clock-in to clock-out, so the card never
+            reflows: the left button walks the day forward (Clock In → Start
+            Break → End Break) and Clock Out is there from the start, greyed
+            out until there is an open day to close. */}
+        {(phase === "idle" || phase === "working") && (
           <div className="grid grid-cols-2 gap-3">
-            {onBreak ? (
-              <button type="button" className="col-span-2 w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white shadow-sm py-3.5 rounded-xl font-bold text-sm" onClick={() => breakAction("break-end")} disabled={disabled}>
+            {phase === "idle" ? (
+              <button type="button" className={PRIMARY_ACTION} onClick={() => punch("clock-in")} disabled={disabled}>
+                {busy === "locating" ? <><HiLocationMarker className="w-4 h-4 animate-pulse" /> Locating…</> : busy === "clock-in" ? <><Spinner /> Clocking in…</> : "Clock In"}
+              </button>
+            ) : onBreak ? (
+              <button type="button" className={BREAK_END_ACTION} onClick={() => breakAction("break-end")} disabled={disabled}>
                 {busy === "break-end" && <Spinner />} End Break
               </button>
             ) : (
-              <>
-                <button type="button" className="w-full inline-flex items-center justify-center gap-2 bg-white border-2 border-indigo-100 hover:border-indigo-200 disabled:opacity-60 text-indigo-700 shadow-sm py-3.5 rounded-xl font-bold text-sm" onClick={() => breakAction("break-start")} disabled={disabled}>
-                  {busy === "break-start" && <Spinner />} Start Break
-                </button>
-                <button type="button" className="w-full inline-flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 disabled:opacity-60 text-white shadow-sm py-3.5 rounded-xl font-bold text-sm" onClick={confirmClockOut} disabled={disabled}>
-                  {busy === "locating" ? <HiLocationMarker className="w-4 h-4 animate-pulse" /> : busy === "clock-out" ? <Spinner /> : null}
-                  {busy === "locating" ? "Locating…" : "Clock Out"}
-                </button>
-              </>
+              <button type="button" className={BREAK_START_ACTION} onClick={() => breakAction("break-start")} disabled={disabled}>
+                {busy === "break-start" && <Spinner />} Start Break
+              </button>
             )}
+            <button
+              type="button"
+              className={CLOCK_OUT_ACTION}
+              onClick={confirmClockOut}
+              disabled={disabled || phase === "idle" || onBreak}
+              title={phase === "idle" ? "Clock in first — then you can close the day here." : onBreak ? "End your break first." : undefined}
+            >
+              {busy === "locating" ? <HiLocationMarker className="w-4 h-4 animate-pulse" /> : busy === "clock-out" ? <Spinner /> : null}
+              {busy === "clock-out" ? "Clocking out…" : "Clock Out"}
+            </button>
           </div>
         )}
 
         {phase === "done" && result && (
-          // One compact row, so a finished day is no taller than an open one;
-          // the exceptions (late, left early…) are pills, not extra boxes.
-          <div className="pt-4 border-t border-slate-100 space-y-2.5">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Stat label="Clock In" value={fmtTime(result.clock_in_time)} />
-              <Stat label="Clock Out" value={fmtTime(result.clock_out_time)} />
-              <Stat label="Effective" value={fmtHours(effectiveHours)} />
-              <Stat label="Breaks" value={fmtMinutes(result.break_duration_minutes ?? breakMinutes, "0m")} />
+          // One strip, so a finished day is no taller than an open one. Effective
+          // hours live in the ring above, so the fourth cell shows overtime.
+          <div className="space-y-2.5">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/40 grid grid-cols-2 sm:grid-cols-4">
+              <DayStat icon={HiOutlineClock} label="Clock In" value={fmtTime(result.clock_in_time)} />
+              <DayStat icon={HiOutlineClock} label="Clock Out" value={fmtTime(result.clock_out_time)} />
+              <DayStat icon={BiCoffeeTogo} label="Breaks" value={fmtMinutes(result.break_duration_minutes ?? breakMinutes, "0m")} />
+              <DayStat icon={BiStopwatch} label="Overtime" value={fmtMinutes(result.overtime_minutes, "0m")} accent={Number(result.overtime_minutes) > 0} />
             </div>
             {dayNotes.length > 0 && (
               <div className="flex flex-wrap gap-1.5">

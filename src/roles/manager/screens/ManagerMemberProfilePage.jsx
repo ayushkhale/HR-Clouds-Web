@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { HiBan, HiCheckCircle, HiOutlineCalendar, HiOutlineChartSquareBar, HiOutlineClock, HiOutlineFolder, HiOutlineUser, HiPencil, HiX } from "react-icons/hi";
+import { HiBan, HiCheckCircle, HiOutlineCalendar, HiOutlineChartSquareBar, HiOutlineClock, HiOutlineCurrencyRupee, HiOutlineFolder, HiOutlineUser, HiPencil, HiX } from "react-icons/hi";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { organizationAPI } from "../../../shared/api";
@@ -10,15 +10,22 @@ import { fmtDate, ymdOnly } from "../../../shared/attendance/dates";
 import OverviewTab from "../../hr/screens/employee-profile/OverviewTab";
 import AttendanceTab from "../../hr/screens/employee-profile/AttendanceTab";
 import TeamMemberLeaveTab from "../components/TeamMemberLeaveTab";
+import ProfileTab from "../../hr/screens/employee-profile/ProfileTab";
+import SalaryTab from "../../hr/screens/employee-profile/SalaryTab";
 import EditMemberProfileModal from "../components/EditMemberProfileModal";
 import SubjectDocumentsPanel from "../../../shared/documents/SubjectDocumentsPanel";
 
 const TEAM_PATH = "/dashboard/manager/team";
+// The same tabs, in the same order, as HR's employee profile — minus the two
+// that only HR can serve: Department (its actions and links are HR routes) and
+// Reports (/attendance/hr/reports/* is HR-only).
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
+  { key: "salary", label: "Salary", icon: HiOutlineCurrencyRupee },
   { key: "documents", label: "Documents", icon: HiOutlineFolder },
+  { key: "profile", label: "Profile", icon: HiOutlineUser },
 ];
 
 function InfoRow({ label, value, accent = false }) {
@@ -187,7 +194,9 @@ export default function ManagerMemberProfilePage() {
                     {activeTab === "overview" && <OverviewTab key={userId} userId={userId} employeeRole={role} viewer="manager" />}
                     {activeTab === "attendance" && <AttendanceTab key={userId} userId={userId} employeeRole={role} viewer="manager" />}
                     {activeTab === "leave" && <TeamMemberLeaveTab key={userId} userId={userId} />}
+                    {activeTab === "salary" && <SalaryTab key={userId} userId={userId} viewer="manager" />}
                     {activeTab === "documents" && <SubjectDocumentsPanel key={userId} planeKey="manager" userId={userId} subjectName={name} nameOf={(id, fallback) => (id === userId ? name : fallback ?? "Team member")} />}
+                    {activeTab === "profile" && <ProfileTab employee={employee} />}
                   </>
                 )}
               </div>

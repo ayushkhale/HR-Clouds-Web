@@ -302,7 +302,7 @@ const Solutions = [
   {
     category: "Time & Attendance",
     icon: TbDeviceAnalytics,
-    title: "Regularization Workflows",
+    title: "Attendance Correction Workflows",
     description: "Allow employees to submit missed punch requests with instant manager notifications and tracking.",
     link: "/services#regularization",
   },
