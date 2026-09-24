@@ -11,14 +11,14 @@ import { monthRange } from "./dates";
 
 // A manager reads a report through the hierarchy-scoped /manager/team/member/*
 // family whatever the report's role. History there takes a from/to range, so
-// the month the tabs ask for is converted. There is no manager daily-log
-// endpoint, so `dailyLog` is null and day rows don't open a breakdown.
+// the month the tabs ask for is converted. The daily log comes from the
+// manager-plane endpoint added 2026-09-24, which answers in the HR shape.
 const MANAGER_VIEW = {
   population: "team",
   history: (userId, { month, year, ...rest } = {}) =>
     attendanceAPI.getTeamMemberHistory(userId, { ...monthRange(year, month), ...rest }),
   summary: attendanceAPI.getTeamMemberSummary,
-  dailyLog: null,
+  dailyLog: attendanceAPI.getTeamMemberDailyLog,
 };
 
 export function memberAttendanceApi(role, viewer = "hr") {

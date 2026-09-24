@@ -235,6 +235,12 @@ export const attendanceAPI = {
   /** Filtered + paginated (`total_pages`). @param {{from?: string, to?: string, page?: number, limit?: number}} params */
   getTeamMemberHistory: (userId, params = {}) => request(`/attendance/manager/team/member/${seg(userId)}/history${qs(params)}`),
   getTeamMemberSummary: (userId, month, year) => request(`/attendance/manager/team/member/${seg(userId)}/summary${qs({ month, year })}`),
+  /**
+   * One report's day, enriched (sessions, breaks, shift) — the manager-plane twin
+   * of the HR daily-log reads, same shape. `date` defaults to today in IST.
+   * 403 EMPLOYEE_NOT_IN_TEAM outside the manager's team.
+   */
+  getTeamMemberDailyLog: (userId, date) => request(`/attendance/manager/team/member/${seg(userId)}/daily-log${qs({ date })}`),
 
   // ── Manager › Anomalies (M3, M4) ───────────────────────────────────────────
   getManagerAnomalies: () => request("/attendance/manager/team/anomalies"),

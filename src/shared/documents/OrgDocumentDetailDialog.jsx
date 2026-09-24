@@ -35,7 +35,7 @@ import { DANGER_BTN, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { OrgStatusBadge } from "./orgUi";
 import OrgRecipientsSection from "./OrgRecipientsSection";
 import { AcknowledgeDialog, EvidenceDialog, SignDialog } from "./ComplianceDialogs";
-import { ackBlockOf, actionWindow, complianceStateMeta, dueLabel, hasEvidence, nextActionOf } from "./complianceMeta";
+import { ackBlockOf, actionWindow, complianceStateMeta, dueLabel, hasEvidence, myComplianceState, nextActionOf } from "./complianceMeta";
 import {
   TARGET_DIMENSIONS, canDeleteOrg, canEditOrgDraft, canRejectProposal, canReplaceOrg,
   canRetire, describeAudience, documentTypeName, goesToEveryone, hasCriteria, hasRecipients,
@@ -485,7 +485,7 @@ export default function OrgDocumentDetailDialog({
     ? [
       { label: "Status", value: statusMeta.label, icon: HiCheckCircle, hint: statusMeta.hint },
       myBlock?.state && (myBlock.required || myBlock.signatureRequired)
-        ? { label: "Where you're at", value: complianceStateMeta(myBlock.state).label, icon: HiEye, hint: mine?.state ? recipientStateMeta(mine.state).label : "" }
+        ? { label: "Where you're at", value: complianceStateMeta(myComplianceState(myRow)).label, icon: HiEye, hint: mine?.state ? recipientStateMeta(mine.state).label : "" }
         : { label: "Where you're at", value: mine?.state ? recipientStateMeta(mine.state).label : "N/A", icon: HiEye, hint: mine?.state ? recipientStateMeta(mine.state).hint : "" },
       { label: "To do by", value: myBlock?.dueOn ? fmtDate(myBlock.dueOn) : "No deadline", icon: HiClock, hint: myDone ? "" : dueLabel(myBlock?.daysRemaining) },
       { label: reference ? "Stored as" : "File", value: reference ? "External link" : `${contentTypeLabel(doc?.content_type)} · ${formatBytes(doc?.size_bytes)}`, icon: HiDocumentText },

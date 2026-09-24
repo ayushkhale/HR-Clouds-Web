@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-24
 **Scope:** API #73–#79 wired to UI, plus the additive Phase 3 fields on #59 / #70 / #71 and the three new settings on the settings read/write. No Phase 1 or Phase 2 request was changed.
-**Status:** code complete. `vite build` passes. 0 lint errors in new or changed files (the sidebar's four pre-existing errors are untouched). 28 shape-adapter checks pass against the fixtures in `phase3_api_analysis.md`. **Not click-tested against a live backend, and not committed.**
+**Status:** code complete. `vite build` passes. 0 lint errors in new or changed files (the sidebar's four pre-existing errors are untouched). 28 shape-adapter checks pass against the fixtures in `phase3_api_analysis.md`. **Verified live against the dev API with HR, manager and employee tokens (§6); not click-tested in a browser, and not committed.**
 **Registry:** #73–#79 marked in `api_registry.md`. The registry had no section for #73–#75, so one was added (*Employee Self-Service, Acknowledgements & Signatures, Phase 3*). Self-plane rows are marked in all three UI columns, the same as #70–#72.
 
 ---
@@ -68,7 +68,7 @@ Both new pages share the sidebar label **Document Compliance**. It is the same j
 
 1. **What does `compliance_state=pending` mean for a document that asks for nothing?** `resolveComplianceState` treats any `pending` or `viewed` recipient as `pending`, whatever the document's obligation. If #70 does this for information-only documents too, the employee's **"Needs you"** tile overcounts. The cards themselves are correct: they show the read state for those documents. Could #70's compliance filter be limited to documents that ask for something, as #76 already is?
 2. Please confirm which `next_action` spelling is canonical (§3.2), and update the combined analysis inventory table to match.
-3. Publish (#47) is still blocked by the open `ORG_DOCUMENT_FILE_MISSING` bug (`bug_org_document_publish_file_missing_2026_09_24.md`). No recipients can exist while it is, so **none of #73–#79 can be exercised against real data yet.**
+3. ~~Publish (#47) blocked by `ORG_DOCUMENT_FILE_MISSING`.~~ **Fixed. Verified live on 2026-09-24 (§6).** Two new findings are in §6.
 
 ---
 
@@ -78,3 +78,40 @@ Both new pages share the sidebar label **Document Compliance**. It is the same j
 - `npx eslint` on every new and changed file: 0 errors in them.
 - 28 adapter checks against the documented fixtures (#70 block, #73, #78, #76, #79, the error envelopes). They cover both `next_action` spellings, the fallback for pre-Phase-3 rows, deadline wording (due today is not overdue), bucket sums, the export-too-large details, the 403 handling, and the rule that no name is disclosed.
 - **Not done:** no browser click-through and no live API call. Smoke-test the five surfaces in §1 once publish works.
+
+---
+
+## 6. Live verification — 2026-09-24, dev API, HR / manager / employee tokens
+
+**Publish (#47) works now.** The `ORG_DOCUMENT_FILE_MISSING` blocker is fixed: s3 upload → confirm → publish all succeeded.
+
+End-to-end run: HR published a test document (acknowledgement + signature, audience = one employee). The employee then opened, acknowledged and signed it. HR and the manager read the results.
+
+| Check | Result |
+|---|---|
+| Phase 1/2 reads for every role (types, my documents, team documents, verification queue, proposals) | all 200 |
+| Cross-role access (employee → HR/manager routes, manager → HR proof) | 403 |
+| #70 row shape: `acknowledgement` block, lower-case `next_action`, `document.document_type.name` | matches the contract |
+| #72 open → `pending` becomes `viewed` | yes |
+| A non-recipient (the manager) tries to sign | 404, the uniform denial |
+| Wrong name | 422 `SIGNER_NAME_MISMATCH`, no details returned |
+| `confirm: false` | 400 |
+| #73 acknowledge, then a replay | 201, then 200 with `already_acknowledged: true` |
+| #74 sign with odd case and spacing, then a replay | 201, then 200 with `already_signed: true` |
+| #75 receipt and #78 proof, before and after | 404, then 200 with both records |
+| #61 excuse after signing | 409 `RECIPIENT_ALREADY_COMPLETED` |
+| #59 `compliance` block and row fields; #76 tallies; #79 team rows, `overdue_only`, out-of-team `user_id` (empty list) | correct |
+| #77 CSV | BOM, the 16 columns, filename header exposed to the browser |
+| Audit trail | viewed / acknowledged / signed recorded; labels mapped |
+| Settings: the 3 Phase 3 keys | present (7 days, off, internal typed) |
+| Manager proposal → HR queue → manager publish attempt → HR decline | 201, listed, 403, declined with the reason visible to the manager |
+
+The UI adapters were also run against the saved live payloads: 8/8 pass.
+
+### New findings for the backend
+
+1. **Acknowledging completes a document that also needs a signature.** After #73 alone, the verdict is `completed`: #59/#76 count the person as done, and #70 `compliance_state=pending` no longer lists the document. Yet `next_action` is still `"sign"`. Either the verdict should stay `pending` until signed, or `next_action` should be null. The UI now shows the person "Waiting" until nothing is left to do (`myComplianceState`), but HR's tallies and the employee's "Needs you" filter follow the server.
+2. **`content_checksum` is 32 hex characters** (MD5 / S3 ETag), not the SHA-256 the analysis documents. It still identifies the exact file, but the docs and the evidence claim should match.
+3. The typed signer name is stored with its inner spacing (`"aditya   PATIDAR"`). That is by design (R-89); noting it for audit readers.
+
+**Test data left on dev:** type `test_p3_compliance`, published document `2d469352-1ef8-4110-adec-d6c166edb8ca` (signed by Aditya Patidar), and declined proposal `8b5fc97e-97e6-4b7c-83db-0c7324b67e4b`. Evidence rows are permanent by design. The document can be withdrawn from the UI when no longer needed.

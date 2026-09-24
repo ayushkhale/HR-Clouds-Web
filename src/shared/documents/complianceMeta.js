@@ -142,6 +142,18 @@ export function actionWindow(doc) {
   return { open: true, reason: "" };
 }
 
+/**
+ * The verdict to show the person themselves. Verified live 2026-09-24: on a
+ * document needing BOTH, acknowledging alone already makes the server's
+ * verdict `completed` while `next_action` is still "sign". Showing "Done" next
+ * to a Sign button would contradict itself, so until nothing is left to do
+ * the person sees "Waiting". HR's tallies keep the server's own verdict.
+ */
+export function myComplianceState(row) {
+  const state = ackBlockOf(row).state;
+  return state === "completed" && nextActionOf(row) ? "pending" : state;
+}
+
 /** Has this person done what was asked (acknowledged or signed)? */
 export const hasEvidence = (row) => ["acknowledged", "signed"].includes(row?.state) || row?.acknowledgement?.state === "completed";
 

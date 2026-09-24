@@ -58,13 +58,13 @@ export const organizationAPI = {
    * List invitations sent by this organisation.
    * GET /organizations/users/invite
    *
-   * Same path as the POST that creates them, differing only by verb, so the
-   * invite surface stays one URL. See
-   * `public/ref docs/md_updates/backend_spec_list_invitations_2026_09_24.md`
-   * for the full contract.
+   * Same path as the POST that creates them, differing only by verb. Contract:
+   * `public/ref docs/md_updates/invitation_list_manager_daily_log_and_type_contracts_2026_09_24.md` §1.
    *
-   * NOT IMPLEMENTED ON THE BACKEND YET (gap B5). Until it ships this 404s and
-   * the Invites screen shows an explanatory empty state rather than an error.
+   * HR sees the whole org; a manager sees only invitations they sent. `status`
+   * is repeatable and derived on read. Unknown keys are silently DROPPED, not
+   * rejected — a typo returns an unfiltered page. Answers 500 until migration
+   * 00052 is applied; the Invites screen shows a plain notice for that.
    *
    * @param {{ status?: string|string[], q?: string, role?: string,
    *           department_id?: string, limit?: number, offset?: number }} params

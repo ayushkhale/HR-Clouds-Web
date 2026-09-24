@@ -30,7 +30,7 @@ export const DOCUMENT_ERROR_MESSAGES = {
   DOCUMENT_TYPE_FIELD_IMMUTABLE: "The code, statutory flag and origin of a document type can't be changed. Create a new type instead.",
   DOCUMENT_TYPE_PLANE_MISMATCH: "This document type is for organisation documents, not an employee's file.",
   DOCUMENT_TYPE_NO_USABLE_CONTENT_TYPE: "Choose at least one allowed file format.",
-  DOCUMENT_TYPE_IN_USE: "Documents already use this type, so it can't be removed. Deactivate it instead.",
+  DOCUMENT_TYPE_IN_USE: "Some documents of this type are still in progress, so it can't be switched off yet. Finish or remove them first.",
 
   // Upload
   DOCUMENT_CONTENT_TYPE_NOT_ALLOWED: "This file format isn't allowed for this document type. Check the allowed formats and choose another file.",
@@ -182,3 +182,31 @@ export function exportTooLargeDetail(err) {
 
 /** #79 answers 403 when the organisation has turned team document visibility off. */
 export const isTeamVisibilityOff = (err) => err?.status === 403 && (documentErrorCode(err) === "FORBIDDEN" || !documentErrorCode(err));
+
+/**
+ * #8 deactivate refused because work of this type is still open. `details` is
+ * an open-ended map of counters (`open_employee_documents`, `open_org_documents`,
+ * and later `open_document_requests`), so every numeric key is read.
+ * Returns a sentence like "2 employee documents and 1 organisation document are
+ * still open", or null for any other error.
+ */
+const OPEN_WORK_LABELS = {
+  open_employee_documents: ["employee document waiting for upload or checking", "employee documents waiting for upload or checking"],
+  open_org_documents: ["organisation document still in draft", "organisation documents still in draft"],
+  open_document_requests: ["document request still open", "document requests still open"],
+};
+export function typeInUseSummary(err) {
+  if (documentErrorCode(err) !== "DOCUMENT_TYPE_IN_USE") return null;
+  const details = err?.data?.details || {};
+  const parts = Object.entries(details)
+    .map(([key, value]) => [key, Number(value)])
+    .filter(([, n]) => Number.isFinite(n) && n > 0)
+    .map(([key, n]) => {
+      const [one, many] = OPEN_WORK_LABELS[key] || [key.replace(/^open_/, "").replace(/_/g, " ").replace(/s$/, ""), key.replace(/^open_/, "").replace(/_/g, " ")];
+      return `${n} ${n === 1 ? one : many}`;
+    });
+  if (!parts.length) return DOCUMENT_ERROR_MESSAGES.DOCUMENT_TYPE_IN_USE;
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return `This type can't be switched off yet: ${list}. Finish, reject or delete those first — documents that are already done never block this.`;
+}
+

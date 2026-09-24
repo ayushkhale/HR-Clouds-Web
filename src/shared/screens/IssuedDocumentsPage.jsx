@@ -27,7 +27,7 @@ import useDocumentTypes from "../documents/useDocumentTypes";
 import { ORG_PLANES } from "../documents/orgDocumentPlanes";
 import { listPayload, typeIndex } from "../documents/documentMeta";
 import { documentTypeName, orgDisplayStatus } from "../documents/orgDocumentMeta";
-import { ackBlockOf, actionWindow, asksForSomething, hasEvidence, nextActionOf, obligationLabel } from "../documents/complianceMeta";
+import { ackBlockOf, actionWindow, asksForSomething, hasEvidence, myComplianceState, nextActionOf, obligationLabel } from "../documents/complianceMeta";
 import { DocEmptyState, DocErrorState, DocIcon, PRIMARY_BTN } from "../documents/ui";
 import { ComplianceStateBadge, DueChip, OrgStatusBadge, RecipientStateBadge } from "../documents/orgUi";
 
@@ -82,7 +82,7 @@ function IssuedCard({ row, typeName, onOpen }) {
             {doc.is_confidential && <HiLockClosed className="w-3.5 h-3.5 text-purple-500 shrink-0" title="Confidential" />}
           </p>
           {tracked && block.state
-            ? <ComplianceStateBadge state={block.state} className="shrink-0" />
+            ? <ComplianceStateBadge state={myComplianceState(row)} className="shrink-0" />
             : <RecipientStateBadge state={row.state} className="shrink-0" />}
         </div>
         <p className="text-[11px] text-slate-400 mt-0.5 truncate">

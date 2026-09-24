@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HiFolderOpen, HiLink, HiRefresh, HiUpload } from "react-icons/hi";
-import { FilterTabs, Toast, useToast } from "../attendance/ui";
+import { Toast, useToast } from "../attendance/ui";
 import DocumentTable from "./DocumentTable";
 import DocumentDetailDialog from "./DocumentDetailDialog";
 import DocumentUploadDialog from "./DocumentUploadDialog";
@@ -21,13 +21,16 @@ import LinkReferenceDialog from "./LinkReferenceDialog";
 import useDocumentTypes from "./useDocumentTypes";
 import { DOCUMENT_PLANES } from "./documentPlanes";
 import { listPayload } from "./documentMeta";
-import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
+import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from "./ui";
 
 const PAGE = 20;
 
 // The manager read accepts only these three statuses (#27).
+// A dropdown, not tabs: seven tabs wrapped onto two lines inside a profile tab
+// and pushed the buttons into a stack. The other profile tabs keep one control
+// in their header row, and this now matches them.
 const HR_FILTERS = [
-  { value: "", label: "All" },
+  { value: "", label: "All documents" },
   { value: "pending_verification", label: "In review" },
   { value: "available", label: "Verified" },
   { value: "expired", label: "Expired" },
@@ -86,16 +89,36 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
     setUploading({ mode: "replace", predecessor: doc });
   };
 
+  const filters = planeKey === "hr" ? HR_FILTERS : MANAGER_FILTERS;
+  const summary = list.loading && list.rows.length === 0
+    ? "Loading…"
+    : `${list.total} ${list.total === 1 ? "document" : "documents"}${status ? ` · ${filters.find((f) => f.value === status)?.label.toLowerCase()}` : " on file"}. ${planeKey === "manager"
+      ? "Confidential documents stay with HR."
+      : "Open one to verify, replace or remove it."}`;
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
-        <FilterTabs options={planeKey === "hr" ? HR_FILTERS : MANAGER_FILTERS} value={status} onChange={changeStatus} />
-        <div className="flex items-center gap-2 flex-wrap">
-          <button type="button" onClick={load} disabled={list.loading} className="h-10 px-3 rounded-xl border border-slate-200 text-slate-500 hover:text-purple-600 hover:bg-slate-50 disabled:opacity-50" aria-label="Refresh documents" title="Refresh">
+    <div className="space-y-5">
+      {/* Same shape as the other profile tabs: title on the left, controls on the right, one row. */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-slate-800">Documents</h2>
+          <p className="text-xs text-slate-500 mt-0.5">{summary}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap md:shrink-0">
+          <label className="sr-only" htmlFor={`doc-filter-${planeKey}-${userId}`}>Show</label>
+          <select
+            id={`doc-filter-${planeKey}-${userId}`}
+            value={status}
+            onChange={(e) => changeStatus(e.target.value)}
+            className={SELECT}
+          >
+            {filters.map((f) => <option key={f.value || "all"} value={f.value}>{f.label}</option>)}
+          </select>
+          <button type="button" onClick={load} disabled={list.loading} className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 hover:bg-slate-50 disabled:opacity-50" aria-label="Refresh documents" title="Refresh">
             <HiRefresh className={`w-4 h-4 ${list.loading ? "animate-spin" : ""}`} />
           </button>
           {plane.linkReference && (
-            <button type="button" onClick={() => setLinking(true)} disabled={typesLoading || uploadTypes.length === 0} className={SECONDARY_BTN}>
+            <button type="button" onClick={() => setLinking(true)} disabled={typesLoading || uploadTypes.length === 0} className={`${SECONDARY_BTN} !h-10 !py-0`}>
               <HiLink className="w-4 h-4" /> Link external
             </button>
           )}
@@ -105,7 +128,7 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
               onClick={() => setUploading({ mode: "upload" })}
               disabled={!canUpload}
               title={!typesLoading && !canUpload ? (planeKey === "manager" ? "No document type lets managers upload yet." : "Activate a document type first.") : undefined}
-              className={PRIMARY_BTN}
+              className={`${PRIMARY_BTN} !h-10 !py-0 !shadow-none`}
             >
               <HiUpload className="w-4 h-4" /> Upload
             </button>
@@ -113,30 +136,32 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
         </div>
       </div>
 
-      {list.error ? (
-        <DocErrorState error={list.error} onRetry={load} fallback="Couldn't load these documents." />
-      ) : list.loading && list.rows.length === 0 ? (
-        <div className="p-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>
-      ) : list.rows.length === 0 ? (
-        <DocEmptyState
-          icon={HiFolderOpen}
-          title={status ? "No documents in this state" : "No documents yet"}
-          message={status ? "Try another filter." : planeKey === "manager"
-            ? `${who} has no documents you can see. Confidential documents are only visible to HR.`
-            : `Nothing has been uploaded for ${who} yet.`}
-          action={!status && canUpload ? <button type="button" onClick={() => setUploading({ mode: "upload" })} className={PRIMARY_BTN}><HiUpload className="w-4 h-4" /> Upload the first one</button> : null}
-        />
-      ) : (
-        <div className={list.loading ? "opacity-60" : ""}>
-          <DocumentTable
-            rows={list.rows}
-            types={index}
-            onOpen={setDetail}
-            showRecommendation={planeKey === "hr" && status === "pending_verification"}
-            pagination={{ page, total: list.total, limit: PAGE, onPageChange: setPage }}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
+        {list.error ? (
+          <DocErrorState error={list.error} onRetry={load} fallback="Couldn't load these documents." />
+        ) : list.loading && list.rows.length === 0 ? (
+          <div className="p-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+        ) : list.rows.length === 0 ? (
+          <DocEmptyState
+            icon={HiFolderOpen}
+            title={status ? "No documents in this state" : "No documents yet"}
+            message={status ? "Try another filter." : planeKey === "manager"
+              ? `${who} has no documents you can see. Confidential documents are only visible to HR.`
+              : `Nothing has been uploaded for ${who} yet.`}
+            action={!status && canUpload ? <button type="button" onClick={() => setUploading({ mode: "upload" })} className={PRIMARY_BTN}><HiUpload className="w-4 h-4" /> Upload the first one</button> : null}
           />
-        </div>
-      )}
+        ) : (
+          <div className={list.loading ? "opacity-60" : ""}>
+            <DocumentTable
+              rows={list.rows}
+              types={index}
+              onOpen={setDetail}
+              showRecommendation={planeKey === "hr" && status === "pending_verification"}
+              pagination={{ page, total: list.total, limit: PAGE, onPageChange: setPage }}
+            />
+          </div>
+        )}
+      </div>
 
       {detail && (
         <DocumentDetailDialog

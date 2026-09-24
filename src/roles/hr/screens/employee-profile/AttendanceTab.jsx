@@ -13,17 +13,17 @@ import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, Detai
 const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
 
 /* ─── Daily log drilldown ─────────────────────────────────────── */
-function DailyLogModal({ userId, date, employeeRole, onClose }) {
+function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
   const [state, setState] = useState({ log: null, loading: true, error: null });
 
   const load = useCallback(() => {
     if (!userId || !date) return;
     setState({ log: null, loading: true, error: null });
-    memberAttendanceApi(employeeRole)
+    memberAttendanceApi(employeeRole, viewer)
       .dailyLog(userId, date)
       .then((res) => setState({ log: unwrap(res) || null, loading: false, error: null }))
       .catch((error) => setState({ log: null, loading: false, error }));
-  }, [userId, date, employeeRole]);
+  }, [userId, date, employeeRole, viewer]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -147,7 +147,7 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [selectedDate, setSelectedDate] = useState(null);
   const api = memberAttendanceApi(employeeRole, viewer);
-  // Without a daily-log endpoint (manager view) the rows stay read-only.
+  // Every viewer now has a daily-log read (managers since 2026-09-24).
   const canOpenDay = !!api.dailyLog;
 
   // HR detail endpoints are consumed with month/year (audit C15).
@@ -252,7 +252,7 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
         )}
       </div>
 
-      {selectedDate && <DailyLogModal userId={userId} date={selectedDate} employeeRole={employeeRole} onClose={() => setSelectedDate(null)} />}
+      {selectedDate && <DailyLogModal userId={userId} date={selectedDate} employeeRole={employeeRole} viewer={viewer} onClose={() => setSelectedDate(null)} />}
     </div>
   );
 }

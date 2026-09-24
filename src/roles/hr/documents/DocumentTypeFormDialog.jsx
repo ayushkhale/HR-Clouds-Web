@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HiBan, HiCheck, HiLockClosed, HiTemplate, HiX, HiInformationCircle, HiOfficeBuilding, HiUser } from "react-icons/hi";
-import { documentErrorCode, documentErrorMessage } from "../../../shared/utils/documentErrors";
+import { documentErrorCode, documentErrorMessage, typeInUseSummary } from "../../../shared/utils/documentErrors";
 import { CONTENT_TYPES, DOC_GROUPS, HARD_MAX_BYTES, formatBytes } from "../../../shared/documents/documentMeta";
 import { DANGER_BTN, FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "../../../shared/documents/ui";
 
@@ -174,14 +174,14 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
 
   const toggleActive = async () => {
     const deactivating = type.is_active !== false;
-    if (deactivating && !(await window.confirm(`Deactivate “${type.name}”?\n\nNobody can add new documents of this type. Existing documents stay readable and can still be verified.`))) return;
+    if (deactivating && !(await window.confirm(`Deactivate “${type.name}”?\n\nNobody can add new documents of this type. Existing documents stay readable.\n\nIt can only be switched off once nothing of this type is still waiting for upload, checking or publishing.`))) return;
     setBusy("active");
     setError("");
     try {
       const res = deactivating ? await api.deactivate(type.id) : await api.activate(type.id);
       onSaved(res?.data ?? res, deactivating ? "Document type deactivated" : "Document type reactivated — its settings were kept");
     } catch (err) {
-      setError(documentErrorMessage(err, "Couldn't change this type's status."));
+      setError(typeInUseSummary(err) || documentErrorMessage(err, "Couldn't change this type's status."));
       setBusy("");
     }
   };
