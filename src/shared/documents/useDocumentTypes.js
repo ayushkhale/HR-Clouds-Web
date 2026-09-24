@@ -2,10 +2,14 @@
 // documents/useDocumentTypes.js — The document types a viewer can see, for
 // naming rows (rows carry only document_type_id) and for the upload picker.
 //
-//   hr      — GET /hr/types (#5), every type incl. deactivated ones, so old
-//             documents keep their name; uploads offer active employee types
-//   manager — GET /manager/types (#25); uploads offer manager_can_request
-//   self    — GET /me/documents/types (#34); only types the caller may upload
+//   hr         — GET /hr/types (#5), every type incl. deactivated ones, so old
+//                documents keep their name; uploads offer active employee types
+//   manager    — GET /manager/types (#25); uploads offer manager_can_request
+//   self       — GET /me/documents/types (#34); only types the caller may upload
+//   hrOrg      — the same #5 list, narrowed to `plane: "org"`: the policies and
+//                letters HR can issue to an audience (Phase 2)
+//   managerOrg — GET /manager/org-documents/types (#62); an empty array means
+//                the org turned team documents off, which is not an error
 //
 // Shared by every mounted screen for a minute, keyed by the session token.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,6 +22,10 @@ const LOADERS = {
   hr: () => documentsAPI.getTypes(),
   manager: () => documentsAPI.getManagerTypes(),
   self: () => documentsAPI.getMyUploadTypes(),
+  // #5 filtered server-side. HR's employee-plane list is cached under its own
+  // key, so asking for org types never disturbs it.
+  hrOrg: () => documentsAPI.getTypes({ plane: "org" }),
+  managerOrg: () => documentsAPI.getManagerOrgTypes(),
 };
 
 const CACHE_MS = 60_000;
@@ -38,7 +46,7 @@ export function invalidateDocumentTypes() {
 const byOrder = (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || String(a.name).localeCompare(String(b.name));
 
 /**
- * @param {"hr"|"manager"|"self"} planeKey
+ * @param {"hr"|"manager"|"self"|"hrOrg"|"managerOrg"} planeKey
  * @returns {{ types: object[], uploadTypes: object[], index: Map, loading: boolean, error: unknown, reload: () => void }}
  */
 export default function useDocumentTypes(planeKey) {
@@ -74,6 +82,11 @@ export default function useDocumentTypes(planeKey) {
   const uploadTypes = useMemo(() => {
     if (planeKey === "hr") return state.types.filter((t) => t.is_active !== false && (t.plane || "employee") === "employee");
     if (planeKey === "manager") return state.types.filter((t) => t.manager_can_request);
+    // An org document's type must be org-plane and active (R-36, R-37). The
+    // plane filter is re-applied here because a server that ignores the query
+    // parameter would otherwise offer employee types the publish would refuse.
+    if (planeKey === "hrOrg") return state.types.filter((t) => t.is_active !== false && t.plane === "org");
+    if (planeKey === "managerOrg") return state.types.filter((t) => t.is_active !== false && t.manager_can_request);
     return state.types;
   }, [planeKey, state.types]);
 

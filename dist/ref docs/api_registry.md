@@ -699,3 +699,97 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 | 40 | `/api/v1/documents/me/documents/:id/view-url` | GET | Yes | `any tenant role` | employee | Generates time-limited pre-signed view/download URL for own document. | `document_self.routes.js` | `document_self.controller.js` | `document_read.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
 | 41 | `/api/v1/documents/me/documents/:id/replace` | POST | Yes | `any tenant role` | employee | Initiates replacement upload URL for expired, rejected, or updated own document. | `document_self.routes.js` | `document_self.controller.js` | `document_upload.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
 | 42 | `/api/v1/documents/me/documents/:id` | DELETE | Yes | `any tenant role` | employee | Soft-deletes employee's own document subject to statutory protection rules. | `document_self.routes.js` | `document_self.controller.js` | `document_upload.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+
+
+
+## Document Module - HR Administration (Org Documents, Phase 2)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** These routes allow **`hr` only** — platform roles (`admin`/`super-admin`) are strictly excluded. HR authors, publishes, versions, retires, and administers organization-issued documents (`org_documents` + `org_document_recipients`). Only HR may publish, replace, retire, reject, sync, or waive. All endpoints enforce tenant isolation via `req.user.orgId`; `/:id` requests collapse to a uniform `404 DOCUMENT_NOT_FOUND` on any authorization failure (§12.2).
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 43 | `/api/v1/documents/hr/org-documents` | POST | Yes | `hr` | hr | Creates an org document draft and returns a pre-signed S3 upload URL (or accepts a reference URL). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 44 | `/api/v1/documents/hr/org-documents/:id` | PUT | Yes | `hr` | hr | Updates title, window, acknowledgement rules, and targeting of an unpublished draft (per-dimension merge). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 45 | `/api/v1/documents/hr/org-documents/:id/file` | POST | Yes | `hr` | hr | Issues or re-issues an S3 pre-signed upload URL for a draft file (same `storage_key`). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 46 | `/api/v1/documents/hr/org-documents/:id/file/confirm` | POST | Yes | `hr` | hr | Confirms the S3 upload via HeadObject and links the verified object to the draft. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 47 | `/api/v1/documents/hr/org-documents/:id/publish` | POST | Yes | `hr` | hr | Publishes the document, freezes the targeting snapshot, and materializes recipient rows. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 48 | `/api/v1/documents/hr/org-documents/:id/replace` | POST | Yes | `hr` | hr | Starts a replacement draft (`v+1`) under the same document group while the predecessor stays live. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 49 | `/api/v1/documents/hr/org-documents/:id/retire` | POST | Yes | `hr` | hr | Retires a published document with a mandatory reason, freeing the group live slot. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 50 | `/api/v1/documents/hr/org-documents/:id/reject` | POST | Yes | `hr` | hr | Rejects a manager-submitted proposal draft with a mandatory reason (Tier-B maker-checker). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 51 | `/api/v1/documents/hr/org-documents/:id` | DELETE | Yes | `hr` | hr | Soft-deletes a draft or rejected org document and best-effort sweeps its S3 object. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org.service.js` | [ ] | [ ✅ ] | [ ] |
+| 52 | `/api/v1/documents/hr/org-documents` | GET | Yes | `hr` | hr | Lists and filters org documents across all statuses with pagination. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 53 | `/api/v1/documents/hr/org-documents/proposals` | GET | Yes | `hr` | hr | Lists the HR review queue of manager-submitted draft proposals. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 54 | `/api/v1/documents/hr/org-documents/groups/:groupId` | GET | Yes | `hr` | hr | Returns the full version chain for a document group in version order. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 55 | `/api/v1/documents/hr/org-documents/:id` | GET | Yes | `hr` | hr | Retrieves full metadata and derived display status for an org document. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 56 | `/api/v1/documents/hr/org-documents/:id/versions` | GET | Yes | `hr` | hr | Returns the version history for the document group. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 57 | `/api/v1/documents/hr/org-documents/:id/view-url` | GET | Yes | `hr` | hr | Generates a short-lived pre-signed view/download URL for the document object. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 58 | `/api/v1/documents/hr/org-documents/:id/audit-logs` | GET | Yes | `hr` | hr | Retrieves the append-only immutable audit trail for the document. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 59 | `/api/v1/documents/hr/org-documents/:id/recipients` | GET | Yes | `hr` | hr | Returns the recipient roster with compliance tallies and per-employee state. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_org_read.service.js` | [ ] | [ ✅ ] | [ ] |
+| 60 | `/api/v1/documents/hr/org-documents/:id/recipients/sync` | POST | Yes | `hr` | hr | Tops up recipients for newly eligible employees against the frozen criteria (fair due date). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_recipient.service.js` | [ ] | [ ✅ ] | [ ] |
+| 61 | `/api/v1/documents/hr/org-documents/:id/recipients/:userId/waive` | POST | Yes | `hr` | hr | Waives an individual recipient with a mandatory reason (`pending`/`viewed` to `waived`). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_recipient.service.js` | [ ] | [ ✅ ] | [ ] |
+
+## Document Module - Manager Operations (Org Documents, Phase 2)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Hierarchy-scoped Tier-B proposals.** These routes allow **`manager` and `hr`**. Managers may only draft proposals targeting a single active direct report and can never publish, retire, reject, sync, or waive. The manager type list is additionally gated by the org setting `manager_can_view_team_documents`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 62 | `/api/v1/documents/manager/org-documents/types` | GET | Yes | `manager, hr` | manager | Lists org-plane document types the manager is permitted to propose (empty when org disables team documents). | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_type.repository.js` | [ ] | [ ] | [ ✅ ] |
+| 63 | `/api/v1/documents/manager/org-documents` | POST | Yes | `manager, hr` | manager | Drafts an org document proposal targeting exactly one direct report and returns an upload URL. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org.service.js` | [ ] | [ ] | [ ✅ ] |
+| 64 | `/api/v1/documents/manager/org-documents/:id` | PUT | Yes | `manager, hr` | manager | Updates metadata/target of the manager own unreviewed proposal draft. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org.service.js` | [ ] | [ ] | [ ✅ ] |
+| 65 | `/api/v1/documents/manager/org-documents/:id/file` | POST | Yes | `manager, hr` | manager | Issues or re-issues an S3 pre-signed upload URL for a proposal attachment. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org.service.js` | [ ] | [ ] | [ ✅ ] |
+| 66 | `/api/v1/documents/manager/org-documents/:id/file/confirm` | POST | Yes | `manager, hr` | manager | Confirms the proposal S3 upload via HeadObject. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org.service.js` | [ ] | [ ] | [ ✅ ] |
+| 67 | `/api/v1/documents/manager/org-documents/mine` | GET | Yes | `manager, hr` | manager | Lists all proposals drafted/submitted by the authenticated manager. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org_read.service.js` | [ ] | [ ] | [ ✅ ] |
+| 68 | `/api/v1/documents/manager/org-documents/:id` | GET | Yes | `manager, hr` | manager | Retrieves details and status of the manager own proposal. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org_read.service.js` | [ ] | [ ] | [ ✅ ] |
+| 69 | `/api/v1/documents/manager/org-documents/:id/view-url` | GET | Yes | `manager, hr` | manager | Generates a pre-signed view URL for the proposal attachment. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_org_read.service.js` | [ ] | [ ] | [ ✅ ] |
+
+## Document Module - Employee Self-Service (My HR Documents, Phase 2)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Recipient-scoped access.** These routes allow **any authenticated tenant role** (`employee`, `manager`, `hr`) but only surface documents issued to the caller (an `org_document_recipients` row). Non-recipient `/:id` access returns a uniform `404 DOCUMENT_NOT_FOUND`; co-recipients, targeting criteria, and HR notes are never exposed.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 70 | `/api/v1/documents/me/hr-documents` | GET | Yes | `any tenant role` | employee | Lists organization documents issued to the authenticated employee. | `document_org_self.routes.js` | `document_org_self.controller.js` | `document_org_read.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 71 | `/api/v1/documents/me/hr-documents/:id` | GET | Yes | `any tenant role` | employee | Retrieves an issued document details (recipient-scoped). | `document_org_self.routes.js` | `document_org_self.controller.js` | `document_org_read.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 72 | `/api/v1/documents/me/hr-documents/:id/view-url` | GET | Yes | `any tenant role` | employee | Generates a view URL and stamps first view (`pending` to `viewed`). | `document_org_self.routes.js` | `document_org_self.controller.js` | `document_org_read.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+
+
+
+## Document Module - Employee Self-Service (Acknowledgements & Signatures, Phase 3)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Recipient-anchored.** These routes allow **any authenticated tenant role** (`employee`, `manager`, `hr`) and act only on the caller's own recipient row. Evidence is append-only: an acknowledgement or signature can never be edited or deleted. A replay returns `200` with `already_acknowledged` / `already_signed: true`; the first write returns `201`. Non-recipient `/:id` access returns a uniform `404 DOCUMENT_NOT_FOUND`. Also extends #70/#71 with an `acknowledgement` block and `document.next_action`, and #59 with a `compliance` block (additive).
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 73 | `/api/v1/documents/me/hr-documents/:id/acknowledge` | POST | Yes | `any tenant role` | employee | Records the caller's immutable acknowledgement (version, checksum, timestamp, IP); idempotent replay returns 200. | `document_org_self.routes.js` | `document_org_self.controller.js` | `document_acknowledgement.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 74 | `/api/v1/documents/me/hr-documents/:id/sign` | POST | Yes | `any tenant role` | employee | Typed signature verified against the caller's profile name (`SIGNER_NAME_MISMATCH` discloses nothing); provider comes from org settings. | `document_org_self.routes.js` | `document_org_self.controller.js` | `document_acknowledgement.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 75 | `/api/v1/documents/me/hr-documents/:id/acknowledgement` | GET | Yes | `any tenant role` | employee | Returns the caller's own acknowledgement and/or signature receipt; `404` until one exists. | `document_org_self.routes.js` | `document_org_self.controller.js` | `document_acknowledgement.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+
+## Document Module - HR Administration (Compliance & Legal Evidence, Phase 3)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** These routes allow **`hr` only** — platform roles (`admin`/`super-admin`) are strictly excluded. HR reads organization-wide compliance rosters, streams forensic CSV exports (UTF-8 BOM, formula-injection escaped, capped at 50,000 rows), and retrieves a single employee's acknowledgement/signature evidence. Read-only; all endpoints enforce tenant isolation via `req.user.orgId`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 76 | `/api/v1/documents/hr/org-documents/compliance` | GET | Yes | `hr` | hr | Returns the org-wide compliance roster grouped by document with completion rate and pending, overdue, and waived tallies (filter by type/document/department, overdue-only). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_compliance.service.js` | [ ] | [ ✅ ] | [ ] |
+| 77 | `/api/v1/documents/hr/org-documents/compliance/export` | GET | Yes | `hr` | hr | Streams the full recipient compliance roster as a UTF-8 BOM CSV with formula-injection protection (`Content-Disposition: attachment`, capped at 50,000 rows). | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_compliance.service.js` | [ ] | [ ✅ ] | [ ] |
+| 78 | `/api/v1/documents/hr/org-documents/:id/acknowledgements/:userId` | GET | Yes | `hr` | hr | Retrieves a single employee's acknowledgement or signature evidence for a document (legal audit trail); `404` when no evidence exists. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_acknowledgement.service.js` | [ ] | [ ✅ ] | [ ] |
+## Document Module - Manager Operations (Team Compliance, Phase 3)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Hierarchy-scoped team compliance.** These routes allow **`manager` and `hr`**. The manager sees compliance only for their direct/indirect reports and never for confidential documents. The endpoint is gated by the org setting `manager_can_view_team_documents`; when disabled it returns `403 FORBIDDEN`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 79 | `/api/v1/documents/manager/org-documents/compliance` | GET | Yes | `manager, hr` | manager | Returns team compliance metrics for the manager's direct/indirect reports (excludes confidential documents); gated by the org setting `manager_can_view_team_documents`. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_compliance.service.js` | [ ] | [ ] | [ ✅ ] |

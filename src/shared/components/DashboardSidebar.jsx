@@ -49,6 +49,7 @@ import {
   HiCloudDownload,
   HiFolderOpen,
   HiBadgeCheck,
+  HiClipboardCheck,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -196,6 +197,7 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiUserGroup,
           items: [
             link(DICTIONARY.NAV.EMPLOYEES, "/dashboard/hr/employees", HiUserGroup, { nested: true }),
+            link("Invites", "/dashboard/hr/invites", HiMail),
             link("Departments", "/dashboard/hr/departments", HiOfficeBuilding),
           ],
         },
@@ -243,6 +245,8 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Verification Queue", "/dashboard/hr/documents/verification", HiBadgeCheck),
             link("Employee Documents", "/dashboard/hr/documents/employees", HiFolderOpen),
+            link("Organisation Documents", "/dashboard/hr/documents/organisation", HiOfficeBuilding),
+            link("Document Compliance", "/dashboard/hr/documents/compliance", HiClipboardCheck),
           ],
         },
         {
@@ -264,6 +268,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("My Claims & Benefits", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
             link("My Salary & Bank", "/dashboard/hr/my-salary", HiCurrencyRupee),
             link("My Documents", "/dashboard/hr/my-documents", HiFolderOpen),
+            link("Company Documents", "/dashboard/hr/company-documents", HiOfficeBuilding),
           ],
         },
       ];
@@ -291,6 +296,8 @@ function DashboardSidebar({ role = "guest" }) {
             // /team/today and /team/history are separate sidebar entries.
             { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
             link("Team Documents", `${M}/documents`, HiFolderOpen),
+            link("Document Proposals", `${M}/documents/proposals`, HiClipboardList),
+            link("Document Compliance", `${M}/documents/compliance`, HiClipboardCheck),
           ],
         },
         {
@@ -334,6 +341,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("My Claims & Benefits", `${M}/my-reimbursements`, HiReceiptRefund),
             link("My Salary & Bank", `${M}/my-salary`, HiCurrencyRupee),
             link("My Documents", `${M}/my-documents`, HiFolderOpen),
+            link("Company Documents", `${M}/company-documents`, HiOfficeBuilding),
           ],
         },
       ];
@@ -369,7 +377,10 @@ function DashboardSidebar({ role = "guest" }) {
         title: "DOCUMENTS",
         icon: HiFolderOpen,
         forceDropdown: true,
-        items: [link("My Documents", `${E}/documents`, HiFolderOpen)],
+        items: [
+          link("My Documents", `${E}/documents`, HiFolderOpen),
+          link("Company Documents", `${E}/company-documents`, HiOfficeBuilding),
+        ],
       },
     ];
   };

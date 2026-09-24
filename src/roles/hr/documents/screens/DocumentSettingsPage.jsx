@@ -7,17 +7,20 @@
 //   · separate checker needs ≥ 2 active HR administrators (INSUFFICIENT_CHECKERS)
 //   · virus scanning can't be turned on in Phase 1 (SCAN_PROVIDER_NOT_CONFIGURED)
 //   · view link 30–900 s, upload link 60–3600 s, file size ≤ 25 MB, retention ≥ 30 days
-// Only changed fields are sent.
+//   · acknowledgement deadline 1–365 days (Phase 3)
+// Only changed fields are sent. The three Phase 3 keys are only sent when the
+// server returned them, so an older server never sees a key it would reject.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HiCog, HiEye, HiLockClosed, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
+import { HiBadgeCheck, HiCog, HiEye, HiLockClosed, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
 import { Toast, useToast } from "../../../../shared/attendance/ui";
 import { documentErrorMessage } from "../../../../shared/utils/documentErrors";
 import { DocErrorState, FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "../../../../shared/documents/ui";
 import { fmtDateTime } from "../../../../shared/attendance/dates";
+import { SIGNATURE_PROVIDERS } from "../../../../shared/documents/complianceMeta";
 
 const MB = 1024 * 1024;
 
@@ -26,7 +29,11 @@ const NUMBERS = {
   document_upload_url_ttl_seconds: { min: 60, max: 3600, label: "Upload links stay valid for", unit: "seconds" },
   document_max_file_size_mb: { min: 1, max: 25, label: "Largest file anyone can upload", unit: "MB" },
   document_retention_days: { min: 30, max: 36500, label: "Keep documents for", unit: "days" },
+  document_acknowledgement_due_days: { min: 1, max: 365, label: "Default time to acknowledge", unit: "days" },
 };
+
+// Phase 3 settings. Present on the read only once the server has them.
+const COMPLIANCE_KEYS = ["document_acknowledgement_due_days", "document_acknowledgement_blocking", "document_signature_provider"];
 
 const toForm = (s) => ({
   ...s,
@@ -34,6 +41,9 @@ const toForm = (s) => ({
   document_view_url_ttl_seconds: String(s.document_view_url_ttl_seconds ?? 300),
   document_upload_url_ttl_seconds: String(s.document_upload_url_ttl_seconds ?? 600),
   document_retention_days: String(s.document_retention_days ?? 2555),
+  document_acknowledgement_due_days: String(s.document_acknowledgement_due_days ?? 7),
+  document_acknowledgement_blocking: !!s.document_acknowledgement_blocking,
+  document_signature_provider: s.document_signature_provider || "internal_typed",
 });
 
 function Card({ title, icon: Icon, blurb, children, className = "" }) {
@@ -73,11 +83,14 @@ export default function DocumentSettingsPage() {
   useEffect(() => { load(); }, [load]);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  // The server returns the Phase 3 keys once it supports them.
+  const hasCompliance = !!saved && COMPLIANCE_KEYS.some((k) => k in saved);
 
   const problems = useMemo(() => {
     if (!form) return {};
     const out = {};
     Object.entries(NUMBERS).forEach(([key, r]) => {
+      if (COMPLIANCE_KEYS.includes(key) && !hasCompliance) return;
       const n = Number(form[key]);
       if (!Number.isFinite(n) || n < r.min || n > r.max) out[key] = `Between ${r.min} and ${r.max} ${r.unit}.`;
     });
@@ -85,7 +98,7 @@ export default function DocumentSettingsPage() {
       out.conflict = "Separate checker and manager direct authority can't both be on — turn one off.";
     }
     return out;
-  }, [form]);
+  }, [form, hasCompliance]);
 
   const changes = useMemo(() => {
     if (!form || !saved) return {};
@@ -100,9 +113,14 @@ export default function DocumentSettingsPage() {
       document_upload_url_ttl_seconds: Number(form.document_upload_url_ttl_seconds),
       document_max_file_size_bytes: Math.round(Number(form.document_max_file_size_mb) * MB),
       document_retention_days: Number(form.document_retention_days),
+      ...(hasCompliance ? {
+        document_acknowledgement_due_days: Number(form.document_acknowledgement_due_days),
+        document_acknowledgement_blocking: !!form.document_acknowledgement_blocking,
+        document_signature_provider: form.document_signature_provider,
+      } : {}),
     };
-    return Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== saved[k]));
-  }, [form, saved]);
+    return Object.fromEntries(Object.entries(next).filter(([k, v]) => (!COMPLIANCE_KEYS.includes(k) || k in saved) && v !== saved[k]));
+  }, [form, saved, hasCompliance]);
 
   const dirty = Object.keys(changes).length > 0;
   const blocked = Object.keys(problems).length > 0;
@@ -165,7 +183,7 @@ export default function DocumentSettingsPage() {
                 <Card title="Managers" icon={HiUserGroup} blurb="How much the reporting manager is involved in their team's documents.">
                   <SwitchRow
                     title="Managers can see their team's documents"
-                    description="Non-confidential documents of direct reports, for types that allow manager viewing. Off hides every team document from managers."
+                    description="Non-confidential documents of direct reports, for types that allow manager viewing. It also decides whether managers can propose an organisation document for someone on their team. Off hides every team document from managers and stops proposals."
                     checked={form.manager_can_view_team_documents}
                     onChange={(v) => set("manager_can_view_team_documents", v)}
                   />
@@ -222,6 +240,52 @@ export default function DocumentSettingsPage() {
                 <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
                 A document type can only lower the file-size limit, never raise it. Retention is recorded now; automatic purging starts in a later release.
               </p>
+            </Card>
+
+            <Card
+              title="Acknowledgements & signatures"
+              icon={HiBadgeCheck}
+              blurb="What happens when a company document asks people to acknowledge or sign it."
+            >
+              {hasCompliance ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4">
+                    <div className="min-w-0">
+                      {numberField("document_acknowledgement_due_days")}
+                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                        Used when a document asks for acknowledgement without its own deadline. Changing it only affects documents published from now on — existing deadlines stay as they are.
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <label htmlFor="ds-provider" className={LABEL}>How people sign</label>
+                      <select
+                        id="ds-provider"
+                        value={form.document_signature_provider}
+                        onChange={(e) => set("document_signature_provider", e.target.value)}
+                        className={FIELD}
+                      >
+                        {Object.entries(SIGNATURE_PROVIDERS).map(([code, p]) => (
+                          <option key={code} value={code}>{p.label}{p.available ? "" : " (not connected yet)"}</option>
+                        ))}
+                      </select>
+                      <p className={`text-[11px] mt-1.5 leading-relaxed ${SIGNATURE_PROVIDERS[form.document_signature_provider]?.available === false ? "font-semibold text-rose-600" : "text-slate-500"}`}>
+                        {SIGNATURE_PROVIDERS[form.document_signature_provider]?.hint || ""}
+                      </p>
+                    </div>
+                  </div>
+                  <SwitchRow
+                    title="Flag overdue documents as a priority"
+                    description="People with an overdue document see a stronger warning in Company Documents asking them to deal with it first. It doesn't lock anyone out of anything."
+                    checked={form.document_acknowledgement_blocking}
+                    onChange={(v) => set("document_acknowledgement_blocking", v)}
+                  />
+                </>
+              ) : (
+                <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
+                  <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                  These settings will appear here once your server has been updated. Until then, every document uses its own deadline and people sign by typing their name.
+                </p>
+              )}
             </Card>
 
             {(problems.conflict || saveError) && (

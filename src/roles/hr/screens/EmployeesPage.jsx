@@ -1,117 +1,30 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { organizationAPI, attendanceAPI } from "../../../shared/api";
-import { useAuth } from "../../../shared/contexts/AuthContext";
+import { organizationAPI } from "../../../shared/api";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
-  HiOutlineUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding,
-  HiDotsHorizontal, HiUserGroup, HiSearch, HiFilter, HiPlus, HiX,
-  HiMail, HiPhone, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiOfficeBuilding, HiRefresh, HiBan
+  HiUserGroup, HiSearch, HiMail, HiOfficeBuilding, HiRefresh, HiBan,
 } from "react-icons/hi";
 import { Toast, useToast } from "../../../shared/attendance/ui";
 
-import GenderAvatar, { avatarUrlOf, genderOf, normalizeGender } from "../../../shared/components/GenderAvatar";
-import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
-
-const GENDER_OPTIONS = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other", label: "Others" },
-];
+import GenderAvatar, { avatarUrlOf, genderOf } from "../../../shared/components/GenderAvatar";
 
 function EmployeesPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const [showAddModal, setShowAddModal] = useState(false);
 
   // Invite form state
   // Required
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("employee");
   
   // Optional Profile
-  const [name, setName] = useState("");
-  const [empId, setEmpId] = useState("");
-  const [contact, setContact] = useState("");
-  const [bloodGroup, setBloodGroup] = useState("");
-  const [dob, setDob] = useState("");
-  const [gender, setGender] = useState("");
 
   // Optional Organization
-  const [joiningDate, setJoiningDate] = useState("");
-  const [workLocation, setWorkLocation] = useState("");
-  const [department, setDepartment] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [reportingManager, setReportingManager] = useState("");
-  const [makeHod, setMakeHod] = useState(false);
-  const [jobStatus, setJobStatus] = useState("");
-  const [employmentType, setEmploymentType] = useState("");
-  const [workMode, setWorkMode] = useState("");
 
   // Optional Compliance/Address
-  const [panNumber, setPanNumber] = useState("");
-  const [uanNumber, setUanNumber] = useState("");
-  const [maritalStatus, setMaritalStatus] = useState("");
-  const [personalEmail, setPersonalEmail] = useState("");
-  const [currentAddress, setCurrentAddress] = useState("");
-  const [permanentAddress, setPermanentAddress] = useState("");
-  const [isSameAddress, setIsSameAddress] = useState(false);
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [pincode, setPincode] = useState("");
 
-  const [managers, setManagers] = useState([]);
-  const [hrList, setHrList] = useState([]);
-  const [locations, setLocations] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [departmentLoading, setDepartmentLoading] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteResult, setInviteResult] = useState({ type: "", message: "" });
-  const [invitations, setInvitations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [openDropdownId, setOpenDropdownId] = useState(null); // Track which member's options menu is open
-
-  // Collapsible modal sections state (false = expanded/open, true = collapsed/closed)
-  const [collapsedSections, setCollapsedSections] = useState({
-    section1: false,
-    section2: true,
-    section3: true,
-    section4: true,
-  });
-
-  const toggleSection = (key) => {
-    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
 
   const [employees, setEmployees] = useState([]);
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = () => setOpenDropdownId(null);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
-
-  // Debounced pincode fetch for City and State
-  useEffect(() => {
-    if (pincode && pincode.length === 6) {
-      const timer = setTimeout(async () => {
-        try {
-          const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
-          const data = await res.json();
-          if (data && data[0] && data[0].Status === "Success") {
-            const postOffice = data[0].PostOffice[0];
-            setCity(postOffice.District);
-            setState(postOffice.State);
-          }
-        } catch (error) {
-          console.error("Failed to fetch pincode details:", error);
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [pincode]);
 
   useEffect(() => {
     fetchEmployees();
@@ -119,87 +32,12 @@ function EmployeesPage() {
 
   const fetchEmployees = async () => {
     try {
-      const [res, locRes, depRes] = await Promise.all([
-        organizationAPI.getEmployees({ purpose: "shift_assignment" }),
-        organizationAPI.getLocations().catch(() => ({ success: false, data: [] })),
-        organizationAPI.getDepartments().catch(() => ({ success: false, data: [] })),
-      ]);
-
-      if (res.success && res.data) {
-        setEmployees(res.data);
-        setManagers(res.data.filter(emp => emp.role === 'manager' || emp.role === 'hr'));
-      }
-      if (locRes.success && locRes.data) {
-        setLocations(locRes.data);
-      }
-      if (depRes.success && depRes.data) {
-        setDepartments(depRes.data);
-      }
+      const res = await organizationAPI.getEmployees({ purpose: "shift_assignment" });
+      if (res.success && res.data) setEmployees(res.data);
     } catch (error) {
       console.error("Failed to fetch form data", error);
     }
   };
-
-  // The HR list only feeds the invite modal's approver picker, so it loads the
-  // first time that modal opens — not on every visit to this page.
-  useEffect(() => {
-    if (!showAddModal || hrList.length > 0) return;
-    organizationAPI.getEmployees({ purpose: "all_hr_list" })
-      .then((res) => { if (res.success && res.data) setHrList(res.data); })
-      .catch(() => { /* the picker falls back to HR rows from the employee list */ });
-  }, [showAddModal, hrList.length]);
-
-  // Fetch cascading departments when work location changes
-  useEffect(() => {
-    if (!showAddModal) return;
-    async function fetchCascadingDepartments() {
-      setDepartmentLoading(true);
-      try {
-        const res = await organizationAPI.getDepartments(
-          workLocation ? { location_id: workLocation } : {}
-        );
-        if (res.success && res.data) {
-          setDepartments(res.data);
-          if (department && !res.data.some(d => (d.id || d._id) === department)) {
-            setDepartment("");
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch cascading departments:", err);
-      } finally {
-        setDepartmentLoading(false);
-      }
-    }
-    fetchCascadingDepartments();
-  }, [workLocation, showAddModal]);
-
-  // Reset linked organization inputs when role changes
-  const handleRoleChange = (newRole) => {
-    setRole(newRole);
-    setWorkLocation("");
-    setDepartment("");
-    setReportingManager("");
-    setMakeHod(false);
-  };
-
-  // Make HOD is only permitted for manager / hr roles when a department is selected
-  useEffect(() => {
-    if (role === "employee" || !department) {
-      setMakeHod(false);
-    }
-  }, [role, department]);
-
-  // Pre-fill reporting manager with department HOD
-  useEffect(() => {
-    if (department && departments.length > 0) {
-      const selectedDept = departments.find(d => (d.id || d._id) === department);
-      if (selectedDept && selectedDept.head_of_department_id) {
-        setReportingManager(selectedDept.head_of_department_id);
-      } else {
-        setReportingManager("");
-      }
-    }
-  }, [department, departments]);
 
   // Pending-invite actions run from the cards, outside the invite modal, so
   // they report through the page toast. One action per address at a time.
@@ -225,7 +63,6 @@ function EmployeesPage() {
     setInviteBusy(email);
     try {
       await organizationAPI.revokeInvitation({ email });
-      setInvitations((prev) => prev.filter((inv) => inv.email !== email));
       // The employee list can carry the invitee too (status "Pending"); drop only
       // that pending row, never an active person who shares the address.
       setEmployees((prev) => prev.filter((emp) => !(emp.email === email && String(emp.status || "").toLowerCase() === "pending")));
@@ -236,114 +73,6 @@ function EmployeesPage() {
       setInviteBusy("");
     }
   };
-
-  async function handleInvite(e) {
-    e.preventDefault();
-
-    // Collapsed sections unmount their inputs, so the browser's `required`
-    // check never sees them. Validate every required field here and open the
-    // section that holds the first missing one.
-    const missing = [
-      ["section1", "Full name", name],
-      ["section1", "Email address", email],
-      ["section1", "Gender", gender],
-      ["section2", "Primary contact", contact],
-      ["section3", "Department", department],
-      ["section3", "Reporting person", reportingManager],
-      ["section3", "Job status", jobStatus],
-      ["section3", "Employment type", employmentType],
-      ["section3", "Work mode", workMode],
-      ["section4", "Permanent address", permanentAddress],
-    ].filter(([, , value]) => !String(value ?? "").trim());
-    if (missing.length > 0) {
-      setCollapsedSections((prev) => ({ ...prev, [missing[0][0]]: false }));
-      setInviteResult({ type: "error", message: `Please fill in: ${missing.map(([, label]) => label).join(", ")}.` });
-      return;
-    }
-
-    setInviteLoading(true);
-    setInviteResult({ type: "", message: "" });
-
-    try {
-      const payload = { email, role };
-
-      if (makeHod && (role === "manager" || role === "hr") && department) {
-        payload.make_hod = true;
-      }
-      if (name) payload.name = name;
-      if (empId) payload.emp_id = empId;
-      if (contact) payload.contact = contact;
-      if (bloodGroup) payload.blood_group = bloodGroup;
-      if (dob) payload.dob = dob;
-      if (gender) payload.gender = gender;
-      if (joiningDate) payload.joining_date = joiningDate;
-
-      if (workLocation) payload.location_id = workLocation;
-      if (department) payload.department_id = department;
-      if (designation) payload.designation = designation;
-
-      // Pass reporting_person if explicitly selected
-      if (reportingManager) {
-        payload.reporting_person = reportingManager;
-      }
-
-      if (jobStatus) payload.job_status = jobStatus;
-      if (employmentType) payload.employment_type = employmentType;
-      if (workMode) payload.work_mode = workMode;
-
-      if (panNumber) payload.pan_number = panNumber;
-      if (uanNumber) payload.uan_number = uanNumber;
-      if (maritalStatus) payload.marital_status = maritalStatus;
-      if (personalEmail) payload.personal_email = personalEmail;
-      if (currentAddress) payload.current_address = currentAddress;
-      if (permanentAddress) payload.permanent_address = permanentAddress;
-      if (city) payload.city = city;
-      if (state) payload.state = state;
-      if (pincode) payload.pincode = pincode;
-
-      await organizationAPI.inviteUser(payload);
-
-      setInviteResult({
-        type: "success",
-        message: `Invitation sent to ${name || email}!`,
-      });
-
-      setInvitations((prev) => [
-        {
-          name: name || "Team Member",
-          email,
-          role,
-          workLocation,
-          department,
-          contact,
-          empId,
-          status: "Pending",
-          gender,
-          sentAt: new Date().toLocaleDateString(),
-        },
-        ...prev,
-      ]);
-
-      setName(""); setEmail(""); setRole("employee"); setEmpId(""); setContact(""); 
-      setBloodGroup(""); setDob(""); setGender(""); setMakeHod(false); setMaritalStatus(""); setPersonalEmail("");
-      setWorkLocation(""); setDepartment(""); setDesignation(""); setReportingManager("");
-      setJobStatus(""); setEmploymentType(""); setWorkMode(""); setJoiningDate("");
-      setPanNumber(""); setUanNumber(""); setCurrentAddress("");
-      setPermanentAddress(""); setIsSameAddress(false); setCity(""); setState(""); setPincode("");
-
-      setTimeout(() => {
-        setInviteResult({ type: "", message: "" });
-        setShowAddModal(false);
-      }, 1500);
-    } catch (err) {
-      setInviteResult({
-        type: "error",
-        message: err.message || "Failed to send invitation.",
-      });
-    } finally {
-      setInviteLoading(false);
-    }
-  }
 
   const allTeamMembers = [
     ...employees.map(emp => ({
@@ -359,18 +88,6 @@ function EmployeesPage() {
       isOwner: emp.role === 'owner',
       gender: genderOf(emp),
       avatar: avatarUrlOf(emp),
-    })),
-    ...invitations.map((inv, idx) => ({
-      id: `inv-${idx}`,
-      name: inv.name,
-      email: inv.email,
-      role: inv.role,
-      status: "Pending",
-      city: inv.city,
-      contact: inv.contact,
-      empId: inv.empId,
-      sentAt: inv.sentAt,
-      gender: normalizeGender(inv.gender),
     })),
   ];
 
@@ -412,15 +129,11 @@ function EmployeesPage() {
               <p className="text-sm text-slate-500 mt-1">Manage all organization personnel and pending invitations.</p>
             </div>
             <button
-              onClick={() => {
-                setInviteResult({ type: "", message: "" });
-                setCollapsedSections({ section1: false, section2: true, section3: true, section4: true });
-                setShowAddModal(true);
-              }}
-              className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
+              onClick={() => navigate("/dashboard/hr/invites")}
+              className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0 whitespace-nowrap"
             >
-              <HiPlus className="w-4 h-4" />
-              Invite Member
+              <HiMail className="w-4 h-4" />
+              Invites
             </button>
           </div>
 
@@ -447,7 +160,7 @@ function EmployeesPage() {
               {filteredMembers.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-slate-400 font-medium">
                   <HiUserGroup className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  No personnel matching "{searchQuery}"
+                  No personnel matching &ldquo;{searchQuery}&rdquo;
                 </div>
               ) : (
                 filteredMembers.map((member) => (
@@ -527,325 +240,6 @@ function EmployeesPage() {
 
       <Toast toast={toast} onClose={clearToast} />
 
-      {showAddModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-6xl w-full flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                  <HiUserGroup className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-slate-900 text-base">Invite Team Member</h3>
-              </div>
-              <button type="button" onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-                <HiX className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleInvite} className="flex flex-col flex-1 min-h-0">
-              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-              
-              {/* Section 1: Required Fields */}
-              <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => toggleSection("section1")}
-                  className="w-full px-5 py-3.5 flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 transition-colors cursor-pointer text-left"
-                >
-                  <h4 className="text-sm font-bold text-slate-800">1. Required Information</h4>
-                  <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${!collapsedSections.section1 ? "rotate-180" : ""}`} />
-                </button>
-                {!collapsedSections.section1 && (
-                  <div className="p-5 border-t border-slate-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
-                        <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="e.g. EMP001 (Optional)" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-rose-400">*</span></label>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email Address <span className="text-rose-400">*</span></label>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-rose-400">*</span></label>
-                        <select value={role} onChange={(e) => handleRoleChange(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="employee">Employee</option>
-                          <option value="manager">Manager</option>
-                          <option value="hr">HR Admin</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender <span className="text-rose-400">*</span></label>
-                        <select value={gender} onChange={(e) => setGender(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select---</option>
-                          {GENDER_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Section 2: Profile Fields */}
-              <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => toggleSection("section2")}
-                  className="w-full px-5 py-3.5 flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 transition-colors cursor-pointer text-left"
-                >
-                  <h4 className="text-sm font-bold text-slate-800">2. Profile Details</h4>
-                  <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${!collapsedSections.section2 ? "rotate-180" : ""}`} />
-                </button>
-                {!collapsedSections.section2 && (
-                  <div className="p-5 border-t border-slate-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Primary Contact <span className="text-rose-400">*</span></label>
-                        <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Personal Email</label>
-                        <input type="email" value={personalEmail} onChange={(e) => setPersonalEmail(e.target.value)} placeholder="personal@example.com" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Marital Status</label>
-                        <select value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select---</option>
-                          <option value="single">Single</option>
-                          <option value="married">Married</option>
-                          <option value="divorced">Divorced</option>
-                          <option value="widowed">Widowed</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Blood Group</label>
-                        <select value={bloodGroup} onChange={(e) => setBloodGroup(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select---</option>
-                          <option value="A+">A+</option>
-                          <option value="A-">A-</option>
-                          <option value="B+">B+</option>
-                          <option value="B-">B-</option>
-                          <option value="AB+">AB+</option>
-                          <option value="AB-">AB-</option>
-                          <option value="O+">O+</option>
-                          <option value="O-">O-</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Date of Birth</label>
-                        <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Designation</label>
-                        <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Software Engineer" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Section 3: Organization / Work */}
-              <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => toggleSection("section3")}
-                  className="w-full px-5 py-3.5 flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 transition-colors cursor-pointer text-left"
-                >
-                  <h4 className="text-sm font-bold text-slate-800">3. Organization & Work</h4>
-                  <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${!collapsedSections.section3 ? "rotate-180" : ""}`} />
-                </button>
-                {!collapsedSections.section3 && (
-                  <div className="p-5 border-t border-slate-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Location</label>
-                        <select value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select Location---</option>
-                          {locations.map(loc => <option key={loc.id || loc._id} value={loc.id || loc._id}>{loc.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                          Department <span className="text-rose-400">*</span>
-                          {departmentLoading && <span className="ml-2 text-[10px] text-purple-600 font-normal">Loading...</span>}
-                        </label>
-                        <select value={department} onChange={(e) => setDepartment(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select Department---</option>
-                          {departments.map(dep => <option key={dep.id || dep._id} value={dep.id || dep._id}>{dep.name}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Make Head Of Dept. input (To the right of Department) */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Make Head Of Dept.</label>
-                        <select
-                          value={makeHod ? "true" : "false"}
-                          onChange={(e) => setMakeHod(e.target.value === "true")}
-                          disabled={!department || (role !== "manager" && role !== "hr")}
-                          className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="false">No</option>
-                          <option value="true">Yes (Assign as HOD)</option>
-                        </select>
-                      </div>
-
-                      {/* Reporting Person (Shifted to next grid position) */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                          Reporting Person <span className="text-rose-400">*</span>
-                        </label>
-                        <PersonSelect
-                          people={((role === "manager" || role === "hr")
-                            ? (hrList.length > 0 ? hrList : employees.filter(e => e.role === "hr"))
-                            : managers
-                          ).map((m) => ({ ...toPersonOption(m), sub: [String(m.role || "").toUpperCase(), toPersonOption(m).sub].filter(Boolean).join(" · ") }))}
-                          value={reportingManager}
-                          onChange={(id) => setReportingManager(id)}
-                          placeholder="Select a reporting person"
-                          emptyText="No one can be picked as reporting person yet."
-                        />
-                        {role === "employee" ? (
-                          <p className="text-[11px] text-slate-500 mt-1">Defaults to Department HOD if available.</p>
-                        ) : (
-                          <p className="text-[11px] text-purple-600 font-medium mt-1">Managers and HR Admins must report to an HR Admin.</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Status <span className="text-rose-400">*</span></label>
-                        <select value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select---</option>
-                          <option value="probation">Probation</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="notice_period">Notice Period</option>
-                          <option value="terminated">Terminated</option>
-                          <option value="trainee">Trainee</option>
-                          <option value="contract">Contract</option>
-                          <option value="temporary">Temporary</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employment Type <span className="text-rose-400">*</span></label>
-                        <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select---</option>
-                          <option value="full_time">Full Time</option>
-                          <option value="part_time">Part Time</option>
-                          <option value="contract">Contract</option>
-                          <option value="intern">Intern</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Work Mode <span className="text-rose-400">*</span></label>
-                        <select value={workMode} onChange={(e) => setWorkMode(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
-                          <option value="">---Select---</option>
-                          <option value="on-site">On-Site</option>
-                          <option value="remote">Remote</option>
-                          <option value="hybrid">Hybrid</option>
-                          <option value="field">Field</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Joining Date</label>
-                        <input type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Section 4: Compliance & Address */}
-              <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => toggleSection("section4")}
-                  className="w-full px-5 py-3.5 flex items-center justify-between bg-slate-50/80 hover:bg-slate-100/80 transition-colors cursor-pointer text-left"
-                >
-                  <h4 className="text-sm font-bold text-slate-800">4. Compliance & Address</h4>
-                  <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${!collapsedSections.section4 ? "rotate-180" : ""}`} />
-                </button>
-                {!collapsedSections.section4 && (
-                  <div className="p-5 border-t border-slate-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">PAN Number</label>
-                        <input type="text" value={panNumber} onChange={(e) => setPanNumber(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all uppercase" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">UAN Number</label>
-                        <input type="text" value={uanNumber} onChange={(e) => setUanNumber(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Pincode</label>
-                        <input type="text" value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} maxLength={6} placeholder="6-digit pincode" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div className="hidden lg:block lg:col-span-1"></div>
-                      
-                      <div className="col-span-full">
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Current Address</label>
-                        <input type="text" value={currentAddress} onChange={(e) => {
-                          setCurrentAddress(e.target.value);
-                          if (isSameAddress) setPermanentAddress(e.target.value);
-                        }} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div className="col-span-full">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Permanent Address <span className="text-rose-400">*</span></label>
-                          <label className="flex items-center gap-1.5 cursor-pointer group">
-                            <input 
-                              type="checkbox" 
-                              checked={isSameAddress}
-                              className="w-3.5 h-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
-                              onChange={(e) => {
-                                setIsSameAddress(e.target.checked);
-                                if (e.target.checked) setPermanentAddress(currentAddress);
-                              }}
-                            />
-                            <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700 transition-colors">Same as Current</span>
-                          </label>
-                        </div>
-                        <input type="text" value={permanentAddress} onChange={(e) => {
-                          setPermanentAddress(e.target.value);
-                          setIsSameAddress(false);
-                        }} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">City</label>
-                        <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">State</label>
-                        <input type="text" value={state} onChange={(e) => setState(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
-                      </div>
-                      <div className="hidden lg:block lg:col-span-2"></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Close the scrollable body div */}
-              </div>
-
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0 bg-slate-50/50 rounded-b-2xl">
-                {inviteResult.message && (
-                  <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
-                    {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
-                    {inviteResult.message}
-                  </div>
-                )}
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">Cancel</button>
-                <button type="submit" disabled={inviteLoading} className="px-6 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-60 cursor-pointer">
-                  {inviteLoading ? "Sending..." : <><HiPaperAirplane className="w-3.5 h-3.5" />Send Invitation</>}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   );
 }

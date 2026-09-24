@@ -41,13 +41,19 @@ function Chip({ children, tone = "slate" }) {
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${tones[tone]}`}>{children}</span>;
 }
 
-/** Permission chips for a type row. */
+const isOrgType = (t) => t?.plane === "org";
+
+/** Permission chips for a type row. An org type is issued, not collected. */
 function Permissions({ t }) {
   const chips = [];
   if (t.is_confidential) chips.push(<Chip key="c" tone="purple"><HiLockClosed className="w-3 h-3" /> Confidential</Chip>);
-  if (t.employee_can_upload) chips.push(<Chip key="eu">Employee uploads</Chip>);
-  if (t.manager_can_view && !t.is_confidential) chips.push(<Chip key="mv">Manager views</Chip>);
-  if (t.manager_can_request && !t.is_confidential) chips.push(<Chip key="mr">Manager uploads</Chip>);
+  if (isOrgType(t)) {
+    if (t.manager_can_request) chips.push(<Chip key="mp">Managers can propose</Chip>);
+  } else {
+    if (t.employee_can_upload) chips.push(<Chip key="eu">Employee uploads</Chip>);
+    if (t.manager_can_view && !t.is_confidential) chips.push(<Chip key="mv">Manager views</Chip>);
+    if (t.manager_can_request && !t.is_confidential) chips.push(<Chip key="mr">Manager uploads</Chip>);
+  }
   return <div className="flex flex-wrap gap-1">{chips.length ? chips : <span className="text-xs text-slate-400">HR only</span>}</div>;
 }
 
@@ -256,7 +262,7 @@ export default function DocumentTypesPage() {
   const setTab = (next) => setParams(next === "catalog" ? { tab: "catalog" } : {}, { replace: true });
   const { toast, showToast, clearToast } = useToast();
 
-  const [filters, setFilters] = useState({ group: "", source: "", is_active: "" });
+  const [filters, setFilters] = useState({ plane: "", group: "", source: "", is_active: "" });
   const [search, setSearch] = useState("");
   const [state, setState] = useState({ rows: [], loading: true, error: null });
   const [editing, setEditing] = useState(null); // type | "new"
@@ -287,7 +293,7 @@ export default function DocumentTypesPage() {
   }, [state.rows, search]);
 
   const activeCount = state.rows.filter((t) => t.is_active !== false).length;
-  const unfiltered = !filters.group && !filters.source && !filters.is_active && !search;
+  const unfiltered = !filters.plane && !filters.group && !filters.source && !filters.is_active && !search;
 
   // Open from the row at once, then re-read the type (#6) so the form starts
   // from the current policy if someone else changed it since the list loaded.
@@ -313,14 +319,14 @@ export default function DocumentTypesPage() {
       <DashboardTopBar title="Document Types" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Document Types</h1>
             <p className="text-sm text-slate-500 mt-1">
-              The documents your organisation collects, and the rules for each.
+              The documents your organisation collects from its people, and the policies it issues to them.
               {!state.loading && !state.error && unfiltered && <span className="font-semibold text-slate-700"> {activeCount} active.</span>}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button type="button" onClick={() => setTab("catalog")} className={SECONDARY_BTN}><HiCollection className="w-4 h-4" /> Browse catalog</button>
             <button type="button" onClick={() => setEditing("new")} className={PRIMARY_BTN}><HiPlus className="w-4 h-4" /> Custom type</button>
           </div>
@@ -344,6 +350,11 @@ export default function DocumentTypesPage() {
                 <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or code" aria-label="Search document types" className={`${SELECT} w-full pl-9`} />
               </div>
+              <select aria-label="Kind" value={filters.plane} onChange={(e) => setFilters((f) => ({ ...f, plane: e.target.value }))} className={SELECT}>
+                <option value="">Every kind</option>
+                <option value="employee">About an employee</option>
+                <option value="org">Issued by the organisation</option>
+              </select>
               <select aria-label="Category" value={filters.group} onChange={(e) => setFilters((f) => ({ ...f, group: e.target.value }))} className={SELECT}>
                 <option value="">All categories</option>
                 {DOC_GROUPS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
@@ -392,14 +403,27 @@ export default function DocumentTypesPage() {
                           <td className="px-5 py-3.5">
                             <p className="font-semibold text-slate-800 flex items-center gap-1.5">{t.name}{t.is_statutory && <HiShieldCheck className="w-4 h-4 text-purple-500" title="Statutory" />}</p>
                             <p className="text-[11px] text-slate-400 font-mono">{t.code} · {t.source === "custom" ? "Custom" : "Catalog"}</p>
+                            <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${isOrgType(t) ? "text-purple-600" : "text-slate-400"}`}>
+                              {isOrgType(t) ? "Issued by the organisation" : "About an employee"}
+                            </p>
                           </td>
                           <td className="px-5 py-3.5 text-xs font-semibold text-slate-600">{groupLabel(t.group)}</td>
                           <td className="px-5 py-3.5"><Permissions t={t} /></td>
                           <td className="px-5 py-3.5">
                             <div className="flex flex-wrap gap-1">
-                              <Chip tone={t.requires_verification ? "violet" : "slate"}>{t.requires_verification ? "Verified by HR" : "No review"}</Chip>
-                              {t.has_expiry && <Chip tone="fuchsia">Expiry</Chip>}
-                              <Chip>{t.allows_multiple ? "Several" : "One per person"}</Chip>
+                              {isOrgType(t) ? (
+                                <>
+                                  {t.requires_acknowledgement && <Chip tone="violet">Must be acknowledged</Chip>}
+                                  {t.requires_signature && <Chip tone="fuchsia">Must be signed</Chip>}
+                                  {!t.requires_acknowledgement && !t.requires_signature && <Chip>Read only</Chip>}
+                                </>
+                              ) : (
+                                <>
+                                  <Chip tone={t.requires_verification ? "violet" : "slate"}>{t.requires_verification ? "Verified by HR" : "No review"}</Chip>
+                                  {t.has_expiry && <Chip tone="fuchsia">Expiry</Chip>}
+                                  <Chip>{t.allows_multiple ? "Several" : "One per person"}</Chip>
+                                </>
+                              )}
                             </div>
                           </td>
                           <td className="px-5 py-3.5 text-[11px] text-slate-500 leading-snug">

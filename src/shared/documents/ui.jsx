@@ -14,9 +14,9 @@ import { ALL_CONTENT_TYPES, HARD_MAX_BYTES, acceptAttr, contentTypeLabel, conten
 export const FIELD = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition disabled:opacity-60";
 export const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2";
 export const SELECT = "h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:border-purple-400 outline-none";
-export const PRIMARY_BTN = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed";
-export const SECONDARY_BTN = "inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed";
-export const DANGER_BTN = "inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 disabled:cursor-not-allowed";
+export const PRIMARY_BTN = "inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed";
+export const SECONDARY_BTN = "inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed";
+export const DANGER_BTN = "inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 disabled:cursor-not-allowed";
 
 /** Status pill for a document. Pass the display status (see displayStatus). */
 export function DocStatusBadge({ status, className = "" }) {

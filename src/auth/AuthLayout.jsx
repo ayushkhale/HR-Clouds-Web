@@ -32,7 +32,7 @@ const TAGLINES = [
 
 const TAGLINE_MS = 6000;
 
-// ── Left panel — Video with gradient underlay ────────────────────────────────
+// ── Left panel — Video with a gradient underlay behind it ───────────────────
 function BrandPanel() {
   const reducedMotion = useReducedMotion();
   const [videoReady, setVideoReady] = useState(false);
@@ -57,9 +57,9 @@ function BrandPanel() {
 
   return (
     <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden bg-[#1a0b2e]">
-      {/* Gradient underlay. Always painted, so the panel is on-brand from the
-          first frame and stays that way if the video is slow, blocked or
-          fails — no black rectangle while the network catches up. */}
+      {/* Gradient underlay. Painted BEHIND the video, so it darkens nothing
+          while the clip is playing — it is only what you see if the video is
+          slow, blocked or never requested, instead of a black rectangle. */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#2b0f4d] via-[#4c1d95] to-[#1a0b2e]" />
       <div className="absolute -top-24 -left-24 w-[34rem] h-[34rem] rounded-full bg-purple-500/25 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-8rem] right-[-6rem] w-[28rem] h-[28rem] rounded-full bg-fuchsia-500/20 blur-[110px] pointer-events-none" />
@@ -78,20 +78,11 @@ function BrandPanel() {
           tabIndex={-1}
           onCanPlay={() => setVideoReady(true)}
           onError={() => setVideoReady(false)}
-          // Pulled back off full saturation so the footage sits under the
-          // purple grade below instead of fighting it — raw, it reads as warm
-          // stock photography next to an otherwise violet product.
-          style={{ filter: "saturate(0.8) contrast(1.06)" }}
           className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 ease-out motion-reduce:transition-none ${
             videoReady ? "opacity-100" : "opacity-0"
           }`}
         />
       )}
-
-      {/* Purple grade over the footage: ties it to the brand, and holds the
-          contrast for the white tagline and the back button whatever frame
-          happens to be on screen. */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#3b0f6b]/40 via-[#4c1d95]/20 to-[#1a0b2e]/55 pointer-events-none" />
 
       {/* Top Left: Back arrow to landing page */}
       <Link
@@ -104,12 +95,15 @@ function BrandPanel() {
         </svg>
       </Link>
 
-      {/* Bottom dark scrim — so tagline text stays readable */}
+      {/* Bottom scrim — the only thing over the footage, and only where the
+          tagline sits. It is clear above 55%, so the top half of the panel is
+          the video at full strength. Anything stacked over the whole panel
+          flattens the footage into a purple rectangle. */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "linear-gradient(to top, rgba(26,11,46,0.92) 0%, rgba(43,15,77,0.6) 32%, transparent 62%)",
+            "linear-gradient(to top, rgba(60,20,100,0.82) 0%, rgba(60,20,100,0.4) 28%, transparent 55%)",
         }}
       />
 

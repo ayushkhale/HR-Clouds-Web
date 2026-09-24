@@ -50,7 +50,7 @@ import SelectOrgPage from "../auth/pages/SelectOrgPage";
 
 // Shared Screens
 
-// Documents module (Phase 1)
+// Documents module (Phase 1 employee documents, Phase 2 org documents, Phase 3 compliance)
 
 /* ─── Lazily-loaded workspace screens ──────────────────────────────────────
    The landing page used to ship the entire signed-in product in one 2.8MB
@@ -66,6 +66,7 @@ const GuestDashboard = lazy(() => import("../roles/guest/screens/GuestDashboard"
 const HRDashboard = lazy(() => import("../roles/hr/screens/HRDashboard"));
 const HRInboxPage = lazy(() => import("../roles/hr/screens/HRInboxPage"));
 const EmployeesPage = lazy(() => import("../roles/hr/screens/EmployeesPage"));
+const InvitesPage = lazy(() => import("../roles/hr/screens/InvitesPage"));
 const EmployeeProfilePage = lazy(() => import("../roles/hr/screens/EmployeeProfilePage"));
 const DepartmentsPage = lazy(() => import("../roles/hr/screens/DepartmentsPage"));
 const DepartmentDetailPage = lazy(() => import("../roles/hr/screens/DepartmentDetailPage"));
@@ -143,11 +144,16 @@ const DocumentsPage = lazy(() => import("../shared/screens/DocumentsPage"));
 const MyProfilePage = lazy(() => import("../shared/screens/MyProfilePage"));
 const DirectoryPage = lazy(() => import("../shared/screens/DirectoryPage"));
 const MyDocumentsPage = lazy(() => import("../shared/screens/MyDocumentsPage"));
+const IssuedDocumentsPage = lazy(() => import("../shared/screens/IssuedDocumentsPage"));
 const DocumentVerificationPage = lazy(() => import("../roles/hr/documents/screens/DocumentVerificationPage"));
 const EmployeeDocumentsPage = lazy(() => import("../roles/hr/documents/screens/EmployeeDocumentsPage"));
 const DocumentTypesPage = lazy(() => import("../roles/hr/documents/screens/DocumentTypesPage"));
 const DocumentSettingsPage = lazy(() => import("../roles/hr/documents/screens/DocumentSettingsPage"));
+const OrgDocumentsPage = lazy(() => import("../roles/hr/documents/screens/OrgDocumentsPage"));
+const DocumentCompliancePage = lazy(() => import("../roles/hr/documents/screens/DocumentCompliancePage"));
 const TeamDocumentsPage = lazy(() => import("../roles/manager/documents/screens/TeamDocumentsPage"));
+const OrgProposalsPage = lazy(() => import("../roles/manager/documents/screens/OrgProposalsPage"));
+const TeamCompliancePage = lazy(() => import("../roles/manager/documents/screens/TeamCompliancePage"));
 
 function CatchAll() {
   const { isAuthenticated } = useAuth();
@@ -325,9 +331,13 @@ function AppRoutes() {
         {/* HR documents */}
         <Route path="/dashboard/hr/documents/verification" element={<DocumentVerificationPage />} />
         <Route path="/dashboard/hr/documents/employees" element={<EmployeeDocumentsPage />} />
+        <Route path="/dashboard/hr/invites" element={<InvitesPage />} />
+        <Route path="/dashboard/hr/documents/organisation" element={<OrgDocumentsPage />} />
+        <Route path="/dashboard/hr/documents/compliance" element={<DocumentCompliancePage />} />
         <Route path="/dashboard/hr/documents/types" element={<DocumentTypesPage />} />
         <Route path="/dashboard/hr/documents/settings" element={<DocumentSettingsPage />} />
         <Route path="/dashboard/hr/my-documents" element={<MyDocumentsPage />} />
+        <Route path="/dashboard/hr/company-documents" element={<IssuedDocumentsPage />} />
       </Route>
 
       {/* ─── MANAGER WORKSPACE ─── */}
@@ -363,7 +373,10 @@ function AppRoutes() {
         <Route path="/dashboard/manager/my-salary" element={<MySalaryPage />} />
         {/* Manager documents */}
         <Route path="/dashboard/manager/documents" element={<TeamDocumentsPage />} />
+        <Route path="/dashboard/manager/documents/proposals" element={<OrgProposalsPage />} />
+        <Route path="/dashboard/manager/documents/compliance" element={<TeamCompliancePage />} />
         <Route path="/dashboard/manager/my-documents" element={<MyDocumentsPage />} />
+        <Route path="/dashboard/manager/company-documents" element={<IssuedDocumentsPage />} />
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}
@@ -383,6 +396,7 @@ function AppRoutes() {
         <Route path="/dashboard/employee/payroll/tax" element={<MyTaxAndInvestmentsPage />} />
         <Route path="/dashboard/employee/payroll/reimbursements" element={<MyReimbursementsPage />} />
         <Route path="/dashboard/employee/documents" element={<MyDocumentsPage />} />
+        <Route path="/dashboard/employee/company-documents" element={<IssuedDocumentsPage />} />
       </Route>
 
       {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}

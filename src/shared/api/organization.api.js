@@ -55,6 +55,32 @@ export const organizationAPI = {
   },
 
   /**
+   * List invitations sent by this organisation.
+   * GET /organizations/users/invite
+   *
+   * Same path as the POST that creates them, differing only by verb, so the
+   * invite surface stays one URL. See
+   * `public/ref docs/md_updates/backend_spec_list_invitations_2026_09_24.md`
+   * for the full contract.
+   *
+   * NOT IMPLEMENTED ON THE BACKEND YET (gap B5). Until it ships this 404s and
+   * the Invites screen shows an explanatory empty state rather than an error.
+   *
+   * @param {{ status?: string|string[], q?: string, role?: string,
+   *           department_id?: string, limit?: number, offset?: number }} params
+   */
+  listInvitations(params = {}) {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") return;
+      if (Array.isArray(value)) value.forEach((v) => v !== "" && search.append(key, v));
+      else search.append(key, String(value));
+    });
+    const query = search.toString();
+    return request(`/organizations/users/invite${query ? `?${query}` : ""}`);
+  },
+
+  /**
    * Revoke a pending invitation
    * POST /organizations/users/invite/revoke
    * @param {{ email }} payload

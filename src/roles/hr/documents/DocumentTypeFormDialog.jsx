@@ -2,6 +2,12 @@
 // DocumentTypeFormDialog.jsx — Create a custom document type (#4) or edit an
 // existing one (#7), with deactivate (#8) / reactivate (#9) in the footer.
 //
+// A type belongs to one of two planes, chosen at creation and fixed for good:
+//   employee — a document about one person, which they or HR upload
+//   org      — a policy, notice or letter the organisation issues to an
+//              audience (Phase 2). Its rules are different, so the form swaps
+//              the permission and rule sets rather than showing both.
+//
 // Rules (plan §11.1): code / plane / source / statutory are immutable after
 // create (R-5), a custom type is never statutory (R-6), formats must be a
 // non-empty subset of the module's 7 types (R-7), and the size cap may only
@@ -11,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from "react";
-import { HiBan, HiCheck, HiLockClosed, HiTemplate, HiX, HiInformationCircle } from "react-icons/hi";
+import { HiBan, HiCheck, HiLockClosed, HiTemplate, HiX, HiInformationCircle, HiOfficeBuilding, HiUser } from "react-icons/hi";
 import { documentErrorCode, documentErrorMessage } from "../../../shared/utils/documentErrors";
 import { CONTENT_TYPES, DOC_GROUPS, HARD_MAX_BYTES, formatBytes } from "../../../shared/documents/documentMeta";
 import { DANGER_BTN, FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "../../../shared/documents/ui";
@@ -20,7 +26,9 @@ const MB = 1024 * 1024;
 const CODE_RE = /^[a-z][a-z0-9_]{1,63}$/;
 
 const blank = (defaultVerification = true) => ({
+  plane: "employee",
   code: "", name: "", group: "identity", description: "",
+  requires_acknowledgement: false, requires_signature: false,
   is_confidential: false, employee_can_upload: true, employee_can_view: true, employee_can_delete: false,
   manager_can_view: false, manager_can_request: false, requires_verification: defaultVerification,
   has_expiry: false, expiry_reminder_days: "30, 15, 7", allows_multiple: false,
@@ -30,6 +38,7 @@ const blank = (defaultVerification = true) => ({
 
 const fromType = (t) => ({
   ...blank(),
+  plane: t.plane || "employee",
   ...Object.fromEntries(Object.entries(t).filter(([, v]) => v !== null && v !== undefined)),
   description: t.description || "",
   expiry_reminder_days: (t.expiry_reminder_days || []).join(", "),
@@ -71,7 +80,11 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
     return () => document.removeEventListener("keydown", onKey, true);
   }, [busy]);
 
+  const orgPlane = form.plane === "org";
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  /** Switching plane before anything is saved also moves the category to a sensible default. */
+  const setPlane = (plane) =>
+    setForm((f) => ({ ...f, plane, group: plane === "org" ? (f.group === "identity" ? "policy" : f.group) : (f.group === "policy" ? "identity" : f.group) }));
   const toggleFormat = (ct) => set("allowed_content_types", form.allowed_content_types.includes(ct) ? form.allowed_content_types.filter((x) => x !== ct) : [...form.allowed_content_types, ct]);
 
   const sizeMb = Number(form.max_file_size_mb);
@@ -81,7 +94,7 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
     name: form.name.trim().length < 2 ? "Give the type a name." : form.name.trim().length > 150 ? "Keep the name under 150 characters." : "",
     formats: form.allowed_content_types.length === 0 ? "Choose at least one file format." : "",
     size: !(sizeMb > 0) ? "Enter a size in MB." : sizeMb * MB > HARD_MAX_BYTES ? `The maximum is ${formatBytes(HARD_MAX_BYTES)}.` : "",
-    reminders: form.has_expiry && days === null ? "List days as numbers, e.g. 30, 15, 7." : "",
+    reminders: !orgPlane && form.has_expiry && days === null ? "List days as numbers, e.g. 30, 15, 7." : "",
     retention: !(Number(form.retention_days) >= 30) ? "Keep documents for at least 30 days." : "",
   };
   const firstProblem = Object.values(problems).find(Boolean);
@@ -93,21 +106,46 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
       group: form.group,
       description: form.description.trim() || null,
       is_confidential: !!form.is_confidential,
-      employee_can_upload: !!form.employee_can_upload,
-      employee_can_view: !!form.employee_can_view,
-      employee_can_delete: !!form.employee_can_delete,
-      manager_can_view: !!form.manager_can_view && !form.is_confidential,
-      manager_can_request: !!form.manager_can_request && !form.is_confidential,
-      requires_verification: !!form.requires_verification,
-      has_expiry: !!form.has_expiry,
-      expiry_reminder_days: form.has_expiry ? (days || []) : (type?.expiry_reminder_days || [30, 15, 7]),
-      allows_multiple: !!form.allows_multiple,
       max_file_size_bytes: Math.round(sizeMb * MB),
       allowed_content_types: form.allowed_content_types,
       retention_days: Number(form.retention_days),
       display_order: Number(form.display_order) || 0,
     };
-    if (!editing) Object.assign(body, { code: form.code.trim(), plane: "employee", requires_acknowledgement: false, requires_signature: false, is_mandatory: false, mandatory_for: {} });
+
+    if (orgPlane) {
+      // An org document is issued, not collected: nobody uploads their own copy
+      // and nothing waits in the verification queue. What it can ask for is an
+      // acknowledgement or a signature, and whether managers may propose one.
+      Object.assign(body, {
+        requires_acknowledgement: !!form.requires_acknowledgement,
+        requires_signature: !!form.requires_signature,
+        manager_can_request: !!form.manager_can_request,
+        manager_can_view: !!form.manager_can_request,
+        employee_can_upload: false,
+        employee_can_view: true,
+        employee_can_delete: false,
+        requires_verification: false,
+        has_expiry: false,
+        expiry_reminder_days: type?.expiry_reminder_days || [30, 15, 7],
+        allows_multiple: true,
+      });
+    } else {
+      Object.assign(body, {
+        employee_can_upload: !!form.employee_can_upload,
+        employee_can_view: !!form.employee_can_view,
+        employee_can_delete: !!form.employee_can_delete,
+        manager_can_view: !!form.manager_can_view && !form.is_confidential,
+        manager_can_request: !!form.manager_can_request && !form.is_confidential,
+        requires_verification: !!form.requires_verification,
+        has_expiry: !!form.has_expiry,
+        expiry_reminder_days: form.has_expiry ? (days || []) : (type?.expiry_reminder_days || [30, 15, 7]),
+        allows_multiple: !!form.allows_multiple,
+        requires_acknowledgement: false,
+        requires_signature: false,
+      });
+    }
+
+    if (!editing) Object.assign(body, { code: form.code.trim(), plane: form.plane, is_mandatory: false, mandatory_for: {} });
     return body;
   };
 
@@ -157,11 +195,13 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
           <div className="flex items-start gap-3 min-w-0">
             <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiTemplate className="w-5 h-5" /></span>
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-slate-800 truncate">{editing ? type.name : "New custom document type"}</h2>
+              <h2 className="text-lg font-bold text-slate-800 truncate">{editing ? type.name : orgPlane ? "New organisation document type" : "New custom document type"}</h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 {editing
                   ? [type.source === "catalog" ? "From the platform catalog" : "Custom type", type.is_statutory ? "Statutory" : null, type.is_active === false ? "Deactivated" : "Active"].filter(Boolean).join(" · ")
-                  : "For documents the standard catalog doesn't cover — an NDA, a laptop handover, a policy sign-off."}
+                  : orgPlane
+                    ? "A kind of document your organisation issues to its people — a policy, a notice, a letter."
+                    : "For documents the standard catalog doesn't cover — an NDA, a laptop handover, a policy sign-off."}
               </p>
             </div>
           </div>
@@ -175,15 +215,47 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
             <div className="space-y-6 min-w-0">
             {/* Identity */}
             <section className="space-y-4">
+              {/* The plane decides which rules apply, so it is asked first and
+                  can never be changed afterwards — documents already filed
+                  under it would change meaning. */}
+              <div>
+                <span className={LABEL}>What kind of document is this?</span>
+                {editing ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5">
+                    {orgPlane ? <HiOfficeBuilding className="w-4 h-4 text-purple-500" /> : <HiUser className="w-4 h-4 text-purple-500" />}
+                    <span className="text-sm font-semibold text-slate-800">{orgPlane ? "Issued by the organisation" : "About one employee"}</span>
+                    <HiLockClosed className="w-3 h-3 text-slate-400 ml-auto" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="What kind of document is this?">
+                    {[
+                      { value: "employee", label: "About one employee", blurb: "A PAN card, a degree, an NDA — collected from or about a person.", icon: HiUser },
+                      { value: "org", label: "Issued by the organisation", blurb: "A policy, notice or letter sent out to a group of people.", icon: HiOfficeBuilding },
+                    ].map((o) => {
+                      const active = form.plane === o.value;
+                      const Icon = o.icon;
+                      return (
+                        <button key={o.value} type="button" role="radio" aria-checked={active} onClick={() => setPlane(o.value)}
+                          className={`text-left px-3.5 py-3 rounded-xl border transition ${active ? "border-purple-400 bg-purple-50 ring-2 ring-purple-100" : "border-slate-200 hover:border-purple-200"}`}>
+                          <span className={`flex items-center gap-1.5 text-xs font-bold ${active ? "text-purple-800" : "text-slate-700"}`}><Icon className="w-4 h-4" /> {o.label}</span>
+                          <span className="block text-[11px] text-slate-500 mt-1 leading-snug">{o.blurb}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {!editing && <p className="text-[10px] text-slate-400 mt-1.5">This can’t be changed later.</p>}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="dt-name" className={LABEL}>Name</label>
-                  <input id="dt-name" type="text" maxLength={150} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Company NDA 2026" className={FIELD} />
+                  <input id="dt-name" type="text" maxLength={150} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder={orgPlane ? "e.g. Leave Policy" : "e.g. Company NDA 2026"} className={FIELD} />
                   {show("name") && <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.name}</p>}
                 </div>
                 <div>
                   <label htmlFor="dt-code" className={LABEL}>Code {editing && <HiLockClosed className="inline w-3 h-3 text-slate-400" />}</label>
-                  <input id="dt-code" type="text" maxLength={64} value={form.code} disabled={editing} onChange={(e) => set("code", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))} placeholder="e.g. company_nda_2026" className={`${FIELD} font-mono`} />
+                  <input id="dt-code" type="text" maxLength={64} value={form.code} disabled={editing} onChange={(e) => set("code", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))} placeholder={orgPlane ? "e.g. leave_policy" : "e.g. company_nda_2026"} className={`${FIELD} font-mono`} />
                   {show("code") ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.code}</p>
                     : <p className="text-[10px] text-slate-400 mt-1">{editing ? "Codes can't change once created." : "Permanent. Can't match a catalog code."}</p>}
                 </div>
@@ -201,8 +273,8 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
                 </div>
               </div>
               <div>
-                <label htmlFor="dt-desc" className={LABEL}>Instructions for employees <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
-                <textarea id="dt-desc" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="e.g. Upload all 3 pages, signed and dated." className={`${FIELD} resize-none`} />
+                <label htmlFor="dt-desc" className={LABEL}>{orgPlane ? "What this kind of document is for" : "Instructions for employees"} <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+                <textarea id="dt-desc" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder={orgPlane ? "e.g. Company-wide policies that everyone has to read and accept." : "e.g. Upload all 3 pages, signed and dated."} className={`${FIELD} resize-none`} />
               </div>
             </section>
 
@@ -241,39 +313,80 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
             </div>
 
             <div className="space-y-6 min-w-0">
-            {/* Visibility */}
-            <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Who can do what</p>
-              <SwitchRow title="Confidential" description="Only HR and the employee can see these documents — never managers." checked={confidential} onChange={(v) => set("is_confidential", v)} />
-              <SwitchRow title="Employees can upload" description="Shown in My Documents so employees can add it themselves." checked={form.employee_can_upload} onChange={(v) => set("employee_can_upload", v)} />
-              <SwitchRow title="Employees can view" description="Employees can open and download their copy." checked={form.employee_can_view} onChange={(v) => set("employee_can_view", v)} />
-              <SwitchRow
-                title="Employees can delete a verified copy"
-                description="Also needs the organisation setting. Unverified uploads can always be deleted by their owner."
-                checked={form.employee_can_delete}
-                onChange={(v) => set("employee_can_delete", v)}
-                disabled={type?.is_statutory}
-                note={type?.is_statutory ? "Statutory documents can never be deleted by employees." : ""}
-              />
-              <SwitchRow title="Managers can view" description="Direct managers see their team's copies." checked={form.manager_can_view && !confidential} onChange={(v) => set("manager_can_view", v)} disabled={confidential} note={confidential ? "Off while the type is confidential." : ""} />
-              <SwitchRow title="Managers can upload" description="Managers can add this document for their direct reports." checked={form.manager_can_request && !confidential} onChange={(v) => set("manager_can_request", v)} disabled={confidential} />
-            </section>
+            {orgPlane ? (
+              <>
+                {/* Org plane: nobody uploads their own copy and nothing is
+                    verified, so those switches would be meaningless here. What
+                    a policy can do is demand an acknowledgement or a signature. */}
+                <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Who can do what</p>
+                  <SwitchRow title="Confidential" description="Only HR and the people it's issued to can open it — never their managers." checked={confidential} onChange={(v) => set("is_confidential", v)} />
+                  <SwitchRow
+                    title="Managers can propose one"
+                    description="A manager can draft this for someone on their team and send it to HR to issue. HR always decides."
+                    checked={form.manager_can_request}
+                    onChange={(v) => set("manager_can_request", v)}
+                  />
+                </section>
 
-            {/* Rules */}
-            <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Rules</p>
-              <SwitchRow title="Needs verification" description="New uploads wait in the Verification Queue before they count." checked={form.requires_verification} onChange={(v) => set("requires_verification", v)} />
-              <SwitchRow title="Several copies allowed" description="Off = one live document per person (use Replace to update). Applies to new uploads only." checked={form.allows_multiple} onChange={(v) => set("allows_multiple", v)} />
-              <SwitchRow title="Tracks expiry" description="An expiry date becomes required on upload (visas, licences, certifications)." checked={form.has_expiry} onChange={(v) => set("has_expiry", v)} />
-              {form.has_expiry && (
-                <div className="py-3">
-                  <label htmlFor="dt-rem" className={LABEL}>Reminder days before expiry</label>
-                  <input id="dt-rem" type="text" value={form.expiry_reminder_days} onChange={(e) => set("expiry_reminder_days", e.target.value)} placeholder="30, 15, 7" className={FIELD} />
-                  {show("reminders") ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.reminders}</p>
-                    : <p className="text-[10px] text-slate-400 mt-1">Saved now; reminder emails start in a later release.</p>}
-                </div>
-              )}
-            </section>
+                <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">What it asks of people</p>
+                  <SwitchRow
+                    title="Always needs acknowledgement"
+                    description="Everyone who receives it is asked to confirm they've read it. Each document can ask for more than this, never less."
+                    checked={form.requires_acknowledgement}
+                    onChange={(v) => set("requires_acknowledgement", v)}
+                  />
+                  <SwitchRow
+                    title="Always needs a signature"
+                    description="A signature is recorded as well. Collecting signatures in the app isn't available yet, so this is stored and shown but nobody is asked to sign."
+                    checked={form.requires_signature}
+                    onChange={(v) => set("requires_signature", v)}
+                  />
+                </section>
+
+                <p className="flex items-start gap-2 text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 leading-relaxed">
+                  <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500 mt-px" />
+                  Each document of this kind picks its own audience and its own dates when it’s written. These settings are the floor that every one of them has to meet.
+                </p>
+              </>
+            ) : (
+              <>
+                {/* Visibility */}
+                <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Who can do what</p>
+                  <SwitchRow title="Confidential" description="Only HR and the employee can see these documents — never managers." checked={confidential} onChange={(v) => set("is_confidential", v)} />
+                  <SwitchRow title="Employees can upload" description="Shown in My Documents so employees can add it themselves." checked={form.employee_can_upload} onChange={(v) => set("employee_can_upload", v)} />
+                  <SwitchRow title="Employees can view" description="Employees can open and download their copy." checked={form.employee_can_view} onChange={(v) => set("employee_can_view", v)} />
+                  <SwitchRow
+                    title="Employees can delete a verified copy"
+                    description="Also needs the organisation setting. Unverified uploads can always be deleted by their owner."
+                    checked={form.employee_can_delete}
+                    onChange={(v) => set("employee_can_delete", v)}
+                    disabled={type?.is_statutory}
+                    note={type?.is_statutory ? "Statutory documents can never be deleted by employees." : ""}
+                  />
+                  <SwitchRow title="Managers can view" description="Direct managers see their team's copies." checked={form.manager_can_view && !confidential} onChange={(v) => set("manager_can_view", v)} disabled={confidential} note={confidential ? "Off while the type is confidential." : ""} />
+                  <SwitchRow title="Managers can upload" description="Managers can add this document for their direct reports." checked={form.manager_can_request && !confidential} onChange={(v) => set("manager_can_request", v)} disabled={confidential} />
+                </section>
+
+                {/* Rules */}
+                <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Rules</p>
+                  <SwitchRow title="Needs verification" description="New uploads wait in the Verification Queue before they count." checked={form.requires_verification} onChange={(v) => set("requires_verification", v)} />
+                  <SwitchRow title="Several copies allowed" description="Off = one live document per person (use Replace to update). Applies to new uploads only." checked={form.allows_multiple} onChange={(v) => set("allows_multiple", v)} />
+                  <SwitchRow title="Tracks expiry" description="An expiry date becomes required on upload (visas, licences, certifications)." checked={form.has_expiry} onChange={(v) => set("has_expiry", v)} />
+                  {form.has_expiry && (
+                    <div className="py-3">
+                      <label htmlFor="dt-rem" className={LABEL}>Reminder days before expiry</label>
+                      <input id="dt-rem" type="text" value={form.expiry_reminder_days} onChange={(e) => set("expiry_reminder_days", e.target.value)} placeholder="30, 15, 7" className={FIELD} />
+                      {show("reminders") ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.reminders}</p>
+                        : <p className="text-[10px] text-slate-400 mt-1">Saved now; reminder emails start in a later release.</p>}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
             </div>
           </div>
 

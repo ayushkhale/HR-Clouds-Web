@@ -27,17 +27,38 @@ import {
    Fields the user can see vs edit.
    `locked: true` means the field is displayed but NOT editable by the user.
    ──────────────────────────────────────────────────────────────────────────── */
-// PATCH /organizations/me accepts ONLY these fields (strict whitelist, unknown=false).
-// Everything else is display-only here; sending extra keys 400s the whole request.
-const EDITABLE_KEYS = ["name", "phone_number", "avatar_url"];
+// The fields PATCH /organizations/me accepts. Verified field-by-field against
+// the API on 2026-09-24 by sending each one back with the value it already
+// held — a write that changes nothing but still exercises the whitelist.
+//
+// The endpoint rejects `department`, `designation`, `gender`, `marital_status`,
+// `employee_code` and `pan_number` (400, unknown=false), which is why those
+// stay locked below. It accepts everything listed here, including the address
+// block: an earlier comment claimed addresses were HR-only, and that was wrong.
+// `name` is NOT one of them: the endpoint strips it and answers 400 "At least
+// one field must be provided to update". The name is stored as `first_name` /
+// `last_name`, and `name` is a read-only composite. Sending `name` — which
+// this screen used to do — could therefore never save.
+//
+// Phone is absent for the same reason: neither `phone_number` nor `contact`
+// is accepted, so there is currently no way to change a phone number at all.
+// It stays visible and locked rather than pretending to be editable.
+const EDITABLE_KEYS = [
+    "first_name", "last_name", "avatar_url",
+    "dob", "blood_group", "personal_email",
+    "current_address", "permanent_address", "city", "state", "pincode",
+];
 
 const PERSONAL_FIELDS = [
-    { key: "name", label: "Full Name", icon: HiUser, type: "text" },
+    { key: "first_name", label: "First Name", icon: HiUser, type: "text" },
+    { key: "last_name", label: "Last Name", icon: HiUser, type: "text" },
     { key: "email", label: "Email", icon: HiMail, type: "email", locked: true },
-    { key: "phone_number", label: "Phone", icon: HiPhone, type: "tel" },
-    { key: "date_of_birth", label: "Date of Birth", icon: HiCalendar, type: "date", locked: true },
-    { key: "blood_group", label: "Blood Group", icon: HiShieldCheck, type: "text", locked: true },
-    { key: "personal_email", label: "Personal Email", icon: HiMail, type: "email", locked: true },
+    { key: "phone_number", label: "Phone", icon: HiPhone, type: "tel", locked: true },
+    // The column is `dob`. Sending `date_of_birth` 400s, so the key must match
+    // the API even though the label does not.
+    { key: "dob", label: "Date of Birth", icon: HiCalendar, type: "date" },
+    { key: "blood_group", label: "Blood Group", icon: HiShieldCheck, type: "text" },
+    { key: "personal_email", label: "Personal Email", icon: HiMail, type: "email" },
 ];
 
 const ORG_FIELDS = [
@@ -49,14 +70,12 @@ const ORG_FIELDS = [
     { key: "marital_status", label: "Marital Status", icon: HiUser, type: "text", locked: true },
 ];
 
-// Address fields are display-only: /me does not accept them (only HR can edit
-// these via the employee profile endpoint).
 const ADDRESS_FIELDS = [
-    { key: "current_address", label: "Current Address", icon: HiLocationMarker, type: "textarea", locked: true },
-    { key: "permanent_address", label: "Permanent Address", icon: HiLocationMarker, type: "textarea", locked: true },
-    { key: "city", label: "City", icon: HiLocationMarker, type: "text", locked: true },
-    { key: "state", label: "State", icon: HiLocationMarker, type: "text", locked: true },
-    { key: "pincode", label: "Pincode", icon: HiLocationMarker, type: "text", locked: true },
+    { key: "current_address", label: "Current Address", icon: HiLocationMarker, type: "textarea" },
+    { key: "permanent_address", label: "Permanent Address", icon: HiLocationMarker, type: "textarea" },
+    { key: "city", label: "City", icon: HiLocationMarker, type: "text" },
+    { key: "state", label: "State", icon: HiLocationMarker, type: "text" },
+    { key: "pincode", label: "Pincode", icon: HiLocationMarker, type: "text" },
 ];
 
 /* ──────────────────────────────────────────────────────────────────────────── */
@@ -104,7 +123,13 @@ function MyProfilePage() {
 
     function startEditing() {
         // Seed the phone field from whichever key the API returned it under.
-        setEditData({ ...profile, phone_number: profile.phone_number ?? profile.contact ?? "" });
+        const [seedFirst, ...seedRest] = String(profile.name || "").trim().split(/\s+/);
+        setEditData({
+            ...profile,
+            phone_number: profile.phone_number ?? profile.contact ?? "",
+            first_name: profile.first_name || seedFirst || "",
+            last_name: profile.last_name || seedRest.join(" ") || "",
+        });
         setNotice(null);
         setIsEditing(true);
     }
@@ -131,8 +156,8 @@ function MyProfilePage() {
             if (next !== prev) payload[key] = next;
         }
 
-        if ("name" in payload && !payload.name) {
-            setNotice({ type: "error", message: "Name cannot be empty." });
+        if ("first_name" in payload && !payload.first_name) {
+            setNotice({ type: "error", message: "First name cannot be empty." });
             return;
         }
         if (Object.keys(payload).length === 0) {

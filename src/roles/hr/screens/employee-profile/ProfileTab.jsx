@@ -1,7 +1,6 @@
-import React from "react";
 import {
   HiUser, HiMail, HiPhone, HiLocationMarker,
-  HiCalendar, HiBriefcase, HiUserGroup, HiOfficeBuilding
+  HiCalendar, HiBriefcase, HiUserGroup, HiOfficeBuilding, HiPencil
 } from "react-icons/hi";
 
 function InfoRow({ icon: Icon, label, value }) {
@@ -19,7 +18,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function ProfileTab({ employee }) {
+export default function ProfileTab({ employee, onEdit }) {
   if (!employee) {
     return (
       <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center text-slate-400 shadow-xs">
@@ -56,7 +55,18 @@ export default function ProfileTab({ employee }) {
       {/* Unified Single Card for Profile Info */}
       <div className="bg-white rounded-[20px] border border-slate-100 shadow-xs p-6 flex flex-col justify-between" style={{ minHeight: "440px" }}>
         <div>
-          <h2 className="text-base font-bold text-slate-800 mb-4">Profile Details</h2>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h2 className="text-base font-bold text-slate-800">Profile Details</h2>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition"
+              >
+                <HiPencil className="w-3.5 h-3.5" /> Edit details
+              </button>
+            )}
+          </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 items-start">
             {/* Column 1: Personal Profile */}

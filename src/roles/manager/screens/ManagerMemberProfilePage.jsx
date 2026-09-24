@@ -12,7 +12,7 @@ import AttendanceTab from "../../hr/screens/employee-profile/AttendanceTab";
 import TeamMemberLeaveTab from "../components/TeamMemberLeaveTab";
 import ProfileTab from "../../hr/screens/employee-profile/ProfileTab";
 import SalaryTab from "../../hr/screens/employee-profile/SalaryTab";
-import EditMemberProfileModal from "../components/EditMemberProfileModal";
+import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
 import SubjectDocumentsPanel from "../../../shared/documents/SubjectDocumentsPanel";
 
 const TEAM_PATH = "/dashboard/manager/team";

@@ -1,11 +1,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// documents.api.js — Documents module, Phase 1 (API #1–#42).
+// documents.api.js — Documents module, Phase 1 (#1–#42), Phase 2 (#43–#72)
+// and Phase 3 (#73–#79).
 //
-// Contract source of truth: public/ref docs/md_docs/phase1_api_analysis.md and
-// phase1_implementation_plan.md. Three audiences, mounted separately:
-//   /documents/hr       — HR (#1–#24)
-//   /documents/manager  — managers, hierarchy-scoped (#25–#33)
-//   /documents/me       — any org member, own documents only (#34–#42)
+// Contract source of truth: public/ref docs/md_docs/phase1_api_analysis.md,
+// phase2_api_analysis.md, phase3_api_analysis.md and
+// documents_phase3_acknowledgements_2026_09_24.md. Phase 2 changed no Phase-1
+// path, request or response; Phase 3 only ADDS fields to #59/#70/#71 and the
+// settings read/write.
+//
+// Two planes of document, which never share a row:
+//   employee — a document about one person (Phase 1, #1–#42)
+//   org      — a policy, notice or letter HR issues to a targeted audience
+//              (Phase 2, #43–#72); its recipients are frozen at publish
+//
+// Three audiences, mounted separately:
+//   /documents/hr       — HR (#1–#24, #43–#61, #76–#78)
+//   /documents/manager  — managers, hierarchy-scoped (#25–#33, #62–#69, #79)
+//   /documents/me       — any org member, own documents only (#34–#42, #70–#75)
 //
 // Uploads never pass through this API: an "issue" call returns a pre-signed
 // S3 PUT URL, the browser sends the bytes straight to S3, then "confirm" asks
@@ -16,6 +27,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { request } from "./client.js";
+import { downloadFile } from "../utils/download.js";
 
 /**
  * Query string that drops empty values. The server's query parser only builds
@@ -50,6 +62,11 @@ const del = (path) => request(path, { method: "DELETE" });
 const HR = "/documents/hr";
 const MGR = "/documents/manager";
 const ME = "/documents/me/documents";
+// Org plane (Phase 2). Deliberately separate constants: `/me/hr-documents` is
+// a different collection from `/me/documents`, not a sub-path of it.
+const HR_ORG = "/documents/hr/org-documents";
+const MGR_ORG = "/documents/manager/org-documents";
+const ME_ORG = "/documents/me/hr-documents";
 
 export const documentsAPI = {
   // ═══════════════════════════════════════════════════════════════════════════
@@ -151,4 +168,139 @@ export const documentsAPI = {
   myReplaceDocument: (id, payload) => post(`${ME}/${seg(id)}/replace`, payload),
   /** #42 Always allowed while unverified; a verified one only if the type and org settings allow and it isn't statutory. */
   myDeleteDocument: (id) => del(`${ME}/${seg(id)}`),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ORG PLANE — HR (#43–#61). Authoring, publishing and the recipient roster.
+  // ═══════════════════════════════════════════════════════════════════════════
+  /** #43 New draft. `storage_backend: "s3"` returns an upload URL; `"reference"` is publishable at once. */
+  createOrgDocument: (payload) => post(HR_ORG, payload),
+  /**
+   * #44 Edit a draft. Targeting arrays MERGE per dimension: a dimension you
+   * omit keeps its stored value, and an explicit `[]` clears just that one.
+   * File metadata is NOT editable here — it is fixed at #43.
+   */
+  updateOrgDocument: (id, payload) => put(`${HR_ORG}/${seg(id)}`, payload),
+  /** #45 Re-issue the upload URL for the same storage key. Empty body — the declared file metadata cannot change. */
+  orgIssueUpload: (id) => post(`${HR_ORG}/${seg(id)}/file`),
+  /** #46 Verify the object landed and record its real size/checksum. Idempotent. */
+  orgConfirmUpload: (id) => post(`${HR_ORG}/${seg(id)}/file/confirm`),
+  /** #47 Publish + freeze the audience. Idempotent; zero recipients is a success with a ZERO_RECIPIENTS warning. */
+  publishOrgDocument: (id, payload = {}) => post(`${HR_ORG}/${seg(id)}/publish`, payload),
+  /** #48 Start the next-version draft in the same group. */
+  replaceOrgDocument: (id, payload = {}) => post(`${HR_ORG}/${seg(id)}/replace`, payload),
+  /** #49 Withdraw a live policy. `{ reason }`, 10–500 characters. Idempotent. */
+  retireOrgDocument: (id, reason) => post(`${HR_ORG}/${seg(id)}/retire`, { reason }),
+  /** #50 Decline a manager proposal. `{ reason }`. Only a proposal draft — else ORG_DOCUMENT_NOT_A_PROPOSAL. */
+  rejectOrgDocument: (id, reason) => post(`${HR_ORG}/${seg(id)}/reject`, { reason }),
+  /** #51 Soft-delete a draft or rejected row. Idempotent. */
+  deleteOrgDocument: (id) => del(`${HR_ORG}/${seg(id)}`),
+  /** #52 List + filter. `status` is repeatable. Filters: status, type_id, group_id, proposed, q, limit, offset. */
+  getOrgDocuments: (params) => request(`${HR_ORG}${qs(params)}`),
+  /** #53 Manager-proposed drafts waiting for HR. */
+  getOrgProposals: (params) => request(`${HR_ORG}/proposals${qs(params)}`),
+  /** #54 Every version of a policy group, oldest first. */
+  getOrgGroupVersions: (groupId) => request(`${HR_ORG}/groups/${seg(groupId)}`),
+  /** #55 */
+  getOrgDocument: (id) => request(`${HR_ORG}/${seg(id)}`),
+  /** #56 The version chain, reached from any member of it. */
+  getOrgVersions: (id) => request(`${HR_ORG}/${seg(id)}/versions`),
+  /** #57 Short-lived signed GET. disposition: inline | attachment. */
+  orgGetViewUrl: (id, params) => request(`${HR_ORG}/${seg(id)}/view-url${qs(params)}`),
+  /** #58 */
+  getOrgAuditLogs: (id) => request(`${HR_ORG}/${seg(id)}/audit-logs`),
+  /**
+   * #59 Roster + `counts_by_state`, and since Phase 3 a top-level `compliance`
+   * block and per-row evidence fields. Filters: state (repeatable),
+   * compliance_state (completed | pending | overdue | waived), limit, offset.
+   */
+  getOrgRecipients: (id, params) => request(`${HR_ORG}/${seg(id)}/recipients${qs(params)}`),
+  /** #60 Add employees who now match the frozen criteria. Never removes anyone; a re-run adds 0. */
+  syncOrgRecipients: (id) => post(`${HR_ORG}/${seg(id)}/recipients/sync`),
+  /** #61 Excuse one recipient. `{ reason }`. Legal from pending/viewed only. */
+  waiveOrgRecipient: (id, userId, reason) => post(`${HR_ORG}/${seg(id)}/recipients/${seg(userId)}/waive`, { reason }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ORG PLANE — manager (#62–#69). Propose for one direct report; never publish.
+  // ═══════════════════════════════════════════════════════════════════════════
+  /** #62 Org types with `manager_can_request`. An empty array means the org turned team documents off — not an error. */
+  getManagerOrgTypes: () => request(`${MGR_ORG}/types`),
+  /** #63 Proposal for exactly one direct report: `included_users` must hold that one id and no other array may be set. */
+  createManagerProposal: (payload) => post(MGR_ORG, payload),
+  /** #64 Edit own proposal while it is still a draft. */
+  updateManagerProposal: (id, payload) => put(`${MGR_ORG}/${seg(id)}`, payload),
+  /** #65 */
+  managerOrgIssueUpload: (id) => post(`${MGR_ORG}/${seg(id)}/file`),
+  /** #66 */
+  managerOrgConfirmUpload: (id) => post(`${MGR_ORG}/${seg(id)}/file/confirm`),
+  /** #67 Own proposals and what HR did with them. */
+  getMyProposals: (params) => request(`${MGR_ORG}/mine${qs(params)}`),
+  /** #68 Anything that isn't the caller's own proposal answers a uniform 404. */
+  getManagerProposal: (id) => request(`${MGR_ORG}/${seg(id)}`),
+  /** #69 */
+  managerOrgGetViewUrl: (id, params) => request(`${MGR_ORG}/${seg(id)}/view-url${qs(params)}`),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ORG PLANE — self (#70–#72). Documents issued TO me.
+  // ═══════════════════════════════════════════════════════════════════════════
+  /**
+   * #70 Rows are recipient records with the scrubbed document under `document`.
+   * Filters: state (repeatable), type_id, requires_acknowledgement,
+   * compliance_state, overdue_only, limit, offset. Limit is capped at 100 here.
+   * Each row carries an `acknowledgement` block and `document.next_action`.
+   */
+  getMyIssuedDocuments: (params) => request(`${ME_ORG}${qs(params)}`),
+  /** #71 `:id` is the ORG DOCUMENT id, not the recipient row id. */
+  getMyIssuedDocument: (id) => request(`${ME_ORG}/${seg(id)}`),
+  /** #72 Also flips this recipient pending → viewed, exactly once. */
+  myIssuedGetViewUrl: (id, params) => request(`${ME_ORG}/${seg(id)}/view-url${qs(params)}`),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  COMPLIANCE — Phase 3 (#73–#79). Acknowledging, signing, and who has.
+  //  Evidence is append-only: nothing here edits or removes a record.
+  // ═══════════════════════════════════════════════════════════════════════════
+  /**
+   * #73 Confirm I've read it. 201 on the first write, 200 with
+   * `already_acknowledged: true` on a replay — both carry the same evidence row,
+   * so a double click or a retry after a dropped connection is harmless.
+   */
+  acknowledgeIssuedDocument: (id) => post(`${ME_ORG}/${seg(id)}/acknowledge`, { confirm: true }),
+  /**
+   * #74 Sign by typing my name. The server checks it against my profile and
+   * never says what it expected (SIGNER_NAME_MISMATCH has no details). A replay
+   * answers 200 with `already_signed: true`.
+   */
+  signIssuedDocument: (id, signerName) => post(`${ME_ORG}/${seg(id)}/sign`, { signer_name: signerName }),
+  /** #75 My own receipt. 404 DOCUMENT_NOT_FOUND until I have acknowledged or signed. */
+  getMyIssuedEvidence: (id) => request(`${ME_ORG}/${seg(id)}/acknowledgement`),
+
+  /**
+   * #76 One row per published document that asks for something, with its
+   * tallies. Filters: type_id, document_id, department_id, overdue_only,
+   * limit (≤ 100), offset. `as_of` is the IST date overdue was judged against.
+   */
+  getOrgCompliance: (params) => request(`${HR_ORG}/compliance${qs(params)}`),
+  /**
+   * #77 The same filters minus paging, one CSV row per recipient. Refused as
+   * JSON 422 EXPORT_TOO_LARGE (`{ row_count, max_rows }`) before any bytes are
+   * sent, so the refusal reads like any other error.
+   */
+  exportOrgCompliance: (params) =>
+    downloadFile(`${HR_ORG}/compliance/export`, {
+      params,
+      filename: `document-compliance-${new Date().toISOString().slice(0, 10)}.csv`,
+    }),
+  /**
+   * #78 One person's acknowledgement / signature on one document. 404
+   * RECIPIENT_NOT_FOUND if they never received it; 404 DOCUMENT_NOT_FOUND if
+   * they did but haven't acted yet.
+   */
+  getOrgRecipientEvidence: (id, userId) => request(`${HR_ORG}/${seg(id)}/acknowledgements/${seg(userId)}`),
+
+  /**
+   * #79 My team, one row per person with the documents still asked of them.
+   * Filters: user_id, document_id, overdue_only, limit (≤ 100), offset. A
+   * user_id outside my team answers an empty list, never a 403; the whole
+   * endpoint answers 403 FORBIDDEN when the org hides team documents.
+   */
+  getTeamCompliance: (params) => request(`${MGR_ORG}/compliance${qs(params)}`),
 };

@@ -6,6 +6,7 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
 import ProfileTab from "./employee-profile/ProfileTab";
+import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
 import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
 import DepartmentTab from "./employee-profile/DepartmentTab";
@@ -292,6 +293,7 @@ export default function EmployeeProfilePage() {
   
   const [activeTab, setActiveTab] = useState(initialTab);
   const [employee, setEmployee] = useState(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [managerName, setManagerName] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -618,7 +620,7 @@ export default function EmployeeProfilePage() {
                 <DocumentsTab key={userId} userId={userId} employeeName={displayName} />
               )}
               {activeTab === "profile" && (
-                <ProfileTab employee={employee} />
+                <ProfileTab employee={employee} onEdit={() => setEditingProfile(true)} />
               )}
               {activeTab === "reports" && (
                 <ReportsTab userId={userId} employeeName={displayName} />
@@ -722,6 +724,23 @@ export default function EmployeeProfilePage() {
               }
             }).catch(() => { /* toast already shown; keep prior data */ })
               .finally(() => setLoading(false));
+          }}
+        />
+
+      )}
+      {editingProfile && (
+        <EditMemberProfileModal
+          userId={userId}
+          name={employee?.name}
+          profile={employee}
+          onClose={() => setEditingProfile(false)}
+          onSaved={(message) => {
+            setEditingProfile(false);
+            setSuccessToast(message);
+            setTimeout(() => setSuccessToast(""), 4000);
+            organizationAPI.getEmployee(userId)
+              .then((res) => { if (res?.data) setEmployee(res.data); })
+              .catch(() => { /* toast already shown; keep prior data */ });
           }}
         />
       )}
