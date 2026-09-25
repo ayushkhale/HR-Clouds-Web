@@ -12,14 +12,31 @@
 // create (R-5), a custom type is never statutory (R-6), formats must be a
 // non-empty subset of the module's 7 types (R-7), and the size cap may only
 // narrow the org ceiling (R-8 — a larger value is clamped by the server).
-// Phase 1 stores expiry reminders, retention and "mandatory" but nothing reads
-// them yet; they are shown as such rather than hidden.
+//
+// Since Phase 4, "Everyone has to provide this" is the switch that makes the
+// whole required-document checklist work: a type that isn't marked required
+// appears on nobody's list, however important it is. So the switch, and who it
+// applies to, are asked for here — and the answer is validated strictly, because
+// the server no longer accepts anything it doesn't recognise in that subtree.
+//
+// The reason it is strict is worth keeping in mind while editing this file: an
+// empty targeting object means "required of EVERYONE". A typo that got silently
+// dropped would therefore widen the rule rather than narrow it, which is the one
+// direction a mistake here must never go. Hence the fixed enum lists below
+// rather than values read off the roster, and the disjoint check before saving.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from "react";
-import { HiBan, HiCheck, HiLockClosed, HiTemplate, HiX, HiInformationCircle, HiOfficeBuilding, HiUser } from "react-icons/hi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { HiBan, HiCheck, HiClipboardCheck, HiLockClosed, HiTemplate, HiX, HiInformationCircle, HiOfficeBuilding, HiUser } from "react-icons/hi";
 import { documentErrorCode, documentErrorMessage, typeInUseSummary } from "../../../shared/utils/documentErrors";
 import { CONTENT_TYPES, DOC_GROUPS, HARD_MAX_BYTES, formatBytes } from "../../../shared/documents/documentMeta";
+import {
+  EMPLOYMENT_TYPE_OPTIONS, JOB_STATUS_OPTIONS, MANDATORY_ARRAY_MAX, buildMandatoryFor, describeRequiredFor,
+  isRequiredOfEveryone, mandatoryCriteria, mandatoryForProblem,
+} from "../../../shared/documents/requestMeta";
+import MultiSelectDropdown from "../../../shared/components/MultiSelectDropdown";
+import { PersonMultiSelect } from "../../../shared/components/PersonPicker";
+import { useTargetingOptions, withSelected } from "../../../shared/attendance/useTargetingOptions";
 import { DANGER_BTN, FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "../../../shared/documents/ui";
 
 const MB = 1024 * 1024;
@@ -34,6 +51,9 @@ const blank = (defaultVerification = true) => ({
   has_expiry: false, expiry_reminder_days: "30, 15, 7", allows_multiple: false,
   max_file_size_mb: "10", allowed_content_types: ["application/pdf", "image/jpeg", "image/png"],
   retention_days: "2555", display_order: "0",
+  is_mandatory: false,
+  target_departments: [], target_locations: [], target_employment_types: [], target_job_statuses: [],
+  included_users: [], excluded_users: [],
 });
 
 const fromType = (t) => ({
@@ -46,6 +66,11 @@ const fromType = (t) => ({
   allowed_content_types: t.allowed_content_types || [],
   retention_days: String(t.retention_days ?? 2555),
   display_order: String(t.display_order ?? 0),
+  is_mandatory: !!t.is_mandatory,
+  // Flattened out of the stored `mandatory_for`, dropping anything that isn't
+  // one of the six keys — a row written before Phase 4 validated this field may
+  // hold a typo, and carrying it back would fail the save.
+  ...mandatoryCriteria(t),
 });
 
 /** "30, 15, 7" → [30, 15, 7] (unique, positive, descending) or null when malformed. */
@@ -87,6 +112,25 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
     setForm((f) => ({ ...f, plane, group: plane === "org" ? (f.group === "identity" ? "policy" : f.group) : (f.group === "policy" ? "identity" : f.group) }));
   const toggleFormat = (ct) => set("allowed_content_types", form.allowed_content_types.includes(ct) ? form.allowed_content_types.filter((x) => x !== ct) : [...form.allowed_content_types, ct]);
 
+  // Departments, locations and the people picker come from the live org; the
+  // two enum dimensions do not (see the note at the top of this file).
+  const targeting = useTargetingOptions();
+
+  const criteria = useMemo(() => ({
+    target_departments: form.target_departments,
+    target_locations: form.target_locations,
+    target_employment_types: form.target_employment_types,
+    target_job_statuses: form.target_job_statuses,
+    included_users: form.included_users,
+    excluded_users: form.excluded_users,
+  }), [form.target_departments, form.target_locations, form.target_employment_types, form.target_job_statuses, form.included_users, form.excluded_users]);
+
+  // "Required" only means anything on the employee plane: an organisation
+  // document is issued to people, not collected from them, so there is nothing
+  // for a checklist to be missing.
+  const showRequired = !orgPlane;
+  const requiredOfEveryone = isRequiredOfEveryone(criteria);
+
   const sizeMb = Number(form.max_file_size_mb);
   const days = parseDays(form.expiry_reminder_days);
   const problems = {
@@ -96,6 +140,9 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
     size: !(sizeMb > 0) ? "Enter a size in MB." : sizeMb * MB > HARD_MAX_BYTES ? `The maximum is ${formatBytes(HARD_MAX_BYTES)}.` : "",
     reminders: !orgPlane && form.has_expiry && days === null ? "List days as numbers, e.g. 30, 15, 7." : "",
     retention: !(Number(form.retention_days) >= 30) ? "Keep documents for at least 30 days." : "",
+    // Checked in the browser because the server rejects an overlap outright,
+    // and a 400 here would otherwise lose the whole form.
+    requiredFor: showRequired && form.is_mandatory ? mandatoryForProblem(criteria) : "",
   };
   const firstProblem = Object.values(problems).find(Boolean);
   const show = (k) => (touched ? problems[k] : "");
@@ -145,7 +192,14 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
       });
     }
 
-    if (!editing) Object.assign(body, { code: form.code.trim(), plane: form.plane, is_mandatory: false, mandatory_for: {} });
+    // Sent on create AND on edit, because Phase 4 made this field the source of
+    // every checklist. An org-plane type is never required of anybody, so it is
+    // pinned off rather than left to whatever the form happens to hold.
+    Object.assign(body, showRequired
+      ? { is_mandatory: !!form.is_mandatory, mandatory_for: form.is_mandatory ? buildMandatoryFor(criteria) : {} }
+      : { is_mandatory: false, mandatory_for: {} });
+
+    if (!editing) Object.assign(body, { code: form.code.trim(), plane: form.plane });
     return body;
   };
 
@@ -381,7 +435,95 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
                       <label htmlFor="dt-rem" className={LABEL}>Reminder days before expiry</label>
                       <input id="dt-rem" type="text" value={form.expiry_reminder_days} onChange={(e) => set("expiry_reminder_days", e.target.value)} placeholder="30, 15, 7" className={FIELD} />
                       {show("reminders") ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.reminders}</p>
-                        : <p className="text-[10px] text-slate-400 mt-1">Saved now; reminder emails start in a later release.</p>}
+                        : <p className="text-[10px] text-slate-400 mt-1">One email on each of these days before the expiry date, if expiry warnings are on in Document Settings.</p>}
+                    </div>
+                  )}
+                </section>
+
+                {/* Required, and of whom. This is what puts a document on
+                    somebody's checklist — nothing else does. */}
+                <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Is it required?</p>
+                  <SwitchRow
+                    title="People have to provide this"
+                    description="Puts it on their Required documents list and counts towards their onboarding score. Without this, nobody is ever shown as missing it — however important it is."
+                    checked={form.is_mandatory}
+                    onChange={(v) => set("is_mandatory", v)}
+                  />
+
+                  {form.is_mandatory && (
+                    <div className="py-4 space-y-4">
+                      <div>
+                        <p className={LABEL}>Who has to provide it</p>
+                        <p className={`text-xs font-semibold rounded-xl px-3.5 py-2.5 border ${requiredOfEveryone ? "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900" : "bg-purple-50 border-purple-200 text-purple-900"}`}>
+                          {requiredOfEveryone
+                            ? "Everyone in the organisation. Narrow it below if only some people need it."
+                            : describeRequiredFor(criteria, (kind, id) => (
+                              kind === "department" ? targeting.departmentOptions.find((o) => o.value === id)?.label
+                                : kind === "location" ? targeting.locationOptions.find((o) => o.value === id)?.label
+                                  : targeting.employeePeople.find((pp) => (pp.user_id ?? pp.id) === id)?.name
+                            ))}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <MultiSelectDropdown
+                          label="Departments"
+                          placeholder="Every department"
+                          options={withSelected(targeting.departmentOptions, form.target_departments)}
+                          value={form.target_departments}
+                          onChange={(v) => set("target_departments", v)}
+                        />
+                        <MultiSelectDropdown
+                          label="Locations"
+                          placeholder="Every location"
+                          options={withSelected(targeting.locationOptions, form.target_locations)}
+                          value={form.target_locations}
+                          onChange={(v) => set("target_locations", v)}
+                        />
+                        <MultiSelectDropdown
+                          label="Employment types"
+                          placeholder="Every employment type"
+                          options={withSelected(EMPLOYMENT_TYPE_OPTIONS, form.target_employment_types)}
+                          value={form.target_employment_types}
+                          onChange={(v) => set("target_employment_types", v)}
+                        />
+                        <MultiSelectDropdown
+                          label="Job statuses"
+                          placeholder="Every job status"
+                          options={withSelected(JOB_STATUS_OPTIONS, form.target_job_statuses)}
+                          value={form.target_job_statuses}
+                          onChange={(v) => set("target_job_statuses", v)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className={LABEL} htmlFor="dt-included">Only these people <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+                          <PersonMultiSelect
+                            id="dt-included" people={targeting.employeePeople} value={form.included_users}
+                            onChange={(v) => set("included_users", v)} max={MANDATORY_ARRAY_MAX}
+                            placeholder="Anyone who matches above" loading={targeting.loading} unknownLabel="Former employee"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1">They still have to match the boxes above.</p>
+                        </div>
+                        <div>
+                          <label className={LABEL} htmlFor="dt-excluded">Except these people <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+                          <PersonMultiSelect
+                            id="dt-excluded" people={targeting.employeePeople} value={form.excluded_users}
+                            onChange={(v) => set("excluded_users", v)} max={MANDATORY_ARRAY_MAX}
+                            placeholder="Nobody" loading={targeting.loading} unknownLabel="Former employee"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1">Always wins, whatever else matches.</p>
+                        </div>
+                      </div>
+
+                      {problems.requiredFor && <p className="text-[11px] font-semibold text-rose-600">{problems.requiredFor}</p>}
+
+                      <p className="flex items-start gap-2 text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 leading-relaxed">
+                        <HiClipboardCheck className="w-4 h-4 shrink-0 text-purple-500 mt-px" />
+                        Each list narrows it further; leaving one empty means it doesn’t narrow on that. Somebody’s list is worked out fresh every time it’s read, so a change here shows up immediately — including on people who have already been asked for things.
+                      </p>
                     </div>
                   )}
                 </section>

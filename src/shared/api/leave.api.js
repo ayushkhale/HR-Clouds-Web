@@ -284,9 +284,22 @@ export const leaveAPI = {
   /**
    * POST /leaves/request
    * Submit a leave application. Backend auto-handles holidays/weekends/sandwich/LWP.
+   *
+   * Two ways to attach evidence, and only one of them per request:
+   *   `document_url`  a link the applicant pasted, stored as given
+   *   `document_id`   a document of theirs already in this portal (Documents
+   *                   Phase 5). The server checks it belongs to the applicant
+   *                   and is in an evidence-grade state (`available` or
+   *                   `pending_verification`), then stores the relative path
+   *                   `/api/v1/documents/attachments/:id/view-url` in
+   *                   `document_url`. That path is NOT a link a browser can
+   *                   follow — see shared/documents/AttachmentLink.jsx, which
+   *                   every screen showing a leave attachment goes through.
+   *
    * @param {Object} payload - {
    *   leave_type_id, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD),
-   *   is_half_day?, half_day_type? ('first_half'|'second_half'), reason?, document_url?
+   *   is_half_day?, half_day_type? ('first_half'|'second_half'), reason?,
+   *   document_url?, document_id?
    * }
    */
   submitRequest: (payload) =>

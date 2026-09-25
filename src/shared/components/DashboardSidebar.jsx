@@ -50,6 +50,8 @@ import {
   HiFolderOpen,
   HiBadgeCheck,
   HiClipboardCheck,
+  HiDocumentSearch,
+  HiCollection,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -189,7 +191,9 @@ function DashboardSidebar({ role = "guest" }) {
             link("Payroll Automation", "/dashboard/hr/payroll/automation", HiLightningBolt),
             heading("Documents"),
             link("Document Types", "/dashboard/hr/documents/types", HiTemplate),
+            link("Form Templates", "/dashboard/hr/documents/templates", HiCollection),
             link("Document Settings", "/dashboard/hr/documents/settings", HiCog),
+            link("Documents Automation", "/dashboard/hr/documents/automation", HiLightningBolt),
           ],
         },
         {
@@ -209,7 +213,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Leave Requests", "/dashboard/hr/leaves/requests", HiInboxIn),
             link(`${REGULARIZATION}s`, "/dashboard/hr/attendance/regularizations", HiClipboardList),
             link(COMP_OFF, "/dashboard/hr/attendance/comp-offs", HiGift),
-            link("Shift Roster", "/dashboard/hr/attendance/roster", HiCalendar),
+            link("Shift Management", "/dashboard/hr/attendance/roster", HiCalendar),
           ],
         },
         {
@@ -245,8 +249,13 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Verification Queue", "/dashboard/hr/documents/verification", HiBadgeCheck),
             link("Employee Documents", "/dashboard/hr/documents/employees", HiFolderOpen),
+            link("Document Requests", "/dashboard/hr/documents/requests", HiClipboardList),
             link("Organisation Documents", "/dashboard/hr/documents/organisation", HiOfficeBuilding),
             link("Document Compliance", "/dashboard/hr/documents/compliance", HiClipboardCheck),
+            link("Find a Document", "/dashboard/hr/documents/search", HiDocumentSearch),
+            link("Compliance Reports", "/dashboard/hr/documents/reports", HiChartBar),
+            link("Document Emails", "/dashboard/hr/documents/notifications", HiMail),
+            link("Export Log", "/dashboard/hr/documents/exports", HiCloudDownload),
           ],
         },
         {
@@ -267,8 +276,11 @@ function DashboardSidebar({ role = "guest" }) {
             ...myAttendanceLinks("hr"),
             link("My Claims & Benefits", "/dashboard/hr/my-reimbursements", HiReceiptRefund),
             link("My Salary & Bank", "/dashboard/hr/my-salary", HiCurrencyRupee),
+            link("All My Documents", "/dashboard/hr/my-documents/all", HiCollection),
             link("My Documents", "/dashboard/hr/my-documents", HiFolderOpen),
             link("Company Documents", "/dashboard/hr/company-documents", HiOfficeBuilding),
+            link("What’s Asked Of Me", "/dashboard/hr/my-document-requests", HiClipboardList),
+            link("Forms & Templates", "/dashboard/hr/forms", HiTemplate),
           ],
         },
       ];
@@ -296,6 +308,7 @@ function DashboardSidebar({ role = "guest" }) {
             // /team/today and /team/history are separate sidebar entries.
             { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
             link("Team Documents", `${M}/documents`, HiFolderOpen),
+            link("Team Document Requests", `${M}/documents/requests`, HiClipboardList),
             link("Document Proposals", `${M}/documents/proposals`, HiClipboardList),
             link("Document Compliance", `${M}/documents/compliance`, HiClipboardCheck),
           ],
@@ -340,8 +353,11 @@ function DashboardSidebar({ role = "guest" }) {
             ...myAttendanceLinks("manager"),
             link("My Claims & Benefits", `${M}/my-reimbursements`, HiReceiptRefund),
             link("My Salary & Bank", `${M}/my-salary`, HiCurrencyRupee),
+            link("All My Documents", `${M}/my-documents/all`, HiCollection),
             link("My Documents", `${M}/my-documents`, HiFolderOpen),
             link("Company Documents", `${M}/company-documents`, HiOfficeBuilding),
+            link("What’s Asked Of Me", `${M}/my-document-requests`, HiClipboardList),
+            link("Forms & Templates", `${M}/forms`, HiTemplate),
           ],
         },
       ];
@@ -378,8 +394,11 @@ function DashboardSidebar({ role = "guest" }) {
         icon: HiFolderOpen,
         forceDropdown: true,
         items: [
+          link("All My Documents", `${E}/documents/all`, HiCollection),
           link("My Documents", `${E}/documents`, HiFolderOpen),
           link("Company Documents", `${E}/company-documents`, HiOfficeBuilding),
+          link("What’s Asked Of Me", `${E}/document-requests`, HiClipboardList),
+          link("Forms & Templates", `${E}/forms`, HiTemplate),
         ],
       },
     ];

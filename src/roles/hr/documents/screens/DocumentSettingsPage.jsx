@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // DocumentSettingsPage.jsx — Organisation-wide document rules (#23 / #24),
-// org-settings registry #58–#67.
+// org-settings registry #58–#78.
 //
 // Guard rails the server enforces, surfaced here before saving:
 //   · separate checker + manager direct authority can't both be on (SETTINGS_CONFLICT)
@@ -8,17 +8,29 @@
 //   · virus scanning can't be turned on in Phase 1 (SCAN_PROVIDER_NOT_CONFIGURED)
 //   · view link 30–900 s, upload link 60–3600 s, file size ≤ 25 MB, retention ≥ 30 days
 //   · acknowledgement deadline 1–365 days (Phase 3)
-// Only changed fields are sent. The three Phase 3 keys are only sent when the
-// server returned them, so an older server never sees a key it would reject.
+//   · expiry reminder schedule ≤ 6 entries, each 0–365; request window 1–365
+//     days; onboarding target 0–100% (Phase 4) — all SETTING_OUT_OF_RANGE
+//   · the audience size above which publishing is handed to a background
+//     worker, and the two offboarding defaults (Phase 5)
+// Only changed fields are sent. The Phase 3, 4 and 5 keys are only sent when
+// the server returned them, so an older server never sees a key it would reject.
+//
+// Every one of the five Phase 4 email switches starts OFF, and that is a
+// deliberate default rather than an oversight: an organisation that turns the
+// module on should not begin mailing its whole workforce the next morning. The
+// card says so, because "why is nobody getting reminders?" is otherwise the
+// first support question this feature generates.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HiBadgeCheck, HiCog, HiEye, HiLockClosed, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
+import { HiBadgeCheck, HiBell, HiClipboardList, HiCog, HiEye, HiLockClosed, HiLogout, HiMail, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
+import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
 import { Toast, useToast } from "../../../../shared/attendance/ui";
 import { documentErrorMessage } from "../../../../shared/utils/documentErrors";
 import { DocErrorState, FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "../../../../shared/documents/ui";
+import { invalidateDocumentSettings } from "../../../../shared/documents/useDocumentSettings";
 import { fmtDateTime } from "../../../../shared/attendance/dates";
 import { SIGNATURE_PROVIDERS } from "../../../../shared/documents/complianceMeta";
 
@@ -30,10 +42,85 @@ const NUMBERS = {
   document_max_file_size_mb: { min: 1, max: 25, label: "Largest file anyone can upload", unit: "MB" },
   document_retention_days: { min: 30, max: 36500, label: "Keep documents for", unit: "days" },
   document_acknowledgement_due_days: { min: 1, max: 365, label: "Default time to acknowledge", unit: "days" },
+  document_request_default_due_days: { min: 1, max: 365, label: "Default time to provide a document", unit: "days" },
+  document_onboarding_completeness_threshold: { min: 0, max: 100, label: "Onboarding target", unit: "%" },
+  document_publish_sync_threshold: { min: 1, max: 1_000_000, label: "Hand a publish to the background above", unit: "people" },
 };
 
 // Phase 3 settings. Present on the read only once the server has them.
 const COMPLIANCE_KEYS = ["document_acknowledgement_due_days", "document_acknowledgement_blocking", "document_signature_provider"];
+
+// Phase 4 settings (#71–#78), likewise only sent once the server returns them.
+const NOTIFY_SWITCHES = [
+  {
+    key: "document_notify_hr_on_upload",
+    title: "Tell us when somebody uploads a document",
+    description: "Every HR administrator gets an email as soon as an employee adds a document, so it doesn't sit unreviewed. Busy organisations usually leave this off and work from the Verification Queue instead.",
+  },
+  {
+    key: "document_notify_expiry",
+    title: "Warn people before their documents expire",
+    description: "Emails the employee on each of the reminder days below — for passports, visas, licences and anything else with an end date. This is the one most organisations want on.",
+  },
+  {
+    key: "document_notify_pending_acknowledgement",
+    title: "Chase unread company documents",
+    description: "A daily email each morning while somebody still owes an acknowledgement or a signature on a policy, until they do it or the document closes.",
+  },
+  {
+    key: "document_notify_request_raised",
+    title: "Tell people when you ask them for something",
+    description: "Emails the employee the moment you or their manager asks for a document, with what you need, the deadline and your note. Off, the request only appears in their portal.",
+  },
+  {
+    key: "document_notify_request_overdue",
+    title: "Chase overdue documents",
+    description: "A daily email each morning once a requested document passes its deadline. At most one a day and five in all, so nobody is buried.",
+  },
+];
+const PHASE4_KEYS = [
+  "document_expiry_reminder_days",
+  ...NOTIFY_SWITCHES.map((s) => s.key),
+  "document_request_default_due_days",
+  "document_onboarding_completeness_threshold",
+];
+
+// Phase 5 settings (#79–#81), likewise only sent once the server returns them.
+const OFFBOARD_MODE_OPTIONS = [
+  { value: "archive", label: "Archive their documents", blurb: "Their file moves to Archived: kept and readable, but out of every active list. This is what most organisations want." },
+  { value: "retain", label: "Leave their documents active", blurb: "Their documents stay exactly where they are. Policies, requests and emails are still closed down." },
+];
+const EXIT_PACK_SCOPE_OPTIONS = [
+  { value: "all", label: "Everything" },
+  { value: "employee_owned", label: "Their own documents only" },
+  { value: "org_issued", label: "Company documents only" },
+];
+const PHASE5_KEYS = [
+  "document_publish_sync_threshold",
+  "document_offboarding_archive_mode",
+  "document_offboarding_exit_pack_scope",
+];
+
+const REMINDER_DAYS_MAX_ENTRIES = 6;
+
+/**
+ * "30, 15, 7" → [30, 15, 7]. Unique and descending, which is how the server
+ * stores it. Returns null when the text is malformed and [] for an empty box,
+ * because clearing the schedule is a legitimate way to turn expiry reminders
+ * off for good. Zero is allowed here (a reminder on the expiry day itself),
+ * unlike the per-type schedule.
+ */
+function parseReminderDays(text) {
+  const parts = String(text || "").split(/[\s,]+/).filter(Boolean);
+  if (!parts.length) return [];
+  if (parts.some((p) => !/^\d+$/.test(p))) return null;
+  const days = [...new Set(parts.map(Number))];
+  if (days.some((n) => n < 0 || n > 365)) return null;
+  if (days.length > REMINDER_DAYS_MAX_ENTRIES) return null;
+  return days.sort((a, b) => b - a);
+}
+
+const sameDays = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((n, i) => n === b[i]);
 
 const toForm = (s) => ({
   ...s,
@@ -44,6 +131,16 @@ const toForm = (s) => ({
   document_acknowledgement_due_days: String(s.document_acknowledgement_due_days ?? 7),
   document_acknowledgement_blocking: !!s.document_acknowledgement_blocking,
   document_signature_provider: s.document_signature_provider || "internal_typed",
+  // A stored empty array means "never warn anyone", which has to survive a
+  // round trip through the text box — so it becomes an empty string, not the
+  // default schedule.
+  document_expiry_reminder_days: (Array.isArray(s.document_expiry_reminder_days) ? s.document_expiry_reminder_days : [30, 15, 7]).join(", "),
+  document_request_default_due_days: String(s.document_request_default_due_days ?? 7),
+  document_onboarding_completeness_threshold: String(s.document_onboarding_completeness_threshold ?? 100),
+  ...Object.fromEntries(NOTIFY_SWITCHES.map((n) => [n.key, !!s[n.key]])),
+  document_publish_sync_threshold: String(s.document_publish_sync_threshold ?? 20000),
+  document_offboarding_archive_mode: s.document_offboarding_archive_mode || "archive",
+  document_offboarding_exit_pack_scope: s.document_offboarding_exit_pack_scope || "all",
 });
 
 function Card({ title, icon: Icon, blurb, children, className = "" }) {
@@ -83,22 +180,31 @@ export default function DocumentSettingsPage() {
   useEffect(() => { load(); }, [load]);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
-  // The server returns the Phase 3 keys once it supports them.
+  // The server returns each phase's keys once it supports them. A key the read
+  // didn't mention is never sent back, so an older server can't be handed a
+  // field it would reject.
   const hasCompliance = !!saved && COMPLIANCE_KEYS.some((k) => k in saved);
+  const hasAutomation = !!saved && PHASE4_KEYS.some((k) => k in saved);
+  const hasEnterprise = !!saved && PHASE5_KEYS.some((k) => k in saved);
 
   const problems = useMemo(() => {
     if (!form) return {};
     const out = {};
     Object.entries(NUMBERS).forEach(([key, r]) => {
       if (COMPLIANCE_KEYS.includes(key) && !hasCompliance) return;
+      if (PHASE4_KEYS.includes(key) && !hasAutomation) return;
+      if (PHASE5_KEYS.includes(key) && !hasEnterprise) return;
       const n = Number(form[key]);
       if (!Number.isFinite(n) || n < r.min || n > r.max) out[key] = `Between ${r.min} and ${r.max} ${r.unit}.`;
     });
+    if (hasAutomation && parseReminderDays(form.document_expiry_reminder_days) === null) {
+      out.document_expiry_reminder_days = `Up to ${REMINDER_DAYS_MAX_ENTRIES} whole numbers between 0 and 365, e.g. 30, 15, 7.`;
+    }
     if (form.document_require_separate_checker && form.manager_direct_document_authority) {
       out.conflict = "Separate checker and manager direct authority can't both be on — turn one off.";
     }
     return out;
-  }, [form, hasCompliance]);
+  }, [form, hasCompliance, hasAutomation, hasEnterprise]);
 
   const changes = useMemo(() => {
     if (!form || !saved) return {};
@@ -118,9 +224,27 @@ export default function DocumentSettingsPage() {
         document_acknowledgement_blocking: !!form.document_acknowledgement_blocking,
         document_signature_provider: form.document_signature_provider,
       } : {}),
+      ...(hasAutomation ? {
+        document_expiry_reminder_days: parseReminderDays(form.document_expiry_reminder_days) || [],
+        document_request_default_due_days: Number(form.document_request_default_due_days),
+        document_onboarding_completeness_threshold: Number(form.document_onboarding_completeness_threshold),
+        ...Object.fromEntries(NOTIFY_SWITCHES.map((n) => [n.key, !!form[n.key]])),
+      } : {}),
+      ...(hasEnterprise ? {
+        document_publish_sync_threshold: Number(form.document_publish_sync_threshold),
+        document_offboarding_archive_mode: form.document_offboarding_archive_mode,
+        document_offboarding_exit_pack_scope: form.document_offboarding_exit_pack_scope,
+      } : {}),
     };
-    return Object.fromEntries(Object.entries(next).filter(([k, v]) => (!COMPLIANCE_KEYS.includes(k) || k in saved) && v !== saved[k]));
-  }, [form, saved, hasCompliance]);
+    return Object.fromEntries(Object.entries(next).filter(([k, v]) => {
+      // A key the server never sent is never sent back.
+      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k)) && !(k in saved)) return false;
+      // The reminder schedule is an array, so `!==` would call it changed on
+      // every render and leave the Save bar permanently up.
+      if (Array.isArray(v)) return !sameDays(v, saved[k]);
+      return v !== saved[k];
+    }));
+  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise]);
 
   const dirty = Object.keys(changes).length > 0;
   const blocked = Object.keys(problems).length > 0;
@@ -133,6 +257,8 @@ export default function DocumentSettingsPage() {
       const data = (await documentsAPI.updateSettings(changes))?.data;
       setSaved(data);
       setForm(toForm(data || {}));
+      // Other screens cache this read for a minute; a save has to beat that.
+      invalidateDocumentSettings();
       showToast("Document settings saved");
     } catch (err) {
       setSaveError(documentErrorMessage(err, "Couldn't save the settings."));
@@ -284,6 +410,148 @@ export default function DocumentSettingsPage() {
                 <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
                   <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
                   These settings will appear here once your server has been updated. Until then, every document uses its own deadline and people sign by typing their name.
+                </p>
+              )}
+            </Card>
+
+            <Card
+              title="Asking people for documents"
+              icon={HiClipboardList}
+              blurb="What happens when you or a manager asks somebody for a document, and how complete a new joiner's file has to be."
+            >
+              {hasAutomation ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4">
+                  <div className="min-w-0">
+                    {numberField("document_request_default_due_days")}
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      The deadline somebody gets when whoever asked them didn’t set one. They can always be given a specific date instead.
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    {numberField("document_onboarding_completeness_threshold")}
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      How much of the required paperwork counts as complete. Leave it at 100% unless some of what you ask for genuinely isn’t essential. The score never rounds up to 100% while anything is outstanding.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
+                  <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                  These settings will appear here once your server has been updated.
+                </p>
+              )}
+            </Card>
+
+            <Card
+              title="Emails"
+              icon={HiMail}
+              blurb="Which document emails go out. All five start switched off, so turning the module on never surprises your workforce with a morning of reminders."
+            >
+              {hasAutomation ? (
+                <>
+                  {NOTIFY_SWITCHES.map((n) => (
+                    <SwitchRow
+                      key={n.key}
+                      title={n.title}
+                      description={n.description}
+                      checked={!!form[n.key]}
+                      onChange={(v) => set(n.key, v)}
+                    />
+                  ))}
+
+                  <div className="py-4">
+                    <label htmlFor="ds-reminder-days" className={LABEL}>Warn this many days before a document expires</label>
+                    <input
+                      id="ds-reminder-days"
+                      type="text"
+                      value={form.document_expiry_reminder_days}
+                      onChange={(e) => set("document_expiry_reminder_days", e.target.value)}
+                      placeholder="30, 15, 7"
+                      className={FIELD}
+                    />
+                    <p className={`text-[11px] mt-1.5 leading-relaxed ${problems.document_expiry_reminder_days ? "font-semibold text-rose-600" : "text-slate-500"}`}>
+                      {problems.document_expiry_reminder_days
+                        || (!form.document_notify_expiry
+                          ? "Saved, but nothing is sent until expiry warnings are switched on above."
+                          : (parseReminderDays(form.document_expiry_reminder_days) || []).length === 0
+                            ? "Empty, so nobody is warned before a document expires. Add days like 30, 15, 7 to start warning them."
+                            : `One email on each of these days before the expiry date. Up to ${REMINDER_DAYS_MAX_ENTRIES} days; 0 means on the day itself.`)}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1">A document type can set its own schedule, which wins for documents of that kind.</p>
+                  </div>
+
+                  {/* Queued is not delivered, and that distinction matters the
+                      first time somebody says they never got an email. */}
+                  <p className="flex items-start gap-2 text-[11px] text-slate-500 py-3 leading-relaxed">
+                    <HiBell className="w-4 h-4 text-purple-500 shrink-0" />
+                    <span>
+                      Emails are queued and sent within about fifteen minutes; reminders go out at 8am. Nobody gets more than one reminder a day about the same thing.{" "}
+                      <Link to="/dashboard/hr/documents/notifications" className="font-bold text-purple-600 hover:underline">See what has actually been sent</Link>.
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
+                  <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                  Document emails will appear here once your server has been updated. Until then, nothing is emailed automatically.
+                </p>
+              )}
+            </Card>
+
+            <Card
+              title="When somebody leaves, and very large publishes"
+              icon={HiLogout}
+              blurb="What happens to a leaver's file when their paperwork is closed down, and the point at which a company-wide publish is handed to a background worker."
+            >
+              {hasEnterprise ? (
+                <>
+                  <div className="py-4">
+                    <span className={LABEL}>A leaver’s own documents</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                      {OFFBOARD_MODE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => set("document_offboarding_archive_mode", option.value)}
+                          aria-pressed={form.document_offboarding_archive_mode === option.value}
+                          className={`text-left rounded-xl border px-4 py-3 transition ${form.document_offboarding_archive_mode === option.value ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
+                        >
+                          <span className="block text-sm font-bold text-slate-800">{option.label}</span>
+                          <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">{option.blurb}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                      Either way, unsigned policies are excused, open requests are withdrawn and queued emails are stopped — that part isn’t optional, because it is what keeps a former employee from being chased by the system. Nothing they signed is ever altered.
+                    </p>
+                  </div>
+
+                  <div className="py-4">
+                    <label htmlFor="ds-exit-scope" className={LABEL}>What a leaver’s pack includes by default</label>
+                    <select
+                      id="ds-exit-scope"
+                      value={form.document_offboarding_exit_pack_scope}
+                      onChange={(e) => set("document_offboarding_exit_pack_scope", e.target.value)}
+                      className={FIELD}
+                    >
+                      {EXIT_PACK_SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      Just the starting point — whoever builds the pack can change it for that one person.
+                    </p>
+                  </div>
+
+                  <div className="py-4">
+                    {numberField("document_publish_sync_threshold")}
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      Below this, publishing a company document hands it to everyone at once and the screen waits a second or two. Above it, the document goes live immediately and the rest of the recipients are filled in by a background worker over the next few minutes, with progress on screen. Unless you have tens of thousands of people, you will never reach this.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
+                  <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                  These settings will appear here once your server has been updated. Until then a leaver’s documents are archived, their pack includes everything, and every publish is handed out at once.
                 </p>
               )}
             </Card>

@@ -7,6 +7,8 @@
 //   manager — direct reports only; view, recommend, upload for a report (#25–#33)
 //   self    — own documents; upload / replace / delete (#34–#42)
 //
+// Phase 5 adds one capability, `updateTags` (#121), which only HR has.
+//
 // A capability that a plane lacks is `null`, and the UI hides the action.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,8 @@ export const DOCUMENT_PLANES = {
     verify: api.verifyDocument,
     reject: api.rejectDocument,
     recommend: null,
+    // Phase 5: only HR labels a document (#121). Everyone can see the labels.
+    updateTags: (id, tags) => api.updateDocumentTags(id, tags),
   },
   manager: {
     key: "manager",
@@ -44,6 +48,7 @@ export const DOCUMENT_PLANES = {
     verify: null,
     reject: null,
     recommend: api.recommendDocument,
+    updateTags: null,
   },
   self: {
     key: "self",
@@ -60,5 +65,6 @@ export const DOCUMENT_PLANES = {
     verify: null,
     reject: null,
     recommend: null,
+    updateTags: null,
   },
 };

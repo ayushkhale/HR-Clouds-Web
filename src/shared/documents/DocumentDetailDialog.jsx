@@ -9,12 +9,16 @@
 //
 // The row opens instantly; the detail read then replaces it so a decision is
 // never taken on a stale status. Every action refreshes the caller's list.
+//
+// Since Phase 5 every read also carries `tags` — HR's own labels for finding a
+// document again later (#121). They are shown to whoever can see the document,
+// because a tag is context rather than a secret, but only HR can change them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from "react";
 import {
   HiBan, HiCheck, HiClipboardCheck, HiClock, HiDocumentText, HiDownload, HiEye, HiLockClosed,
-  HiRefresh, HiShieldCheck, HiTrash, HiUpload, HiUserCircle, HiCollection, HiExclamationCircle,
+  HiRefresh, HiShieldCheck, HiTrash, HiUpload, HiUserCircle, HiCollection, HiExclamationCircle, HiHashtag,
 } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailText } from "../components/DetailDialog";
 import AttachmentViewerDialog from "../components/AttachmentViewerDialog";
@@ -26,6 +30,9 @@ import {
   formatBytes, groupLabel, isReferenceDoc, isReviewable, selfDeleteRule, sourceLabel,
 } from "./documentMeta";
 import { DocStatusBadge, DANGER_BTN, PRIMARY_BTN, SECONDARY_BTN, FIELD, LABEL } from "./ui";
+import { TagChips } from "./phase5Ui";
+import TagsDialog from "./TagsDialog";
+import { supportsTags, tagsOf } from "./reportMeta";
 import { triggerDownload } from "./documentUpload";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -111,6 +118,7 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
   const [viewing, setViewing] = useState(null);
   const [busy, setBusy] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  const [tagging, setTagging] = useState(false);
   const [recommending, setRecommending] = useState(false);
   const [dialogError, setDialogError] = useState("");
 
@@ -303,6 +311,15 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
     );
     if (!reference) footer.push(<button key="dl" type="button" onClick={download} disabled={!!busy} className={SECONDARY_BTN}><HiDownload className="w-4 h-4" /> {busy === "download" ? "Preparing…" : "Download"}</button>);
   }
+  // Only once the detail read has come back, and only when it carried `tags`:
+  // a server without them would answer this button with a 404.
+  if (plane.updateTags && supportsTags(doc)) {
+    footer.push(
+      <button key="tags" type="button" onClick={() => setTagging(true)} disabled={!!busy} className={SECONDARY_BTN}>
+        <HiHashtag className="w-4 h-4" /> {tagsOf(doc).length ? "Edit tags" : "Add tags"}
+      </button>,
+    );
+  }
   if (doc?.status === "pending_upload" && plane.confirm) {
     footer.push(<button key="finish" type="button" onClick={finishDraft} disabled={!!busy} className={SECONDARY_BTN}><HiRefresh className="w-4 h-4" /> {busy === "confirm" ? "Checking…" : "Check upload again"}</button>);
   }
@@ -391,6 +408,15 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
           />
           {doc?.is_confidential && (
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-700 mt-3"><HiLockClosed className="w-3.5 h-3.5" /> Hidden from managers.</p>
+          )}
+          {supportsTags(doc) && (
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tags</p>
+              <TagChips
+                tags={tagsOf(doc)}
+                empty={<span className="text-xs text-slate-400">No tags. {plane.updateTags ? "Add one to find this again in a search." : ""}</span>}
+              />
+            </div>
           )}
         </DetailSection>
 
@@ -487,6 +513,20 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
           errorMessage={documentErrorMessage}
           fetchReferences
           onClose={() => { setViewing(null); loadAudit(); }}
+        />
+      )}
+
+      {tagging && (
+        <TagsDialog
+          doc={doc}
+          save={plane.updateTags}
+          onDone={(tags) => {
+            setTagging(false);
+            setDoc((current) => ({ ...current, tags }));
+            showToast?.(tags.length ? "Tags saved" : "Tags cleared");
+            onChanged?.();
+          }}
+          onClose={() => setTagging(false)}
         />
       )}
 

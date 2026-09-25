@@ -16,6 +16,7 @@ import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
+import { greetingFor } from "../../../shared/utils/greeting";
 
 const CHART_PAGE_SIZE = 15;
 // HR's department summary endpoint is HR-only, so the manager's version is
@@ -316,7 +317,7 @@ function ManagerDashboard() {
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
               <HiSparkles className="w-3 h-3 text-purple-200" /> MANAGER WORKSPACE
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">Welcome back, {user?.first_name || user?.name?.split(" ")[0] || user?.identifier || "Manager"}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{greetingFor(user, "there")}</h1>
             <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Monitor team attendance, review pending requests and track your team&apos;s performance.</p>
           </div>
           <img src="https://cdn3d.iconscout.com/3d/premium/thumb/empresario-haciendo-meditacion-3d-icon-png-download-8179740.png" alt="" className="relative z-10 w-28 sm:w-40 md:w-48 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-4 sm:-mb-6" />

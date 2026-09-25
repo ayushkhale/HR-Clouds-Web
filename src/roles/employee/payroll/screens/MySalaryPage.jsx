@@ -25,7 +25,15 @@ const revisionLabel = (s) => REVISION_LABELS[s?.revision_type] || humanize(s?.re
 // Same label / input look as the Invite Team Member form.
 const labelCls = "block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5";
 const inputCls = "w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all";
-const EMPTY_BANK = { account_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "" };
+// `account_type` must be exactly one of these two, lowercase. Verified against
+// the API on 2026-09-26: anything else — including "SAVINGS" or "salary" — is
+// refused with `"account_type" must be one of [savings, current]`. It defaults
+// to a savings account because that is what salary is almost always paid into.
+const ACCOUNT_TYPES = [
+  { value: "savings", label: "Savings" },
+  { value: "current", label: "Current" },
+];
+const EMPTY_BANK = { account_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "", account_type: "savings" };
 
 const amount = (v) => parseFloat(v) || 0;
 
@@ -223,6 +231,7 @@ export default function MySalaryPage() {
       account_number: "",
       ifsc_code: bankAccount.ifsc_code || "",
       branch_name: bankAccount.branch_name || "",
+      account_type: bankAccount.account_type || "savings",
     } : EMPTY_BANK);
     setBankDialog("edit");
   };
@@ -557,6 +566,7 @@ export default function MySalaryPage() {
                     ["Bank", bankAccount.bank_name],
                     { label: "Account number", value: bankAccount.masked_account_number || "••••••••", mono: true },
                     { label: "IFSC code", value: bankAccount.ifsc_code, mono: true },
+                    ["Account type", ACCOUNT_TYPES.find((t) => t.value === bankAccount.account_type)?.label || bankAccount.account_type],
                     ["Branch", bankAccount.branch_name],
                     ["Verification", bankStatus],
                   ]}
@@ -586,6 +596,19 @@ export default function MySalaryPage() {
                   <div>
                     <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-rose-400">*</span></label>
                     <input id="bank-ifsc" type="text" required value={bankFormData.ifsc_code} onChange={(e) => setBankFormData({ ...bankFormData, ifsc_code: e.target.value.toUpperCase() })} className={`${inputCls} uppercase`} />
+                  </div>
+                  <div>
+                    <label htmlFor="bank-type" className={labelCls}>Account type <span className="text-rose-400">*</span></label>
+                    <select
+                      id="bank-type"
+                      required
+                      value={bankFormData.account_type}
+                      onChange={(e) => setBankFormData({ ...bankFormData, account_type: e.target.value })}
+                      className={inputCls}
+                    >
+                      {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                    <p className="text-[11px] text-slate-400 mt-1">Salary is usually paid into a savings account.</p>
                   </div>
                   <div>
                     <label htmlFor="bank-branch" className={labelCls}>Branch</label>

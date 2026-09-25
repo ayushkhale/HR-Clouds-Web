@@ -14,6 +14,7 @@ import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
 import DetailDialog from "../../../shared/components/DetailDialog";
+import { greetingFor } from "../../../shared/utils/greeting";
 
 const CHART_PAGE_SIZE = 15;
 const LIVE_REFRESH_MS = 60_000;
@@ -228,8 +229,8 @@ function HRDashboard() {
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
               <HiSparkles className="w-3 h-3 text-purple-200" /> HR COMMAND CENTER
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">Welcome back, {user?.first_name || user?.name?.split(" ")[0] || user?.identifier || "HR Administrator"}</h1>
-            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Monitor live attendance, rules, shift rosters and holidays.</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{greetingFor(user, "there")}</h1>
+            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Monitor live attendance, rules, shift management and holidays.</p>
           </div>
           <img src="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312" alt="" className="relative z-10 w-36 sm:w-56 md:w-64 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-6 sm:-mb-8" />
         </div>

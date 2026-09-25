@@ -213,7 +213,7 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 
 | # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `/api/v1/leaves/request` | POST | Yes | `all` | hr, manager, employee | Submits a new leave application and deducts tentative balance. | `leave_self.routes.js` | `leave_self.controller.js` | `leave_request.service.js` | [ ✅ ] | [ ] | [ ] |
+| 1 | `/api/v1/leaves/request` | POST | Yes | `all` | hr, manager, employee | Submits a new leave application and deducts tentative balance. Since Documents Phase 5 it also takes an optional `document_id` — one of the applicant's own documents in `available` or `pending_verification` — and stores it as the audience-neutral path `/api/v1/documents/attachments/:id/view-url` in `document_url` (see #128). | `leave_self.routes.js` | `leave_self.controller.js` | `leave_request.service.js` | [ ✅ ] | [ ] | [ ] |
 | 2 | `/api/v1/leaves/my-requests` | GET | Yes | `all` | hr, manager, employee | Fetches the logged-in employee's historical leave applications. | `leave_self.routes.js` | `leave_self.controller.js` | `leave_request.service.js` | [ ✅ ] | [ ] | [ ] |
 | 3 | `/api/v1/leaves/requests/:id/cancel` | POST | Yes | `all` | hr, manager, employee | Cancels a pending or upcoming leave request and refunds the balance. | `leave_self.routes.js` | `leave_self.controller.js` | `leave_request.service.js` | [ ✅ ] | [ ] | [ ] |
 | 4 | `/api/v1/leaves/requests/:id` | GET | Yes | `all` | hr, manager, employee | Fetches a single one of the logged-in employee's own leave requests by ID (ownership enforced in query predicate). | `leave_self.routes.js` | `leave_self.controller.js` | `leave_self.controller.js` (inline) | [ ✅ ] | [ ] | [ ] |
@@ -795,3 +795,148 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 | # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 79 | `/api/v1/documents/manager/org-documents/compliance` | GET | Yes | `manager, hr` | manager | Returns team compliance metrics for the manager's direct/indirect reports (excludes confidential documents); gated by the org setting `manager_can_view_team_documents`. | `document_org_manager.routes.js` | `document_org_manager.controller.js` | `document_compliance.service.js` | [ ] | [ ] | [ ✅ ] |
+
+
+
+
+## Document Module - HR Administration (Requests, Notifications & Automation, Phase 4)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** These routes allow **`hr` only** — platform roles (`admin`/`super-admin`) are strictly excluded. HR raises document requests against employees, reads the required-document checklist, inspects the notification outbox, and triggers the five background jobs manually. All endpoints enforce tenant isolation via `req.user.orgId`; the manual job triggers ignore any `org_id` in the body and scope to `req.user.orgId` only. `/document-requests/:id` requests collapse to a uniform `404 REQUEST_NOT_FOUND` on any authorization failure.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 80 | `/api/v1/documents/hr/employees/:userId/document-requests` | POST | Yes | `hr` | hr | Raises a document request against one employee for one document type (optional `due_on`, optional `note`). Returns `409 DOCUMENT_ALREADY_PRESENT` when a live document exists, `409 DUPLICATE_REQUEST` (with the existing id) when an open request already exists. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_request.service.js` | [ ] | [ ✅ ] | [ ] |
+| 81 | `/api/v1/documents/hr/employees/:userId/document-requests/bulk-from-checklist` | POST | Yes | `hr` | hr | Raises one request per outstanding checklist item in a single transaction (per-item savepoint; already-requested items are skipped). `409 NOTHING_TO_REQUEST` when the checklist is already complete. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_request.service.js` | [ ] | [ ✅ ] | [ ] |
+| 82 | `/api/v1/documents/hr/document-requests` | GET | Yes | `hr` | hr | Lists org-wide document requests with filters (`status` repeatable, `user_id`, `document_type_id`, `overdue_only`) and pagination. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_request.service.js` | [ ] | [ ✅ ] | [ ] |
+| 83 | `/api/v1/documents/hr/document-requests/:id` | GET | Yes | `hr` | hr | Retrieves one document request (HR projection includes `reminder_count` and `last_reminder_on`). | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_request.service.js` | [ ] | [ ✅ ] | [ ] |
+| 84 | `/api/v1/documents/hr/document-requests/:id/cancel` | POST | Yes | `hr` | hr | Cancels an open/overdue request with a mandatory `reason`; a settled request returns `409`. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_request.service.js` | [ ] | [ ✅ ] | [ ] |
+| 85 | `/api/v1/documents/hr/document-requests/:id/remind` | POST | Yes | `hr` | hr | Sends the overdue notice now; idempotent per day (returns `reminded: false, reason: already_reminded_today` on a repeat same-day call). | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_request.service.js` | [ ] | [ ✅ ] | [ ] |
+| 86 | `/api/v1/documents/hr/employees/:userId/checklist` | GET | Yes | `hr` | hr | Returns the required-document checklist and onboarding completeness for one employee. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_checklist.service.js` | [ ] | [ ✅ ] | [ ] |
+| 87 | `/api/v1/documents/hr/notifications` | GET | Yes | `hr` | hr | Lists the notification outbox (org-scoped; filters `status`, `event_type`, `from`, `to`; `dedupe_key` is never returned). | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_notification.service.js` | [ ] | [ ✅ ] | [ ] |
+| 88 | `/api/v1/documents/hr/jobs/expiry-sweep/run` | POST | Yes | `hr` | hr | Manually runs the expiry-flip job for the caller's org (`available → expired`). | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 89 | `/api/v1/documents/hr/jobs/document-reminders/run` | POST | Yes | `hr` | hr | Manually runs the reminder job for the caller's org (overdue flip + expiry/acknowledgement/overdue-request reminders). | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 90 | `/api/v1/documents/hr/jobs/notification-dispatch/run` | POST | Yes | `hr` | hr | Manually drains the notification outbox for the caller's org. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 91 | `/api/v1/documents/hr/jobs/document-sweeper/run` | POST | Yes | `hr` | hr | Manually runs the retention/abandoned sweeper for the caller's org (destructive; statutory never swept). | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 92 | `/api/v1/documents/hr/jobs/recipient-topup/run` | POST | Yes | `hr` | hr | Manually runs the org-document recipient top-up for the caller's org. | `document_request_hr.routes.js` | `document_request_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+
+## Document Module - Manager Operations (Requests & Checklists, Phase 4)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Hierarchy-scoped access.** These routes allow **`manager` and `hr`**. A manager acts only within their reporting cohort (`getAccessibleUserIds`); an empty scope grants nothing (never the whole org). A manager may cancel only a request they raised for an in-scope employee. `/employees/:userId/...` out-of-scope access returns `403 FORBIDDEN`; `/document-requests/:id` out-of-scope or not-the-requester access returns a uniform `404 REQUEST_NOT_FOUND`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 93 | `/api/v1/documents/manager/employees/:userId/document-requests` | POST | Yes | `manager, hr` | manager | Raises a document request for a direct report (only for a type whose policy allows manager requests). | `document_request_manager.routes.js` | `document_request_manager.controller.js` | `document_request.service.js` | [ ] | [ ] | [ ✅ ] |
+| 94 | `/api/v1/documents/manager/document-requests` | GET | Yes | `manager, hr` | manager | Lists document requests scoped to the manager's cohort (manager projection omits `last_reminder_on`). | `document_request_manager.routes.js` | `document_request_manager.controller.js` | `document_request.service.js` | [ ] | [ ] | [ ✅ ] |
+| 95 | `/api/v1/documents/manager/document-requests/:id/cancel` | POST | Yes | `manager, hr` | manager | Cancels a request the manager raised for an in-scope employee (mandatory `reason`). | `document_request_manager.routes.js` | `document_request_manager.controller.js` | `document_request.service.js` | [ ] | [ ] | [ ✅ ] |
+| 96 | `/api/v1/documents/manager/employees/:userId/checklist` | GET | Yes | `manager, hr` | manager | Returns a direct report's checklist (confidential-type links withheld per manager view policy). | `document_request_manager.routes.js` | `document_request_manager.controller.js` | `document_checklist.service.js` | [ ] | [ ] | [ ✅ ] |
+
+## Document Module - Employee Self-Service (Requests & Checklists, Phase 4)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Self-scoped access.** These routes allow **any authenticated tenant role** (`employee`, `manager`, `hr`) but surface only rows anchored to the caller (`req.user.id`); `actorRole` is forced to `self`, so an HR or manager user hitting `/me` sees only their own requests and checklist. The self projection withholds `reminder_count` and `last_reminder_on`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 97 | `/api/v1/documents/me/document-requests` | GET | Yes | `any tenant role` | employee | Lists the caller's own document requests (filters `status`, `document_type_id`, `overdue_only`; pagination). | `document_request_self.routes.js` | `document_request_self.controller.js` | `document_request.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 98 | `/api/v1/documents/me/checklist` | GET | Yes | `any tenant role` | employee | Returns the caller's own required-document checklist and onboarding completeness. | `document_request_self.routes.js` | `document_request_self.controller.js` | `document_checklist.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+
+
+
+## Document Module - HR Templates (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** These routes allow **`hr` only** — platform roles (`admin`/`super-admin`) are excluded. HR authors document templates through a draft → published → archived lifecycle with S3 file staging (zero-binary-transit: presigned PUT + HeadObject confirm). Publishing archives the prior version in the same group; only a **draft** may be deleted. All routes scope to `req.user.orgId`; any cross-tenant or missing id collapses to `404 TEMPLATE_NOT_FOUND`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 99 | `/api/v1/documents/hr/templates` | POST | Yes | `hr` | hr | Creates a draft template (metadata only; no file yet). | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 100 | `/api/v1/documents/hr/templates/:id` | PATCH | Yes | `hr` | hr | Updates draft metadata; `404 TEMPLATE_NOT_FOUND` on a foreign/absent id, `409` if not a draft. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 101 | `/api/v1/documents/hr/templates/:id/file-url` | POST | Yes | `hr` | hr | Issues a presigned **PUT** URL for the template file (client uploads directly to S3). | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 102 | `/api/v1/documents/hr/templates/:id/confirm` | POST | Yes | `hr` | hr | HeadObject-verifies the uploaded file (size/type) and records it against the draft. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 103 | `/api/v1/documents/hr/templates/:id/publish` | POST | Yes | `hr` | hr | Transitions draft → published; archives the previously published version in the group. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 104 | `/api/v1/documents/hr/templates/:id/replace` | POST | Yes | `hr` | hr | Opens the next draft version in the same template group (version chain). | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 105 | `/api/v1/documents/hr/templates/:id/archive` | POST | Yes | `hr` | hr | Transitions published → archived (retires the template from the employee catalogue). | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 106 | `/api/v1/documents/hr/templates/:id` | DELETE | Yes | `hr` | hr | Soft-deletes a **draft only**; a published/archived template returns `409`. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 107 | `/api/v1/documents/hr/templates` | GET | Yes | `hr` | hr | Lists templates across all statuses (filters `status`, `type`, `q`). | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 108 | `/api/v1/documents/hr/templates/:id` | GET | Yes | `hr` | hr | Template detail. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 109 | `/api/v1/documents/hr/templates/:id/versions` | GET | Yes | `hr` | hr | Returns the full version chain for the template's group. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+| 110 | `/api/v1/documents/hr/templates/:id/download-url` | GET | Yes | `hr` | hr | Signed **GET** (attachment disposition) for the template file. | `document_template_hr.routes.js` | `document_template_hr.controller.js` | `document_template.service.js` | [ ] | [ ✅ ] | [ ] |
+
+## Document Module - Employee Templates (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Self-scoped catalogue.** These routes allow **any authenticated tenant role** and surface only **published** templates the caller is entitled to see (employee-visible flag + document-type visibility gate). A template hidden from the caller returns `404 TEMPLATE_NOT_FOUND`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 111 | `/api/v1/documents/templates` | GET | Yes | `any tenant role` | employee | Lists published, employee-visible, type-gate-passed templates. | `document_template_self.routes.js` | `document_template_self.controller.js` | `document_template.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 112 | `/api/v1/documents/templates/:id/download-url` | GET | Yes | `any tenant role` | employee | Signed **GET** for a template the caller may see. | `document_template_self.routes.js` | `document_template_self.controller.js` | `document_template.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+
+## Document Module - HR Search, Tags, Reports & Exports (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** These routes allow **`hr` only**. They cover org-wide metadata search, tag editing, the two compliance roll-ups (missing-mandatory, expiring), and the export ledger. Every `.csv` variant streams the same data and writes an **export-ledger** row for audit. All routes scope to `req.user.orgId`.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 113 | `/api/v1/documents/hr/documents/search` | GET | Yes | `hr` | hr | Metadata search across employee documents (filters + pagination). | `document_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+| 114 | `/api/v1/documents/hr/documents/search.csv` | GET | Yes | `hr` | hr | Search results as CSV (+ export-ledger row). | `document_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+| 115 | `/api/v1/documents/hr/reports/missing-mandatory` | GET | Yes | `hr` | hr | Org-wide missing-mandatory-document roll-up. | `document_report_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+| 116 | `/api/v1/documents/hr/reports/missing-mandatory.csv` | GET | Yes | `hr` | hr | Missing-mandatory roll-up as CSV (+ export-ledger row). | `document_report_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+| 117 | `/api/v1/documents/hr/reports/expiring` | GET | Yes | `hr` | hr | Expiring-in-N-days report with day-bucket grouping. | `document_report_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+| 118 | `/api/v1/documents/hr/reports/expiring.csv` | GET | Yes | `hr` | hr | Expiring report as CSV (+ export-ledger row). | `document_report_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+| 119 | `/api/v1/documents/hr/exports` | GET | Yes | `hr` | hr | Lists the export ledger (who exported what, when). | `document_report_hr.routes.js` | `document_report_hr.controller.js` | `document_export.service.js` | [ ] | [ ✅ ] | [ ] |
+| 120 | `/api/v1/documents/hr/exports/:id` | GET | Yes | `hr` | hr | Export-ledger detail; `404` on a foreign/absent id. | `document_report_hr.routes.js` | `document_report_hr.controller.js` | `document_export.service.js` | [ ] | [ ✅ ] | [ ] |
+| 121 | `/api/v1/documents/hr/documents/:id/tags` | PATCH | Yes | `hr` | hr | Replaces a document's tag array; `404 DOCUMENT_NOT_FOUND` on a foreign/absent id. | `document_hr.routes.js` | `document_report_hr.controller.js` | `document_report.service.js` | [ ] | [ ✅ ] | [ ] |
+
+## Document Module - HR Offboarding & Materialisation Jobs (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** These routes allow **`hr` only** and are hierarchy-agnostic (HR acts org-wide). Offboarding archives/waives/cancels a leaver's document footprint and composes an exit pack; the two manual job triggers ignore any body `org_id` and scope to `req.user.orgId`. `/employees/:userId/...` out-of-org access returns `403 FORBIDDEN`. The exit-pack CSV carries **no signed URLs** (metadata only) and writes an export-ledger row.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 122 | `/api/v1/documents/hr/employees/:userId/offboard-documents` | POST | Yes | `hr` | hr | Archives, waives and cancels the leaver's document footprint (supports `dry_run` and `force`). | `document_offboarding_hr.routes.js` | `document_offboarding_hr.controller.js` | `document_offboarding.service.js` | [ ] | [ ✅ ] | [ ] |
+| 123 | `/api/v1/documents/hr/employees/:userId/exit-pack` | GET | Yes | `hr` | hr | Exit-pack manifest with short-TTL signed URLs. | `document_offboarding_hr.routes.js` | `document_offboarding_hr.controller.js` | `document_offboarding.service.js` | [ ] | [ ✅ ] | [ ] |
+| 124 | `/api/v1/documents/hr/employees/:userId/exit-pack.csv` | GET | Yes | `hr` | hr | Exit-pack metadata as CSV (**no URLs**; + export-ledger row). | `document_offboarding_hr.routes.js` | `document_offboarding_hr.controller.js` | `document_export.service.js` | [ ] | [ ✅ ] | [ ] |
+| 125 | `/api/v1/documents/hr/jobs/offboarding-archive/run` | POST | Yes | `hr` | hr | Manually runs the offboarding-archive cron for the caller's org. | `document_offboarding_hr.routes.js` | `document_offboarding_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+| 129 | `/api/v1/documents/hr/jobs/publish-materialisation/run` | POST | Yes | `hr` | hr | Manually runs the org-document publish-materialiser cron for the caller's org. | `document_offboarding_hr.routes.js` | `document_offboarding_hr.controller.js` | `document_automation.service.js` | [ ] | [ ✅ ] | [ ] |
+
+## Document Module - Employee Composed View (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Self-scoped.** Allows **any authenticated tenant role**; surfaces only the caller's own portfolio (`req.user.id`).
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 126 | `/api/v1/documents/me/documents/all` | GET | Yes | `any tenant role` | employee | Composed four-section employee portfolio (own uploads, org-issued, templates, payroll). | `document_self.routes.js` | `document_self.controller.js` | `document_composer.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+
+## Document Module - HR Org-Document Materialisation Progress (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Tenant-plane only.** Allows **`hr` only**; reports background-fill progress for an org document whose publish was deferred (response `202`) once its audience crossed `document_publish_sync_threshold` (setting #79). `404` on a foreign/absent id.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 127 | `/api/v1/documents/hr/org-documents/:id/materialisation` | GET | Yes | `hr` | hr | Materialisation progress (recipients filled / total) for a deferred org-document publish. | `document_org_hr.routes.js` | `document_org_hr.controller.js` | `document_recipient.service.js` | [ ] | [ ✅ ] | [ ] |
+
+## Document Module - Audience-Neutral Attachment View URL (Phase 5)
+
+*Requires Feature Flag: `documents.access`*
+
+> **Audience-neutral, employee-plane.** Allows **any authenticated tenant role**; resolves the reader's plane from the token (owner ⇒ self, reporting chain ⇒ manager, HR ⇒ hr) and applies the standard document authority matrix. It grants no new capability — it exists so a single stored string (a leave's `document_url`) is correct for the applicant, their manager chain and HR alike. Everyone else, any cross-tenant id, and a confidential type the reader may not see all collapse to a uniform `404`. `?redirect=true` answers `302` with the signed URL in `Location`; otherwise a `200` JSON body carries `view_url`. See [F-8 change record](../md_updates/2026-09-25_leave_document_attachment_bridge.md).
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 128 | `/api/v1/documents/attachments/:id/view-url` | GET | Yes | `any tenant role` | employee | Audience-neutral signed view URL for an employee document (owner / manager chain / HR); `?redirect=true` ⇒ `302`. | `document_attachment.routes.js` | `document_attachment.controller.js` | `document_read.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |

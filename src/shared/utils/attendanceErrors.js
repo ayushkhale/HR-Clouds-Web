@@ -46,7 +46,7 @@ const ATTENDANCE_ERROR_MESSAGES = {
   SHIFT_NOT_FOUND: RECORD_GONE,
   // SHIFT_IN_USE / PATTERN_IN_USE are HTTP 400, not 409 (update_shift_templates_2026_09_14 §5.5).
   // DELETE /shifts/:id deactivates; "in use" means an assignment that hasn't ended.
-  SHIFT_IN_USE: "Employees are still assigned to this shift, so it can't be deactivated. End their assignments in the Shift Roster first.",
+  SHIFT_IN_USE: "Employees are still assigned to this shift, so it can't be deactivated. End their assignments in Shift Management first.",
   SHIFT_DEACTIVATED: "This shift has been deactivated. Choose an active shift.",
   PATTERN_NOT_FOUND: RECORD_GONE,
   PATTERN_IN_USE: "This rotation is still assigned to employees, so it can't be deleted. End those assignments first.",

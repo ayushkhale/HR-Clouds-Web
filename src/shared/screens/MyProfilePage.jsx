@@ -20,6 +20,7 @@ import {
     HiBriefcase,
     HiShieldCheck,
     HiLogout,
+    HiUserCircle,
 } from "react-icons/hi";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -35,21 +36,33 @@ import {
 // `employee_code` and `pan_number` (400, unknown=false), which is why those
 // stay locked below. It accepts everything listed here, including the address
 // block: an earlier comment claimed addresses were HR-only, and that was wrong.
-// `name` is NOT one of them: the endpoint strips it and answers 400 "At least
-// one field must be provided to update". The name is stored as `first_name` /
-// `last_name`, and `name` is a read-only composite. Sending `name` — which
-// this screen used to do — could therefore never save.
+// THE DISPLAY NAME IS ASYMMETRIC, and this is the one thing to know here. It is
+// WRITTEN as `display_name` and READ BACK as `name`; the endpoint strips `name`
+// on the way in and never returns `display_name` on the way out (it is always
+// null in the read). Re-verified 2026-09-26: PATCH `display_name` succeeds and
+// the new value appears as `name` in this profile, in the HR roster and in the
+// org directory.
+//
+// It is also INDEPENDENT of `first_name` / `last_name` — setting a display name
+// leaves both untouched. It is what somebody was called when they were invited,
+// which is why an account can read `name: "mealex517"` while `first_name` is
+// "Diamond". So it gets its own field rather than being derived from the two.
 //
 // Phone is absent for the same reason: neither `phone_number` nor `contact`
 // is accepted, so there is currently no way to change a phone number at all.
 // It stays visible and locked rather than pretending to be editable.
 const EDITABLE_KEYS = [
+    "display_name",
     "first_name", "last_name", "avatar_url",
     "dob", "blood_group", "personal_email",
     "current_address", "permanent_address", "city", "state", "pincode",
 ];
 
 const PERSONAL_FIELDS = [
+    {
+        key: "display_name", label: "Display Name", icon: HiUserCircle, type: "text",
+        hint: "How your name appears across HR Clouds — on your dashboard, in the directory and to your team.",
+    },
     { key: "first_name", label: "First Name", icon: HiUser, type: "text" },
     { key: "last_name", label: "Last Name", icon: HiUser, type: "text" },
     { key: "email", label: "Email", icon: HiMail, type: "email", locked: true },
@@ -127,6 +140,8 @@ function MyProfilePage() {
         setEditData({
             ...profile,
             phone_number: profile.phone_number ?? profile.contact ?? "",
+            // Read as `name`, written as `display_name` — see the note above.
+            display_name: profile.display_name ?? profile.name ?? "",
             first_name: profile.first_name || seedFirst || "",
             last_name: profile.last_name || seedRest.join(" ") || "",
         });
@@ -147,7 +162,11 @@ function MyProfilePage() {
         setNotice(null);
 
         // Only the whitelisted keys may be sent; anything else is rejected wholesale.
-        const baseline = { ...profile, phone_number: profile.phone_number ?? profile.contact ?? "" };
+        const baseline = {
+            ...profile,
+            phone_number: profile.phone_number ?? profile.contact ?? "",
+            display_name: profile.display_name ?? profile.name ?? "",
+        };
         const payload = {};
         for (const key of EDITABLE_KEYS) {
             if (editData[key] === undefined) continue;
@@ -158,6 +177,10 @@ function MyProfilePage() {
 
         if ("first_name" in payload && !payload.first_name) {
             setNotice({ type: "error", message: "First name cannot be empty." });
+            return;
+        }
+        if ("display_name" in payload && !payload.display_name) {
+            setNotice({ type: "error", message: "Display name cannot be empty." });
             return;
         }
         if (Object.keys(payload).length === 0) {
@@ -171,7 +194,9 @@ function MyProfilePage() {
             // Merge only what we sent — the PATCH response envelope isn't a profile
             // and spreading it would inject success/message keys into state. Then
             // silently re-read the canonical record.
-            setProfile((prev) => ({ ...prev, ...payload }));
+            // `display_name` comes back as `name`, so mirror it locally too —
+            // otherwise the header and avatar keep the old name until a reload.
+            setProfile((prev) => ({ ...prev, ...payload, ...("display_name" in payload ? { name: payload.display_name } : {}) }));
             setIsEditing(false);
             setNotice({ type: "success", message: "Profile updated successfully." });
             fetchProfile({ silent: true });
@@ -195,6 +220,11 @@ function MyProfilePage() {
         // Phone may arrive under `contact` or `phone_number` from GET /me.
         if (field.key === "phone_number" && !isEditing) {
             value = profile?.phone_number ?? profile?.contact;
+        }
+        // The display name is written as `display_name` and read back as
+        // `name`; the read always returns `display_name: null`.
+        if (field.key === "display_name" && !isEditing) {
+            value = profile?.name;
         }
         const isLocked = field.locked;
         const isEditMode = isEditing && !isLocked;
@@ -226,14 +256,17 @@ function MyProfilePage() {
                 );
             }
             return (
-                <input
-                    type={field.type}
-                    value={value || ""}
-                    onChange={(e) => handleChange(field.key, e.target.value)}
-                    placeholder={field.key === "pincode" ? "6-digit pincode" : ""}
-                    maxLength={field.key === "pincode" ? 6 : undefined}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-colors"
-                />
+                <>
+                    <input
+                        type={field.type}
+                        value={value || ""}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        placeholder={field.key === "pincode" ? "6-digit pincode" : ""}
+                        maxLength={field.key === "pincode" ? 6 : undefined}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-colors"
+                    />
+                    {field.hint && <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{field.hint}</p>}
+                </>
             );
         }
 

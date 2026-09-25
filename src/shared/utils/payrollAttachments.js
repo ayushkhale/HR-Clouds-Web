@@ -151,7 +151,16 @@ export async function uploadFile({ issue, confirm, file }) {
 export async function fetchViewUrl(getViewUrl, id, params) {
   const res = await getViewUrl(id, params);
   const data = res?.data ?? res ?? {};
-  return { view_url: data.view_url || data.url || "", expires_at: data.expires_at ?? null };
+  return {
+    view_url: data.view_url || data.url || "",
+    expires_at: data.expires_at ?? null,
+    // Some endpoints describe the file as well as sign it — the documents
+    // leave-attachment bridge does. Passed through so a caller that knows
+    // nothing about the file can still render it properly instead of falling
+    // back to a bare "open this" link. Absent everywhere else, which is fine.
+    content_type: data.content_type ?? null,
+    file_name: data.file_name ?? null,
+  };
 }
 
 /** Is this attachment an external reference (e.g. a TRACES link), not an S3 object? */

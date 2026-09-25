@@ -16,6 +16,10 @@ import { payrollErrorMessage } from "../utils/payrollErrors";
 // (the Documents module audits every view, links included).
 export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose, errorMessage = payrollErrorMessage, fetchReferences = false }) {
   const [url, setUrl] = useState("");
+  // What the signing call itself said about the file. The leave-attachment
+  // bridge describes it; most endpoints don't, and then the caller's own
+  // metadata stands.
+  const [resolved, setResolved] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
@@ -39,10 +43,11 @@ export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose
     setLoading(true);
     setError("");
     try {
-      const { view_url } = await fetchViewUrl(getViewUrl, id, { disposition: "inline" });
+      const { view_url, content_type, file_name } = await fetchViewUrl(getViewUrl, id, { disposition: "inline" });
       if (reqId !== reqRef.current) return;
       if (!view_url) throw new Error("No view URL returned.");
       setUrl(view_url);
+      if (content_type || file_name) setResolved({ content_type, file_name });
     } catch (err) {
       if (reqId !== reqRef.current) return;
       setError(errorMessage(err, "Couldn't open this file."));
@@ -87,8 +92,8 @@ export default function AttachmentViewerDialog({ attachment, getViewUrl, onClose
     }
   };
 
-  const contentType = attachment?.content_type || "";
-  const fileName = attachment?.file_name || "File";
+  const contentType = attachment?.content_type || resolved?.content_type || "";
+  const fileName = attachment?.file_name || resolved?.file_name || "File";
 
   return (
     <div

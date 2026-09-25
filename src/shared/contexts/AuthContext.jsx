@@ -38,6 +38,31 @@ export function AuthContextProvider({ children }) {
     localStorage.removeItem("hrclouds_organizations");
   }, []);
 
+  /**
+   * Fetch the signed-in person's profile and merge it into `user`.
+   *
+   * This is what supplies their NAME. A login response and a JWT both carry
+   * only an id, a role and an identifier (their email) — so without this the
+   * dashboard greets people by their email address until something else
+   * happens to reload the app. That was the bug: only the stored-token path
+   * fetched it, so the name appeared on refresh but never at sign-in.
+   *
+   * Failure is non-fatal on purpose. Every screen that shows a name already
+   * falls back, and a profile read that times out must not cost somebody their
+   * session.
+   */
+  const hydrateProfile = useCallback(() => {
+    authAPI.me().then(res => {
+      const profile = res.data || res.user;
+      if (!profile) return;
+      // Keep the session's own user id: /organizations/me reuses the employee
+      // detail view, whose `id` may be the profile row, and a changed id makes
+      // the identity check in applyStoredToken discard this profile on the
+      // next token check.
+      setUser(prev => ({ ...prev, ...profile, id: prev?.id ?? profile.id }));
+    }).catch(err => console.error("Failed to fetch user profile", err));
+  }, []);
+
   // Restore a signed-in session from a stored access token.
   const applyStoredToken = useCallback((token) => {
     const session = sessionFromToken(token);
@@ -47,16 +72,8 @@ export function AuthContextProvider({ children }) {
     setOrgId(session.orgId);
     setUser((prev) => (prev?.id === session.user.id ? { ...prev, ...session.user } : session.user));
     setTokenExp(tokenHelper.expiresAt(token));
-
-    authAPI.me().then(res => {
-      const profile = res.data || res.user;
-      if (!profile) return;
-      // Keep the session's own user id: /organizations/me reuses the employee
-      // detail view, whose `id` may be the profile row, and a changed id makes
-      // the identity check above discard this profile on the next token check.
-      setUser(prev => ({ ...prev, ...profile, id: prev?.id ?? profile.id }));
-    }).catch(err => console.error("Failed to fetch user profile", err));
-  }, []);
+    hydrateProfile();
+  }, [hydrateProfile]);
 
   const clearSession = useCallback(() => {
     tokenHelper.clear();
@@ -185,10 +202,14 @@ export function AuthContextProvider({ children }) {
       setTokenExp(tokenHelper.expiresAt(authData.accessToken));
       setSessionExpired(false);
       setIsAuthenticated(true);
+      // Signing in, selecting an org and switching org all land here, and none
+      // of those replies carries the person's name — so ask for it now rather
+      // than greeting them by their email address until the next refresh.
+      hydrateProfile();
     }
     clearSelectionState();
     return authData;
-  }, [extractAuthData, clearSelectionState]);
+  }, [extractAuthData, clearSelectionState, hydrateProfile]);
 
   // Full login — saves tokens, updates role
   const login = startSession;

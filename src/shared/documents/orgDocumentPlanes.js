@@ -37,6 +37,9 @@ export const ORG_PLANES = {
     confirm: api.orgConfirmUpload,
 
     publish: api.publishOrgDocument,
+    // Phase 5: how far a very large publish has got (#127). Only HR ever
+    // publishes, so only HR needs to watch one finish.
+    materialisation: api.getMaterialisation,
     replace: api.replaceOrgDocument,
     retire: api.retireOrgDocument,
     reject: api.rejectOrgDocument,

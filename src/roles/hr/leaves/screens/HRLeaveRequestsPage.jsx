@@ -11,6 +11,7 @@ import {
   HiChevronLeft, HiChevronRight, HiScale,
 } from "react-icons/hi";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import AttachmentLink from "../../../../shared/documents/AttachmentLink";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // Leave endpoints nest the applicant under `applicant` {id, first_name, last_name, email}.
@@ -283,9 +284,11 @@ function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
         title="Reason"
         icon={HiDocumentText}
         action={request.document_url && (
-          <a href={request.document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-lg transition">
-            <HiDocumentText className="w-3.5 h-3.5" /> View document
-          </a>
+          <AttachmentLink
+            url={request.document_url}
+            label="View document"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-lg transition"
+          />
         )}
       >
         <DetailText>{request.reason}</DetailText>

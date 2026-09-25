@@ -8,6 +8,10 @@
 // Always branch on the code, never on the message. `DOCUMENT_NOT_FOUND` is the
 // uniform denial for every `…/documents/:id` route (missing, other org, out of
 // your team, confidential, not yours) — the wording must not guess which.
+// Phase 4 adds a second uniform denial, `REQUEST_NOT_FOUND`, for every
+// `…/document-requests/:id` route, and for a manager it also covers "somebody
+// else raised it". The release note spells that one `DOCUMENT_NOT_FOUND`
+// instead, so both codes are mapped and both read the same to the user.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GONE = "This document isn't available any more. It may have been removed, or you may no longer have access to it. Refresh to see the latest.";
@@ -95,6 +99,48 @@ export const DOCUMENT_ERROR_MESSAGES = {
   // Manager proposals
   MANAGER_SINGLE_TARGET_REQUIRED: "A proposal is for one team member at a time. Choose exactly one person.",
 
+  // ── Requests, checklists & automation (Phase 4) ───────────────────────────
+  // The uniform denial for `…/document-requests/:id`: missing, another org's,
+  // outside your team, or — for a manager — raised by somebody else.
+  REQUEST_NOT_FOUND: "This request isn't available any more. It may have been cancelled or already met, or you may not have access to it. Refresh to see the latest.",
+  REQUEST_NOT_OPEN: "This request has already been met or cancelled, so there's nothing left to do on it. Refresh to see where it stands.",
+  DOCUMENT_ALREADY_PRESENT: "This person already has a valid document of this kind on file, so there's nothing to ask for. Open their file to see it, or ask them to replace it if it needs updating.",
+  DUPLICATE_REQUEST: "This document has already been asked for and the request is still open. Open that request instead of raising a second one.",
+  NOTHING_TO_REQUEST: "There's nothing outstanding on this checklist, so there's nothing to ask for.",
+  TYPE_NOT_REQUESTABLE: "Managers can't ask for this kind of document — only HR can. Ask your HR team to request it.",
+  // Also the answer when a signed-in HR or admin account has no employee
+  // record of its own — see isNoEmployeeRecord below, which reads it as a fact
+  // rather than as a failure.
+  USER_NOT_FOUND: "That person is no longer an active member of this organisation.",
+
+  // ── Templates, search, reports, exports & offboarding (Phase 5) ───────────
+  // The uniform denial for every `…/templates/:id` route. On the employee
+  // catalogue it also covers "not published", "hidden from employees" and "its
+  // document type forbids it" — so the wording must not guess which.
+  TEMPLATE_NOT_FOUND: "This form isn't available any more. It may have been replaced by a newer version or retired. Refresh to see the current forms.",
+  TEMPLATE_NOT_DRAFT: "This form has already been published, so it can't be edited. Use “Publish a new version” to change it.",
+  TEMPLATE_NOT_REPLACEABLE: "Only the live version of a form can get a new version.",
+  TEMPLATE_NOT_ARCHIVABLE: "Only a live form can be retired. A draft can be deleted, and a replaced version is already out of the catalogue.",
+  TEMPLATE_DRAFT_EXISTS: "A new version of this form is already being drafted. Finish or delete that draft first.",
+  TEMPLATE_PUBLISH_CONFLICT: "Someone published a version of this form a moment ago. Refresh to see the live one.",
+  TEMPLATE_NOT_DELETABLE: "Only a draft can be deleted. Retire the form instead — that takes it out of the catalogue but keeps the record.",
+  TEMPLATE_FILE_NOT_UPLOADED: "The file didn't reach storage. Upload it again.",
+  TEMPLATE_FILE_MISSING: "This form has no file or link yet, so there's nothing to publish or download. Add one first.",
+
+  SEARCH_FILTER_REQUIRED: "Start with something to search on: a word from the title, a person, a kind of document, or a tag. Status, department and dates narrow a search down — they can't be the whole of one.",
+  SEARCH_QUERY_TOO_SHORT: "Type at least two characters to search.",
+  TAG_TOO_LONG: "One of the tags is too long. Keep each one under 64 characters.",
+  TAG_INVALID: "A tag can only use lowercase letters, numbers, spaces, hyphens and underscores, and must start with a letter or number.",
+  TOO_MANY_TAGS: "A document can hold up to 10 tags. Remove a few and try again.",
+  PAGINATION_TOO_DEEP: "You've reached as far into these results as the search will go. Narrow the filters to find what you're after.",
+
+  EXPORT_NOT_FOUND: "That export record couldn't be found.",
+  EXPORT_LEDGER_UNAVAILABLE: "Downloads are recorded for audit before they're sent, and that record couldn't be written — so nothing was exported. Try again in a moment.",
+  EXIT_PACK_TOO_LARGE: "This person has more documents than one pack can hold. Choose a narrower scope — their own documents, or company documents — and take two packs.",
+  EXIT_DATE_IN_FUTURE: "Their last working day hasn't arrived yet. Wait until it has, or tick “do it anyway” if their paperwork is being closed early.",
+  NOT_OFFBOARDING: "This person is still an active member of the organisation with no recorded exit, so there's nothing to close down. Record their exit first.",
+  INVALID_SECTION: "That part of the page couldn't be loaded. Refresh and try again.",
+
   // Settings
   SCAN_PROVIDER_NOT_CONFIGURED: "Virus scanning isn't available yet, so it can't be turned on.",
   INSUFFICIENT_CHECKERS: "Separate checker needs at least two active HR administrators. Add another HR administrator first.",
@@ -120,6 +166,9 @@ export function documentErrorMessage(err, fallback = "Something went wrong. Plea
   const serverMessage = typeof err?.data?.message === "string" ? err.data.message.trim() : "";
 
   if (err?.status === 401) return "Your session has expired. Please sign in again.";
+  if (isFeatureNotDeployed(err)) {
+    return "This part of Documents isn't available on your server yet. It arrives with the next update — nothing is wrong with your data.";
+  }
   if (code && SERVER_MESSAGE_CODES.has(code) && serverMessage) return serverMessage.replace(/"/g, "");
   if (code && DOCUMENT_ERROR_MESSAGES[code]) return DOCUMENT_ERROR_MESSAGES[code];
   if (err?.status === 503) return DOCUMENT_ERROR_MESSAGES.DOCUMENT_STORAGE_UNAVAILABLE;
@@ -210,3 +259,114 @@ export function typeInUseSummary(err) {
   return `This type can't be switched off yet: ${list}. Finish, reject or delete those first — documents that are already done never block this.`;
 }
 
+// ── Phase 4 ─────────────────────────────────────────────────────────────────
+/**
+ * #80 / #93 refused because an open request already exists.
+ * `details.request_id` points at it, so the screen can offer to open that one
+ * instead of leaving the user to hunt for it.
+ */
+export function duplicateRequestId(err) {
+  if (documentErrorCode(err) !== "DUPLICATE_REQUEST") return null;
+  return err?.data?.details?.request_id || null;
+}
+
+/** A live document of this type already exists, so there is nothing to ask for. */
+export const isDocumentAlreadyPresent = (err) => documentErrorCode(err) === "DOCUMENT_ALREADY_PRESENT";
+
+/** #81 refused because the checklist has nothing outstanding — good news, not an error. */
+export const isNothingToRequest = (err) => documentErrorCode(err) === "NOTHING_TO_REQUEST";
+
+/**
+ * The request moved on under us (met, cancelled, or no longer ours to see).
+ * Re-read the list; retrying the same call will fail the same way.
+ */
+export const isRequestStale = (err) =>
+  ["REQUEST_NOT_OPEN", "REQUEST_NOT_FOUND"].includes(documentErrorCode(err));
+
+/**
+ * A `/employees/:userId/...` read or write refused for scope. The manager
+ * planes answer 403 here (rather than the 404 used for `/:id` routes), so the
+ * screen can say plainly that the person isn't on their team.
+ */
+export const isOutOfScope = (err) => err?.status === 403 && documentErrorCode(err) === "FORBIDDEN";
+
+/** #93 refused because this kind of document is HR's to ask for, not a manager's. */
+export const isTypeNotRequestable = (err) => documentErrorCode(err) === "TYPE_NOT_REQUESTABLE";
+
+/**
+ * A checklist read (#86 / #96 / #98) answered "no such employee".
+ *
+ * On the self plane this is NOT a fault: an HR or administrator account that was
+ * never set up as an employee has no employee record, so there is nothing for a
+ * required-document checklist to be about. Verified against the live API — HR
+ * and manager accounts without an employee profile get 404 USER_NOT_FOUND from
+ * `/documents/me/checklist`, while `/documents/me/document-requests` answers an
+ * ordinary empty list. The screen must say so plainly instead of telling
+ * somebody they are no longer an active member of their own organisation.
+ */
+export const isNoEmployeeRecord = (err) => err?.status === 404 && documentErrorCode(err) === "USER_NOT_FOUND";
+
+// ── Phase 5 ─────────────────────────────────────────────────────────────────
+/**
+ * #104 refused because a draft is already open in this template's group. The
+ * server hands back which one, so the screen can offer to open it rather than
+ * leaving somebody to hunt through the list. The key has been seen as both
+ * `template_id` and `draft_id`, so both are read.
+ */
+export function existingTemplateDraftId(err) {
+  if (documentErrorCode(err) !== "TEMPLATE_DRAFT_EXISTS") return null;
+  const d = err?.data?.details || {};
+  return d.template_id || d.draft_id || d.id || null;
+}
+
+/** The template moved on under us. Re-read it; retrying the same call fails the same way. */
+export const isTemplateStale = (err) =>
+  ["TEMPLATE_NOT_DRAFT", "TEMPLATE_NOT_REPLACEABLE", "TEMPLATE_NOT_ARCHIVABLE", "TEMPLATE_PUBLISH_CONFLICT", "TEMPLATE_NOT_DELETABLE"]
+    .includes(documentErrorCode(err));
+
+/** The template has nothing to publish or download yet (#103 / #110 / #112). */
+export const isTemplateFileMissing = (err) =>
+  ["TEMPLATE_FILE_MISSING", "TEMPLATE_FILE_NOT_UPLOADED"].includes(documentErrorCode(err));
+
+/**
+ * An export was refused because the audit ledger couldn't record it. This is
+ * the one refusal worth spelling out: NOTHING was downloaded, so there is no
+ * half-finished file anywhere, and trying again is the right response.
+ */
+export const isExportLedgerDown = (err) => documentErrorCode(err) === "EXPORT_LEDGER_UNAVAILABLE";
+
+/** #123 refused because the pack would be over 500 items. */
+export const isExitPackTooLarge = (err) => documentErrorCode(err) === "EXIT_PACK_TOO_LARGE";
+
+/**
+ * #122 refused because the last working day is still ahead. `details.effective_on`
+ * is that date, which the dialog shows before offering to go ahead anyway.
+ */
+export function exitDateInFuture(err) {
+  if (documentErrorCode(err) !== "EXIT_DATE_IN_FUTURE") return null;
+  const d = err?.data?.details || {};
+  return { effectiveOn: d.effective_on || d.last_working_day || null };
+}
+
+/** #122 refused because this person simply hasn't left. */
+export const isNotOffboarding = (err) => documentErrorCode(err) === "NOT_OFFBOARDING";
+
+/** #113 refused because the page asked for is past the server's depth limit. */
+export const isPaginationTooDeep = (err) => documentErrorCode(err) === "PAGINATION_TOO_DEEP";
+
+/**
+ * The route isn't there at all — this part of the module hasn't been deployed
+ * to the server the app is pointed at.
+ *
+ * Every real 404 from this API carries the JSON envelope (`{ success: false,
+ * errorCode: ... }`). An unrouted path falls through to Express's own HTML
+ * error page, so `request()` ends up with no parsed body at all. That absence
+ * is the discriminator, and it is worth telling apart: "couldn't load the
+ * forms" sends somebody hunting for a fault in their data, when the honest
+ * answer is that their server is a release behind.
+ */
+export const isFeatureNotDeployed = (err) => err?.status === 404 && !err?.data;
+
+/** #121 refused on the tags themselves, rather than on the document. */
+export const isTagRejected = (err) =>
+  ["TAG_TOO_LONG", "TAG_INVALID", "TOO_MANY_TAGS"].includes(documentErrorCode(err));

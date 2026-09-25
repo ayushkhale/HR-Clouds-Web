@@ -6,6 +6,8 @@ import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
   HiInformationCircle, HiClock, HiXCircle, HiExternalLink, HiChevronDown
 } from "react-icons/hi";
+import AttachmentLink from "../../../shared/documents/AttachmentLink";
+import LeaveAttachmentField from "../../../shared/documents/LeaveAttachmentField";
 
 // Whether a leave's start date is today or already past. The backend decides
 // cancellation behaviour by DATE, not status: a leave entirely in the future is
@@ -178,9 +180,11 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
               {details.document_url && (
                 <div>
                   <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Attachment</p>
-                  <a href={details.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 px-4 py-2 rounded-xl font-semibold transition">
-                    <HiExternalLink className="w-4 h-4" /> View Document
-                  </a>
+                  <AttachmentLink
+                    url={details.document_url}
+                    label="View Document"
+                    className="inline-flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 px-4 py-2 rounded-xl font-semibold transition"
+                  />
                 </div>
               )}
             </div>
@@ -314,6 +318,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
     half_day_type: "first_half",
     reason: "",
     document_url: "",
+    document_id: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -369,7 +374,8 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
   }, [form.start_date, form.end_date, form.is_half_day]);
 
   const docThreshold = selectedType?.requires_document_threshold || 0;
-  const docMayBeRequired = docThreshold > 0 && spanDays > docThreshold && !form.document_url.trim();
+  const hasEvidence = !!form.document_id || !!form.document_url.trim();
+  const docMayBeRequired = docThreshold > 0 && spanDays > docThreshold && !hasEvidence;
   const mayNeedLWP = effective !== null && spanDays > 0 && spanDays > effective;
 
   function set(key, val) {
@@ -411,7 +417,11 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
     };
     if (form.is_half_day) payload.half_day_type = form.half_day_type;
     if (form.reason.trim()) payload.reason = form.reason.trim();
-    if (form.document_url.trim()) payload.document_url = form.document_url.trim();
+    // One piece of evidence, one field. A document already in the portal is
+    // sent as an id — the server stores a reference to it that the approver
+    // and HR can open, instead of a second copy nobody can check.
+    if (form.document_id) payload.document_id = form.document_id;
+    else if (form.document_url.trim()) payload.document_url = form.document_url.trim();
     try {
       const res = await leaveAPI.submitRequest(payload);
       setBreakdown(res.data);
@@ -629,24 +639,17 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
             <p className="text-[10px] text-slate-400 mt-1 text-right">{form.reason.length}/1000</p>
           </div>
 
-          {/* Document URL */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Supporting Document{" "}
-              <span className="normal-case font-normal text-slate-400">(may be required for longer leaves)</span>
-            </label>
-            <div className="relative">
-              <HiExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="url"
-                value={form.document_url}
-                onChange={e => set("document_url", e.target.value)}
-                placeholder="https://drive.google.com/file/..."
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-              />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Paste a link to your doctor's note, medical certificate, etc.</p>
-          </div>
+          {/* Supporting document — one they already have, or a link. */}
+          <LeaveAttachmentField
+            value={{ document_id: form.document_id, document_url: form.document_url }}
+            onChange={(next) => {
+              setForm(f => ({ ...f, document_id: next.document_id, document_url: next.document_url }));
+              setError("");
+              setBreakdown(null);
+            }}
+            required={docThreshold > 0 && spanDays > docThreshold}
+            disabled={loading}
+          />
 
           <div className="flex gap-3 pt-1">
             <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">

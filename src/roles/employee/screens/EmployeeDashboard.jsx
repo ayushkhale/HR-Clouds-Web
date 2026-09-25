@@ -13,6 +13,7 @@ import { fmtDate, fmtHours, fmtMinutes, isFutureMonth, monthLabel, shiftMonth, t
 import { humanize } from "../../../shared/attendance/enums";
 import { ErrorState, StatusBadge } from "../../../shared/attendance/ui";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
+import { greetingFor } from "../../../shared/utils/greeting";
 
 const PREVIEW_ROWS = 5;
 
@@ -47,15 +48,6 @@ function CardHeader({ title, subtitle, action, icon: Icon, divider = false }) {
     </div>
   );
 }
-
-function greeting(date = new Date()) {
-  const h = date.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
-const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 /** Hover card for the daily-hours bars. */
 function HoursTooltip({ active, payload }) {
@@ -114,7 +106,6 @@ function EmployeeDashboard() {
     { label: "Total hours", value: totalWorkedLabel(summary), icon: HiChartBar },
   ];
 
-  const firstName = user?.first_name || user?.name?.split(" ")[0] || user?.identifier?.split("@")[0] || "there";
   const nextPeriod = shiftMonth(period.year, period.month, 1);
   const atCurrentMonth = isFutureMonth(nextPeriod.year, nextPeriod.month);
   const monthName = monthLabel(period.year, period.month);
@@ -124,20 +115,19 @@ function EmployeeDashboard() {
       <DashboardTopBar title="Dashboard" />
 
       <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
-        <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-sm">
+        <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
           <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-          <div className="relative z-10 max-w-2xl space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tracking-wide border border-white/20">
-              <HiSparkles className="w-3.5 h-3.5 text-purple-200" />
-              EMPLOYEE PORTAL
+          <div className="relative z-10 max-w-2xl space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
+              <HiSparkles className="w-3 h-3 text-purple-200" /> EMPLOYEE PORTAL
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-2">{greeting()}, {titleCase(firstName)}!</h1>
-            <p className="text-xs sm:text-sm text-purple-100/80 font-normal pt-2">Clock in, track your working hours and keep your attendance record accurate.</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{greetingFor(user, "there")}</h1>
+            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Clock in, track your working hours and keep your attendance record accurate.</p>
           </div>
           <img
             src="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
             alt=""
-            className="relative z-10 w-36 sm:w-56 md:w-72 object-contain drop-shadow-2xl sm:mr-4 md:mr-8"
+            className="relative z-10 w-28 sm:w-40 md:w-48 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-4 sm:-mb-6"
           />
         </div>
 

@@ -4,15 +4,17 @@ import { payrollAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye,
+  HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye, HiCurrencyRupee,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText } from "../../../../shared/components/DetailDialog";
 import { StatutorySummary, StatutoryUnavailableNotice, RecalculationPendingNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown";
 import { costFromPreview, deductionsFromPreview, componentFlagsByCode, hasBalancingLine, solveCtcForTargetCost } from "../../../../shared/utils/employerStatutoryCost";
 import CtcMoneyFlow from "../CtcMoneyFlow";
+import { prettifyCode } from "../runMeta";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -73,62 +75,201 @@ const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_na
 const userDept = (u) => u?.department || u?.department_name || "N/A";
 
 // ── Revision history (all statuses — HR needs the full audit picture, #17) ──
-function HistoryModal({ user, onClose, showToast }) {
+//
+// Built on the shared `DetailDialog` record-inspector — the same pattern the
+// payroll run uses when you open one person's payslip: stat tiles for the
+// headline figures, then collapsible titled sections, with `DetailGrid` for
+// label/value pairs and `DetailTable` for line items. Using it here means a
+// salary revision reads exactly like a payslip, which is the point: they are
+// the same kind of thing looked at from two directions.
+//
+// The history read returns far more than a list of numbers — every revision
+// carries its monthly gross, its whole component breakdown, who proposed it,
+// who approved it and when, and why it was rejected if it was. Showing only the
+// CTC and the dates threw all of that away, which made the timeline read as
+// "six revisions happened" rather than answering what changed, by how much, and
+// who signed it off.
+
+/** The step between two revisions, as an amount and a percentage. */
+function ctcDelta(current, previous) {
+  const now = Number(current?.annual_ctc);
+  const before = Number(previous?.annual_ctc);
+  if (!Number.isFinite(now) || !Number.isFinite(before) || before <= 0) return null;
+  const diff = now - before;
+  return { diff, pct: diff === 0 ? 0 : Math.round((diff / before) * 1000) / 10 };
+}
+
+function DeltaPill({ delta }) {
+  if (!delta) return <DetailPill tone="muted">First on record</DetailPill>;
+  if (delta.diff === 0) return <DetailPill tone="muted">No change in CTC</DetailPill>;
+  const up = delta.diff > 0;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${up ? "bg-violet-50 text-violet-700 border-violet-200" : "bg-rose-50 text-rose-700 border-rose-200"}`}>
+      {up ? "▲" : "▼"} {formatMoney(Math.abs(delta.diff))} ({up ? "+" : "−"}{Math.abs(delta.pct)}%)
+    </span>
+  );
+}
+
+/** Earnings and deductions split, the same two columns a payslip uses. */
+function RevisionLines({ components }) {
+  const rows = Array.isArray(components) ? components : [];
+  const byOrder = (a, b) => (Number(a.display_order) || 0) - (Number(b.display_order) || 0);
+  const earnings = rows.filter((c) => c.component_type !== "deduction").sort(byOrder);
+  const deductions = rows.filter((c) => c.component_type === "deduction").sort(byOrder);
+
+  const columns = (tone) => [
+    {
+      header: "Component",
+      render: (c) => (
+        <span className="font-semibold text-slate-700">
+          {c.component_name || prettifyCode(c.component_code)}
+          {c.is_statutory && <span className="ml-1.5 text-[9px] font-bold uppercase text-indigo-600">statutory</span>}
+          {c.is_hra && <span className="ml-1.5 text-[9px] font-bold uppercase text-purple-600">hra</span>}
+        </span>
+      ),
+    },
+    { header: "How it's worked out", render: (c) => <DetailPill tone="muted">{prettifyCode(c.calculation_type) || "Fixed"}</DetailPill> },
+    { header: "Monthly", align: "right", render: (c) => <span className="tabular-nums text-slate-500">{formatMoney(c.monthly_amount)}</span> },
+    { header: "Annual", align: "right", render: (c) => <span className={`font-bold tabular-nums ${tone}`}>{formatMoney(c.annual_amount)}</span> },
+  ];
+
+  if (!rows.length) {
+    return <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">No component breakdown was recorded for this revision.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+      <div>
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Earnings</p>
+        <DetailTable columns={columns("text-slate-800")} rows={earnings} empty="No earnings recorded." />
+      </div>
+      <div>
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Deductions</p>
+        <DetailTable columns={columns("text-rose-600")} rows={deductions} empty="No deductions in this structure." />
+      </div>
+    </div>
+  );
+}
+
+function HistoryModal({ user, onClose, showToast, nameOf }) {
   const [rows, setRows] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     payrollAPI.getEmployeeStructureHistory(userId(user))
-      .then((res) => { if (!cancelled) setRows(res.data?.records || res.data || []); })
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data?.records || res.data || [];
+        const list = Array.isArray(data) ? data : [];
+        // Newest first, whatever order the server used.
+        setRows([...list].sort((a, b) =>
+          (Number(b.version) || 0) - (Number(a.version) || 0)
+          || String(b.effective_from || "").localeCompare(String(a.effective_from || ""))));
+      })
       .catch((err) => { if (!cancelled) { showToast(payrollErrorMessage(err, "Failed to load history"), "error"); setRows([]); } });
     return () => { cancelled = true; };
   }, [user, showToast]);
 
+  const who = (id, fallback) => (id ? (nameOf?.(id) || fallback) : null);
+  const current = rows?.find((h) => h.status === "approved" && !h.effective_to) || null;
+  const approved = rows?.filter((h) => h.status === "approved") || [];
+  const firstEver = rows?.length ? rows[rows.length - 1] : null;
+  const latestRise = approved.length > 1 ? ctcDelta(approved[0], approved[1]) : null;
+
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Salary history</h2>
-            <p className="text-xs text-slate-500">{userName(user)}{userDept(user) !== "N/A" ? ` · ${userDept(user)}` : ""}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto">
-          {rows === null ? <Skeleton type="table" rows={4} /> : rows.length === 0 ? (
-            <p className="text-center text-slate-400 py-8">No salary structures on record yet.</p>
-          ) : (
-            <ol className="space-y-0">
-              {rows.map((h, i) => {
-                const isCurrent = h.status === "approved" && !h.effective_to;
-                return (
-                  <li key={h.id || i} className="relative pl-6 pb-6 last:pb-0 border-l-2 border-slate-100 last:border-transparent">
-                    <span className={`absolute -left-[7px] top-1 w-3 h-3 rounded-full ring-4 ring-white ${isCurrent ? "bg-purple-600" : "bg-slate-300"}`} />
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-bold text-slate-800">{formatMoney(h.annual_ctc)}</span>
-                        <span className="text-xs text-slate-400">/ year</span>
-                        {h.version != null && <span className="text-[11px] text-slate-400">v{h.version}</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                          {REVISION_LABELS[h.revision_type] || h.revision_type || "Revision"}
-                        </span>
-                        {h.status && <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${STRUCT_STATUS[h.status] || "bg-slate-100 text-slate-500"}`}>{h.status}</span>}
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {formatDate(h.effective_from)} — {isCurrent ? "Present" : formatDate(h.effective_to)}
-                    </p>
-                    {h.revision_reason && <p className="text-xs text-slate-400 mt-1 italic">“{h.revision_reason}”</p>}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
-      </div>
-    </div>
+    <DetailDialog
+      eyebrow="Salary history"
+      icon={HiClock}
+      title={userName(user)}
+      subtitle={userDept(user) !== "N/A" ? userDept(user) : undefined}
+      badge={current ? <DetailPill tone="onDark">{formatMoney(current.annual_ctc)} / year</DetailPill> : <DetailPill tone="muted">No active structure</DetailPill>}
+      loading={rows === null}
+      onClose={onClose}
+    >
+      {rows !== null && rows.length === 0 ? (
+        <p className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+          No salary structures on record yet. Assign one to start this person&apos;s history.
+        </p>
+      ) : rows !== null && (
+        <>
+          <DetailStats
+            items={[
+              { label: "Current CTC", value: current ? formatMoney(current.annual_ctc) : null, hint: "per year", icon: HiCurrencyRupee },
+              { label: "Monthly gross", value: current ? formatMoney(current.monthly_gross) : null, hint: "before deductions", icon: HiCurrencyRupee },
+              { label: "Revisions", value: String(approved.length), hint: approved.length === 1 ? "approved" : "approved to date", icon: HiClock },
+              {
+                label: "Latest change",
+                value: latestRise && latestRise.diff !== 0 ? `${latestRise.diff > 0 ? "+" : "−"}${formatMoney(Math.abs(latestRise.diff))}` : null,
+                hint: latestRise && latestRise.diff !== 0 ? `${latestRise.diff > 0 ? "+" : "−"}${Math.abs(latestRise.pct)}% on the previous` : "no earlier structure to compare",
+                icon: HiUserGroup,
+              },
+            ]}
+          />
+
+          <DetailSection title="On this salary" icon={HiCurrencyRupee} collapsible={false}>
+            <DetailGrid
+              items={[
+                ["Effective from", current ? formatDate(current.effective_from) : null],
+                ["First ever structure", firstEver ? formatDate(firstEver.effective_from) : null],
+                ["Currency", current?.currency],
+                ["Latest version", current?.version != null ? `v${current.version}` : null],
+              ]}
+            />
+          </DetailSection>
+
+          {/* One collapsible section per revision, newest expanded — the same
+              shape as a payslip's Earnings / Deductions panels. */}
+          {rows.map((h, i) => {
+            const isCurrent = h.status === "approved" && !h.effective_to;
+            // Compared against the revision it replaced, which is the next
+            // approved one down — a rejected proposal replaced nothing.
+            const previous = rows.slice(i + 1).find((r) => r.status === "approved");
+            const delta = h.status === "approved" ? ctcDelta(h, previous) : null;
+            // An approved revision always gets a chip: the step it made, or
+            // "First on record" when there was nothing before it.
+            const showDelta = h.status === "approved";
+            return (
+              <DetailSection
+                key={h.id || i}
+                title={`v${h.version ?? "?"} · ${REVISION_LABELS[h.revision_type] || h.revision_type || "Revision"} · ${formatMoney(h.annual_ctc)}`}
+                icon={isCurrent ? HiCheckCircle : HiClock}
+                defaultOpen={i === 0}
+                action={
+                  <span className="flex items-center gap-2">
+                    {showDelta && <DeltaPill delta={delta} />}
+                    {isCurrent
+                      ? <DetailPill tone="solid">Current</DetailPill>
+                      : <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${STRUCT_STATUS[h.status] || "bg-slate-100 text-slate-500"}`}>{h.status}</span>}
+                  </span>
+                }
+              >
+                <DetailGrid
+                  items={[
+                    ["Annual CTC", formatMoney(h.annual_ctc)],
+                    ["Monthly gross", formatMoney(h.monthly_gross)],
+                    ["In force from", formatDate(h.effective_from)],
+                    ["In force until", isCurrent ? "Present" : formatDate(h.effective_to)],
+                    ["Proposed by", who(h.proposed_by, "A colleague")],
+                    ["Approved by", who(h.approved_by, "A colleague")],
+                    ["Decided on", h.actioned_at ? formatDate(h.actioned_at) : null],
+                    ["Created", h.created_at ? formatDate(h.created_at) : null],
+                  ]}
+                />
+
+                {h.revision_reason && <div className="mt-4"><DetailText label="Why it changed">{h.revision_reason}</DetailText></div>}
+                {h.status === "rejected" && h.rejection_reason && (
+                  <div className="mt-4"><DetailText label="Why it was rejected">{h.rejection_reason}</DetailText></div>
+                )}
+
+                <div className="mt-5">
+                  <RevisionLines components={h.components} />
+                </div>
+              </DetailSection>
+            );
+          })}
+        </>
+      )}
+    </DetailDialog>
   );
 }
 
@@ -489,6 +630,12 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
 
 export default function EmployeeSalaryStructuresPage() {
   const [employees, setEmployees] = useState([]);
+  // The roster this page already loads doubles as the directory the salary
+  // history needs to name whoever proposed and approved each revision.
+  const nameOf = useCallback((id) => {
+    const hit = employees.find((e) => userId(e) === id);
+    return hit ? userName(hit) : "";
+  }, [employees]);
   const [templates, setTemplates] = useState([]);
   const [statutoryConfig, setStatutoryConfig] = useState(null);
   const [componentFlags, setComponentFlags] = useState({});
@@ -632,7 +779,7 @@ export default function EmployeeSalaryStructuresPage() {
         )}
       </main>
 
-      {historyUser && <HistoryModal user={historyUser} onClose={() => setHistoryUser(null)} showToast={showToast} />}
+      {historyUser && <HistoryModal user={historyUser} onClose={() => setHistoryUser(null)} showToast={showToast} nameOf={nameOf} />}
 
       {assignUser && (
         <AssignModal

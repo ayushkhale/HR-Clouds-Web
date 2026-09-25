@@ -21,6 +21,7 @@ import { DOC_GROUPS, arrayPayload, formatBytes, formatList, groupLabel } from ".
 import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from "../../../../shared/documents/ui";
 import { invalidateDocumentTypes } from "../../../../shared/documents/useDocumentTypes";
 import DocumentTypeFormDialog from "../DocumentTypeFormDialog";
+import { isRequiredOfEveryone, mandatoryCriteria } from "../../../../shared/documents/requestMeta";
 
 const TYPE_API = {
   create: documentsAPI.createType,
@@ -293,6 +294,7 @@ export default function DocumentTypesPage() {
   }, [state.rows, search]);
 
   const activeCount = state.rows.filter((t) => t.is_active !== false).length;
+  const requiredCount = state.rows.filter((t) => t.is_active !== false && t.is_mandatory).length;
   const unfiltered = !filters.plane && !filters.group && !filters.source && !filters.is_active && !search;
 
   // Open from the row at once, then re-read the type (#6) so the form starts
@@ -322,8 +324,8 @@ export default function DocumentTypesPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Document Types</h1>
             <p className="text-sm text-slate-500 mt-1">
-              The documents your organisation collects from its people, and the policies it issues to them.
-              {!state.loading && !state.error && unfiltered && <span className="font-semibold text-slate-700"> {activeCount} active.</span>}
+              The documents your organisation collects from its people, and the policies it issues to them. Mark one as required and it appears on the right people’s Required documents list.
+              {!state.loading && !state.error && unfiltered && <span className="font-semibold text-slate-700"> {activeCount} active{requiredCount > 0 ? `, ${requiredCount} required` : ""}.</span>}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -419,6 +421,11 @@ export default function DocumentTypesPage() {
                                 </>
                               ) : (
                                 <>
+                                  {t.is_mandatory && (
+                                    <Chip tone="purple">
+                                      {isRequiredOfEveryone(mandatoryCriteria(t)) ? "Required of everyone" : "Required of some"}
+                                    </Chip>
+                                  )}
                                   <Chip tone={t.requires_verification ? "violet" : "slate"}>{t.requires_verification ? "Verified by HR" : "No review"}</Chip>
                                   {t.has_expiry && <Chip tone="fuchsia">Expiry</Chip>}
                                   <Chip>{t.allows_multiple ? "Several" : "One per person"}</Chip>

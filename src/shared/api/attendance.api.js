@@ -126,7 +126,7 @@ export const attendanceAPI = {
   /** Deactivates (is_active → false); the shift stays in the list. There is no reactivation. */
   deleteShift: (id) => del(`/attendance/hr/shifts/${seg(id)}`),
 
-  // ── HR › Shift Roster / Assignments (H6–H9) ────────────────────────────────
+  // ── HR › Shift Management / Assignments (H6–H9) ────────────────────────────
   /** Not paginated. Filters: `user_id`, `shift_id`, `rotation_pattern_id` (UUIDs) only. */
   getAssignments: (params = {}) => withShiftFilters(params, ASSIGNMENT_FILTERS, (query) => request(`/attendance/hr/shifts/assignments${query}`)),
   /** body: { user_id, (shift_id XOR rotation_pattern_id), effective_from, effective_to? } — no update route exists (§2 C2). */

@@ -128,9 +128,16 @@ export default function MyDocumentsPage() {
   const openReplace = (doc) => { setDetail(null); setUploading({ mode: "replace", predecessor: doc }); };
   const uploadAgain = (doc) => { setDetail(null); openUpload(index.has(doc.document_type_id) ? doc.document_type_id : ""); };
 
+  /**
+   * The confirm reply carries `fulfilled_request_id` when this upload met an
+   * open request (Phase 4's auto-fulfil handshake). Saying so closes the loop:
+   * the employee was asked for something, uploaded it, and can see that the ask
+   * is now settled without hunting for it on another screen.
+   */
   const onUploaded = (doc) => {
     setUploading(null);
-    showToast(doc?.status === "pending_verification" ? "Uploaded — it's now waiting for review" : "Uploaded and active");
+    const base = doc?.status === "pending_verification" ? "Uploaded — it's now waiting for review" : "Uploaded and active";
+    showToast(doc?.fulfilled_request_id ? `${base}. That also closes what was asked of you for it.` : base);
     load();
   };
 
@@ -141,7 +148,9 @@ export default function MyDocumentsPage() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">My Documents</h1>
-            <p className="text-sm text-slate-500 mt-1">Your identity, education and employment papers, kept in encrypted storage. Only you and HR can see confidential ones.</p>
+            <p className="text-sm text-slate-500 mt-1">
+              Your identity, education and employment papers, kept in encrypted storage. Only you and HR can see confidential ones.
+            </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button type="button" onClick={() => { load(); reloadTypes(); }} disabled={state.loading} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh" title="Refresh">

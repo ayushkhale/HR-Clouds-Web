@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import { HiCloudUpload, HiDocumentText, HiExclamationCircle, HiPhotograph, HiRefresh, HiX, HiLink, HiTable } from "react-icons/hi";
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
 import { TONE_CLASSES, TONE_DOT } from "../attendance/enums";
-import { documentErrorMessage, isDocumentsDisabled } from "../utils/documentErrors";
+import { documentErrorMessage, isDocumentsDisabled, isFeatureNotDeployed } from "../utils/documentErrors";
 import { ALL_CONTENT_TYPES, HARD_MAX_BYTES, acceptAttr, contentTypeLabel, contentTypeOfFile, docStatusMeta, formatBytes, formatList, isImageType, isReferenceDoc } from "./documentMeta";
 
 export const FIELD = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition disabled:opacity-60";
@@ -101,12 +101,24 @@ export function FileDropField({ file, onChange, allowed, maxBytes, problem, disa
   );
 }
 
-/** Error block that turns a disabled `documents.access` flag into a clear notice. */
+/**
+ * Error block that turns the two "this isn't a fault" cases into clear notices:
+ * a disabled `documents.access` flag, and a part of the module the server
+ * hasn't been updated to yet. Neither gets a Try again button, because trying
+ * again is not what fixes them.
+ */
 export function DocErrorState({ error, onRetry, fallback = "Couldn't load documents.", className = "" }) {
   if (isDocumentsDisabled(error)) {
     return (
       <div className={`py-6 ${className}`}>
         <FeatureNotAvailable title="Documents aren't enabled" message={documentErrorMessage(error)} />
+      </div>
+    );
+  }
+  if (isFeatureNotDeployed(error)) {
+    return (
+      <div className={`py-6 ${className}`}>
+        <FeatureNotAvailable title="Not on your server yet" message={documentErrorMessage(error)} />
       </div>
     );
   }

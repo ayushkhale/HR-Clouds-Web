@@ -36,6 +36,8 @@ import { OrgStatusBadge } from "./orgUi";
 import OrgRecipientsSection from "./OrgRecipientsSection";
 import { AcknowledgeDialog, EvidenceDialog, SignDialog } from "./ComplianceDialogs";
 import { ackBlockOf, actionWindow, complianceStateMeta, dueLabel, hasEvidence, myComplianceState, nextActionOf } from "./complianceMeta";
+import { materialisationOf, remainingRecipients } from "./offboardingMeta";
+import { PercentBar } from "./phase5Ui";
 import {
   TARGET_DIMENSIONS, canDeleteOrg, canEditOrgDraft, canRejectProposal, canReplaceOrg,
   canRetire, describeAudience, documentTypeName, goesToEveryone, hasCriteria, hasRecipients,
@@ -93,6 +95,9 @@ export default function OrgDocumentDetailDialog({
   const [retiring, setRetiring] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [dialogError, setDialogError] = useState("");
+  // Set when a publish is too big to hand out in one go (#47 → 202). Polled
+  // from #127 until it finishes, then cleared.
+  const [materialisation, setMaterialisation] = useState(null);
   // Self plane, Phase 3: which confirm dialog is open, its error, the receipt.
   const [acting, setActing] = useState(null); // "acknowledge" | "sign" | null
   const [actError, setActError] = useState(null);
@@ -165,6 +170,31 @@ export default function OrgDocumentDetailDialog({
     await Promise.all([load(), loadVersions(), loadAudit()]);
   };
 
+  /**
+   * While a large publish is still filling in, ask how far it has got every ten
+   * seconds. The document is already live throughout — this is only about the
+   * rest of the audience — so a failed poll stops the watching rather than
+   * raising anything.
+   */
+  const pending = materialisation?.pending || doc?.materialisation_state === "pending";
+  useEffect(() => {
+    if (!pending || !plane.materialisation || !id) return undefined;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const progress = materialisationOf(await plane.materialisation(id));
+        if (!alive) return;
+        setMaterialisation(progress);
+        if (!progress.pending) load();
+      } catch {
+        if (alive) setMaterialisation((current) => (current ? { ...current, pending: false } : null));
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 10_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [pending, plane, id, load]);
+
   const failed = (err, fallback) => {
     showToast?.(documentErrorMessage(err, fallback), "error");
     if (isOrgDocumentStale(err)) refreshAll();
@@ -213,8 +243,16 @@ export default function OrgDocumentDetailDialog({
         res = await run(true);
       }
       const data = res?.data ?? res;
-      const count = Number(data?.recipient_count ?? data?.document?.recipient_count) || 0;
-      if (data?.already_published) showToast?.("This was already published.");
+      const count = Number(data?.recipient_count ?? data?.document?.recipient_count ?? data?.recipients_created) || 0;
+      // A very large audience is published immediately but handed out over the
+      // next few minutes, and the reply says so. Reading `materialisation_state`
+      // is the only way to tell: the body is all `request()` hands back, not the
+      // 202 status that carried it.
+      const progress = materialisationOf(data);
+      if (progress.pending) {
+        setMaterialisation(progress);
+        showToast?.(`Published. ${count.toLocaleString("en-IN")} of ${(progress.target ?? 0).toLocaleString("en-IN")} people have it already — the rest are being added now, which takes a few minutes.`);
+      } else if (data?.already_published) showToast?.("This was already published.");
       else if ((data?.warnings || []).includes("ZERO_RECIPIENTS")) {
         showToast?.("Published, but nobody matched the audience. Check the targeting and top up once it's fixed.", "error");
       } else {
@@ -512,6 +550,33 @@ export default function OrgDocumentDetailDialog({
         onClose={onClose}
         footer={<>{footerNote && <DetailFooterNote>{footerNote}</DetailFooterNote>}{footer}</>}
       >
+        {/* A publish too large to hand out in one go. The document is already
+            live for everybody who has it; this is the rest of the audience
+            catching up, and it needs no action from anyone. */}
+        {materialisation && (materialisation.pending || materialisation.complete) && (
+          <div className={`rounded-2xl border px-4 py-3.5 ${materialisation.pending ? "border-indigo-200 bg-indigo-50" : "border-violet-200 bg-violet-50/60"}`}>
+            <div className="flex items-start gap-3">
+              <HiUserGroup className={`w-5 h-5 shrink-0 mt-0.5 ${materialisation.pending ? "text-indigo-600" : "text-violet-600"}`} />
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-bold ${materialisation.pending ? "text-indigo-900" : "text-violet-900"}`}>
+                  {materialisation.pending ? "Still reaching everybody" : "Everybody has it"}
+                </p>
+                <p className={`text-xs mt-0.5 leading-relaxed ${materialisation.pending ? "text-indigo-800" : "text-violet-800"}`}>
+                  {materialisation.pending
+                    ? `This went to more people than can be handed out at once, so it was published immediately and the rest are being added a few thousand at a time. ${(remainingRecipients(materialisation) ?? 0).toLocaleString("en-IN")} still to go — nothing to do, and nobody is missing out in the meantime.`
+                    : `All ${(materialisation.target ?? materialisation.done).toLocaleString("en-IN")} people have it${materialisation.at ? `, finished ${fmtDateTime(materialisation.at)}` : ""}.`}
+                </p>
+                {materialisation.pending && (
+                  <PercentBar
+                    className="mt-3"
+                    value={materialisation.percent}
+                    sub={`${materialisation.done.toLocaleString("en-IN")} of ${(materialisation.target ?? 0).toLocaleString("en-IN")} added`}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {doc?.status === "rejected" && doc?.rejection_reason && (
           <Banner tone="rose" icon={HiExclamationCircle} title="Why HR declined it">{doc.rejection_reason}</Banner>
         )}

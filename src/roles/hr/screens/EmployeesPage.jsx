@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
+import { FilterTabs } from "../../../shared/attendance/ui";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
   HiUserGroup, HiSearch, HiMail, HiOfficeBuilding, HiRefresh, HiBan,
@@ -8,6 +9,9 @@ import {
 import { Toast, useToast } from "../../../shared/attendance/ui";
 
 import GenderAvatar, { avatarUrlOf, genderOf } from "../../../shared/components/GenderAvatar";
+
+/** "hr" → "HR", "employee" → "Employee". */
+const titleCaseRole = (r) => (r === "hr" ? "HR" : r ? r.charAt(0).toUpperCase() + r.slice(1) : r);
 
 function EmployeesPage() {
   const navigate = useNavigate();
@@ -22,6 +26,7 @@ function EmployeesPage() {
   // Optional Compliance/Address
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
 
 
   const [employees, setEmployees] = useState([]);
@@ -97,13 +102,28 @@ function EmployeesPage() {
     'employee': 3
   };
 
+  // Only the roles somebody is actually in become tabs, so a segment can never
+  // lead to an empty list. `owner` and `admin` appear when the org has them,
+  // which is why this is derived rather than a fixed list — and each tab carries
+  // its own count, the way a segmented filter should.
+  const roleTabs = [
+    { value: "", label: `All (${allTeamMembers.length})` },
+    ...[...new Set(allTeamMembers.map((m) => String(m.role || "").toLowerCase()).filter(Boolean))]
+      .sort((a, b) => (rolePriority[a] || 4) - (rolePriority[b] || 4) || a.localeCompare(b))
+      .map((r) => ({
+        value: r,
+        label: `${titleCaseRole(r)} (${allTeamMembers.filter((m) => String(m.role || "").toLowerCase() === r).length})`,
+      })),
+  ];
+
   const filteredMembers = allTeamMembers
     .filter((m) => {
       const matchesSearch =
         (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         (m.email || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRole = !roleFilter || String(m.role || "").toLowerCase() === roleFilter;
 
-      return matchesSearch;
+      return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
       const priorityA = rolePriority[a.role?.toLowerCase()] || 4;
@@ -138,20 +158,26 @@ function EmployeesPage() {
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-72">
-                  <HiSearch className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            {/* Same shape as Live Attendance: the role segments on the left,
+                search on the right. Roles are a small fixed set you switch
+                between, which is what segments are for — a dropdown hid them. */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+              <FilterTabs options={roleTabs} value={roleFilter} onChange={setRoleFilter} />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="relative sm:w-64">
+                  <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    type="text"
+                    type="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search member or email…"
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-full pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all"
+                    aria-label="Search people"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
                   />
                 </div>
-
-
+                <p className="text-xs font-semibold text-slate-400 whitespace-nowrap">
+                  {filteredMembers.length} {filteredMembers.length === 1 ? "person" : "people"}
+                </p>
               </div>
             </div>
 
@@ -160,7 +186,11 @@ function EmployeesPage() {
               {filteredMembers.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-slate-400 font-medium">
                   <HiUserGroup className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  No personnel matching &ldquo;{searchQuery}&rdquo;
+                  {searchQuery
+                    ? <>No personnel matching &ldquo;{searchQuery}&rdquo;{roleFilter ? ` in ${titleCaseRole(roleFilter)}` : ""}</>
+                    : roleFilter
+                      ? `Nobody in this organisation has the ${titleCaseRole(roleFilter)} role.`
+                      : "No personnel yet. Invite someone to get started."}
                 </div>
               ) : (
                 filteredMembers.map((member) => (

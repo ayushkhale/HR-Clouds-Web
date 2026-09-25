@@ -6,9 +6,10 @@ import { humanize } from "../../../shared/attendance/enums";
 import { personName } from "../../../shared/attendance/normalize";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
-  HiCalendar, HiDocumentText, HiExclamationCircle, HiGift, HiInformationCircle,
+  HiCalendar, HiExclamationCircle, HiGift, HiInformationCircle,
   HiMail, HiThumbDown, HiThumbUp, HiTrendingUp,
 } from "react-icons/hi";
+import AttachmentLink from "../../../shared/documents/AttachmentLink";
 
 // Leave endpoints nest the applicant as `applicant: { id, identifier, profile: { first_name, last_name } }`.
 export function leaveApplicantName(request) {
@@ -144,9 +145,13 @@ export default function LeaveRequestCard({ request, onApprove, onReject, busy = 
 
             {request.document_url && (
               <div className="mt-2">
-                <a href={request.document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-1.5 rounded-lg transition">
-                  <HiDocumentText className="w-3.5 h-3.5" /> View Supporting Document
-                </a>
+                {/* Either a pasted link or a document already in this portal —
+                    the second needs resolving, so both go through one place. */}
+                <AttachmentLink
+                  url={request.document_url}
+                  label="View Supporting Document"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-1.5 rounded-lg transition"
+                />
               </div>
             )}
           </div>

@@ -4,7 +4,7 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { organizationAPI } from "../../../shared/api";
 import { HiOfficeBuilding, HiSearch, HiUserGroup } from "react-icons/hi";
 import { departmentName, employeeCode, personName } from "../../../shared/attendance/normalize";
-import { ErrorState } from "../../../shared/attendance/ui";
+import { ErrorState, FilterTabs } from "../../../shared/attendance/ui";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 
@@ -17,12 +17,16 @@ const openKeys = (e) => e.key === "Enter" || e.key === " ";
  * A manager's direct reports, laid out like HR's Team directory. Selecting a
  * card opens the member's profile, where attendance, leave and editing live.
  */
+/** "hr" → "HR", "employee" → "Employee". */
+const titleCaseRole = (r) => (r === "hr" ? "HR" : r ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+
 export default function ManagerTeamRosterPage() {
   const navigate = useNavigate();
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
 
   const fetchTeam = useCallback(async () => {
     setLoading(true);
@@ -42,9 +46,22 @@ export default function ManagerTeamRosterPage() {
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
   const q = searchQuery.trim().toLowerCase();
-  const filteredTeam = q
-    ? team.filter((m) => [personName(m), m.email, employeeCode(m)].some((v) => String(v || "").toLowerCase().includes(q)))
-    : team;
+  // Only the roles this manager's own reports hold — usually just Employee, but
+  // a manager with managers under them gets both. Deriving it means the filter
+  // can never empty the list on its own.
+  const roleTabs = [
+    { value: "", label: `All (${team.length})` },
+    ...[...new Set(team.map((m) => String(m.role || "").toLowerCase()).filter(Boolean))].sort()
+      .map((r) => ({
+        value: r,
+        label: `${titleCaseRole(r)} (${team.filter((m) => String(m.role || "").toLowerCase() === r).length})`,
+      })),
+  ];
+  const filteredTeam = team.filter((m) => {
+    const matchesSearch = !q || [personName(m), m.email, employeeCode(m)].some((v) => String(v || "").toLowerCase().includes(q));
+    const matchesRole = !roleFilter || String(m.role || "").toLowerCase() === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
   const openMember = (m) => {
     const id = memberId(m);
@@ -62,19 +79,27 @@ export default function ManagerTeamRosterPage() {
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="relative w-full sm:w-72">
-              <HiSearch className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search member or email…"
-                aria-label="Search your team"
-                className="w-full bg-slate-50/70 border border-slate-200/80 rounded-full pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all"
-              />
+          {/* Same shape as Live Attendance: role segments left, search right. */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <FilterTabs options={roleTabs} value={roleFilter} onChange={setRoleFilter} />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="relative sm:w-64">
+                <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search member or email…"
+                  aria-label="Search your team"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              {!loading && !error && (
+                <p className="text-xs font-semibold text-slate-400 whitespace-nowrap">
+                  {filteredTeam.length} {filteredTeam.length === 1 ? "member" : "members"}
+                </p>
+              )}
             </div>
-            {!loading && !error && <p className="text-xs font-semibold text-slate-400">{filteredTeam.length} {filteredTeam.length === 1 ? "member" : "members"}</p>}
           </div>
 
           {error ? (
@@ -92,7 +117,9 @@ export default function ManagerTeamRosterPage() {
           ) : filteredTeam.length === 0 ? (
             <div className="py-16 text-center text-slate-400 font-medium">
               <HiUserGroup className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-              No members matching &quot;{searchQuery}&quot;
+              {searchQuery
+                ? <>No members matching &quot;{searchQuery}&quot;{roleFilter ? ` in ${titleCaseRole(roleFilter)}` : ""}</>
+                : `Nobody on your team has the ${titleCaseRole(roleFilter)} role.`}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

@@ -22,14 +22,28 @@ const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wid
  * is loaded here, because the roster projection carries no phone or address and
  * saving blanks over them would clear real values.
  */
-// `name` and `phone_number` are deliberately absent. Verified against the API
-// on 2026-09-24: both are stripped from the payload, and a body containing
-// only one of them comes back 400 "At least one field must be provided to
-// update" — so this modal, which previously sent exactly name/phone/avatar,
-// could only ever fail unless the photo happened to change too. The name lives
-// in `first_name` / `last_name`; `name` is a read-only composite. No field the
-// endpoint accepts can change a phone number.
+// `name`, `phone_number`, `work_location` and `location_id` are deliberately
+// absent. Re-verified against the API on 2026-09-26: all four are stripped from
+// the payload, and a body containing only one comes back 400 "At least one field
+// must be provided to update" — while the same request with `first_name`
+// succeeds. So this modal, which previously sent exactly name/phone/avatar,
+// could only ever fail unless the photo happened to change too.
+//
+// THE DISPLAY NAME IS ASYMMETRIC. It is WRITTEN as `display_name` and READ BACK
+// as `name` — sending `name` is what fails, sending `display_name` works. It is
+// also independent of `first_name` / `last_name`: it is what somebody was called
+// when they were invited, so an account can read `name: "mealex517"` while its
+// `first_name` is "Diamond". Changing it leaves both untouched, and the new
+// value shows up in the roster and the org directory.
+//
+// Work location genuinely cannot be set here: it comes from the invitation and
+// from the location on someone's department, so it moves with a department
+// transfer. It is shown locked rather than as a box that silently does nothing.
 const FIELDS = [
+  {
+    key: "display_name", label: "Display name", type: "text", required: true, full: true,
+    hint: "How this person's name appears everywhere in HR Clouds — the directory, their dashboard and every list. Independent of the first and last name below.",
+  },
   { key: "first_name", label: "First name", type: "text", required: true },
   { key: "last_name", label: "Last name", type: "text" },
   { key: "dob", label: "Date of birth", type: "date" },
@@ -43,6 +57,14 @@ const FIELDS = [
   { key: "avatar_url", label: "Photo URL", type: "url", full: true },
 ];
 
+/** Shown so the record reads as complete, never sent — the endpoint drops them. */
+const LOCKED_FIELDS = [
+  { key: "work_location", label: "Work location" },
+  { key: "designation", label: "Designation" },
+  { key: "department", label: "Department" },
+  { key: "employee_code", label: "Employee code" },
+];
+
 export default function EditMemberProfileModal({ userId, name, profile, onClose, onSaved }) {
   const blank = Object.fromEntries(FIELDS.map((f) => [f.key, ""]));
   const seed = (d) => {
@@ -51,10 +73,17 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
     return {
       ...blank,
       ...Object.fromEntries(FIELDS.map((f) => [f.key, d?.[f.key] ?? ""])),
+      // Written as `display_name`, read back as `name` — see the note above.
+      display_name: d?.display_name || d?.name || name || "",
       first_name: d?.first_name || first || "",
       last_name: d?.last_name || rest.join(" ") || "",
       avatar_url: d?.avatar_url || d?.avatar || "",
       dob: String(d?.dob || "").slice(0, 10),
+      ...Object.fromEntries(LOCKED_FIELDS.map((f) => {
+        const value = d?.[f.key];
+        // Department and work location can arrive as an object or a string.
+        return [f.key, (value && typeof value === "object" ? value.name : value) || ""];
+      })),
     };
   };
   const [form, setForm] = useState(profile ? seed(profile) : blank);
@@ -98,12 +127,18 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
     e.preventDefault();
     setError("");
     if (!userId) return;
+    if (!form.display_name.trim()) {
+      setError("Display name cannot be empty.");
+      return;
+    }
     if (!form.first_name.trim()) {
       setError("First name cannot be empty.");
       return;
     }
 
-    // Send only what changed, so untouched fields are never cleared.
+    // Send only what changed, so untouched fields are never cleared. `initial`
+    // is the seeded form, so its `display_name` already holds what the record
+    // returned as `name` — no special case needed here.
     const payload = {};
     FIELDS.forEach(({ key }) => {
       const next = String(form[key] ?? "").trim();
@@ -118,7 +153,7 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
     setSubmitting(true);
     try {
       await organizationAPI.updateEmployeeProfile(userId, payload);
-      onSaved?.(`${[form.first_name, form.last_name].filter(Boolean).join(" ").trim() || "This member"}'s profile was updated.`);
+      onSaved?.(`${form.display_name.trim() || [form.first_name, form.last_name].filter(Boolean).join(" ").trim() || "This member"}'s profile was updated.`);
     } catch (err) {
       setError(err?.data?.message || err.message || "Failed to update profile.");
     } finally {
@@ -168,12 +203,33 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
                     placeholder={f.placeholder} inputMode={f.inputMode} className={FIELD}
                   />
                 )}
+                {f.hint && <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{f.hint}</p>}
               </div>
             ))}
           </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Set elsewhere</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {LOCKED_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <label className={LABEL} htmlFor={`member-locked-${f.key}`}>{f.label}</label>
+                  <input
+                    id={`member-locked-${f.key}`}
+                    type="text"
+                    value={form[f.key] || "Not set"}
+                    readOnly
+                    disabled
+                    className={`${FIELD} bg-slate-50 text-slate-500 cursor-not-allowed`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Role, designation, department, gender and employee code can&apos;t be changed here — those are set when
-            someone is invited or moved between departments.
+            Role, designation, department, employee code and work location can&apos;t be changed here — a work location
+            comes from the invitation and from the location set on someone&apos;s department, so it moves with a
+            department transfer rather than being edited per person.
           </p>
         </div>
 
