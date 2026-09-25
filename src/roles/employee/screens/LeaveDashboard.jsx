@@ -4,8 +4,10 @@ import { leaveAPI, attendanceAPI } from "../../../shared/api";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
-  HiInformationCircle, HiClock, HiXCircle, HiExternalLink, HiChevronDown
+  HiInformationCircle, HiClock, HiXCircle, HiChevronDown,
+  HiDocumentText, HiScale
 } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, rowPreviewProps } from "../../../shared/components/DetailDialog";
 import AttachmentLink from "../../../shared/documents/AttachmentLink";
 import LeaveAttachmentField from "../../../shared/documents/LeaveAttachmentField";
 
@@ -89,6 +91,8 @@ function StatusBadge({ status }) {
 }
 
 // ─── Leave Request Detail Modal ───────────────────────────────────────────────
+// The same record-inspector HR and managers read on a leave request, so an
+// employee checking their own request sees it laid out identically.
 function LeaveRequestDetailModal({ requestId, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -110,88 +114,71 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
 
   if (!requestId) return null;
 
+  const days = (v) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? `${n.toFixed(1)} ${n === 1 ? "day" : "days"}` : null;
+  };
+  const onDate = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null);
+  const sameDay = details && details.start_date === details.end_date;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <h2 className="text-base font-bold text-slate-800">Leave Request Details</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
-            <HiX className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="p-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-            </div>
-          ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          ) : details ? (
-            <div className="space-y-6">
-              {/* Header Info */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">{details.leave_type?.name}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {new Date(details.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    {details.start_date !== details.end_date && ` → ${new Date(details.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`}
-                  </p>
-                </div>
-                <StatusBadge status={details.status} />
-              </div>
+    <DetailDialog
+      eyebrow="Leave request"
+      icon={HiCalendar}
+      title={details?.leave_type?.name || "Leave request"}
+      subtitle={details ? (sameDay ? onDate(details.start_date) : `${onDate(details.start_date)} → ${onDate(details.end_date)}`) : undefined}
+      badge={details?.status ? <DetailPill tone="onDark">{String(details.status).replace(/_/g, " ")}</DetailPill> : undefined}
+      loading={loading}
+      onClose={onClose}
+    >
+      {error ? (
+        <p className="flex items-start gap-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+          <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
+        </p>
+      ) : details ? (
+        <>
+          <DetailStats
+            items={[
+              { label: "Days off", value: days(details.total_days), icon: HiCalendar },
+              { label: "Paid", value: days(details.paid_days ?? 0), hint: "comes out of your balance", icon: HiCheckCircle },
+              { label: "Unpaid", value: days(details.unpaid_days ?? 0), hint: "leave without pay", icon: HiScale },
+            ]}
+          />
 
-              {/* Days breakdown */}
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-slate-900">{parseFloat(details.total_days).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">Total</p>
-                </div>
-                <div className="bg-violet-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-violet-700">{parseFloat(details.paid_days || 0).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-violet-500 mt-1">Paid</p>
-                </div>
-                <div className="bg-rose-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-rose-600">{parseFloat(details.unpaid_days || 0).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-rose-400 mt-1">LWP</p>
-                </div>
-              </div>
+          <DetailSection title="Leave details" icon={HiCalendar}>
+            <DetailGrid
+              items={[
+                ["Leave type", details.leave_type?.name],
+                ["From", onDate(details.start_date)],
+                ["To", onDate(details.end_date)],
+                ["Total", days(details.total_days)],
+                ["Half day", details.is_half_day ? (details.half_day_type === "first_half" ? "First half" : "Second half") : "No"],
+                ["Paid", days(details.paid_days ?? details.total_days)],
+                ["Unpaid", days(details.unpaid_days ?? 0)],
+                ["Applied on", onDate(details.created_at || details.requested_at)],
+              ]}
+            />
+          </DetailSection>
 
-              {/* Reason */}
-              {details.reason && (
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Reason</p>
-                  <p className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100">{details.reason}</p>
-                </div>
-              )}
-
-              {/* Rejection */}
-              {details.rejection_reason && (
-                <div>
-                  <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-2">Rejection Reason</p>
-                  <p className="text-sm text-rose-700 bg-rose-50 p-4 rounded-xl border border-rose-100">{details.rejection_reason}</p>
-                </div>
-              )}
-
-              {/* Document */}
-              {details.document_url && (
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Attachment</p>
-                  <AttachmentLink
-                    url={details.document_url}
-                    label="View Document"
-                    className="inline-flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 px-4 py-2 rounded-xl font-semibold transition"
-                  />
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
+          <DetailSection
+            title="Reason"
+            icon={HiDocumentText}
+            action={details.document_url && (
+              <AttachmentLink
+                url={details.document_url}
+                label="View document"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-lg transition"
+              />
+            )}
+          >
+            <DetailText>{details.reason}</DetailText>
+            {details.rejection_reason && (
+              <div className="mt-4"><DetailText label="Why it was rejected">{details.rejection_reason}</DetailText></div>
+            )}
+          </DetailSection>
+        </>
+      ) : null}
+    </DetailDialog>
   );
 }
 
@@ -752,12 +739,10 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
           <tbody className="text-xs font-semibold text-slate-700">
             {filtered.map(r => (
               <React.Fragment key={r.id}>
-                <tr className="hover:bg-slate-50 transition-colors">
+                <tr {...rowPreviewProps(() => onView(r.id), "Leave request")}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => onView(r.id)} className="text-sm font-semibold text-purple-600 hover:text-purple-700 hover:underline text-left">
-                        {r.leave_type?.name || "N/A"}
-                      </button>
+                      <span className="text-sm font-semibold text-slate-800">{r.leave_type?.name || "N/A"}</span>
                       {r.is_half_day && (
                         <span className="text-[9px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
                           {r.half_day_type === "first_half" ? "1st Half" : "2nd Half"}
@@ -784,12 +769,6 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
                   <td className="px-4 py-3 text-slate-400">{fmtDate(r.created_at || r.requested_at)}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => onView(r.id)}
-                        className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-purple-600 border border-slate-200 hover:border-purple-200 px-3 py-1.5 rounded-lg transition"
-                      >
-                        <HiExternalLink className="w-3.5 h-3.5" /> View
-                      </button>
                       {cancellable.includes(r.status) && (
                         <button
                           onClick={() => onCancel(r.id)}

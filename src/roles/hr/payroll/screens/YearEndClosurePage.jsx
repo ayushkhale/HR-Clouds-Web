@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import useEmployeeDirectory from "../useEmployeeDirectory";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiEye, HiLink } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiEye, HiLink, HiReceiptTax, HiScale, HiOfficeBuilding, HiDocumentText, HiCalculator } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import DetailDialog, { DetailPill, DetailSection, DetailStats } from "../../../../shared/components/DetailDialog";
 import { currentFY, fyOptions } from "../fyUtils";
 import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
 import AttachmentUploadButton from "../../../../shared/components/AttachmentUploadButton";
@@ -359,74 +360,89 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
   const ytd = summary?.ytd || summary?.actuals || {};
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">{employee.name}</h2>
-            <p className="text-xs text-slate-500">FY {fy} {finalized && <span className="text-purple-600 font-bold">· FINALIZED</span>}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-        </div>
+    <>
+      <DetailDialog
+        eyebrow="Tax year"
+        icon={HiReceiptTax}
+        title={employee.name}
+        subtitle={`FY ${fy}`}
+        badge={finalized ? <DetailPill tone="solid">Closed for the year</DetailPill> : <DetailPill tone="muted">Still open</DetailPill>}
+        loading={!summary}
+        onClose={onClose}
+        footer={
+          <>
+            <button onClick={loadProjection} className="px-4 py-2.5 text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition">Show the tax working</button>
+            <button onClick={loadForm16} className="px-4 py-2.5 text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition">Show Form 16 Part B</button>
+            <button disabled={busy || finalized} onClick={finalizeOne} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-2">
+              <HiLockClosed className="w-4 h-4" /> Close this person&rsquo;s year
+            </button>
+          </>
+        }
+      >
+        {summary && (
+          <>
+            <DetailStats
+              items={[
+                { label: "Income tax so far", value: money(ytd.tds ?? ytd.income_tax), hint: "deducted this year", icon: HiReceiptTax },
+                { label: "Provident fund", value: money(ytd.pf), hint: "so far this year", icon: HiScale },
+                { label: "ESI", value: money(ytd.esi), hint: "so far this year", icon: HiScale },
+                { label: "Professional tax", value: money(ytd.pt ?? ytd.professional_tax), hint: "so far this year", icon: HiScale },
+              ]}
+            />
 
-        {!summary ? <div className="p-10"><Skeleton type="dashboard" /></div> : (
-          <div className="p-6 space-y-6 overflow-y-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                ["TDS YTD", ytd.tds ?? ytd.income_tax],
-                ["PF YTD", ytd.pf],
-                ["ESI YTD", ytd.esi],
-                ["PT YTD", ytd.pt ?? ytd.professional_tax],
-              ].map(([k, v]) => (
-                <div key={k} className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">{k}</p>
-                  <p className="text-sm font-black text-slate-800 mt-0.5">{money(v)}</p>
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Tax Regime {regime && <span className="ml-1 text-slate-800">(current: {String(regime).toUpperCase()})</span>}</p>
+            <DetailSection
+              title="Tax regime"
+              icon={HiScale}
+              action={regime ? <DetailPill tone="soft">{String(regime).toUpperCase()} in use</DetailPill> : undefined}
+            >
               <div className="flex gap-2">
                 {["old", "new"].map((c) => (
                   <button key={c} disabled={busy || finalized} onClick={() => overrideRegime(c)} className={`px-4 py-2 text-sm font-bold rounded-xl transition disabled:opacity-40 ${regime === c ? "bg-purple-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                    {c === "old" ? "Old Regime" : "New Regime"}
+                    {c === "old" ? "Old regime" : "New regime"}
                   </button>
                 ))}
               </div>
-            </div>
+              <p className="text-[11px] text-slate-500 mt-2.5">
+                Changing this recalculates their income tax for the rest of the year. It can&rsquo;t be changed once the year is closed.
+              </p>
+            </DetailSection>
 
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Previous Employer (Form 12B)</p>
+            <DetailSection title="Pay from a previous employer (Form 12B)" icon={HiOfficeBuilding} defaultOpen={false}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {[
                   ["previous_employer_gross", "Gross ₹"],
                   ["previous_employer_taxable", "Taxable ₹"],
-                  ["previous_employer_tds", "TDS ₹"],
+                  ["previous_employer_tds", "Income tax ₹"],
                   ["previous_employer_pf", "PF ₹"],
-                  ["previous_employer_pt", "PT ₹"],
+                  ["previous_employer_pt", "Professional tax ₹"],
                 ].map(([k, label]) => (
                   <div key={k}>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{label}</label>
-                    <input type="number" disabled={finalized} value={prevEmp[k]} onChange={(e) => setPrevEmp({ ...prevEmp, [k]: e.target.value })} className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400 disabled:opacity-40" />
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1" htmlFor={`prev-${k}`}>{label}</label>
+                    <input id={`prev-${k}`} type="number" disabled={finalized} value={prevEmp[k]} onChange={(e) => setPrevEmp({ ...prevEmp, [k]: e.target.value })} className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400 disabled:opacity-40" />
                   </div>
                 ))}
               </div>
-              <button disabled={busy || finalized} onClick={savePrevEmp} className="mt-3 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition disabled:opacity-40">Save Figures</button>
-            </div>
+              <p className="text-[11px] text-slate-500 mt-2.5">
+                What they earned and paid in tax before joining, so their total for the year is right.
+              </p>
+              <button disabled={busy || finalized} onClick={savePrevEmp} className="mt-3 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition disabled:opacity-40">Save these figures</button>
+            </DetailSection>
 
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Form 16 Part-A Reference (TRACES)</p>
+            <DetailSection title="Form 16 Part A reference (TRACES)" icon={HiDocumentText} defaultOpen={false}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <input value={partA.ack_number} onChange={(e) => setPartA({ ...partA, ack_number: e.target.value })} placeholder="ACK number" className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                <input type="date" value={partA.issued_on} onChange={(e) => setPartA({ ...partA, issued_on: e.target.value })} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                <input value={partA.reference_url} onChange={(e) => setPartA({ ...partA, reference_url: e.target.value })} placeholder="reference URL" className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                <input value={partA.ack_number} onChange={(e) => setPartA({ ...partA, ack_number: e.target.value })} placeholder="Acknowledgement number" className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" aria-label="Acknowledgement number" />
+                <input type="date" value={partA.issued_on} onChange={(e) => setPartA({ ...partA, issued_on: e.target.value })} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" aria-label="Issued on" />
+                <input value={partA.reference_url} onChange={(e) => setPartA({ ...partA, reference_url: e.target.value })} placeholder="Reference link" className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" aria-label="Reference link" />
               </div>
-              <button disabled={busy} onClick={savePartA} className="mt-3 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition disabled:opacity-40">Save Part-A Reference</button>
-            </div>
+              <button disabled={busy} onClick={savePartA} className="mt-3 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition disabled:opacity-40">Save the reference</button>
+            </DetailSection>
 
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase mb-2">Form 16 Part-A Document</p>
+            <DetailSection
+              title="Form 16 Part A document"
+              icon={HiDocumentText}
+              defaultOpen={false}
+              action={partAAtt ? <DetailPill tone="soft">Linked</DetailPill> : <DetailPill tone="muted">Nothing linked</DetailPill>}
+            >
               {partAAtt ? (
                 <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                   <div className="min-w-0">
@@ -438,16 +454,16 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 italic mb-3">No Part A document linked yet.</p>
+                <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">No Part A document is linked yet.</p>
               )}
 
               <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                <input value={tracesUrl} onChange={(e) => setTracesUrl(e.target.value)} placeholder="https://…  TRACES Form 16 Part A copy" className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
+                <input value={tracesUrl} onChange={(e) => setTracesUrl(e.target.value)} placeholder="https://…  TRACES Form 16 Part A copy" className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" aria-label="TRACES link" />
                 <button disabled={busy || !tracesUrl.trim()} onClick={linkTracesCopy} className="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-40">
                   <HiLink className="w-4 h-4" /> {partAAtt ? "Replace link" : "Link TRACES copy"}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1.5">Paste the secure TRACES link to the employee&apos;s Form 16 Part A. The employee can open it from their Form 16 tab.</p>
+              <p className="text-[11px] text-slate-500 mt-1.5">Paste the secure TRACES link to the employee&rsquo;s Form 16 Part A. The employee can open it from their Form 16 tab.</p>
 
               {PART_A_UPLOAD_ENABLED && (
                 <div className="mt-3">
@@ -462,34 +478,26 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
                   />
                 </div>
               )}
-            </div>
-
-            <div className="flex items-center gap-3 pt-2 border-t border-slate-100 flex-wrap">
-              <button onClick={loadProjection} className="px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">View Projection Trace</button>
-              <button onClick={loadForm16} className="px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">View Form 16 Part-B</button>
-              <button disabled={busy || finalized} onClick={finalizeOne} className="px-4 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 disabled:opacity-50 flex items-center gap-1.5">
-                <HiLockClosed className="w-4 h-4" /> Finalize This Employee
-              </button>
-            </div>
+            </DetailSection>
 
             {projection && (
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Tax Projection Trace</p>
-                <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-60">{JSON.stringify(projection, null, 2)}</pre>
-              </div>
+              <DetailSection title="How the tax was worked out" icon={HiCalculator}>
+                <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-60 bg-slate-50 border border-slate-200 rounded-xl p-4">{JSON.stringify(projection, null, 2)}</pre>
+              </DetailSection>
             )}
 
             {form16 && (
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-2">
-                  Form 16 Part-B {form16.is_provisional && <span className="text-fuchsia-600">· PROVISIONAL</span>}
-                </p>
-                <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-60">{JSON.stringify(form16, null, 2)}</pre>
-              </div>
+              <DetailSection
+                title="Form 16 Part B"
+                icon={HiDocumentText}
+                action={form16.is_provisional ? <DetailPill tone="soft">Provisional</DetailPill> : undefined}
+              >
+                <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-60 bg-slate-50 border border-slate-200 rounded-xl p-4">{JSON.stringify(form16, null, 2)}</pre>
+              </DetailSection>
             )}
-          </div>
+          </>
         )}
-      </div>
+      </DetailDialog>
 
       {viewAttachment && (
         <AttachmentViewerDialog
@@ -498,6 +506,6 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
           onClose={() => setViewAttachment(null)}
         />
       )}
-    </div>
+    </>
   );
 }

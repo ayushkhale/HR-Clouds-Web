@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiDocumentText, HiEye, HiCog, HiCheck, HiInformationCircle } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiDocumentText, HiEye, HiCog, HiCheck, HiInformationCircle, HiCurrencyRupee, HiCalculator } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import DetailDialog, { DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
 import CtcBudgetBar from "../CtcBudgetBar";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
@@ -715,38 +716,34 @@ export default function PayrollTemplatesPage() {
       )}
 
       {previewTpl && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className={`bg-white rounded-2xl shadow-2xl w-full ${previewData ? "max-w-3xl" : "max-w-md"} flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200`}>
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold text-slate-800">Preview Structure</h2>
-                <p className="text-sm text-slate-500 mt-1 truncate">
-                  Template: <span className="font-semibold text-purple-600">{previewTpl.name}</span>
-                  {previewTpl.code && <span className="ml-2 text-[10px] font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{previewTpl.code}</span>}
-                </p>
-              </div>
-              <button onClick={closePreview} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-            </div>
-
-            <form onSubmit={runPreview} className={`px-6 py-5 ${previewData ? "bg-slate-50 border-b border-slate-100" : ""}`}>
-              {/* Employee first: the split is template-wide, but PT and TDS are
-                  this person's, and the breakdown below shows both. */}
-              <label htmlFor="preview-user" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Evaluate for</label>
+        <DetailDialog
+          eyebrow="Preview structure"
+          icon={HiCalculator}
+          title={previewTpl.name}
+          subtitle={previewTpl.code || undefined}
+          badge={previewData ? <DetailPill tone="onDark">{formatINR(previewData.annual_ctc)} / year</DetailPill> : undefined}
+          onClose={closePreview}
+        >
+          <DetailSection title="Work it out for" icon={HiEye} collapsible={false}>
+            <form onSubmit={runPreview}>
+              {/* Employee first: the split is template-wide, but professional
+                  tax and income tax are this person's, and the breakdown below
+                  shows both. */}
+              <label htmlFor="preview-user" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Whose figures to use</label>
               <PersonSelect
                 id="preview-user"
-                className="mb-1.5"
+                className="mb-1.5 sm:max-w-md"
                 people={[...(user?.id ? [{ id: user.id, name: selfLabel, code: "", sub: "You" }] : []), ...others]}
                 value={previewUserId || ""}
                 onChange={(id) => { setPreviewUserId(id || null); setPreviewError(""); }}
                 placeholder="Choose who to preview for"
               />
-              <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
-                The component split is the same for everyone on this template. Professional tax and income tax depend on
-                the employee.
+              <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
+                Everyone on this template gets the same split. Professional tax and income tax depend on the person.
               </p>
 
-              <label htmlFor="preview-ctc" className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Annual CTC</label>
-              <div className="flex flex-col sm:flex-row gap-3">
+              <label htmlFor="preview-ctc" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Annual CTC</label>
+              <div className="flex flex-col sm:flex-row gap-3 sm:max-w-lg">
                 <div className="relative flex-1">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
                   <input
@@ -763,10 +760,10 @@ export default function PayrollTemplatesPage() {
                 </div>
                 <button type="submit" disabled={isPreviewLoading || !previewCTC} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
                   <HiEye className="w-4 h-4" />
-                  {isPreviewLoading ? "Calculating…" : previewData ? "Re-evaluate" : "Preview split"}
+                  {isPreviewLoading ? "Working it out…" : previewData ? "Work it out again" : "Show the split"}
                 </button>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+              <div className="flex flex-wrap items-center gap-3 mt-3">
                 <div className="flex flex-wrap gap-1.5">
                   {CTC_PRESETS.map(v => (
                     <button
@@ -790,80 +787,70 @@ export default function PayrollTemplatesPage() {
                 </div>
               )}
             </form>
+          </DetailSection>
 
-            {previewData && (
-            <div className="p-6 overflow-y-auto">
-               <div className="grid grid-cols-2 gap-4 mb-4">
-                 <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                   <p className="text-[10px] font-bold text-purple-400 uppercase">Annual CTC</p>
-                   <p className="text-2xl font-black text-purple-700">{formatINR(previewData.annual_ctc)}</p>
-                   <p className="text-[10px] font-semibold text-purple-400 mt-0.5">{formatINR(Number(previewData.annual_ctc) / 12)} / month</p>
-                 </div>
-                 <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                   <p className="text-[10px] font-bold text-purple-400 uppercase">Monthly Gross</p>
-                   <p className="text-2xl font-black text-purple-700">{formatINR(previewData.monthly_gross)}</p>
-                   <p className="text-[10px] font-semibold text-purple-400 mt-0.5">Before deductions — not take-home</p>
-                 </div>
-               </div>
+          {previewData && (
+            <>
+              {/* Gross, deductions and take-home are three different numbers;
+                  showing gross alone is what made this screen read as if the
+                  employee banked it. */}
+              <DetailStats
+                items={[
+                  { label: "Annual CTC", value: formatINR(previewData.annual_ctc), hint: `${formatINR(Number(previewData.annual_ctc) / 12)} / month`, icon: HiCurrencyRupee },
+                  { label: "Monthly gross", value: formatINR(previewData.monthly_gross), hint: "before deductions — not take-home", icon: HiCurrencyRupee },
+                  ...(previewFigures ? [
+                    { label: "Comes off their pay", value: formatINR(previewFigures.total_deductions), hint: "tax and contributions", icon: HiCurrencyRupee },
+                    { label: "Reaches their bank", value: formatINR(previewFigures.net_pay), hint: "take-home each month", icon: HiCurrencyRupee },
+                  ] : []),
+                ]}
+              />
 
-               {/* The preview now returns the employee-scoped statutory block.
-                   Gross, deductions and take-home are three different numbers;
-                   showing gross alone is what made this screen read as if the
-                   employee banked it. */}
-               {previewFigures && (
-                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                   <FigureTile label="Employee deductions" value={formatINR(previewFigures.total_deductions)} tone="minus" />
-                   <FigureTile label="Net take-home" value={formatINR(previewFigures.net_pay)} tone="accent" />
-                   <FigureTile label="Employer contributions" value={formatINR(previewFigures.total_employer_contributions)} hint="Inside the CTC, not paid to the employee" />
-                 </div>
-               )}
+              {previewFigures && (
+                <DetailSection title="What the company pays on top" icon={HiCurrencyRupee} collapsible={false}>
+                  <FigureTile label="Employer contributions" value={formatINR(previewFigures.total_employer_contributions)} hint="Inside the CTC, not paid to the employee" />
+                </DetailSection>
+              )}
 
-               <p className="flex items-start gap-1.5 mb-5 text-[11px] leading-relaxed text-slate-500">
-                 <HiInformationCircle className="w-3.5 h-3.5 shrink-0 text-purple-500 mt-px" />
-                 <span>
-                   The component split is the same for everyone on this template. Professional tax and income tax
-                   depend on the employee, so they are evaluated here against your own profile — check the figure on
-                   the employee&apos;s salary page before assigning.
-                 </span>
-               </p>
+              <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-600 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
+                <HiInformationCircle className="w-3.5 h-3.5 shrink-0 text-purple-500 mt-px" />
+                <span>
+                  Everyone on this template gets the same split. Professional tax and income tax depend on the person,
+                  so they are worked out here against the profile chosen above — check the figure on the employee&rsquo;s
+                  salary page before assigning it.
+                </span>
+              </p>
 
-               <h3 className="text-sm font-bold text-slate-800 mb-4">Component Breakdown</h3>
-               <div className="overflow-x-auto">
-               <table className="w-full text-left border-collapse">
-                 <thead>
-                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-                     <th className="px-4 py-3">Component</th>
-                     <th className="px-4 py-3 text-right">Calculation</th>
-                     <th className="px-4 py-3 text-right">Monthly Amount</th>
-                     <th className="px-4 py-3 text-right">Annual Amount</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-100 text-sm">
-                   {(previewData.lines || []).map((line, i) => (
-                     <tr key={i} className="hover:bg-slate-50/50">
-                       <td className="px-4 py-3 font-medium text-slate-800">{line.name}</td>
-                       <td className="px-4 py-3 text-right text-xs">
-                         <span className="font-bold text-purple-500">
-                           {line.calculation_type?.split(/[_\s]+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
-                         </span>
-                         {/* `value` is the stored rule input. For a balancing
-                             line it is not an amount at all, so showing it next
-                             to one invites it to be read as the figure. */}
-                         {line.calculation_type !== "balancing" && line.value != null && line.value !== "" && (
-                           <span className="text-slate-400 ml-1">({line.value})</span>
-                         )}
-                       </td>
-                       <td className="px-4 py-3 text-right font-semibold text-slate-700">{formatINR(line.monthly_amount)}</td>
-                       <td className="px-4 py-3 text-right font-bold text-slate-800">{formatINR(line.annual_amount)}</td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-               </div>
-            </div>
-            )}
-          </div>
-        </div>
+              <DetailSection title="Component breakdown" icon={HiDocumentText} collapsible={false}>
+                <DetailTable
+                  rows={previewData.lines || []}
+                  rowKey={(line, i) => line.code || line.name || i}
+                  empty="This template produced no component lines."
+                  columns={[
+                    { header: "Component", render: (line) => <span className="font-semibold text-slate-700">{line.name}</span> },
+                    {
+                      header: "How it’s worked out",
+                      render: (line) => (
+                        <span className="flex items-center gap-1.5">
+                          <DetailPill tone="muted">
+                            {line.calculation_type?.split(/[_\s]+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ")}
+                          </DetailPill>
+                          {/* `value` is the stored rule input. For a balancing
+                              line it is not an amount at all, so showing it next
+                              to one invites it to be read as the figure. */}
+                          {line.calculation_type !== "balancing" && line.value != null && line.value !== "" && (
+                            <span className="text-slate-400 text-[11px]">({line.value})</span>
+                          )}
+                        </span>
+                      ),
+                    },
+                    { header: "Monthly", align: "right", render: (line) => <span className="font-semibold text-slate-700 tabular-nums">{formatINR(line.monthly_amount)}</span> },
+                    { header: "Annual", align: "right", render: (line) => <span className="font-bold text-slate-800 tabular-nums">{formatINR(line.annual_amount)}</span> },
+                  ]}
+                />
+              </DetailSection>
+            </>
+          )}
+        </DetailDialog>
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />

@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, organizationAPI } from "../../../../shared/api";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash
+  HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash,
+  HiCalendar, HiTrendingUp, HiDocumentText,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { PersonMultiSelect, PersonSelect } from "../../../../shared/components/PersonPicker";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { personName } from "../../../../shared/attendance/normalize";
+import { formatDate } from "../../../../shared/utils/formatUtils";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -25,6 +28,8 @@ const MONTHS = Array.from({ length: 12 }).map((_, i) => new Date(0, i).toLocaleS
 // The org roster keys people by `user_id`; the proposal endpoints need that GUID.
 const memberId = (m) => m.user_id || m.id || m._id;
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : `₹${parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+// "personal_loan" reads as "Personal loan" — never a raw enum in front of a user.
+const prettify = (v) => (v ? String(v).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null);
 const fmtPeriod = (pm) => {
   if (!pm) return "N/A";
   const [y, m] = pm.split("-");
@@ -40,6 +45,8 @@ const STATUS_PILL = {
 const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{s}</span>;
 
 // Team loan detail + installment schedule (#90).
+// The same record-inspector HR reads on Payroll > Loans, so a manager and HR
+// looking at one loan see it laid out identically.
 function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
   const [data, setData] = useState(undefined);
   useEffect(() => {
@@ -55,50 +62,55 @@ function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
   const outstanding = loan.outstanding_amount ?? loan.outstanding_balance;
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Loan details</h2>
-            <p className="text-xs text-slate-500">{memberName}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto">
-          {data === undefined ? <Skeleton type="table" rows={4} /> : (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Principal</p><p className="text-sm font-black text-slate-800">{money(loan.principal_amount)}</p></div>
-                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Recovered</p><p className="text-sm font-black text-violet-600">{money(loan.recovered_amount)}</p></div>
-                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Outstanding</p><p className="text-sm font-black text-purple-700">{money(outstanding)}</p></div>
-                <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] font-bold text-slate-400 uppercase">Tenure</p><p className="text-sm font-black text-slate-800">{loan.tenure_months ?? "N/A"} mo</p></div>
-              </div>
-              <h3 className="text-sm font-bold text-slate-800 mb-2">Installment schedule</h3>
-              {installments.length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center">No installments scheduled yet.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-                      <tr><th className="px-4 py-2.5 text-left">Period</th><th className="px-4 py-2.5 text-right">Amount</th><th className="px-4 py-2.5 text-left">Status</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {installments.map((inst, i) => (
-                        <tr key={inst.id || i}>
-                          <td className="px-4 py-2.5 text-slate-700">{fmtPeriod(inst.period_month || inst.due_period_month)}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{money(inst.amount ?? inst.emi_amount ?? inst.installment_amount)}</td>
-                          <td className="px-4 py-2.5"><Pill s={inst.status} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    <DetailDialog
+      eyebrow="Loan details"
+      icon={HiCash}
+      title={memberName}
+      subtitle={loan.loan_type ? `${prettify(loan.loan_type)} · first instalment ${fmtPeriod(loan.start_period_month)}` : undefined}
+      badge={loan.status ? <DetailPill tone="onDark">{loan.status}</DetailPill> : undefined}
+      loading={data === undefined}
+      onClose={onClose}
+    >
+      {data !== undefined && (
+        <>
+          <DetailStats
+            items={[
+              { label: "Principal", value: money(loan.principal_amount), icon: HiCash },
+              { label: "Monthly instalment", value: money(loan.emi_amount), icon: HiCalendar },
+              { label: "Recovered", value: money(loan.recovered_amount ?? loan.total_recovered), icon: HiCheckCircle },
+              { label: "Still to repay", value: money(outstanding), icon: HiTrendingUp },
+            ]}
+          />
+
+          <DetailSection title="Loan terms" icon={HiDocumentText}>
+            <DetailGrid
+              cols={3}
+              items={[
+                ["Type", prettify(loan.loan_type)],
+                ["Interest rate", loan.interest_rate != null ? `${parseFloat(loan.interest_rate) || 0}% a year` : null],
+                ["How interest is worked out", prettify(loan.interest_method)],
+                ["Repaid over", loan.tenure_months != null ? `${loan.tenure_months} months` : null],
+                ["First instalment", fmtPeriod(loan.start_period_month)],
+                ["Money paid out on", loan.disbursed_on ? formatDate(loan.disbursed_on) : null],
+              ]}
+            />
+          </DetailSection>
+
+          <DetailSection title={`Repayment schedule (${installments.length})`} icon={HiCalendar}>
+            <DetailTable
+              rows={installments}
+              rowKey={(inst, i) => inst.id || inst.installment_number || i}
+              empty={loan.status === "pending" ? "The schedule is drawn up once the loan is approved." : "No instalments scheduled yet."}
+              columns={[
+                { header: "Month", render: (inst) => fmtPeriod(inst.period_month || inst.due_period_month) },
+                { header: "Amount", align: "right", render: (inst) => <span className="font-semibold text-slate-800 tabular-nums">{money(inst.amount ?? inst.emi_amount ?? inst.installment_amount ?? inst.total_amount)}</span> },
+                { header: "Status", align: "center", render: (inst) => <DetailPill tone={inst.status === "deducted" || inst.status === "paid" ? "solid" : "soft"}>{inst.status || "N/A"}</DetailPill> },
+              ]}
+            />
+          </DetailSection>
+        </>
+      )}
+    </DetailDialog>
   );
 }
 
@@ -350,7 +362,7 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {loans.map((l) => (
-                        <tr key={l.id} onClick={() => setLoanDetail({ id: l.id, name: teamName(l.user_id, l) })} className="hover:bg-slate-50/50 cursor-pointer">
+                        <tr key={l.id} {...rowPreviewProps(() => setLoanDetail({ id: l.id, name: teamName(l.user_id, l) }), "Loan details")}>
                           <td className="px-6 py-4 font-bold text-slate-800">{teamName(l.user_id, l)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{(l.loan_type || "").replace(/_/g, " ")}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>

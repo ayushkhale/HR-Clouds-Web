@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiClock, HiLockClosed } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiLockClosed, HiCurrencyRupee } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import SalaryStructurePanel from "../../../../shared/components/SalaryStructurePanel";
+import DetailDialog, { DetailPill, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 
@@ -37,28 +38,30 @@ const memberCtc = (m) => m.current_ctc ?? m.annual_ctc;
 
 // ── Report's current + history, manager-scoped (#28, #29) ──────────────────
 // The full structure, not a CTC timeline: the same panel HR reads on an
-// employee profile, in a dialog wide enough for the component tables.
+// employee profile, in the shared record-inspector so it matches every other
+// preview in the app.
 function HistoryModal({ member, onClose }) {
   const u = memberUser(member);
   const id = memberId(member);
+  const ctc = memberCtc(member);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Salary structure</h2>
-            <p className="text-xs text-slate-500">{u.name || u.identifier || "Team member"}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition" aria-label="Close"><HiX className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 overflow-y-auto bg-slate-50/50">
-          {id
-            ? <SalaryStructurePanel userId={id} viewer="manager" />
-            : <p className="text-center text-slate-400 py-8">This row has no employee id, so their structure can&apos;t be looked up.</p>}
-        </div>
-      </div>
-    </div>
+    <DetailDialog
+      eyebrow="Salary structure"
+      icon={HiCurrencyRupee}
+      title={u.name || u.identifier || "Team member"}
+      subtitle={u.designation || u.department?.name || undefined}
+      badge={ctc != null ? <DetailPill tone="onDark">{formatMoney(ctc)} / year</DetailPill> : undefined}
+      onClose={onClose}
+    >
+      {id
+        ? <SalaryStructurePanel userId={id} viewer="manager" />
+        : (
+          <p className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+            This row has no employee id, so their structure can&rsquo;t be looked up.
+          </p>
+        )}
+    </DetailDialog>
   );
 }
 
@@ -213,7 +216,7 @@ export default function TeamSalaryPage() {
                       {(members || []).map((m, i) => {
                         const u = memberUser(m);
                         return (
-                          <tr key={memberId(m) || i} className="hover:bg-slate-50/50 transition-colors">
+                          <tr key={memberId(m) || i} {...rowPreviewProps(() => setHistoryMember(m), "Salary structure")}>
                             <td className="px-6 py-4">
                               <p className="font-bold text-slate-800">{u.name || u.identifier || "N/A"}</p>
                               {u.email && <p className="text-xs text-slate-400">{u.email}</p>}
@@ -223,9 +226,6 @@ export default function TeamSalaryPage() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-1.5">
-                                <button onClick={() => setHistoryMember(m)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
-                                  <HiClock className="w-3.5 h-3.5" /> History
-                                </button>
                                 <button onClick={() => openPropose(m)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition">
                                   <HiPencil className="w-3.5 h-3.5" /> Propose
                                 </button>
