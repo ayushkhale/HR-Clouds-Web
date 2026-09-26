@@ -12,6 +12,8 @@ import { REGULARIZATION_FILTERS, WORK_MODES } from "../../../shared/attendance/e
 import { entityId } from "../../../shared/attendance/normalize";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, StatusBadge, Toast, useToast } from "../../../shared/attendance/ui";
+import { rowPreviewProps } from "../../../shared/components/DetailDialog";
+import { RegularizationDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
 import { HiPencilAlt, HiPlus, HiX } from "react-icons/hi";
 import TimeField from "../../../shared/components/TimeField";
 
@@ -144,6 +146,7 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [prefill, setPrefill] = useState("");
   const [cancelling, setCancelling] = useState(null);
+  const [selected, setSelected] = useState(null);
   const { toast, showToast, clearToast } = useToast();
 
   // Status is filtered client-side on the loaded page (the server ignores it).
@@ -215,13 +218,12 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
             <p className="text-[11px] text-slate-400 mb-2">Showing {filterLabel} requests from this page of results.</p>
           )}
           <div className={`overflow-x-auto rounded-xl border border-slate-100 ${list.loading ? "opacity-60" : ""}`}>
-            <table className={`w-full text-left text-sm ${hasActions ? "min-w-[860px]" : "min-w-[760px]"}`}>
+            <table className={`w-full text-left text-sm ${hasActions ? "min-w-[720px]" : "min-w-[620px]"}`}>
               <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="px-5 py-3.5">Date</th>
                   <th className="px-5 py-3.5">Clock in</th>
                   <th className="px-5 py-3.5">Clock out</th>
-                  <th className="px-5 py-3.5">Reason</th>
                   <th className="px-5 py-3.5">Status</th>
                   <th className="px-5 py-3.5">Submitted</th>
                   {hasActions && <th className="px-5 py-3.5 text-right">Actions</th>}
@@ -230,16 +232,11 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {visible.map((req) => {
                   const id = entityId(req);
-                  const remarks = req.remarks || req.manager_remarks || req.review_remarks;
                   return (
-                    <tr key={id || `${req.date}-${req.created_at}`} className="hover:bg-slate-50/80 transition-colors align-top">
+                    <tr key={id || `${req.date}-${req.created_at}`} {...rowPreviewProps(() => setSelected(req), "Attendance correction")}>
                       <td className="px-5 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(req.date))}</td>
                       <td className="px-5 py-3.5"><RequestedTime iso={req.requested_clock_in} date={req.date} /></td>
                       <td className="px-5 py-3.5"><RequestedTime iso={req.requested_clock_out} date={req.date} /></td>
-                      <td className="px-5 py-3.5 max-w-[240px]">
-                        <p className="truncate" title={req.reason}>{req.reason}</p>
-                        {remarks && <p className="text-[11px] text-slate-400 truncate mt-0.5" title={remarks}>Reviewer: {remarks}</p>}
-                      </td>
                       <td className="px-5 py-3.5"><StatusBadge kind="regularization" status={req.status || "pending"} /></td>
                       <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(req.created_at)}</td>
                       {hasActions && (
@@ -260,6 +257,8 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
           <Pagination className="mt-4" page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} />
         </>
       )}
+
+      {selected && <RegularizationDetailDialog item={selected} onClose={() => setSelected(null)} />}
 
       {isModalOpen && (
         <RegularizationFormModal

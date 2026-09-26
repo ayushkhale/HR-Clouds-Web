@@ -99,6 +99,12 @@ export const REQUEST_MAX_REMINDERS = 5;
 export const canCancelRequest = (req) => isRequestActive(req);
 
 /**
+ * A request is closed by the document arriving, never by a button — so the
+ * "upload it now" shortcut is offered exactly while the request is still live.
+ */
+export const canFulfilRequest = (req) => isRequestActive(req);
+
+/**
  * Remind is legal from open and overdue too, but it is only ever *useful* once
  * the due date has passed — before that the employee has time left, and the
  * server would happily burn one of their five reminders on a document that

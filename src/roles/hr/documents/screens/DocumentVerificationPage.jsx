@@ -3,6 +3,10 @@
 // `pending_verification` document in the organisation, oldest first, with the
 // manager's Tier-B recommendation alongside. Opening a row previews the file
 // and offers Verify (#18) / Reject (#19); the Tier-C decision is final.
+//
+// Rejecting leaves a hole worth closing on the spot: the request the document
+// closed stays closed, so nothing is chasing the employee for the corrected
+// copy. "Ask for a fresh copy" raises that request without leaving the queue.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,21 +17,27 @@ import { Toast, useToast } from "../../../../shared/attendance/ui";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import DocumentTable from "../../../../shared/documents/DocumentTable";
 import DocumentDetailDialog from "../../../../shared/documents/DocumentDetailDialog";
+import RequestDocumentDialog from "../../../../shared/documents/RequestDocumentDialog";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
+import useDocumentSettings from "../../../../shared/documents/useDocumentSettings";
 import { DOCUMENT_PLANES } from "../../../../shared/documents/documentPlanes";
+import { REQUEST_PLANES } from "../../../../shared/documents/requestPlanes";
 import { listPayload } from "../../../../shared/documents/documentMeta";
 import { DocEmptyState, DocErrorState, SELECT } from "../../../../shared/documents/ui";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
 
 const PAGE = 25;
 const plane = DOCUMENT_PLANES.hr;
+const requestPlane = REQUEST_PLANES.hr;
 
 export default function DocumentVerificationPage() {
-  const { types, index } = useDocumentTypes("hr");
+  const { types, uploadTypes, index } = useDocumentTypes("hr");
+  const { requestDueDays } = useDocumentSettings();
   const { rows: people, status: dirStatus, nameOf } = useEmployeeDirectory();
   const { toast, showToast, clearToast } = useToast();
 
   const [filters, setFilters] = useState({ type_id: "", user_id: "" });
+  const [asking, setAsking] = useState(null); // { userId, presetTypeId }
   const [page, setPage] = useState(1);
   const [state, setState] = useState({ rows: [], total: 0, loading: true, error: null });
   const [detail, setDetail] = useState(null);
@@ -132,7 +142,27 @@ export default function DocumentVerificationPage() {
           nameOf={nameOf}
           showToast={showToast}
           onChanged={load}
+          onRequestReplacement={uploadTypes.length > 0 ? (doc) => {
+            setDetail(null);
+            setAsking({ userId: doc.user_id, presetTypeId: doc.document_type_id });
+          } : undefined}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {asking && (
+        <RequestDocumentDialog
+          types={uploadTypes}
+          presetTypeId={asking.presetTypeId}
+          subjectName={nameOf(asking.userId, "this employee")}
+          defaultDueDays={requestDueDays}
+          create={(payload) => requestPlane.create(asking.userId, payload)}
+          onDone={() => {
+            setAsking(null);
+            showToast(`Asked ${nameOf(asking.userId, "them")} for a fresh copy. They'll see it in their portal straight away.`);
+            load();
+          }}
+          onClose={() => setAsking(null)}
         />
       )}
       <Toast toast={toast} onClose={clearToast} />

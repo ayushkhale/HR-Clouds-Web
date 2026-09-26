@@ -33,7 +33,7 @@ const PAGE = 25;
 const plane = DOCUMENT_PLANES.manager;
 
 const TABS = [
-  { key: "review", label: "To review" },
+  { key: "review", label: "Needs my review" },
   { key: "mine", label: "My recommendations" },
   { key: "all", label: "All team documents" },
 ];

@@ -9,7 +9,9 @@
 //
 // No row is ever ticked off here. A request closes itself the moment a matching
 // document is confirmed — which is why "Done" rows carry a link to the document
-// that met them rather than a button.
+// that met them rather than a button, and why the one action an open request
+// offers besides chasing is to upload the document: people hand papers to HR in
+// person all the time, and that is the same closing handshake, not an override.
 //
 // One employee's whole picture (their file, their required documents, their
 // requests) lives on Employee Documents; this screen is the org-wide roll-up.
@@ -27,17 +29,22 @@ import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import RequestsTable from "../../../../shared/documents/RequestsTable";
 import RequestDocumentDialog from "../../../../shared/documents/RequestDocumentDialog";
 import DocumentRequestDetailDialog from "../../../../shared/documents/DocumentRequestDetailDialog";
+import DocumentUploadDialog from "../../../../shared/documents/DocumentUploadDialog";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
 import useDocumentSettings from "../../../../shared/documents/useDocumentSettings";
 import { REQUEST_PLANES } from "../../../../shared/documents/requestPlanes";
+import { DOCUMENT_PLANES } from "../../../../shared/documents/documentPlanes";
+import { fmtDate } from "../../../../shared/attendance/dates";
 import {
   OUTSTANDING, OVERDUE_ONLY, REQUEST_FILTERS, REQUEST_TALLIES, requestFilterQuery, requestListOf,
+  requesterRoleLabel,
 } from "../../../../shared/documents/requestMeta";
 import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from "../../../../shared/documents/ui";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
 
 const PAGE = 25;
 const plane = REQUEST_PLANES.hr;
+const docPlane = DOCUMENT_PLANES.hr;
 
 function Tile({ label, value, sub, icon: Icon, tone = "text-purple-500", alert = false, onClick, active }) {
   return (
@@ -73,6 +80,7 @@ export default function DocumentRequestsPage() {
   const [tallies, setTallies] = useState({});
   const [detail, setDetail] = useState(null);
   const [asking, setAsking] = useState(null); // { userId }
+  const [uploading, setUploading] = useState(null); // { userId, presetTypeId, presetTitle, askedFor }
 
   const query = useMemo(() => ({
     ...requestFilterQuery(status),
@@ -130,6 +138,39 @@ export default function DocumentRequestsPage() {
 
   const employeeTypes = useMemo(() => types.filter((t) => (t.plane || "employee") === "employee"), [types]);
   const filtered = !!(status || userId || typeId);
+
+  const uploadTypeIds = useMemo(() => new Set(uploadTypes.map((t) => t.id)), [uploadTypes]);
+
+  /**
+   * Put the document in for them (F2). Somebody walked the original over to the
+   * desk; this is the same close as an employee upload — the server matches it
+   * to the open request inside the confirm — and it saves chasing a person who
+   * has already handed the thing over.
+   */
+  const uploadForRequest = (req) => {
+    const who = nameOf(req?.user_id, "this employee");
+    const asker = req?.requested_by ? nameOf(req.requested_by, requesterRoleLabel(req?.requested_by_role)) : requesterRoleLabel(req?.requested_by_role);
+    setDetail(null);
+    setUploading({
+      userId: req?.user_id,
+      subjectName: who,
+      presetTypeId: req?.document_type_id || "",
+      presetTitle: index.get(req?.document_type_id)?.name || "",
+      askedFor: {
+        headline: `${asker} asked ${who} for this${req?.created_at ? ` on ${fmtDate(req.created_at)}` : ""}`,
+        note: req?.note || "",
+        dueOn: req?.due_on || "",
+      },
+    });
+  };
+
+  const onUploaded = (doc) => {
+    const who = uploading?.subjectName || "them";
+    setUploading(null);
+    const base = doc?.status === "pending_verification" ? `Added to ${who}'s file — it still needs verifying` : `Added to ${who}'s file`;
+    showToast(doc?.fulfilled_request_id ? `${base}. That closes the request for it.` : base);
+    refresh();
+  };
 
   return (
     <>
@@ -279,7 +320,25 @@ export default function DocumentRequestsPage() {
           nameOf={nameOf}
           showToast={showToast}
           onChanged={refresh}
+          onUpload={uploadForRequest}
+          uploadTypeIds={uploadTypeIds}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {uploading && (
+        <DocumentUploadDialog
+          types={uploadTypes}
+          presetTypeId={uploading.presetTypeId}
+          presetTitle={uploading.presetTitle}
+          askedFor={uploading.askedFor}
+          subjectName={uploading.subjectName}
+          issue={(payload) => docPlane.issue(uploading.userId, payload)}
+          confirm={docPlane.confirm}
+          discard={docPlane.remove}
+          onDraftLeft={refresh}
+          onDone={onUploaded}
+          onClose={() => setUploading(null)}
         />
       )}
 

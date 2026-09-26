@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FormsLibraryPage.jsx — "Forms & Templates": the blank company forms anybody
+// FormsLibraryPage.jsx — "Blank Forms": the blank company forms anybody
 // can download and fill in (#111, #112). Mounted in every workspace, because
 // everybody needs the claim sheet sooner or later.
 //
@@ -142,11 +142,11 @@ export default function FormsLibraryPage() {
 
   return (
     <>
-      <DashboardTopBar title="Forms & Templates" />
+      <DashboardTopBar title="Blank Forms" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Forms & Templates</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Blank Forms</h1>
             <p className="text-sm text-slate-500 mt-1">
               Blank company forms to download, fill in and send back — claim sheets, declarations, nomination forms. These are always the current version, so you never have to check whether you’ve got the latest one.
             </p>

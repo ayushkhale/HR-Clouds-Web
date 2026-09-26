@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MyRequestsPage.jsx — "What's asked of me": the documents HR or my manager
+// MyRequestsPage.jsx — "Requested from me": the documents HR or my manager
 // have asked me for (#97), and the full list of what my job requires me to
 // have on file (#98). Mounted in every workspace, because everyone is asked
 // for documents.
@@ -7,7 +7,7 @@
 // This is the third self-service documents screen, and the three divide cleanly:
 //   My Documents      — the file I keep about myself
 //   Company Documents — what the company has handed me, and asks me to sign
-//   What's asked of me — what is still missing, and by when          ← this one
+//   Requested from me   — what is still missing, and by when          ← this one
 //
 // The whole screen answers one question: what do I have to do, and how urgent
 // is it? So it opens on the checklist rather than the request list — a missing
@@ -32,6 +32,7 @@ import {
 import DashboardTopBar from "../components/DashboardTopBar";
 import { Toast, useToast } from "../attendance/ui";
 import { useMyDocumentPaths } from "../attendance/paths";
+import { fmtDate } from "../attendance/dates";
 import { useAuth } from "../contexts/AuthContext";
 import ChecklistPanel from "../documents/ChecklistPanel";
 import RequestsTable from "../documents/RequestsTable";
@@ -49,8 +50,8 @@ const plane = REQUEST_PLANES.self;
 const docPlane = DOCUMENT_PLANES.self;
 
 const TABS = [
-  { key: "checklist", label: "What I need on file", icon: HiClipboardCheck },
-  { key: "requests", label: "Asked of me", icon: HiClipboardList },
+  { key: "checklist", label: "Required documents", icon: HiClipboardCheck },
+  { key: "requests", label: "Requests", icon: HiClipboardList },
 ];
 
 function Tile({ label, value, sub, icon: Icon, tone = "text-purple-500", alert = false, onClick, active }) {
@@ -85,7 +86,11 @@ export default function MyRequestsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [detail, setDetail] = useState(null);
   const [docDetail, setDocDetail] = useState(null);
-  const [uploading, setUploading] = useState(null); // { presetTypeId }
+  const [uploading, setUploading] = useState(null); // { presetTypeId, presetTitle?, askedFor?, predecessor? }
+  // Names for the document types this person can't upload themselves, learned
+  // from the checklist read. Without it a request for an HR-only type shows up
+  // as "This document", which is no use to anybody.
+  const [checklistNames, setChecklistNames] = useState(null);
 
   const setTab = (key) => { setParams(key === "checklist" ? {} : { tab: key }, { replace: true }); setPage(1); };
 
@@ -134,7 +139,75 @@ export default function MyRequestsPage() {
   // alone rather than the two added together.
   const stillOpen = tallies[OUTSTANDING];
 
-  const openUpload = (presetTypeId = "") => setUploading({ presetTypeId });
+  const openUpload = (presetTypeId = "", extra = {}) => setUploading({ presetTypeId, ...extra });
+
+  // The types this person may upload into. The self plane's list IS the upload
+  // list, so this doubles as the gate on the "Upload this document" shortcut.
+  const uploadTypeIds = useMemo(() => new Set(types.map((t) => t.id)), [types]);
+
+  /**
+   * Every name we can put to a type id: the upload list, plus whatever the
+   * checklist told us about the rest. `index` alone leaves HR-only types
+   * unnamed, and an unnamed row is exactly the row somebody needs to act on.
+   */
+  const nameIndex = useMemo(() => {
+    if (!checklistNames) return index;
+    const merged = new Map(index);
+    checklistNames.forEach((name, id) => { if (!merged.has(id)) merged.set(id, { id, name }); });
+    return merged;
+  }, [index, checklistNames]);
+
+  const onChecklistItems = useCallback((items) => {
+    setChecklistNames((prev) => {
+      const next = new Map(prev || []);
+      let changed = false;
+      items.forEach((item) => {
+        if (item?.document_type_id && item?.name && next.get(item.document_type_id) !== item.name) {
+          next.set(item.document_type_id, item.name);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
+  /**
+   * Hand the document over from the request itself (F1). The type is known, so
+   * it arrives locked and titled, and the note and the deadline travel with it
+   * — they are the whole reason the person opened the row.
+   */
+  const uploadForRequest = useCallback((req) => {
+    const type = nameIndex.get?.(req?.document_type_id);
+    // `requesterRoleLabel` speaks about the employee in the third person ("their
+    // manager"), which is the wrong voice on the employee's own screen.
+    const asker = req?.requested_by === user?.id
+      ? "You"
+      : req?.requested_by_role === "manager" ? "Your manager"
+        : req?.requested_by_role === "hr" ? "HR" : "Somebody";
+    setDetail(null);
+    setUploading({
+      presetTypeId: req?.document_type_id || "",
+      presetTitle: type?.name || "",
+      askedFor: {
+        headline: `${asker} asked for this${req?.created_at ? ` on ${fmtDate(req.created_at)}` : ""}`,
+        note: req?.note || "",
+        dueOn: req?.due_on || "",
+      },
+    });
+  }, [nameIndex, user]);
+
+  /**
+   * A "requested" checklist row leads back to the request that explains it.
+   * The self plane has no detail read, so the row itself has to be the record
+   * — if this page hasn't loaded it, the honest move is to show the list it
+   * lives in rather than to open an empty dialog on a guessed id.
+   */
+  const openRequestFor = (item) => {
+    const match = state.rows.find((r) => r.document_type_id === item?.document_type_id && r.status === "open");
+    if (match) { setDetail(match); return; }
+    setTab("requests");
+    changeStatus(OUTSTANDING);
+  };
 
   /**
    * The upload reply says which request it closed, if any. Saying so is the
@@ -152,13 +225,13 @@ export default function MyRequestsPage() {
 
   return (
     <>
-      <DashboardTopBar title="What’s Asked Of Me" />
+      <DashboardTopBar title="Requested From Me" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">What’s Asked Of Me</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Requested From Me</h1>
             <p className="text-sm text-slate-500 mt-1">
-              The documents your job needs on file, and anything HR or your manager has asked you for. Upload one and it’s ticked off automatically — there’s nothing to mark as done.
+              The documents your job needs from you, and anything HR or your manager has asked you for. Upload one and it’s ticked off by itself — there’s nothing to mark as done.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -167,7 +240,7 @@ export default function MyRequestsPage() {
             </button>
             <button
               type="button" onClick={() => openUpload()} disabled={types.length === 0}
-              title={types.length === 0 ? "Your organisation hasn't opened any document type for you to upload yet." : undefined}
+              title={types.length === 0 ? "Your organisation hasn't opened anything for you to upload yet." : undefined}
               className={PRIMARY_BTN}
             >
               <HiUpload className="w-4 h-4" /> Upload a document
@@ -247,7 +320,12 @@ export default function MyRequestsPage() {
             subjectName="you"
             refreshKey={refreshKey}
             showToast={showToast}
-            onUploadOne={(item) => openUpload(index.has(item.document_type_id) ? item.document_type_id : "")}
+            onUploadOne={(item) => openUpload(
+              uploadTypeIds.has(item.document_type_id) ? item.document_type_id : "",
+              { presetTitle: uploadTypeIds.has(item.document_type_id) ? item.name : "" },
+            )}
+            onOpenRequest={openRequestFor}
+            onItemsLoaded={onChecklistItems}
             onOpenDocument={(documentId, name) => setDocDetail({ id: documentId, title: name })}
           />
         ) : (
@@ -262,16 +340,16 @@ export default function MyRequestsPage() {
                 title={status ? "Nothing in this state" : "Nothing has been asked of you"}
                 message={status
                   ? "Try another filter."
-                  : "Nobody has asked you for a document. It’s still worth checking “What I need on file” — those are the documents your job needs, whether or not anyone has chased them."}
+                  : "Nobody has asked you for a document. It’s still worth looking at “Required documents” — those are the ones your job needs, whether or not anyone has chased you for them."}
                 action={!status
-                  ? <button type="button" onClick={() => setTab("checklist")} className={SECONDARY_BTN}><HiClipboardCheck className="w-4 h-4" /> What I need on file</button>
+                  ? <button type="button" onClick={() => setTab("checklist")} className={SECONDARY_BTN}><HiClipboardCheck className="w-4 h-4" /> Required documents</button>
                   : null}
               />
             ) : (
               <div className={state.loading ? "opacity-60" : ""}>
                 <RequestsTable
                   rows={state.rows}
-                  types={index}
+                  types={nameIndex}
                   onOpen={setDetail}
                   showReminders={plane.showsReminders}
                   pagination={{ page, total: state.total, limit: PAGE, onPageChange: setPage }}
@@ -293,11 +371,13 @@ export default function MyRequestsPage() {
         <DocumentRequestDetailDialog
           request={detail}
           plane={plane}
-          types={index}
+          types={nameIndex}
           nameOf={(id, fallback) => (id === user?.id ? myName : fallback ?? "a colleague")}
           showToast={showToast}
           onChanged={refreshAll}
           onOpenDocument={(documentId, name) => { setDetail(null); setDocDetail({ id: documentId, title: name }); }}
+          onUpload={uploadForRequest}
+          uploadTypeIds={uploadTypeIds}
           onClose={() => setDetail(null)}
         />
       )}
@@ -306,7 +386,7 @@ export default function MyRequestsPage() {
         <DocumentDetailDialog
           doc={docDetail}
           plane={docPlane}
-          types={index}
+          types={nameIndex}
           showToast={showToast}
           onChanged={refreshAll}
           onReplace={(doc) => { setDocDetail(null); setUploading({ presetTypeId: doc.document_type_id, predecessor: doc }); }}
@@ -319,6 +399,8 @@ export default function MyRequestsPage() {
           mode={uploading.predecessor ? "replace" : "upload"}
           types={uploading.predecessor ? [...index.values()] : types}
           presetTypeId={uploading.presetTypeId}
+          presetTitle={uploading.presetTitle}
+          askedFor={uploading.askedFor}
           predecessor={uploading.predecessor}
           issue={(payload) => (uploading.predecessor ? docPlane.replace(uploading.predecessor.id, payload) : docPlane.issue(null, payload))}
           confirm={docPlane.confirm}

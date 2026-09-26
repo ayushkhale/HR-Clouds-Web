@@ -3,10 +3,10 @@
 // each person still needs on file (#93–#96).
 //
 // Two views, because a manager has two different questions:
-//   Asked of my team  — the requests, whoever raised them (#94). HR's requests
+//   Requests          — the requests, whoever raised them (#94). HR's requests
 //                       appear here too: the manager can see they exist, which
 //                       is the point, but can only withdraw their own.
-//   One person        — that report's required-document checklist (#96), with
+//   Required docs     — that report's required-document checklist (#96), with
 //                       "ask for it" on each outstanding item (#93)
 //
 // Three limits are the server's, and are shown as facts rather than as errors:
@@ -16,13 +16,17 @@
 //     else answers a uniform "not found", so the button is not offered at all.
 //   · There is no nudge on this plane. Reminder emails still go out every
 //     morning automatically; sending one early is HR's to do.
+//
+// A manager can also put the document in themselves, for the kinds policy lets
+// them handle — the paper often reaches the manager first. It is the same
+// close as the employee's own upload: the server matches it to the request.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  HiCheckCircle, HiClipboardCheck, HiClipboardList, HiClock, HiExclamationCircle, HiInformationCircle,
-  HiRefresh, HiUserGroup,
+  HiCheckCircle, HiClipboardCheck, HiClipboardList, HiClock, HiExclamationCircle, HiExternalLink,
+  HiInformationCircle, HiRefresh, HiUserGroup,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { Toast, useToast } from "../../../../shared/attendance/ui";
@@ -32,19 +36,23 @@ import ChecklistPanel from "../../../../shared/documents/ChecklistPanel";
 import RequestsTable from "../../../../shared/documents/RequestsTable";
 import RequestDocumentDialog from "../../../../shared/documents/RequestDocumentDialog";
 import DocumentRequestDetailDialog from "../../../../shared/documents/DocumentRequestDetailDialog";
+import DocumentUploadDialog from "../../../../shared/documents/DocumentUploadDialog";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
 import { REQUEST_PLANES } from "../../../../shared/documents/requestPlanes";
+import { DOCUMENT_PLANES } from "../../../../shared/documents/documentPlanes";
+import { fmtDate } from "../../../../shared/attendance/dates";
 import {
-  OUTSTANDING, OVERDUE_ONLY, REQUEST_FILTERS, requestFilterQuery, requestListOf,
+  OUTSTANDING, OVERDUE_ONLY, REQUEST_FILTERS, requestFilterQuery, requestListOf, requesterRoleLabel,
 } from "../../../../shared/documents/requestMeta";
 import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from "../../../../shared/documents/ui";
 
 const PAGE = 25;
 const plane = REQUEST_PLANES.manager;
+const docPlane = DOCUMENT_PLANES.manager;
 
 const TABS = [
-  { key: "requests", label: "Asked of my team", icon: HiClipboardList },
-  { key: "checklist", label: "One person’s list", icon: HiClipboardCheck },
+  { key: "requests", label: "Requests", icon: HiClipboardList },
+  { key: "checklist", label: "Required documents", icon: HiClipboardCheck },
 ];
 
 function Tile({ label, value, sub, icon: Icon, tone = "text-purple-500", alert = false, onClick, active }) {
@@ -81,6 +89,7 @@ export default function TeamRequestsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [detail, setDetail] = useState(null);
   const [asking, setAsking] = useState(null); // { userId, presetTypeId }
+  const [uploading, setUploading] = useState(null); // { userId, presetTypeId, presetTitle, askedFor }
 
   const nameOf = useCallback(
     (id, fallback) => team.options.find((o) => o.id === id)?.name || fallback || (team.loading ? "Loading…" : "Team member"),
@@ -128,6 +137,34 @@ export default function TeamRequestsPage() {
   };
 
   const filtered = !!(userId || status);
+
+  const uploadTypeIds = useMemo(() => new Set(uploadTypes.map((t) => t.id)), [uploadTypes]);
+
+  /** Put the document in for a report (F3), from the request that asked for it. */
+  const uploadForRequest = (req) => {
+    const who = nameOf(req?.user_id, "this team member");
+    const asker = req?.requested_by ? nameOf(req.requested_by, requesterRoleLabel(req?.requested_by_role)) : requesterRoleLabel(req?.requested_by_role);
+    setDetail(null);
+    setUploading({
+      userId: req?.user_id,
+      subjectName: who,
+      presetTypeId: req?.document_type_id || "",
+      presetTitle: index.get(req?.document_type_id)?.name || "",
+      askedFor: {
+        headline: `${asker} asked ${who} for this${req?.created_at ? ` on ${fmtDate(req.created_at)}` : ""}`,
+        note: req?.note || "",
+        dueOn: req?.due_on || "",
+      },
+    });
+  };
+
+  const onUploaded = (doc) => {
+    const who = uploading?.subjectName || "them";
+    setUploading(null);
+    const base = doc?.status === "pending_verification" ? `Added to ${who}'s file — HR still needs to check it` : `Added to ${who}'s file`;
+    showToast(doc?.fulfilled_request_id ? `${base}. That closes the request for it.` : base);
+    refreshAll();
+  };
   const overdue = tallies[OVERDUE_ONLY];
   // Managers can't request anything when the organisation hasn't opened a single
   // type to them. Saying so beats a button that always refuses.
@@ -229,6 +266,11 @@ export default function TeamRequestsPage() {
             {filtered && (
               <button type="button" onClick={() => update({ user: "", status: "" })} className="text-xs font-bold text-purple-600 hover:underline px-2">Clear</button>
             )}
+            {userId && (
+              <Link to={`/dashboard/manager/team/member/${userId}?tab=documents`} className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-600 hover:text-purple-800 whitespace-nowrap px-2">
+                Their whole file <HiExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
         </div>
 
@@ -266,9 +308,9 @@ export default function TeamRequestsPage() {
                   ? "Everything asked of your team is still within its deadline."
                   : filtered
                     ? "Try another person or status."
-                    : "Neither you nor HR has asked anyone on your team for a document. Open one person’s list to see what their job needs."}
+                    : "Neither you nor HR has asked anyone on your team for a document. Pick a person to see what their job needs."}
                 action={!filtered
-                  ? <button type="button" onClick={() => update({ tab: "checklist" })} className={SECONDARY_BTN}><HiClipboardCheck className="w-4 h-4" /> See one person’s list</button>
+                  ? <button type="button" onClick={() => update({ tab: "checklist" })} className={SECONDARY_BTN}><HiClipboardCheck className="w-4 h-4" /> See what one person needs</button>
                   : null}
               />
             ) : (
@@ -322,7 +364,24 @@ export default function TeamRequestsPage() {
           nameOf={nameOf}
           showToast={showToast}
           onChanged={refreshAll}
+          onUpload={uploadForRequest}
+          uploadTypeIds={uploadTypeIds}
           onClose={() => setDetail(null)}
+        />
+      )}
+
+      {uploading && (
+        <DocumentUploadDialog
+          types={uploadTypes}
+          presetTypeId={uploading.presetTypeId}
+          presetTitle={uploading.presetTitle}
+          askedFor={uploading.askedFor}
+          subjectName={uploading.subjectName}
+          issue={(payload) => docPlane.issue(uploading.userId, payload)}
+          confirm={docPlane.confirm}
+          onDraftLeft={refreshAll}
+          onDone={onUploaded}
+          onClose={() => setUploading(null)}
         />
       )}
 

@@ -11,6 +11,8 @@ import { addDaysYMD as addDays, fmtDate, fmtHours, todayYMD, ymdOnly } from "../
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { workspaceFromPath } from "../../../shared/attendance/paths";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { rowPreviewProps } from "../../../shared/components/DetailDialog";
+import { CompOffDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 
@@ -24,6 +26,7 @@ function EmployeeCompOffsPage() {
   const { pathname } = useLocation();
   const [status, setStatus] = useState("");
   const [summary, setSummary] = useState({ data: null, loading: true, error: null });
+  const [selected, setSelected] = useState(null);
 
   const list = usePagedList(
     ({ page, limit }) => attendanceAPI.getMyCompOffs({ status: status || undefined, page, limit }),
@@ -100,31 +103,34 @@ function EmployeeCompOffsPage() {
           ) : (
             <>
               <div className={`overflow-x-auto p-4 sm:p-6 ${list.loading ? "opacity-60" : ""}`}>
-                <table className="w-full text-left border-separate border-spacing-y-2 min-w-[720px]">
+                <table className="w-full text-left border-separate border-spacing-y-2 min-w-[620px]">
                   <thead>
                     <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       <th className="px-4 py-3 rounded-l-xl">Worked on</th>
                       <th className="px-4 py-3">Hours worked</th>
                       <th className="px-4 py-3">Credit</th>
                       <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Expires</th>
-                      <th className="px-4 py-3 rounded-r-xl">Remarks</th>
+                      <th className="px-4 py-3 rounded-r-xl">Expires</th>
                     </tr>
                   </thead>
                   <tbody className="text-xs font-semibold text-slate-700">
                     {list.items.map((record, idx) => {
                       const expiry = expiryDate(record);
                       const credit = creditDays(record);
-                      const remarks = record.remarks || record.manager_remarks || record.manager_note;
                       const expiringSoon = expiry && record.status === "approved" && expiry >= today && expiry <= addDays(today, 14);
                       return (
-                        <tr key={record.id || idx} className="hover:bg-slate-50 transition-colors">
+                        <tr
+                          key={record.id || idx}
+                          {...rowPreviewProps(
+                            () => setSelected({ record, workedOn: workedDate(record), credit, expiry, expiringSoon }),
+                            TERM,
+                          )}
+                        >
                           <td className="px-4 py-3 whitespace-nowrap">{fmtDate(workedDate(record))}</td>
                           <td className="px-4 py-3">{record.worked_hours != null ? fmtHours(record.worked_hours) : "N/A"}</td>
                           <td className="px-4 py-3 font-bold text-violet-600">{credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : "N/A"}</td>
                           <td className="px-4 py-3"><StatusBadge kind="compoff" status={record.status || "earned"} /></td>
                           <td className={`px-4 py-3 whitespace-nowrap ${expiringSoon ? "text-fuchsia-600 font-bold" : ""}`}>{expiry ? fmtDate(expiry) : "N/A"}</td>
-                          <td className="px-4 py-3 truncate max-w-xs text-slate-500 font-medium" title={remarks}>{remarks || "N/A"}</td>
                         </tr>
                       );
                     })}
@@ -138,6 +144,18 @@ function EmployeeCompOffsPage() {
           )}
         </div>
       </main>
+
+      {selected && (
+        <CompOffDetailDialog
+          item={selected.record}
+          term={TERM}
+          workedOn={selected.workedOn}
+          credit={selected.credit}
+          expiresOn={selected.expiry}
+          expiringSoon={selected.expiringSoon}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   );
 }

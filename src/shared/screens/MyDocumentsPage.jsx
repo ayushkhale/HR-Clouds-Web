@@ -6,7 +6,7 @@
 // Two views:
 //   My documents        — everything I have, by state, with what needs action
 //                         (rejected, expired, expiring soon) called out first
-//   What I can upload   — the types my organisation accepts from me, each with
+//   What I can add      — the types my organisation accepts from me, each with
 //                         its format / size / expiry rules and whether I
 //                         already have one
 //
@@ -107,7 +107,7 @@ export default function MyDocumentsPage() {
     return withDisplay.filter((d) => matches(d, filter));
   }, [withDisplay, filter]);
 
-  // Live document per type, for the "What I can upload" checklist.
+  // Live document per type, for the "What I can add" checklist.
   const liveByType = useMemo(() => {
     const map = new Map();
     withDisplay.forEach((d) => {
@@ -156,7 +156,7 @@ export default function MyDocumentsPage() {
             <button type="button" onClick={() => { load(); reloadTypes(); }} disabled={state.loading} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh" title="Refresh">
               <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
             </button>
-            <button type="button" onClick={() => openUpload()} disabled={typesLoading || types.length === 0} className={PRIMARY_BTN} title={!typesLoading && types.length === 0 ? "Your organisation hasn't opened any document type for self-upload yet." : undefined}>
+            <button type="button" onClick={() => openUpload()} disabled={typesLoading || types.length === 0} className={PRIMARY_BTN} title={!typesLoading && types.length === 0 ? "Your organisation hasn't opened anything for you to upload yet." : undefined}>
               <HiUpload className="w-4 h-4" /> Upload document
             </button>
           </div>
@@ -200,11 +200,11 @@ export default function MyDocumentsPage() {
           <Tile label="Verified" value={(counts.available || 0) + expiring} icon={HiCheckCircle} onClick={() => { setView("mine"); setFilter("available"); }} active={view === "mine" && filter === "available"} />
           <Tile label="In review" value={counts.pending_verification || 0} icon={HiClock} tone="text-fuchsia-500" onClick={() => { setView("mine"); setFilter("pending_verification"); }} active={view === "mine" && filter === "pending_verification"} />
           <Tile label="Need action" value={rejected + expired} icon={HiExclamationCircle} tone="text-rose-500" onClick={() => { setView("mine"); setFilter(rejected ? "rejected" : "expired"); }} active={view === "mine" && (filter === "rejected" || filter === "expired")} />
-          <Tile label="Document types open to me" value={types.length} icon={HiViewGrid} onClick={() => setView("types")} active={view === "types"} />
+          <Tile label="What I can add" value={types.length} icon={HiViewGrid} onClick={() => setView("types")} active={view === "types"} />
         </div>
 
         <div className="inline-flex gap-1 bg-slate-100/80 p-1 rounded-xl" role="tablist" aria-label="View">
-          {[["mine", "My documents"], ["types", "What I can upload"]].map(([key, label]) => (
+          {[["mine", "Documents"], ["types", "What I can add"]].map(([key, label]) => (
             <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition ${view === key ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}>
               {label}
@@ -228,19 +228,19 @@ export default function MyDocumentsPage() {
               <DocEmptyState
                 icon={HiFolderOpen}
                 title={filter ? "Nothing in this state" : "You haven't uploaded any documents yet"}
-                message={filter ? "Try another filter." : types.length ? "Start with the documents your organisation asks for — see “What I can upload”." : "HR hasn't opened any document types for self-upload yet."}
-                action={!filter && types.length ? <button type="button" onClick={() => setView("types")} className={SECONDARY_BTN}><HiViewGrid className="w-4 h-4" /> What I can upload</button> : null}
+                message={filter ? "Try another filter." : types.length ? "Start with the documents your organisation asks for — see “What I can add”." : "HR hasn't opened anything for you to upload yet."}
+                action={!filter && types.length ? <button type="button" onClick={() => setView("types")} className={SECONDARY_BTN}><HiViewGrid className="w-4 h-4" /> What I can add</button> : null}
               />
             ) : (
               <DocumentTable rows={visible} types={index} onOpen={setDetail} />
             )}
           </div>
         ) : typesError ? (
-          <div className="bg-white rounded-2xl border border-slate-100"><DocErrorState error={typesError} onRetry={reloadTypes} fallback="Couldn't load the document types." /></div>
+          <div className="bg-white rounded-2xl border border-slate-100"><DocErrorState error={typesError} onRetry={reloadTypes} fallback="Couldn't load the list." /></div>
         ) : typesLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{[0, 1, 2].map((i) => <div key={i} className="h-40 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
         ) : types.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-100"><DocEmptyState icon={HiDocumentText} title="No document types are open for self-upload" message="Your HR team hasn't opened any document types for employees to upload yet. They can still add documents to your file for you." /></div>
+          <div className="bg-white rounded-2xl border border-slate-100"><DocEmptyState icon={HiDocumentText} title="There’s nothing you can add yourself yet" message="Your HR team hasn't opened anything for employees to upload. They can still add documents to your file for you." /></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {types.map((t) => {

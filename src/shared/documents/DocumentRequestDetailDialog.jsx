@@ -10,24 +10,29 @@
 //
 // Nothing here ever "completes" a request. A request ends when a matching
 // document is confirmed, inside that upload's own transaction, so this dialog
-// only ever withdraws or chases.
+// only ever withdraws, chases — or opens the upload form that will close it.
+//
+// That last one is the point of `onUpload`: the person reading "we need your
+// PAN card by Friday" wants to hand it over from right here, not to memorise
+// the document type and go hunting for the form on another screen. The upload
+// carries the note and the deadline with it, and the server does the closing.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  HiBan, HiBell, HiCheckCircle, HiClipboardList, HiExternalLink, HiInformationCircle, HiUser,
+  HiBan, HiBell, HiCheckCircle, HiClipboardList, HiExternalLink, HiInformationCircle, HiUpload, HiUser,
 } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailSection, DetailText } from "../components/DetailDialog";
 import ReasonDialog from "../components/ReasonDialog";
 import { fmtDate, fmtDateTime, todayYMD } from "../attendance/dates";
 import { documentErrorMessage, isRequestStale } from "../utils/documentErrors";
-import { DANGER_BTN, DocErrorState, SECONDARY_BTN } from "./ui";
+import { DANGER_BTN, DocErrorState, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { RequestDueChip, RequestStatusBadge } from "./requestUi";
 import { useAuth } from "../contexts/AuthContext";
 import useDocumentSettings from "./useDocumentSettings";
 import {
-  CANCEL_REASON_MAX, CANCEL_REASON_MIN, REQUEST_MAX_REMINDERS, canCancelRequest, canRemindRequest,
-  remindedToday, requestDisplayStatus, requesterRoleLabel,
+  CANCEL_REASON_MAX, CANCEL_REASON_MIN, REQUEST_MAX_REMINDERS, canCancelRequest, canFulfilRequest,
+  canRemindRequest, remindedToday, requestDisplayStatus, requesterRoleLabel,
 } from "./requestMeta";
 
 /**
@@ -39,10 +44,12 @@ import {
  * @param {(message: string, tone?: string) => void} props.showToast
  * @param {() => void} props.onChanged        re-read the list behind the dialog
  * @param {(documentId: string, name: string) => void} [props.onOpenDocument]  show the document that met it
+ * @param {(request: object) => void} [props.onUpload]  open the upload form that will close this request
+ * @param {Set<string>} [props.uploadTypeIds]  the types this viewer may upload into; gates `onUpload`
  * @param {() => void} props.onClose
  */
 export default function DocumentRequestDetailDialog({
-  request: initial, plane, types, nameOf, showToast, onChanged, onOpenDocument, onClose,
+  request: initial, plane, types, nameOf, showToast, onChanged, onOpenDocument, onUpload, uploadTypeIds, onClose,
 }) {
   const { user } = useAuth();
   const actorId = user?.id;
@@ -92,6 +99,15 @@ export default function DocumentRequestDetailDialog({
   // uniform 404, so the button is not offered rather than offered and refused.
   const mayCancel = !!plane.cancel && canCancelRequest(request) && (plane.canCancelOthers || raisedByMe);
   const mayRemind = !!plane.remind && canRemindRequest(request);
+  // Uploading the document is what closes a request, so the shortcut is offered
+  // while it is still live — and only for a type this viewer may actually
+  // upload into. The self plane's type list IS its upload list; HR's is not, so
+  // the gate is handed in rather than guessed at from `types`.
+  const typeUploadable = !uploadTypeIds || uploadTypeIds.has(request?.document_type_id);
+  const mayUpload = !!onUpload && canFulfilRequest(request) && typeUploadable;
+  // Asked for something this viewer can't upload: say so plainly, rather than
+  // leaving them hunting for a button that was never going to be there.
+  const uploadWithheld = !!onUpload && canFulfilRequest(request) && !typeUploadable;
   const alreadyNudged = remindedToday(request, today);
   const reminders = Number(request?.reminder_count) || 0;
   const outOfNudges = reminders >= REQUEST_MAX_REMINDERS;
@@ -163,15 +179,19 @@ export default function DocumentRequestDetailDialog({
 
   const footer = (
     <>
-      {!mayCancel && !mayRemind && (
+      {!mayCancel && !mayRemind && !mayUpload && (
         <DetailFooterNote>
           {status === "fulfilled"
             ? "Met and closed. Nothing more is expected."
             : status === "cancelled"
               ? "Withdrawn. Kept here so there's a record of what was asked."
-              : plane.key === "self"
-                ? "Upload the document from My Documents and this closes itself."
-                : "Nothing to do here — it's within its deadline."}
+              : uploadWithheld
+                ? plane.key === "self"
+                  ? "HR adds this one to your file for you — there's nothing for you to upload."
+                  : "This kind of document isn't open to you to upload."
+                : plane.key === "self"
+                  ? "Upload the document from My Documents and this closes itself."
+                  : "Nothing to do here — it's within its deadline."}
         </DetailFooterNote>
       )}
       {mayRemind && (
@@ -194,6 +214,11 @@ export default function DocumentRequestDetailDialog({
       {mayCancel && (
         <button type="button" onClick={() => { setDialogError(""); setCancelling(true); }} disabled={!!busy} className={DANGER_BTN}>
           <HiBan className="w-4 h-4" /> Withdraw request
+        </button>
+      )}
+      {mayUpload && (
+        <button type="button" onClick={() => onUpload(request)} disabled={!!busy} className={PRIMARY_BTN}>
+          <HiUpload className="w-4 h-4" /> {plane.key === "self" ? "Upload this document" : `Upload it for ${who}`}
         </button>
       )}
     </>
@@ -228,7 +253,9 @@ export default function DocumentRequestDetailDialog({
                       ? "Withdrawn"
                       : status === "overdue"
                         ? "Past its deadline"
-                        : "Waiting on the employee"}
+                        : plane.key === "self"
+                          ? "Still needed from you"
+                          : "Waiting on the employee"}
                 </p>
                 <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
                   {status === "fulfilled"
@@ -236,7 +263,11 @@ export default function DocumentRequestDetailDialog({
                     : status === "cancelled"
                       ? `${who} is no longer expected to provide this.`
                       : plane.key === "self"
-                        ? "Upload this document from My Documents and this closes itself — there's nothing to tick off here."
+                        ? mayUpload
+                          ? "Use the button below to upload it. That's all that's needed — it ticks itself off."
+                          : uploadWithheld
+                            ? "HR adds this one to your file for you. There's nothing for you to upload."
+                            : "Upload this document from My Documents and this closes itself — there's nothing to tick off here."
                         : `${who} hasn't uploaded it yet. It closes itself the moment they do.`}
                 </p>
                 <div className="mt-1.5">

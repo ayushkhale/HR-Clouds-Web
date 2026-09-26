@@ -12,11 +12,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HiCheck, HiLockClosed, HiUpload, HiX, HiInformationCircle, HiRefresh } from "react-icons/hi";
+import { HiCheck, HiClipboardList, HiLockClosed, HiUpload, HiX, HiInformationCircle, HiRefresh } from "react-icons/hi";
 import { DocumentUploadError, documentUploadMessage, uploadDocument } from "./documentUpload";
 import { fileProblem, groupLabel, typePolicyLine } from "./documentMeta";
 import { FIELD, FileDropField, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
-import { todayYMD } from "../attendance/dates";
+import { fmtDate, todayYMD } from "../attendance/dates";
 
 const STAGES = [
   { key: "issue", label: "Preparing a secure upload link" },
@@ -29,6 +29,8 @@ const STAGES = [
  * @param {"upload"|"replace"} [props.mode]
  * @param {object[]} props.types           types this viewer may upload into
  * @param {string}   [props.presetTypeId]  pre-select (and, for replace, lock) this type
+ * @param {string}   [props.presetTitle]   start the title off filled in (opened from a request or a checklist row)
+ * @param {object}   [props.askedFor]      { headline, note, dueOn } — what was asked, kept in view while filling the form
  * @param {object}   [props.predecessor]   the document being replaced
  * @param {string}   [props.subjectName]   whose file this goes into (HR / manager)
  * @param {(payload: object) => Promise} props.issue   issue or replace call, bound to its target
@@ -38,11 +40,11 @@ const STAGES = [
  * @param {(documentId: string) => Promise} [props.discard]  delete the failed draft on "Start over" (planes that can delete)
  * @param {() => void} props.onClose
  */
-export default function DocumentUploadDialog({ mode = "upload", types = [], presetTypeId = "", predecessor = null, subjectName = "", issue, confirm, discard, onDone, onDraftLeft, onClose }) {
+export default function DocumentUploadDialog({ mode = "upload", types = [], presetTypeId = "", presetTitle = "", askedFor = null, predecessor = null, subjectName = "", issue, confirm, discard, onDone, onDraftLeft, onClose }) {
   const replacing = mode === "replace";
   const [form, setForm] = useState(() => ({
     document_type_id: predecessor?.document_type_id || presetTypeId || "",
-    title: predecessor?.title || "",
+    title: predecessor?.title || presetTitle || "",
     document_number: "",
     issued_on: "",
     expires_on: "",
@@ -82,10 +84,10 @@ export default function DocumentUploadDialog({ mode = "upload", types = [], pres
   const today = todayYMD();
   const title = form.title.trim();
   const problems = {
-    type: !form.document_type_id ? "Choose a document type." : "",
+    type: !form.document_type_id ? "Choose what kind of document this is." : "",
     title: title.length < 3 ? "Give the document a title (at least 3 characters)." : title.length > 200 ? "Keep the title under 200 characters." : "",
     number: form.document_number.trim().length > 100 ? "Keep the document number under 100 characters." : "",
-    expires: type?.has_expiry && !form.expires_on ? "This document type tracks expiry — add the expiry date." : "",
+    expires: type?.has_expiry && !form.expires_on ? "This kind of document runs out — add the date it expires." : "",
     order: form.issued_on && form.expires_on && form.expires_on <= form.issued_on ? "The expiry date must be after the issue date." : "",
     issued: form.issued_on && form.issued_on > today ? "The issue date can't be in the future." : "",
     file: fileProblem(file, { allowed: type?.allowed_content_types, maxBytes: type?.max_file_size_bytes }),
@@ -157,19 +159,36 @@ export default function DocumentUploadDialog({ mode = "upload", types = [], pres
         </div>
 
         <div className="px-6 py-5 space-y-5 overflow-y-auto">
+          {/* What was asked, kept in view. Opening the form from a request used
+              to mean leaving the note and the deadline behind on the other
+              screen — which is exactly the detail needed to fill it in. */}
+          {askedFor && (
+            <div className="flex items-start gap-3 rounded-2xl border border-purple-200 bg-purple-50/60 px-4 py-3.5">
+              <span className="w-9 h-9 rounded-xl bg-white text-purple-600 flex items-center justify-center shrink-0">
+                <HiClipboardList className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-800">{askedFor.headline}</p>
+                {askedFor.dueOn && <p className="text-xs font-semibold text-purple-700 mt-0.5">Needed by {fmtDate(askedFor.dueOn)}</p>}
+                {askedFor.note && <p className="text-xs text-slate-600 mt-1.5 leading-relaxed whitespace-pre-line">“{askedFor.note}”</p>}
+                <p className="text-[11px] text-slate-500 mt-1.5">Uploading it here ticks the request off by itself.</p>
+              </div>
+            </div>
+          )}
+
           {/* Type */}
           <div>
-            <label htmlFor="doc-type" className={LABEL}>Document type</label>
+            <label htmlFor="doc-type" className={LABEL}>Kind of document</label>
             {typeLocked ? (
               <div className="min-h-10 flex items-center justify-between gap-3 bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2 text-sm font-semibold text-slate-800">
-                <span className="truncate">{type?.name || "This document type"}</span>
+                <span className="truncate">{type?.name || "This kind of document"}</span>
                 {type?.group && <span className="text-[10px] font-bold uppercase text-slate-400 shrink-0">{groupLabel(type.group)}</span>}
               </div>
             ) : types.length === 0 ? (
-              <p className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">No document types are open for upload here yet.</p>
+              <p className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">There’s nothing you can upload here yet.</p>
             ) : (
               <select id="doc-type" value={form.document_type_id} onChange={(e) => set("document_type_id", e.target.value)} disabled={locked} className={FIELD}>
-                <option value="">Choose a type…</option>
+                <option value="">Choose one…</option>
                 {types.map((t) => <option key={t.id} value={t.id}>{t.name}{t.group ? ` · ${groupLabel(t.group)}` : ""}</option>)}
               </select>
             )}

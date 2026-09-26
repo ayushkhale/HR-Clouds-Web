@@ -49,13 +49,13 @@ function verdict({ completeness, profileIncomplete }, who, isSelf) {
       : `No document is required of ${who}. Mark a document type as required in Document Types to start tracking one.`;
   }
   const left = required - satisfied;
-  if (met) return `Everything required is on file${threshold !== null && threshold < 100 ? ` — above the ${threshold}% your organisation asks for` : ""}.`;
+  if (met) return `Everything required has been provided${threshold !== null && threshold < 100 ? ` — above the ${threshold}% your organisation asks for` : ""}.`;
   if (left <= 0) return `${percent}% — just short of the ${threshold ?? 100}% your organisation asks for.`;
   return `${left} of ${required} ${left === 1 ? "document is" : "documents are"} still outstanding.`;
 }
 
 /** One required document and where it stands. */
-function ChecklistRow({ item, plane, isSelf, onRequest, onUpload, onOpenDocument, busy }) {
+function ChecklistRow({ item, plane, isSelf, onRequest, onUpload, onOpenDocument, onOpenRequest, busy }) {
   const meta = checklistStateMeta(item.state);
   const alert = item.state === "expired";
   const days = Number(item.days_until_expiry);
@@ -78,7 +78,7 @@ function ChecklistRow({ item, plane, isSelf, onRequest, onUpload, onOpenDocument
               By law
             </span>
           )}
-          {withheld && <HiLockClosed className="w-3.5 h-3.5 text-purple-500 shrink-0" title="You can see whether it's on file, but not the document itself." />}
+          {withheld && <HiLockClosed className="w-3.5 h-3.5 text-purple-500 shrink-0" title="You can see whether they've provided it, but not the document itself." />}
         </p>
         <p className="text-[11px] text-slate-500 mt-0.5">
           {item.state === "expired"
@@ -90,7 +90,7 @@ function ChecklistRow({ item, plane, isSelf, onRequest, onUpload, onOpenDocument
                 : item.state === "pending_upload"
                   ? `An upload was started but the file never arrived.`
                   : item.state === "missing"
-                    ? isSelf ? "Nothing on file yet." : "Nothing on file, and nobody has asked for it."
+                    ? isSelf ? "You haven’t given us this one yet." : "Not provided, and nobody has asked for it."
                     : item.expires_on ? `Valid until ${fmtDate(item.expires_on)}.` : meta.hint}
         </p>
       </div>
@@ -101,6 +101,13 @@ function ChecklistRow({ item, plane, isSelf, onRequest, onUpload, onOpenDocument
         {item.document_id && onOpenDocument && (
           <button type="button" onClick={() => onOpenDocument(item.document_id, item.name)} className="text-xs font-bold text-purple-600 hover:underline whitespace-nowrap" data-row-action>
             Open
+          </button>
+        )}
+        {/* A "requested" row means somebody wrote a note and set a deadline.
+            Both live on the request, so there is a way through to it. */}
+        {item.state === "requested" && onOpenRequest && (
+          <button type="button" onClick={() => onOpenRequest(item)} className="text-xs font-bold text-purple-600 hover:underline whitespace-nowrap" data-row-action>
+            See what was asked
           </button>
         )}
         {isSelf && onUpload && !meta.counts && (
@@ -127,13 +134,15 @@ function ChecklistRow({ item, plane, isSelf, onRequest, onUpload, onOpenDocument
  * @param {(item: object) => void} [props.onRequestOne]     open the request dialog for this item
  * @param {(item: object) => void} [props.onUploadOne]      self plane: open the upload dialog
  * @param {(documentId: string, name: string) => void} [props.onOpenDocument]
+ * @param {(item: object) => void} [props.onOpenRequest]      show the request behind a "requested" row
+ * @param {(items: object[]) => void} [props.onItemsLoaded]   the checklist names a caller can't get elsewhere
  * @param {(message: string, tone?: string) => void} [props.showToast]
  * @param {() => void} [props.onRequestsChanged]  a bulk raise happened; refresh the request list too
  * @param {boolean} [props.compact]              inside a profile tab: no outer card chrome
  */
 export default function ChecklistPanel({
   plane, userId = "", subjectName = "", refreshKey = 0, onRequestOne, onUploadOne, onOpenDocument,
-  showToast, onRequestsChanged, compact = false,
+  onOpenRequest, onItemsLoaded, showToast, onRequestsChanged, compact = false,
 }) {
   const isSelf = plane.key === "self";
   const [state, setState] = useState({ data: null, loading: true, error: null });
@@ -155,6 +164,16 @@ export default function ChecklistPanel({
   }, [plane, userId, isSelf]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
+
+  // A request row carries only `document_type_id`, and the self type list is
+  // the *upload* list — so for a type the person can't upload themselves, this
+  // read is the only place its name exists. Hand it up rather than leaving the
+  // request list to render "This document".
+  const loadedRef = useRef(onItemsLoaded);
+  loadedRef.current = onItemsLoaded;
+  useEffect(() => {
+    if (state.data?.items?.length) loadedRef.current?.(state.data.items);
+  }, [state.data]);
 
   const data = state.data;
   // `checklistOf` always returns an array, but the fallback keeps its identity
@@ -179,7 +198,7 @@ export default function ChecklistPanel({
       // "Nothing outstanding" is good news arriving as a 409, so it is said as
       // such rather than shown in red.
       if (isNothingToRequest(err)) {
-        showToast?.(`Nothing outstanding for ${who} — everything required is on file or already asked for.`);
+        showToast?.(`Nothing outstanding for ${who} — everything required has been provided or already asked for.`);
         load();
       } else {
         showToast?.(documentErrorMessage(err, "Couldn't raise the requests."), "error");
@@ -247,7 +266,7 @@ export default function ChecklistPanel({
             icon={HiUserCircle}
             title={isSelf ? "Nothing is required of you" : "No employee record"}
             message={isSelf
-              ? "Your login isn’t set up as an employee record, so there’s no document checklist attached to it. Anything asked of you personally still appears under “Asked of me”."
+              ? "Your login isn’t set up as an employee record, so there’s no document checklist attached to it. Anything asked of you personally still appears under “Requests”."
               : `${who} doesn’t have an employee record, so there’s no list of required documents for them. That’s normal for an administrator login.`}
           />
         </div>
@@ -278,6 +297,7 @@ export default function ChecklistPanel({
           onRequest={onRequestOne}
           onUpload={onUploadOne}
           onOpenDocument={onOpenDocument}
+          onOpenRequest={onOpenRequest}
           busy={busy}
         />
       ))}
@@ -306,7 +326,7 @@ export default function ChecklistPanel({
             {data.completeness.percent === 99 && !data.completeness.meets_threshold && (
               <p className="flex items-start gap-2 text-[11px] text-slate-500 mt-3 leading-relaxed">
                 <HiInformationCircle className="w-4 h-4 shrink-0 text-purple-500 mt-px" />
-                This stops at 99% until every single required document is on file, so a near-complete file can never look finished.
+                This stops at 99% until every single required document has been provided, so a nearly-complete file can never look finished.
               </p>
             )}
           </div>

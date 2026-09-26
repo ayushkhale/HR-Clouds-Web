@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// documents/portfolioMeta.js — "All my documents" (Phase 5, #126): one read
+// documents/portfolioMeta.js — "Document Home" (Phase 5, #126): one read
 // that gathers the four places a person's paperwork actually lives.
 //
 // The endpoint is built around two decisions that this file exists to respect.

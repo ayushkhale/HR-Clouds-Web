@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  HiBadgeCheck, HiClipboardCheck, HiClock, HiCloudDownload, HiExclamationCircle,
+  HiBadgeCheck, HiClipboardCheck, HiClipboardList, HiClock, HiCloudDownload, HiExclamationCircle,
   HiExternalLink, HiInformationCircle, HiOfficeBuilding, HiRefresh, HiUserGroup, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
@@ -31,9 +31,11 @@ import { Pagination, PersonCell, Toast, useToast } from "../../../../shared/atte
 import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { fmtDate, fmtDateTime } from "../../../../shared/attendance/dates";
 import { useTargetingOptions } from "../../../../shared/attendance/useTargetingOptions";
-import { documentErrorMessage, exportTooLargeDetail, isExportLedgerDown } from "../../../../shared/utils/documentErrors";
+import { documentErrorMessage, exportTooLargeDetail, isExportLedgerDown, isNothingToRequest } from "../../../../shared/utils/documentErrors";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
 import { CompletenessRing } from "../../../../shared/documents/requestUi";
+import { REQUEST_PLANES } from "../../../../shared/documents/requestPlanes";
+import { bulkResultMessage, bulkResultOf } from "../../../../shared/documents/requestMeta";
 import { ExpiryBucketBadge, ExpiryBucketStrip, PercentBar } from "../../../../shared/documents/phase5Ui";
 import {
   EMPLOYMENT_TYPE_FILTERS, EXPIRY_BUCKETS, EXPIRY_HORIZONS, daysRemainingLabel,
@@ -56,6 +58,33 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
   const [page, setPage] = useState(1);
   const [state, setState] = useState({ data: null, loading: true, error: null });
   const [exporting, setExporting] = useState(false);
+  // Which row is mid-chase. The report is the list of people to chase, so the
+  // chase belongs on the row rather than three clicks away in their file — the
+  // header has always promised this, and now it is true.
+  const [asking, setAsking] = useState("");
+  const [asked, setAsked] = useState(() => new Set());
+
+  const askForAll = async (row) => {
+    if (asking) return;
+    const who = nameOf(row.user_id, row.employee_code || "this employee");
+    setAsking(row.user_id);
+    try {
+      const result = bulkResultOf(await REQUEST_PLANES.hr.bulkFromChecklist(row.user_id));
+      showToast(bulkResultMessage(result));
+      setAsked((prev) => new Set(prev).add(row.user_id));
+    } catch (err) {
+      // "Nothing outstanding" is good news arriving as a 409 — usually because
+      // somebody else asked first — so it is said plainly, not shown in red.
+      if (isNothingToRequest(err)) {
+        showToast(`Nothing left to ask ${who} for — it has all been provided or already asked for.`);
+        setAsked((prev) => new Set(prev).add(row.user_id));
+      } else {
+        showToast(documentErrorMessage(err, `Couldn't raise the requests for ${who}.`), "error");
+      }
+    } finally {
+      setAsking("");
+    }
+  };
 
   const query = useMemo(() => ({
     department_id: filters.department_id || undefined,
@@ -248,7 +277,7 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
                 <HiUserGroup className="w-4 h-4 text-purple-500" />
                 <h3 className="text-sm font-bold text-slate-800">Who still needs chasing</h3>
               </div>
-              <p className="text-[11px] text-slate-400">Open anyone to ask them for everything outstanding in one go.</p>
+              <p className="text-[11px] text-slate-400">Ask anyone for everything they still owe, in one go.</p>
             </div>
             {report.employees.length === 0 ? (
               <DocEmptyState
@@ -266,6 +295,7 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
                         <th className="px-5 py-3.5">Department</th>
                         <th className="px-5 py-3.5">What’s missing</th>
                         <th className="px-5 py-3.5 w-48">How complete</th>
+                        <th className="px-5 py-3.5 w-36 text-right">Chase</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -291,7 +321,25 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
                               </span>
                             </td>
                             <td className="px-5 py-3.5">
-                              <PercentBar value={Number(row.completeness_pct)} sub={`${Number(row.satisfied) || 0} of ${Number(row.required) || 0} on file`} />
+                              <PercentBar value={Number(row.completeness_pct)} sub={`${Number(row.satisfied) || 0} of ${Number(row.required) || 0} provided`} />
+                            </td>
+                            <td className="px-5 py-3.5 text-right">
+                              {asked.has(row.user_id) ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 whitespace-nowrap">
+                                  <HiBadgeCheck className="w-4 h-4" /> Asked
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => askForAll(row)}
+                                  disabled={!!asking}
+                                  title={`Raises one request per missing document, and skips anything already asked for.`}
+                                  className={`${SECONDARY_BTN} !px-3 !py-1.5 !text-xs whitespace-nowrap`}
+                                >
+                                  <HiClipboardList className="w-3.5 h-3.5" />
+                                  {asking === row.user_id ? "Asking…" : "Ask for all"}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );

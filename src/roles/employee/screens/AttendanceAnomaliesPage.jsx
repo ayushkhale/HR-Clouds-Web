@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiExclamationCircle } from "react-icons/hi";
@@ -6,6 +6,8 @@ import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { ANOMALY_FILTERS, anomalyStatusKey, anomalyTypeLabel } from "../../../shared/attendance/enums";
 import { fmtDate, fmtDateTime, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { rowPreviewProps } from "../../../shared/components/DetailDialog";
+import { AnomalyDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
 
 function AttendanceAnomaliesPage() {
   const [status, setStatus] = useState("open");
@@ -13,6 +15,7 @@ function AttendanceAnomaliesPage() {
     ({ page, limit }) => attendanceAPI.getMyAnomalies({ status, page, limit }),
     { limit: 20, keys: ["anomalies", "records"], filterKey: status }
   );
+  const [selected, setSelected] = useState(null);
 
   return (
     <>
@@ -36,34 +39,27 @@ function AttendanceAnomaliesPage() {
           ) : (
             <>
               <div className={`overflow-x-auto ${list.loading ? "opacity-60" : ""}`}>
-                <table className="w-full text-left text-sm min-w-[760px]">
+                <table className="w-full text-left text-sm min-w-[680px]">
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                     <tr>
                       <th className="px-6 py-3.5">Date</th>
                       <th className="px-6 py-3.5">Flag</th>
                       <th className="px-6 py-3.5">Severity</th>
                       <th className="px-6 py-3.5">Status</th>
-                      <th className="px-6 py-3.5">Details</th>
+                      <th className="px-6 py-3.5">Sorted out</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {list.items.map((anom, idx) => {
-                      // Records expose `is_resolved` + `resolution_notes` — no status string (§2 C16).
-                      const remarks = anom.resolution_notes;
-                      return (
-                        <tr key={anom.id || idx} className="hover:bg-slate-50/80 transition-colors align-top">
-                          <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(anom.date || anom.record_date || anom.created_at))}</td>
-                          <td className="px-6 py-3.5">{anomalyTypeLabel(anom.type || anom.anomaly_type)}</td>
-                          <td className="px-6 py-3.5">{anom.severity ? <StatusBadge kind="severity" status={anom.severity} /> : <span className="text-slate-400">N/A</span>}</td>
-                          <td className="px-6 py-3.5"><StatusBadge kind="anomaly" status={anomalyStatusKey(anom)} /></td>
-                          <td className="px-6 py-3.5 max-w-sm">
-                            <p className="truncate" title={anom.description}>{anom.description || "N/A"}</p>
-                            {remarks && <p className="text-[11px] text-slate-400 truncate mt-0.5" title={remarks}>Resolution: {remarks}</p>}
-                            {anom.resolved_at && <p className="text-[10px] text-slate-400">Resolved {fmtDateTime(anom.resolved_at)}</p>}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {/* Records expose `is_resolved` + `resolution_notes` — no status string (§2 C16). */}
+                    {list.items.map((anom, idx) => (
+                      <tr key={anom.id || idx} {...rowPreviewProps(() => setSelected(anom), "Attendance flag")}>
+                        <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(anom.date || anom.record_date || anom.created_at))}</td>
+                        <td className="px-6 py-3.5">{anomalyTypeLabel(anom.type || anom.anomaly_type)}</td>
+                        <td className="px-6 py-3.5">{anom.severity ? <StatusBadge kind="severity" status={anom.severity} /> : <span className="text-slate-400">N/A</span>}</td>
+                        <td className="px-6 py-3.5"><StatusBadge kind="anomaly" status={anomalyStatusKey(anom)} /></td>
+                        <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{anom.resolved_at ? fmtDateTime(anom.resolved_at) : "N/A"}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -74,6 +70,8 @@ function AttendanceAnomaliesPage() {
           )}
         </div>
       </main>
+
+      {selected && <AnomalyDetailDialog item={selected} onClose={() => setSelected(null)} />}
     </>
   );
 }

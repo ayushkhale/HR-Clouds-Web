@@ -31,7 +31,7 @@
 // member profile tab.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiArchive, HiClipboardCheck, HiClipboardList, HiFolderOpen, HiLink, HiLogout, HiRefresh, HiUpload } from "react-icons/hi";
 import { Toast, useToast } from "../attendance/ui";
 import DocumentTable from "./DocumentTable";
@@ -50,7 +50,8 @@ import { DOCUMENT_PLANES } from "./documentPlanes";
 import { REQUEST_PLANES } from "./requestPlanes";
 import { documentsAPI } from "../api";
 import { listPayload } from "./documentMeta";
-import { OUTSTANDING, REQUEST_FILTERS, requestFilterQuery, requestListOf } from "./requestMeta";
+import { fmtDate } from "../attendance/dates";
+import { OUTSTANDING, REQUEST_FILTERS, requestFilterQuery, requestListOf, requesterRoleLabel } from "./requestMeta";
 import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from "./ui";
 
 const PAGE = 20;
@@ -99,7 +100,7 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
   const [page, setPage] = useState(1);
   const [list, setList] = useState({ rows: [], total: 0, loading: true, error: null });
   const [detail, setDetail] = useState(null);
-  const [uploading, setUploading] = useState(null); // { mode, predecessor?, presetTypeId? }
+  const [uploading, setUploading] = useState(null); // { mode, predecessor?, presetTypeId?, presetTitle?, askedFor? }
   const [linking, setLinking] = useState(false);
 
   // Phase 4 state. `refreshKey` re-reads the checklist after an upload, a
@@ -198,6 +199,30 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
   const openReplace = (doc) => {
     setDetail(null);
     setUploading({ mode: "replace", predecessor: doc });
+  };
+
+  const uploadTypeIds = useMemo(() => new Set(uploadTypes.map((t) => t.id)), [uploadTypes]);
+
+  /**
+   * Put the document in from the request that asked for it, rather than
+   * closing the dialog, switching tab and picking the type again by hand.
+   */
+  const uploadForRequest = (req) => {
+    const asker = req?.requested_by && nameOf
+      ? nameOf(req.requested_by, requesterRoleLabel(req?.requested_by_role))
+      : requesterRoleLabel(req?.requested_by_role);
+    setRequestDetail(null);
+    setView("documents");
+    setUploading({
+      mode: "upload",
+      presetTypeId: req?.document_type_id || "",
+      presetTitle: index.get(req?.document_type_id)?.name || "",
+      askedFor: {
+        headline: `${asker} asked ${who} for this${req?.created_at ? ` on ${fmtDate(req.created_at)}` : ""}`,
+        note: req?.note || "",
+        dueOn: req?.due_on || "",
+      },
+    });
   };
 
   /**
@@ -408,6 +433,10 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
           showToast={showToast}
           onChanged={refreshAll}
           onReplace={plane.replace ? openReplace : undefined}
+          onRequestReplacement={canRequest ? (doc) => {
+            setDetail(null);
+            setRequesting({ presetTypeId: doc.document_type_id });
+          } : undefined}
           onClose={() => setDetail(null)}
         />
       )}
@@ -418,6 +447,8 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
           types={uploading.mode === "replace" ? [...index.values()] : uploadTypes}
           predecessor={uploading.predecessor}
           presetTypeId={uploading.presetTypeId}
+          presetTitle={uploading.presetTitle}
+          askedFor={uploading.askedFor}
           subjectName={who}
           issue={(payload) => (uploading.mode === "replace" ? plane.replace(uploading.predecessor.id, payload) : plane.issue(userId, payload))}
           confirm={plane.confirm}
@@ -470,6 +501,8 @@ export default function SubjectDocumentsPanel({ planeKey, userId, subjectName = 
           showToast={showToast}
           onChanged={refreshAll}
           onOpenDocument={(documentId, name) => { setRequestDetail(null); setView("documents"); setDetail({ id: documentId, title: name }); }}
+          onUpload={canUpload ? uploadForRequest : undefined}
+          uploadTypeIds={uploadTypeIds}
           onClose={() => setRequestDetail(null)}
         />
       )}

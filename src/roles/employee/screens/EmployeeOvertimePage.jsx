@@ -1,10 +1,12 @@
-import React from "react";
+import { useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiClock } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { fmtDate, fmtDateTime, fmtMinutes, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { rowPreviewProps } from "../../../shared/components/DetailDialog";
+import { OvertimeDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
 
 // Response shape is undocumented (audit C14); minutes are the canonical unit
 // elsewhere in the module, hours are accepted as a fallback.
@@ -18,6 +20,7 @@ function overtimeMinutes(record) {
 
 function EmployeeOvertimePage() {
   const list = usePagedList(({ page, limit }) => attendanceAPI.getMyOvertime({ page, limit }), { limit: 20, keys: ["overtime", "requests", "records"] });
+  const [selected, setSelected] = useState(null);
 
   return (
     <>
@@ -44,23 +47,18 @@ function EmployeeOvertimePage() {
                       <th className="px-6 py-3.5">Date</th>
                       <th className="px-6 py-3.5">Overtime</th>
                       <th className="px-6 py-3.5">Status</th>
-                      <th className="px-6 py-3.5">Reviewer remarks</th>
                       <th className="px-6 py-3.5">Reviewed</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {list.items.map((record, idx) => {
-                      const remarks = record.remarks || record.manager_remarks || record.manager_note;
-                      return (
-                        <tr key={record.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(record.date || record.record_date || record.attendance_record?.date))}</td>
-                          <td className="px-6 py-3.5 font-bold text-indigo-600">{fmtMinutes(overtimeMinutes(record))}</td>
-                          <td className="px-6 py-3.5"><StatusBadge kind="overtime" status={record.status || "pending"} /></td>
-                          <td className="px-6 py-3.5 max-w-xs truncate" title={remarks}>{remarks || "N/A"}</td>
-                          <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(record.approved_at || record.reviewed_at || record.updated_at, "N/A")}</td>
-                        </tr>
-                      );
-                    })}
+                    {list.items.map((record, idx) => (
+                      <tr key={record.id || idx} {...rowPreviewProps(() => setSelected(record), "Overtime")}>
+                        <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(record.date || record.record_date || record.attendance_record?.date))}</td>
+                        <td className="px-6 py-3.5 font-bold text-indigo-600">{fmtMinutes(overtimeMinutes(record))}</td>
+                        <td className="px-6 py-3.5"><StatusBadge kind="overtime" status={record.status || "pending"} /></td>
+                        <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(record.approved_at || record.reviewed_at || record.updated_at, "N/A")}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -71,6 +69,14 @@ function EmployeeOvertimePage() {
           )}
         </div>
       </main>
+
+      {selected && (
+        <OvertimeDetailDialog
+          item={selected}
+          minutes={overtimeMinutes(selected)}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   );
 }

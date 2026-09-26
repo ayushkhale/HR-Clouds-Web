@@ -7,18 +7,30 @@ import { safeRedirect } from "./redirect";
 import hrcloudsLogo from "../assets/logo2.png";
 
 /* The brand video.
-   Points at the CDN file directly rather than pexels.com/download/video/...,
+   Points at the CDN file directly rather than pexels.com/download/video/…,
    which is a redirect that sets cookies on every load.
 
-   This is the 4K (2160x3840) rendition, 13MB. It is the sharpest the panel can
-   look on a high-DPI display. It is also heavy for a login screen, so it is
-   held behind the save-data check below and faded in only once it can play —
-   the gradient carries the panel until then, and on a metered or slow
-   connection the video is never requested at all. If first paint on the login
-   screen ever needs to get cheaper, the same clip exists as
-   `-hd_1080_1920_25fps.mp4` (2.7MB). */
+   This is the 1080×1920 rendition, ~2.7 MB. The 4K cut of the same clip
+   (`-uhd_2160_3840_25fps.mp4`, ~13 MB) was the sharpest option but was ~5×
+   heavier on first paint for a background that fills roughly half the viewport
+   on the common laptop screen — the sharpness never reached the eye. The panel
+   is decorative; the form beside it is what people are here for.
+
+   Repeat visits already come from cache: Pexels sends
+   `cache-control: public, max-age=31536000`, and the browser respects it.
+   The save-data / 2G gate below still applies — a moving background is not
+   worth a single byte to someone on a metered connection. `preload="metadata"`
+   means only a few hundred bytes of headers land before autoplay begins; the
+   gradient underlay carries the panel until `onCanPlay` fires the fade-in.
+
+   Not chosen, for the record: `<link rel="preload">` in index.html would fetch
+   the clip on every route (including signed-in dashboards that never show it),
+   and self-hosting would trade one third-party (Pexels' CDN) for another (our
+   own) without cutting bytes. If Pexels ever becomes a reliability concern,
+   dropping the file into `public/auth/` gets it served from our own origin
+   with the same immutable caching Vite gives other assets. */
 const BRAND_VIDEO =
-  "https://videos.pexels.com/video-files/8034431/8034431-uhd_2160_3840_25fps.mp4";
+  "https://videos.pexels.com/video-files/8034431/8034431-hd_1080_1920_25fps.mp4";
 
 /* The dots under the tagline used to be four hard-coded pips with the first
    one permanently active — a carousel control for a carousel that did not

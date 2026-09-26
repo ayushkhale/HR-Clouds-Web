@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// AllMyDocumentsPage.jsx — "All my documents": everything to do with this
+// AllMyDocumentsPage.jsx — "Document Home": everything to do with this
 // person's employment, gathered from four places into one screen (#126).
 // Mounted in every workspace, because everybody has a file.
 //
@@ -212,11 +212,11 @@ export default function AllMyDocumentsPage() {
 
   return (
     <>
-      <DashboardTopBar title="All My Documents" />
+      <DashboardTopBar title="Document Home" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">All My Documents</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Document Home</h1>
             <p className="text-sm text-slate-500 mt-1">
               Everything to do with your employment in one place — what you’ve uploaded, what the company has issued to you, the blank forms you can fill in, and your payslips.
             </p>
@@ -226,7 +226,7 @@ export default function AllMyDocumentsPage() {
               <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
             </button>
             <Link to={myPaths.requests} className={SECONDARY_BTN}>
-              <HiClipboardList className="w-4 h-4" /> What’s asked of me
+              <HiClipboardList className="w-4 h-4" /> Requested from me
             </Link>
           </div>
         </div>

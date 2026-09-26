@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  HiBan, HiCheck, HiClipboardCheck, HiClock, HiDocumentText, HiDownload, HiEye, HiLockClosed,
+  HiBan, HiCheck, HiClipboardCheck, HiClipboardList, HiClock, HiDocumentText, HiDownload, HiEye, HiLockClosed,
   HiRefresh, HiShieldCheck, HiTrash, HiUpload, HiUserCircle, HiCollection, HiExclamationCircle, HiHashtag,
 } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailText } from "../components/DetailDialog";
@@ -108,9 +108,10 @@ function RecommendDialog({ doc, subjectName, busy, error, onSubmit, onClose }) {
  * @param {() => void} props.onChanged
  * @param {(doc: object) => void} [props.onReplace]      open the replace upload
  * @param {(doc: object) => void} [props.onUploadAgain]  self: new upload of the same type after a rejection
+ * @param {(doc: object) => void} [props.onRequestReplacement]  hr: ask the employee for a fresh copy after a rejection
  * @param {() => void} props.onClose
  */
-export default function DocumentDetailDialog({ doc: initial, plane, types, nameOf, showToast, onChanged, onReplace, onUploadAgain, onClose }) {
+export default function DocumentDetailDialog({ doc: initial, plane, types, nameOf, showToast, onChanged, onReplace, onUploadAgain, onRequestReplacement, onClose }) {
   const [doc, setDoc] = useState(initial);
   const [loading, setLoading] = useState(true);
   const [versions, setVersions] = useState({ rows: [], loading: !!plane.versions, error: null });
@@ -331,6 +332,12 @@ export default function DocumentDetailDialog({ doc: initial, plane, types, nameO
   }
   if (plane.key === "self" && doc?.status === "rejected" && onUploadAgain) {
     footer.push(<button key="again" type="button" onClick={() => onUploadAgain(doc)} className={PRIMARY_BTN}><HiUpload className="w-4 h-4" /> Upload a corrected copy</button>);
+  }
+  // A rejection leaves a hole: the request that this document closed stays
+  // closed, so nothing is chasing the employee for the corrected copy. Asking
+  // again is the missing half of rejecting, and belongs on the same screen.
+  if (plane.key === "hr" && doc?.status === "rejected" && onRequestReplacement) {
+    footer.push(<button key="askagain" type="button" onClick={() => onRequestReplacement(doc)} disabled={!!busy} className={PRIMARY_BTN}><HiClipboardList className="w-4 h-4" /> Ask for a fresh copy</button>);
   }
   if (plane.verify && reviewable) {
     footer.push(

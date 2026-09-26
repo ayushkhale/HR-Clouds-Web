@@ -95,7 +95,7 @@ function EmailDetailDialog({ row, nameOf, onClose }) {
                   ? "Never sent on purpose: either the matching setting was off, or there was nobody to send it to."
                   : row.status === "sending"
                     ? "Being sent right now."
-                    : `Queued for ${fmtDateTime(row.scheduled_for)}. The sender runs every fifteen minutes; you can also run it now from Documents Automation.`}
+                    : `Queued for ${fmtDateTime(row.scheduled_for)}. The sender runs every fifteen minutes; you can also run it now from Document Automation.`}
           </p>
         </div>
       </div>
