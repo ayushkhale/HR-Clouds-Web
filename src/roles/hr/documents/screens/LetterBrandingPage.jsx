@@ -58,6 +58,14 @@ import {
   inheritedValue, letterAssetLimitLine, letterAssetMeta, letterAssetState, letterheadGaps,
 } from "../../../../shared/documents/letterMeta";
 
+/** Maps each BRANDING_GROUPS id → a HeroIcon component for the card header. */
+const GROUP_ICON = {
+  signatory:   HiBadgeCheck,
+  identifiers: HiIdentification,
+  contact:     HiMail,
+  footer:      HiPrinter,
+};
+
 function Card({ title, icon: Icon, blurb, children, action, className = "" }) {
   return (
     <section className={`bg-white rounded-2xl border border-slate-100 shadow-xs ${className}`}>
