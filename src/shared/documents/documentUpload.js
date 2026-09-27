@@ -105,3 +105,65 @@ export function triggerDownload(url) {
   a.click();
   a.remove();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Letterhead images (PDF Generation Phase 1, #132 → PUT → #133)
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Put a logo or signature on the organisation's letterhead.
+ *
+ * The same three steps as a document, with one difference worth knowing: there
+ * is no row to fail back to. Nothing at all is written server-side until the
+ * confirm, so an abandoned upload leaves no half-finished record anywhere — the
+ * claim lives entirely inside the opaque `storage_key_token`, which lasts ten
+ * minutes. That is why a failure here needs the file choosing again rather than
+ * a retry of the confirm: after the token expires there is nothing to confirm.
+ *
+ * The server re-checks the stored object's real type and size on confirm, so a
+ * file that passed step one can still be refused at step three. Both refusals
+ * are surfaced the same way to the person — the image is wrong for a letter —
+ * which is why the caller only needs one error path.
+ *
+ * @param {object} opts
+ * @param {(body: object) => Promise} opts.issue    documentsAPI.createLetterAssetUploadUrl
+ * @param {(body: object) => Promise} opts.confirm  documentsAPI.confirmLetterAsset
+ * @param {File} opts.file
+ * @param {"logo"|"signature"} opts.assetType
+ * @param {(stage: "issue"|"put"|"confirm") => void} [opts.onStage]
+ * @returns {Promise<object>} the branding record, with the new image on it
+ */
+export async function uploadLetterAsset({ issue, confirm, file, assetType, onStage }) {
+  const content_type = contentTypeOfFile(file);
+
+  onStage?.("issue");
+  let issued;
+  try {
+    const res = await issue({
+      asset_type: assetType,
+      file_name: trimFileName(file.name),
+      content_type,
+      size_bytes: file.size,
+    });
+    issued = res?.data ?? res;
+  } catch (err) {
+    throw new DocumentUploadError("issue", err);
+  }
+  if (!issued?.upload_url || !issued?.storage_key_token) {
+    throw new DocumentUploadError("issue", new Error("Storage didn't return an upload link."));
+  }
+
+  onStage?.("put");
+  try {
+    await putToSignedUrl(issued.upload_url, file, issued.required_headers, content_type);
+  } catch (err) {
+    throw new DocumentUploadError("put", err, issued);
+  }
+
+  onStage?.("confirm");
+  try {
+    const res = await confirm({ storage_key_token: issued.storage_key_token });
+    return res?.data ?? res ?? null;
+  } catch (err) {
+    throw new DocumentUploadError("confirm", err, issued);
+  }
+}

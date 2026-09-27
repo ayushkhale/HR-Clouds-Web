@@ -12,6 +12,12 @@
 // `…/document-requests/:id` route, and for a manager it also covers "somebody
 // else raised it". The release note spells that one `DOCUMENT_NOT_FOUND`
 // instead, so both codes are mapped and both read the same to the user.
+//
+// One code is overloaded across phases: `TEMPLATE_NOT_FOUND` means a blank
+// company form in Phase 5 and a letter template in PDF Phase 1, which are
+// different objects with different wording. The letter screens therefore call
+// `letterErrorMessage()`, which re-reads that one code (and the renderer
+// failures) and hands everything else to the map below.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GONE = "This document isn't available any more. It may have been removed, or you may no longer have access to it. Refresh to see the latest.";
@@ -140,6 +146,23 @@ export const DOCUMENT_ERROR_MESSAGES = {
   EXIT_DATE_IN_FUTURE: "Their last working day hasn't arrived yet. Wait until it has, or tick “do it anyway” if their paperwork is being closed early.",
   NOT_OFFBOARDING: "This person is still an active member of the organisation with no recorded exit, so there's nothing to close down. Record their exit first.",
   INVALID_SECTION: "That part of the page couldn't be loaded. Refresh and try again.",
+
+  // ── Letterhead & letter templates (PDF Generation Phase 1) ────────────────
+  // The two branding images. Both caps are the server's, and both are checked
+  // twice — once on the claim, again on the stored object — so the second
+  // refusal can arrive after the first one passed.
+  FILE_TOO_LARGE: "This image is larger than the letterhead allows. A logo can be up to 512 KB and a signature up to 256 KB — open it in an image editor, crop the empty space around it and save it again.",
+  UNSUPPORTED_MEDIA_TYPE: "Letterhead images have to be PNG or JPEG. A PDF or an SVG can't be placed on a letter.",
+  UPLOAD_CLAIM_NOT_FOUND: "This upload took too long and its link has expired. Choose the image again — it only takes a moment.",
+  TEMPLATE_DISABLED: "This letter is switched off for your organisation, so it can't be prepared with your saved wording. Switch it on first.",
+  // Previews. None of these is anything the person did wrong, and all of them
+  // are worth telling apart: two are worth retrying, one needs an administrator.
+  PREVIEW_RATE_LIMITED: "Your organisation has made a lot of previews this hour, so previewing pauses until the next hour begins. Everything you've saved is safe.",
+  PDF_RENDER_TIMEOUT: "The letter took too long to draw and was stopped. Try the preview again.",
+  PDF_RENDERER_UNAVAILABLE: "The service that draws letters can't be reached right now. Nothing is wrong with your letterhead — try the preview again in a moment.",
+  PDF_RENDERER_NOT_CONFIGURED: "Letter previews aren't switched on for this server yet. Everything you set up here is saved and will be used as soon as they are — ask your administrator to turn on letter rendering.",
+  PDF_TEMPLATE_INVALID: "This letter couldn't be drawn from its template. That's a fault on our side rather than anything in your settings — please report it.",
+  STORAGE_UNAVAILABLE: "Secure storage isn't reachable right now. Nothing was changed — try again in a moment.",
 
   // Settings
   SCAN_PROVIDER_NOT_CONFIGURED: "Virus scanning isn't available yet, so it can't be turned on.",
@@ -370,3 +393,71 @@ export const isFeatureNotDeployed = (err) => err?.status === 404 && !err?.data;
 /** #121 refused on the tags themselves, rather than on the document. */
 export const isTagRejected = (err) =>
   ["TAG_TOO_LONG", "TAG_INVALID", "TOO_MANY_TAGS"].includes(documentErrorCode(err));
+
+// ── Letterhead & letter templates (PDF Generation Phase 1, #130–#138) ───────
+/**
+ * A Joi rejection names the offending key: `"signatory_name" must not contain
+ * < or >`. `documentErrorMessage` already strips the quotes; this also turns the
+ * key itself into words, so nothing on screen reads like a column name. Only
+ * snake_case tokens are touched, so `image/png` and `#1F2937` survive intact.
+ */
+function humaniseFieldKeys(text) {
+  return String(text || "").replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (key) => key.replace(/_/g, " "));
+}
+
+/** The field a 422 PDF_DATA_INCOMPLETE named, in words, or "" when it named none. */
+export function incompleteLetterField(err) {
+  if (documentErrorCode(err) !== "PDF_DATA_INCOMPLETE") return "";
+  const quoted = /"([a-z][a-z0-9_]*)"/i.exec(String(err?.data?.message || ""));
+  return quoted ? quoted[1].replace(/_/g, " ") : "";
+}
+
+/**
+ * Error text for the letterhead and letter-template screens.
+ *
+ * Two codes have to be read differently here. `TEMPLATE_NOT_FOUND` is mapped
+ * for Phase 5's blank forms ("this form has been retired"), which would be
+ * baffling on a letter — here it means the platform has withdrawn the letter
+ * from its catalog. And `PDF_DATA_INCOMPLETE` carries the name of the field that
+ * came out empty, which is the whole value of the message, so it is rebuilt
+ * around that name instead of being flattened to one sentence.
+ */
+export function letterErrorMessage(err, fallback = "Something went wrong. Please try again.") {
+  const code = documentErrorCode(err);
+  if (code === "TEMPLATE_NOT_FOUND") {
+    return "This letter isn't in the catalogue any more. It may have been withdrawn or replaced — refresh to see the letters you can use.";
+  }
+  if (code === "PDF_DATA_INCOMPLETE") {
+    const field = incompleteLetterField(err);
+    return field
+      ? `The letter needs ${field} and it came out blank, so it wasn't drawn. Fill that in and preview again.`
+      : "One of the details this letter needs came out blank, so it wasn't drawn. Fill in the missing wording and preview again.";
+  }
+  return humaniseFieldKeys(documentErrorMessage(err, fallback));
+}
+
+/** The renderer isn't wired up on this server — the seven non-drawing endpoints still work. */
+export const isRendererNotConfigured = (err) => documentErrorCode(err) === "PDF_RENDERER_NOT_CONFIGURED";
+
+/** The hourly preview cap. Nothing was lost; waiting is the fix, not retrying. */
+export const isPreviewRateLimited = (err) => documentErrorCode(err) === "PREVIEW_RATE_LIMITED";
+
+/**
+ * A preview failed on the way out rather than on anything HR typed: the renderer
+ * was unreachable, timed out, or storage blinked. These are the ones where "Try
+ * again" is honest advice, so the dialog offers it.
+ */
+export const isPreviewTransient = (err) =>
+  ["PDF_RENDERER_UNAVAILABLE", "PDF_RENDER_TIMEOUT", "STORAGE_UNAVAILABLE"].includes(documentErrorCode(err));
+
+/** The saved wording couldn't be used because the letter is switched off (#138). */
+export const isLetterTemplateDisabled = (err) => documentErrorCode(err) === "TEMPLATE_DISABLED";
+
+/**
+ * The upload handshake broke between the presign and the confirm. Both are
+ * recoverable, and both need the FILE choosing again rather than the confirm
+ * repeating — the claim is single-use and short-lived, and 409 means the bytes
+ * never landed at all.
+ */
+export const isLetterUploadLost = (err) =>
+  ["UPLOAD_CLAIM_NOT_FOUND", "UPLOAD_NOT_FOUND"].includes(documentErrorCode(err));

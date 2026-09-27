@@ -310,10 +310,6 @@ export default function DocumentCompliancePage() {
             </div>
           )}
         </div>
-
-        <p className="text-[11px] text-slate-400">
-          Click a document to see everyone it went to, open one person’s proof, or excuse someone. Acknowledgements and signatures are permanent — nobody can change or delete them.
-        </p>
       </main>
 
       {detail && (

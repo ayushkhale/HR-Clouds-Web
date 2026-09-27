@@ -192,6 +192,11 @@ function DashboardSidebar({ role = "guest" }) {
             heading("Documents"),
             link("Document Types", "/dashboard/hr/documents/types", HiTemplate),
             link("Form Templates", "/dashboard/hr/documents/templates", HiCollection),
+            // Letters (PDF Phase 1) sit beside the other document setup: both
+            // are configured once and then left alone. Letterhead comes first
+            // because a letter without one looks unfinished.
+            link("Letterhead & Branding", "/dashboard/hr/documents/letterhead", HiBadgeCheck),
+            link("Letter Templates", "/dashboard/hr/documents/letter-templates", HiMail),
             link("Document Settings", "/dashboard/hr/documents/settings", HiCog),
             link("Document Automation", "/dashboard/hr/documents/automation", HiLightningBolt),
           ],

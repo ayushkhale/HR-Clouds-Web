@@ -11,6 +11,11 @@
 // filename back requires the API to expose the header to the browser (CORS
 // `exposedHeaders`); when it isn't readable we fall back to the caller's name,
 // so a file never lands on disk called "download".
+//
+// `fetchFileBlob()` is the same fetch without the save dialog: it hands back the
+// blob so a caller can show the file on screen (the letter previews render an
+// inline PDF in an iframe). Both go through `fetchBinary()`, so a refusal is
+// thrown in exactly the same shape either way.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { API_BASE_URL, tokenHelper } from "../api/client";
@@ -51,13 +56,11 @@ function filenameFromDisposition(header) {
 const safeName = (name) => String(name || "download").replace(/[\\/:*?"<>|]+/g, "-");
 
 /**
- * Fetch a file with the session token and hand it to the browser to save.
- * @param {string} endpoint path after the API base, e.g. "/payroll/hr/runs/x/bank-advice"
- * @param {{ params?: object, filename?: string, method?: string, body?: object }} [options]
- *   `filename` is the fallback used when the response's own name can't be read.
- * @returns {Promise<{ filename: string, size: number }>}
+ * The shared half of both downloads: send the request with the session token,
+ * turn a refusal into the error shape `request()` throws, and refuse an empty
+ * body. Kept private — callers want one of the two functions below.
  */
-export async function downloadFile(endpoint, { params, filename = "download", method = "GET", body } = {}) {
+async function fetchBinary(endpoint, { params, method = "GET", body } = {}) {
   const token = tokenHelper.get();
   const response = await fetch(`${API_BASE_URL}${endpoint}${buildQuery(params)}`, {
     method,
@@ -89,6 +92,18 @@ export async function downloadFile(endpoint, { params, filename = "download", me
     error.status = response.status;
     throw error;
   }
+  return { blob, response };
+}
+
+/**
+ * Fetch a file with the session token and hand it to the browser to save.
+ * @param {string} endpoint path after the API base, e.g. "/payroll/hr/runs/x/bank-advice"
+ * @param {{ params?: object, filename?: string, method?: string, body?: object }} [options]
+ *   `filename` is the fallback used when the response's own name can't be read.
+ * @returns {Promise<{ filename: string, size: number }>}
+ */
+export async function downloadFile(endpoint, { params, filename = "download", method = "GET", body } = {}) {
+  const { blob, response } = await fetchBinary(endpoint, { params, method, body });
 
   const name = safeName(filenameFromDisposition(response.headers.get("Content-Disposition")) || filename);
   const url = URL.createObjectURL(blob);
@@ -102,4 +117,28 @@ export async function downloadFile(endpoint, { params, filename = "download", me
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 
   return { filename: name, size: blob.size };
+}
+
+/**
+ * The same fetch, but the file comes back instead of being saved — for a
+ * response the page has to SHOW rather than hand to the operating system (the
+ * letter previews stream `application/pdf` inline and are rendered in an
+ * iframe). The caller owns the blob: make an object URL from it and revoke that
+ * URL when the view closes, or the bytes stay in memory for the whole session.
+ *
+ * `Cache-Control: private, no-store` on these responses is the server's, and it
+ * is the reason a preview is re-fetched on every open rather than remembered.
+ *
+ * @param {string} endpoint path after the API base
+ * @param {{ params?: object, method?: string, body?: object, filename?: string }} [options]
+ * @returns {Promise<{ blob: Blob, filename: string, contentType: string, size: number }>}
+ */
+export async function fetchFileBlob(endpoint, { params, method = "GET", body, filename = "download" } = {}) {
+  const { blob, response } = await fetchBinary(endpoint, { params, method, body });
+  return {
+    blob,
+    filename: safeName(filenameFromDisposition(response.headers.get("Content-Disposition")) || filename),
+    contentType: response.headers.get("Content-Type") || blob.type || "",
+    size: blob.size,
+  };
 }

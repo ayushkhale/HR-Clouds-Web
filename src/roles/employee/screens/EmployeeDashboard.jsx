@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import PageHeader from "../../../shared/components/PageHeader";
 import AttendanceCard from "../components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
@@ -115,21 +116,13 @@ function EmployeeDashboard() {
       <DashboardTopBar title="Dashboard" />
 
       <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
-        <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-          <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-          <div className="relative z-10 max-w-2xl space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
-              <HiSparkles className="w-3 h-3 text-purple-200" /> EMPLOYEE PORTAL
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{greetingFor(user, "there")}</h1>
-            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Clock in, track your working hours and keep your attendance record accurate.</p>
-          </div>
-          <img
-            src="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
-            alt=""
-            className="relative z-10 w-28 sm:w-40 md:w-48 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-4 sm:-mb-6"
-          />
-        </div>
+        <PageHeader
+          badgeText="EMPLOYEE PORTAL"
+          badgeIcon={HiSparkles}
+          title={greetingFor(user, "there")}
+          subtitle="Clock in, track your working hours and keep your attendance record accurate."
+          image="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
+        />
 
         {/* Row 1: my punch card beside my month. The punch card is as tall as
             its content — stretching it to the chart's height only padded it out

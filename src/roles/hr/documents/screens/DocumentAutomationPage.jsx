@@ -21,8 +21,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiBell, HiCheckCircle, HiClock, HiExclamationCircle, HiExternalLink, HiInformationCircle,
-  HiLightningBolt, HiLogout, HiMail, HiPlay, HiShieldCheck, HiTrash, HiUserAdd, HiUserGroup,
+  HiBell, HiCheckCircle, HiClock, HiExclamationCircle, HiInformationCircle,
+  HiLightningBolt, HiLogout, HiMail, HiPlay, HiTrash, HiUserAdd, HiUserGroup,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -91,7 +91,7 @@ function JobCard({ job, result, busy, disabled, warning, onRun }) {
               {result.errors.length > 3 && <li className="text-[11px] text-rose-600">…and {result.errors.length - 3} more.</li>}
             </ul>
           )}
-          <p className="text-[10px] text-slate-400 mt-1.5">Run at {fmtDateTime(result.at)}</p>
+          <p className="text-xs text-slate-400 mt-1.5">Run at {fmtDateTime(result.at)}</p>
         </div>
       )}
 
@@ -167,7 +167,7 @@ export default function DocumentAutomationPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Document Automation</h1>
             <p className="text-sm text-slate-500 mt-1">
-              The routines that run by themselves for your organisation, and what each one does. You can run any of them now — usually to see today’s reminders go out early, or to check something works.
+              The routines that run by themselves. You never have to run one — the buttons are for checking.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -177,19 +177,6 @@ export default function DocumentAutomationPage() {
             <Link to="/dashboard/hr/documents/settings" className={PRIMARY_BTN}>
               <HiLightningBolt className="w-4 h-4" /> Document Settings
             </Link>
-          </div>
-        </div>
-
-        {/* The reassurance that makes this screen safe to hand to somebody: none
-            of it is load-bearing. Said first, so nobody reads the buttons as
-            repairs that have to be run. */}
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-5 py-4 flex items-start gap-3">
-          <span className="w-9 h-9 rounded-xl bg-white text-violet-600 flex items-center justify-center shrink-0"><HiShieldCheck className="w-5 h-5" /></span>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-violet-900">You never have to run these</p>
-            <p className="text-xs text-violet-800 mt-0.5 leading-relaxed">
-              Whether a document has expired, and whether a request is late, is worked out fresh every time anyone looks. So even if a routine is delayed, nobody ever sees an expired document as valid or a late request as on time. These routines write those verdicts down, send the day’s emails, and tidy up storage.
-            </p>
           </div>
         </div>
 
@@ -227,23 +214,16 @@ export default function DocumentAutomationPage() {
                 onRun={() => run(job)}
               />
             ))}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 flex items-start gap-3">
-              <span className="w-10 h-10 rounded-xl bg-white text-purple-600 flex items-center justify-center shrink-0"><HiInformationCircle className="w-5 h-5" /></span>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-800">What “past retention” means</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  A deleted document is hidden straight away but kept for as long as your retention period says — whichever is longer, the document type’s own setting or the organisation’s. Only after that does this routine remove the file itself.
-                </p>
-                <Link to="/dashboard/hr/documents/settings" className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:underline mt-2">
-                  See your retention period <HiExternalLink className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
           </div>
+          <p className="text-xs text-slate-400 mt-3">
+            A deleted document is removed for good only once its retention period has passed.{" "}
+            <Link to="/dashboard/hr/documents/settings" className="font-bold text-purple-600 hover:underline">See your retention period</Link>
+          </p>
         </div>
 
-        <p className="text-[11px] text-slate-400">
-          Every run here covers your organisation only. Anything a routine reports as gone wrong is worth a look in the <Link to="/dashboard/hr/documents/notifications" className="font-bold text-purple-600 hover:underline">email log</Link> — a bad address is the usual cause, and it names the person.
+        <p className="text-xs text-slate-400">
+          A routine that reports a problem is usually a bad email address — the{" "}
+          <Link to="/dashboard/hr/documents/notifications" className="font-bold text-purple-600 hover:underline">email log</Link> says which.
         </p>
       </main>
 

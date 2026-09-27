@@ -180,7 +180,7 @@ export default function DocumentRequestsPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Document Requests</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Everything you’ve asked people for, and who is late. A request closes itself as soon as the document arrives — you never have to tick one off.
+              Everything you’ve asked people for, and who is late. Each one closes itself when the document arrives.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -288,9 +288,7 @@ export default function DocumentRequestsPage() {
           )}
         </div>
 
-        <p className="text-[11px] text-slate-400">
-          Reminder emails go out every morning while a request is overdue, at most one a day and at most five in all. Nudging from a request sends today’s straight away. None of it sends unless request emails are switched on in Document Settings.
-        </p>
+        <p className="text-xs text-slate-400">Overdue reminders go out each morning — at most one a day and five in all — if request emails are switched on in Document Settings.</p>
       </main>
 
       {asking && (

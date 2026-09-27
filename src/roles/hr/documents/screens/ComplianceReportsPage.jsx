@@ -187,7 +187,7 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
           <DocEmptyState
             icon={HiInformationCircle}
             title="Nothing is required of anybody yet"
-            message="No document type has been marked as required, so this report has nothing to measure and everyone counts as complete. Open Document Types, mark the ones people genuinely must hold — ID proof, PAN, signed handbook — and this fills in straight away."
+            message="Nothing is marked as required, so there is nothing to measure. Mark what people must hold in Document Types and this fills in straight away."
             action={<Link to="/dashboard/hr/documents/types" className={PRIMARY_BTN}><HiBadgeCheck className="w-4 h-4" /> Set what’s required</Link>}
           />
         </div>
@@ -571,7 +571,7 @@ export default function ComplianceReportsPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Compliance Reports</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Two questions an auditor always asks, answered for the whole organisation: who is missing paperwork they’re required to have, and what is about to run out. Both can be taken away as a spreadsheet.
+              Who is missing paperwork they must have, and what is about to run out. Both download as a spreadsheet.
             </p>
           </div>
           <Link to="/dashboard/hr/documents/requests" className={`${SECONDARY_BTN} shrink-0 self-start sm:self-auto`}>

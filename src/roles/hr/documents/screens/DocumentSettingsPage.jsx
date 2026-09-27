@@ -55,27 +55,27 @@ const NOTIFY_SWITCHES = [
   {
     key: "document_notify_hr_on_upload",
     title: "Tell us when somebody uploads a document",
-    description: "Every HR administrator gets an email as soon as an employee adds a document, so it doesn't sit unreviewed. Busy organisations usually leave this off and work from the Verification Queue instead.",
+    description: "Emails every HR administrator as soon as a document arrives.",
   },
   {
     key: "document_notify_expiry",
     title: "Warn people before their documents expire",
-    description: "Emails the employee on each of the reminder days below — for passports, visas, licences and anything else with an end date. This is the one most organisations want on.",
+    description: "Emails the employee on each reminder day below.",
   },
   {
     key: "document_notify_pending_acknowledgement",
     title: "Chase unread company documents",
-    description: "A daily email each morning while somebody still owes an acknowledgement or a signature on a policy, until they do it or the document closes.",
+    description: "A daily email while somebody still owes an acknowledgement or a signature.",
   },
   {
     key: "document_notify_request_raised",
     title: "Tell people when you ask them for something",
-    description: "Emails the employee the moment you or their manager asks for a document, with what you need, the deadline and your note. Off, the request only appears in their portal.",
+    description: "Off, the request only appears in their portal.",
   },
   {
     key: "document_notify_request_overdue",
     title: "Chase overdue documents",
-    description: "A daily email each morning once a requested document passes its deadline. At most one a day and five in all, so nobody is buried.",
+    description: "A daily email once a request passes its deadline — at most five in all.",
   },
 ];
 const PHASE4_KEYS = [
@@ -87,8 +87,8 @@ const PHASE4_KEYS = [
 
 // Phase 5 settings (#79–#81), likewise only sent once the server returns them.
 const OFFBOARD_MODE_OPTIONS = [
-  { value: "archive", label: "Archive their documents", blurb: "Their file moves to Archived: kept and readable, but out of every active list. This is what most organisations want." },
-  { value: "retain", label: "Leave their documents active", blurb: "Their documents stay exactly where they are. Policies, requests and emails are still closed down." },
+  { value: "archive", label: "Archive their documents", blurb: "Kept and readable, but out of every active list. What most organisations want." },
+  { value: "retain", label: "Leave their documents active", blurb: "Their documents stay where they are. Policies, requests and emails still close down." },
 ];
 const EXIT_PACK_SCOPE_OPTIONS = [
   { value: "all", label: "Everything" },
@@ -143,14 +143,13 @@ const toForm = (s) => ({
   document_offboarding_exit_pack_scope: s.document_offboarding_exit_pack_scope || "all",
 });
 
-function Card({ title, icon: Icon, blurb, children, className = "" }) {
+function Card({ title, icon: Icon, children, className = "" }) {
   return (
     <section className={`bg-white rounded-2xl border border-slate-100 shadow-xs ${className}`}>
       <div className="flex items-start gap-3 px-6 pt-5 pb-3">
         <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>
         <div>
           <h2 className="text-base font-bold text-slate-800">{title}</h2>
-          {blurb && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{blurb}</p>}
         </div>
       </div>
       <div className="px-6 pb-4 divide-y divide-slate-100">{children}</div>
@@ -276,9 +275,10 @@ export default function DocumentSettingsPage() {
           <input id={`ds-${key}`} type="number" min={r.min} max={r.max} value={form[key]} onChange={(e) => set(key, e.target.value)} className={FIELD} />
           <span className="text-xs font-semibold text-slate-500 shrink-0">{r.unit}</span>
         </div>
-        <p className={`text-[10px] mt-1 ${problems[key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
-          {problems[key] || `${r.min}–${r.max} ${r.unit}`}
-        </p>
+        {/* Only shown when the value is out of range. The permanent
+            "30–900 seconds" line under every box said nothing the label and the
+            input's own min/max didn't. */}
+        {problems[key] && <p className="text-xs font-semibold text-rose-600 mt-1">{problems[key]}</p>}
       </div>
     );
   };
@@ -290,8 +290,16 @@ export default function DocumentSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Document Settings</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Who sees and decides documents, and how long links and files last. Applies to the whole organisation.
+            Who sees and decides documents, and how long links and files last.
             {saved?.updated_at && <span className="text-slate-400"> Last changed {fmtDateTime(saved.updated_at)}.</span>}
+          </p>
+          {/* The letters the company issues are set up separately — this page is
+              about documents that come in, not letters that go out. */}
+          <p className="text-xs text-slate-500 mt-2">
+            Issuing letters is set up separately:{" "}
+            <Link to="/dashboard/hr/documents/letterhead" className="font-bold text-purple-600 hover:underline">Letterhead &amp; Branding</Link>
+            {" "}and{" "}
+            <Link to="/dashboard/hr/documents/letter-templates" className="font-bold text-purple-600 hover:underline">Letter Templates</Link>.
           </p>
         </div>
 
@@ -306,10 +314,10 @@ export default function DocumentSettingsPage() {
                 the same height instead of leaving a hole under the short one. */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
               <div className="flex flex-col gap-6">
-                <Card title="Managers" icon={HiUserGroup} blurb="How much the reporting manager is involved in their team's documents.">
+                <Card title="Managers" icon={HiUserGroup}>
                   <SwitchRow
                     title="Managers can see their team's documents"
-                    description="Non-confidential documents of direct reports, for types that allow manager viewing. It also decides whether managers can propose an organisation document for someone on their team. Off hides every team document from managers and stops proposals."
+                    description="Non-confidential documents of direct reports. Off also stops managers proposing company documents."
                     checked={form.manager_can_view_team_documents}
                     onChange={(v) => set("manager_can_view_team_documents", v)}
                   />
@@ -321,20 +329,20 @@ export default function DocumentSettingsPage() {
                     note={form.manager_direct_document_authority && form.document_require_separate_checker ? "Can't be on together with Separate checker." : ""}
                   />
                 </Card>
-                <Card title="Employees" icon={HiLockClosed} blurb="What employees can do with their own verified documents.">
+                <Card title="Employees" icon={HiLockClosed}>
                   <SwitchRow
                     title="Employees can delete verified documents"
-                    description="Only for types that also allow it. Statutory documents (PAN, Aadhaar, Form 16…) are never deletable by employees, whatever this says."
+                    description="Only for types that allow it. Statutory documents are never deletable by employees, whatever this says."
                     checked={form.employee_can_delete_verified_documents}
                     onChange={(v) => set("employee_can_delete_verified_documents", v)}
                   />
                 </Card>
               </div>
 
-              <Card title="Verification" icon={HiShieldCheck} blurb="The maker–checker rules for HR decisions." className="h-full">
+              <Card title="Verification" icon={HiShieldCheck} className="h-full">
                 <SwitchRow
                   title="Separate checker"
-                  description="The HR person who uploaded or proposed a document can't verify it — another HR administrator must. Needs at least two active HR administrators."
+                  description="Whoever uploaded or proposed a document can't verify it. Needs at least two active HR administrators."
                   checked={form.document_require_separate_checker}
                   onChange={(v) => set("document_require_separate_checker", v)}
                   note={form.document_require_separate_checker && form.manager_direct_document_authority ? "Can't be on together with Managers decide directly." : ""}
@@ -355,7 +363,7 @@ export default function DocumentSettingsPage() {
               </Card>
             </div>
 
-            <Card title="Links & storage" icon={HiEye} blurb="Every view and upload uses a short-lived secure link. A copied link stops working after this time.">
+            <Card title="Links & storage" icon={HiEye}>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-4 py-4">
                 {numberField("document_view_url_ttl_seconds")}
                 {numberField("document_upload_url_ttl_seconds")}
@@ -368,19 +376,12 @@ export default function DocumentSettingsPage() {
               </p>
             </Card>
 
-            <Card
-              title="Acknowledgements & signatures"
-              icon={HiBadgeCheck}
-              blurb="What happens when a company document asks people to acknowledge or sign it."
-            >
+            <Card title="Acknowledgements & signatures" icon={HiBadgeCheck}>
               {hasCompliance ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4">
                     <div className="min-w-0">
                       {numberField("document_acknowledgement_due_days")}
-                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                        Used when a document asks for acknowledgement without its own deadline. Changing it only affects documents published from now on — existing deadlines stay as they are.
-                      </p>
                     </div>
                     <div className="min-w-0">
                       <label htmlFor="ds-provider" className={LABEL}>How people sign</label>
@@ -401,7 +402,7 @@ export default function DocumentSettingsPage() {
                   </div>
                   <SwitchRow
                     title="Flag overdue documents as a priority"
-                    description="People with an overdue document see a stronger warning in Company Documents asking them to deal with it first. It doesn't lock anyone out of anything."
+                    description="A stronger warning in Company Documents for anyone overdue. It locks nobody out."
                     checked={form.document_acknowledgement_blocking}
                     onChange={(v) => set("document_acknowledgement_blocking", v)}
                   />
@@ -414,23 +415,16 @@ export default function DocumentSettingsPage() {
               )}
             </Card>
 
-            <Card
-              title="Asking people for documents"
-              icon={HiClipboardList}
-              blurb="What happens when you or a manager asks somebody for a document, and how complete a new joiner's file has to be."
-            >
+            <Card title="Asking people for documents" icon={HiClipboardList}>
               {hasAutomation ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4">
                   <div className="min-w-0">
                     {numberField("document_request_default_due_days")}
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                      The deadline somebody gets when whoever asked them didn’t set one. They can always be given a specific date instead.
-                    </p>
                   </div>
                   <div className="min-w-0">
                     {numberField("document_onboarding_completeness_threshold")}
                     <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                      How much of the required paperwork counts as complete. Leave it at 100% unless some of what you ask for genuinely isn’t essential. The score never rounds up to 100% while anything is outstanding.
+                      Leave at 100% unless some of what you ask for isn’t essential.
                     </p>
                   </div>
                 </div>
@@ -442,11 +436,7 @@ export default function DocumentSettingsPage() {
               )}
             </Card>
 
-            <Card
-              title="Emails"
-              icon={HiMail}
-              blurb="Which document emails go out. All five start switched off, so turning the module on never surprises your workforce with a morning of reminders."
-            >
+            <Card title="Emails" icon={HiMail}>
               {hasAutomation ? (
                 <>
                   {NOTIFY_SWITCHES.map((n) => (
@@ -477,7 +467,7 @@ export default function DocumentSettingsPage() {
                             ? "Empty, so nobody is warned before a document expires. Add days like 30, 15, 7 to start warning them."
                             : `One email on each of these days before the expiry date. Up to ${REMINDER_DAYS_MAX_ENTRIES} days; 0 means on the day itself.`)}
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-1">A document type can set its own schedule, which wins for documents of that kind.</p>
+                    <p className="text-xs text-slate-400 mt-1">A document type can set its own schedule, which wins for documents of that kind.</p>
                   </div>
 
                   {/* Queued is not delivered, and that distinction matters the
@@ -498,11 +488,7 @@ export default function DocumentSettingsPage() {
               )}
             </Card>
 
-            <Card
-              title="When somebody leaves, and very large publishes"
-              icon={HiLogout}
-              blurb="What happens to a leaver's file when their paperwork is closed down, and the point at which a company-wide publish is handed to a background worker."
-            >
+            <Card title="When somebody leaves, and very large publishes" icon={HiLogout}>
               {hasEnterprise ? (
                 <>
                   <div className="py-4">
@@ -522,7 +508,7 @@ export default function DocumentSettingsPage() {
                       ))}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
-                      Either way, unsigned policies are excused, open requests are withdrawn and queued emails are stopped — that part isn’t optional, because it is what keeps a former employee from being chased by the system. Nothing they signed is ever altered.
+                      Either way, unsigned policies are excused, open requests withdrawn and queued emails stopped — so a leaver is never chased. Nothing they signed is ever altered.
                     </p>
                   </div>
 
@@ -536,22 +522,16 @@ export default function DocumentSettingsPage() {
                     >
                       {EXIT_PACK_SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                      Just the starting point — whoever builds the pack can change it for that one person.
-                    </p>
                   </div>
 
                   <div className="py-4">
                     {numberField("document_publish_sync_threshold")}
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                      Below this, publishing a company document hands it to everyone at once and the screen waits a second or two. Above it, the document goes live immediately and the rest of the recipients are filled in by a background worker over the next few minutes, with progress on screen. Unless you have tens of thousands of people, you will never reach this.
-                    </p>
                   </div>
                 </>
               ) : (
                 <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
                   <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
-                  These settings will appear here once your server has been updated. Until then a leaver’s documents are archived, their pack includes everything, and every publish is handed out at once.
+                  These appear once your server has been updated.
                 </p>
               )}
             </Card>

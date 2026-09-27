@@ -81,7 +81,7 @@ export default function DocumentVerificationPage() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Verification Queue</h1>
-            <p className="text-sm text-slate-500 mt-1">Documents waiting for your final decision, oldest first. Managers’ recommendations are shown where they’ve given one.</p>
+            <p className="text-sm text-slate-500 mt-1">Documents waiting for your decision, oldest first.</p>
           </div>
           <button type="button" onClick={load} disabled={state.loading} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50 shrink-0 self-start sm:self-auto" aria-label="Refresh" title="Refresh">
             <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />

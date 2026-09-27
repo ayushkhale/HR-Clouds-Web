@@ -25,8 +25,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiBell, HiCheckCircle, HiClock, HiExclamationCircle, HiExternalLink, HiEyeOff, HiLightningBolt,
-  HiMail, HiRefresh, HiX,
+  HiBell,
+  HiCheckCircle,
+  HiClock,
+  HiExclamationCircle,
+  HiEyeOff,
+  HiLightningBolt,
+  HiMail,
+  HiRefresh,
+  HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -199,7 +206,7 @@ export default function DocumentEmailLogPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Document Emails</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Every reminder and notice the Documents module has queued, and what became of it. This is where to look when somebody says they never got an email.
+              Every reminder and notice sent about documents — and what became of it.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -342,9 +349,7 @@ export default function DocumentEmailLogPage() {
           )}
         </div>
 
-        <p className="text-[11px] text-slate-400">
-          Emails that were sent or deliberately skipped are cleared out after 90 days. Ones that failed are kept indefinitely, so there is always a record of a delivery problem. Emails never carry the document itself — only a link into this portal. <Link to="/dashboard/hr/documents/settings" className="font-bold text-purple-600 hover:underline">Choose which emails go out <HiExternalLink className="inline w-3 h-3" /></Link>
-        </p>
+        <p className="text-xs text-slate-400">Sent and skipped emails are cleared after 90 days. Failed ones are kept, so a delivery problem always leaves a trace.</p>
       </main>
 
       {detail && <EmailDetailDialog row={detail} nameOf={nameOf} onClose={() => setDetail(null)} />}

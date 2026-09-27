@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import PageHeader from "../../../shared/components/PageHeader";
 import { HiUserGroup, HiClock, HiSparkles, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
 import { attendanceAPI } from "../../../shared/api";
 import AttendanceDirectory from "../components/AttendanceDirectory";
@@ -223,17 +224,13 @@ function HRDashboard() {
     <>
       <DashboardTopBar title="Dashboard" />
       <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
-        <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-          <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-          <div className="relative z-10 max-w-2xl space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
-              <HiSparkles className="w-3 h-3 text-purple-200" /> HR COMMAND CENTER
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{greetingFor(user, "there")}</h1>
-            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Monitor live attendance, rules, shift management and holidays.</p>
-          </div>
-          <img src="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312" alt="" className="relative z-10 w-36 sm:w-56 md:w-64 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-6 sm:-mb-8" />
-        </div>
+        <PageHeader
+          badgeText="HR COMMAND CENTER"
+          badgeIcon={HiSparkles}
+          title={greetingFor(user, "there")}
+          subtitle="Monitor live attendance, rules, shift management and holidays."
+          image="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312"
+        />
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100 order-2">

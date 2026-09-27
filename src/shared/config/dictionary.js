@@ -1,6 +1,21 @@
 import { HiCheckCircle, HiExclamationCircle, HiClock } from "react-icons/hi";
 
 export const DICTIONARY = {
+  /**
+   * What each role is CALLED in front of the person holding it. The API's
+   * `role` is a code (`hr`), and "hr" on screen reads like a database value —
+   * these are the words used in the top bar and anywhere else we name somebody's
+   * place in the organisation. One map, so the workspace can't be called three
+   * different things on three screens.
+   */
+  ROLE_TITLE: {
+    hr: "HR Admin",
+    manager: "Manager",
+    employee: "Employee",
+    guest: "Guest",
+    admin: "Admin",
+    "super-admin": "Platform Admin",
+  },
   NAV: {
     DIRECTORY: "Directory",
     EMPLOYEES: "Team",
@@ -89,3 +104,9 @@ export const DICTIONARY = {
     REGULARIZATION: "Attendance Correction"
   }
 };
+
+/** "hr" → "HR Admin". An unknown or missing role gives "", never a raw code. */
+export function roleTitle(role) {
+  const key = String(role || "").trim().toLowerCase();
+  return DICTIONARY.ROLE_TITLE[key] || "";
+}

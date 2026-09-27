@@ -52,7 +52,8 @@ import SelectOrgPage from "../auth/pages/SelectOrgPage";
 
 // Documents module (Phase 1 employee documents, Phase 2 org documents, Phase 3
 // compliance, Phase 4 requests / checklists / emails / automation, Phase 5
-// form templates / search / reports / export log / composed portfolio)
+// form templates / search / reports / export log / composed portfolio, and PDF
+// Generation Phase 1 letterhead branding / letter templates — HR only)
 
 /* ─── Lazily-loaded workspace screens ──────────────────────────────────────
    The landing page used to ship the entire signed-in product in one 2.8MB
@@ -154,6 +155,8 @@ const DocumentVerificationPage = lazy(() => import("../roles/hr/documents/screen
 const EmployeeDocumentsPage = lazy(() => import("../roles/hr/documents/screens/EmployeeDocumentsPage"));
 const DocumentTypesPage = lazy(() => import("../roles/hr/documents/screens/DocumentTypesPage"));
 const DocumentSettingsPage = lazy(() => import("../roles/hr/documents/screens/DocumentSettingsPage"));
+const LetterBrandingPage = lazy(() => import("../roles/hr/documents/screens/LetterBrandingPage"));
+const LetterTemplatesPage = lazy(() => import("../roles/hr/documents/screens/LetterTemplatesPage"));
 const OrgDocumentsPage = lazy(() => import("../roles/hr/documents/screens/OrgDocumentsPage"));
 const DocumentCompliancePage = lazy(() => import("../roles/hr/documents/screens/DocumentCompliancePage"));
 const DocumentRequestsPage = lazy(() => import("../roles/hr/documents/screens/DocumentRequestsPage"));
@@ -356,6 +359,10 @@ function AppRoutes() {
         <Route path="/dashboard/hr/documents/exports" element={<DocumentExportsPage />} />
         <Route path="/dashboard/hr/documents/types" element={<DocumentTypesPage />} />
         <Route path="/dashboard/hr/documents/settings" element={<DocumentSettingsPage />} />
+        {/* Letters are an HR-plane capability in PDF Phase 1 — no manager or
+            employee route exists to mount, so there is nothing to mirror. */}
+        <Route path="/dashboard/hr/documents/letterhead" element={<LetterBrandingPage />} />
+        <Route path="/dashboard/hr/documents/letter-templates" element={<LetterTemplatesPage />} />
         <Route path="/dashboard/hr/my-documents" element={<MyDocumentsPage />} />
         <Route path="/dashboard/hr/company-documents" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/hr/my-document-requests" element={<MyRequestsPage />} />

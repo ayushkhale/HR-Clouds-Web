@@ -56,7 +56,7 @@ export default function EmployeeDocumentsPage() {
           <SubjectDocumentsPanel key={userId} planeKey="hr" userId={userId} subjectName={person ? nameOf(userId) : ""} nameOf={nameOf} />
         ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xs">
-            <DocEmptyState icon={HiFolderOpen} title="Choose an employee" message="Pick someone above to see every document in their file — including ones in review, rejected and older versions — plus what their job requires and anything still outstanding." />
+            <DocEmptyState icon={HiFolderOpen} title="Choose an employee" message="Pick someone above to see everything in their file, what their job requires, and anything still outstanding." />
           </div>
         )}
       </main>

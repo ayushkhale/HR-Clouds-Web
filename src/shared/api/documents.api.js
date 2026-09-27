@@ -34,10 +34,21 @@
 //   catalogue (#111/#112) and the leave-attachment bridge (#128), which works
 //   out the caller's plane from their own token.
 //
+// PDF Generation Phase 1 (#130–#138) adds a tenth branch, `/documents/hr`
+// again but about LETTERS the company issues rather than files it stores: the
+// org's letterhead identity, its two branding images, and the catalog of letter
+// templates with each one's per-org defaults. Source of truth:
+// public/ref docs/md_pdfs/combined_api_analysis-6.md, phase1_api_analysis.md and
+// the change record 2026-09-27_pdf-generation-phase1-letter-branding-and-templates.md.
+// It changed nothing that came before it — no earlier path, request or response.
+//
 // Uploads never pass through this API: an "issue" call returns a pre-signed
 // S3 PUT URL, the browser sends the bytes straight to S3, then "confirm" asks
 // the server to check the object landed. See shared/documents/documentUpload.js.
-// The same three steps create a template file (#99/#101 → PUT → #102).
+// The same three steps create a template file (#99/#101 → PUT → #102), and the
+// same three a letterhead logo or signature (#132 → PUT → #133) — except that
+// handshake carries no row id at all: the claim rides in an opaque
+// `storage_key_token`, so nothing is written server-side until confirm.
 //
 // List reads answer `{ data: { total, rows } }` and page with limit/offset
 // (limit 1–200). Type lists, version chains and audit trails are plain arrays.
@@ -51,7 +62,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { request } from "./client.js";
-import { downloadFile } from "../utils/download.js";
+import { downloadFile, fetchFileBlob } from "../utils/download.js";
 
 /**
  * Query string that drops empty values. The server's query parser only builds
@@ -646,4 +657,158 @@ export const documentsAPI = {
    * `disposition`: inline | attachment.
    */
   getAttachmentViewUrl: (id, params) => request(`/documents/attachments/${seg(id)}/view-url${qs(params)}`),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  LETTERHEAD & LETTER TEMPLATES — PDF Generation Phase 1 (#130–#138). HR only.
+  //
+  //  Nothing here takes a record id. The only path parameter in the whole
+  //  branch is `:code` (a template code from the platform catalog), and every
+  //  route re-derives the organisation from the token — so there is nothing to
+  //  tamper with and nothing for this layer to encode but the code itself.
+  //
+  //  #134 and #138 are the module's first JSON-free replies: they stream an
+  //  `application/pdf` body, so they go through `fetchFileBlob()` rather than
+  //  `request()`, and they hand back a blob for the page to show rather than a
+  //  file for the browser to save. Both are per-organisation rate-limited
+  //  (429 PREVIEW_RATE_LIMITED) and both answer 503 PDF_RENDERER_NOT_CONFIGURED
+  //  when the renderer isn't wired up on the server — which the other seven
+  //  endpoints survive perfectly well, so a missing renderer must hide the
+  //  preview buttons, not the screens.
+  // ═══════════════════════════════════════════════════════════════════════════
+  /**
+   * #130 The organisation's letterhead identity: `{ branding, inherited, assets }`.
+   * `branding` is what HR has typed here, `inherited` the same facts as they
+   * stand on the organisation profile (read-only context, shown as the fallback
+   * a blank field will use). Reading it CREATES the row on first call, so an
+   * empty letterhead is a normal 200 and never a 404.
+   *
+   * A storage key never comes back — an image is `logo_present` + its type and
+   * size. `include_asset_urls: true` adds 5-minute signed URLs for the two
+   * thumbnails, which is the only way to show them and must not be cached.
+   */
+  getLetterBranding: (params) => request(`${HR}/letter-branding${qs(params)}`),
+  /**
+   * #131 Replace the letterhead TEXT fields. Never send an asset field — the two
+   * images are only ever changed through #132/#133, and this call leaves them
+   * alone.
+   *
+   * `""` clears a field to nothing, with two exceptions that were verified
+   * against the live API on 2026-09-27 and both differ from the spec:
+   *
+   *   · `accent_color_hex` refuses `""` (400 "not allowed to be empty") and
+   *     `null` (400 "must be a string"). The spec says an empty value is
+   *     ignored; it is not. Only ever send a real `#RRGGBB` — it is interpolated
+   *     into CSS, which is why the pattern is exact.
+   *   · `registered_address_lines` is NOT partial. Leave the key out and the
+   *     server writes its default `[]`, wiping a saved address — so a partial
+   *     save of any other field must still carry the address. Every other
+   *     omitted field survives untouched. `shared/documents/letterMeta.js`
+   *     `brandingPayload()` is the only correct body builder for this call.
+   *
+   * Also live: an empty body `{}` answers 200, not the documented 400.
+   * `website` must be https. No field may contain `<` or `>`; the address holds
+   * at most 5 lines of 120 characters.
+   */
+  updateLetterBranding: (body) => put(`${HR}/letter-branding`, body),
+  /**
+   * #132 Step one of an image upload: `{ asset_type: "logo" | "signature",
+   * file_name, content_type: "image/png" | "image/jpeg", size_bytes }` in,
+   * `{ upload_url, storage_key_token, expires_in, required_headers }` out (201).
+   *
+   * `storage_key_token` is opaque and lasts 10 minutes — pass it straight to
+   * #133 and never try to read it. PNG/JPEG only (SVG is refused outright);
+   * a logo may be 512 KB and a signature 256 KB.
+   *
+   * Live note: `required_headers` comes back capitalised (`Content-Type`,
+   * `Content-Length`), not lowercase as the spec's example shows. `putToSignedUrl`
+   * reads either case and drops Content-Length, which the browser sets itself.
+   */
+  createLetterAssetUploadUrl: (body) => post(`${HR}/letter-branding/assets/upload-url`, body),
+  /**
+   * #133 Step three, after the bytes have been PUT to `upload_url`: commit the
+   * image. The server HEADs the object and trusts what IT sees, not what was
+   * claimed at step one — so a mismatched type or size is refused here even
+   * though step one passed. Replies with the whole branding record again.
+   *
+   * Safe to repeat with the same token. 409 UPLOAD_NOT_FOUND means the PUT
+   * never landed (retry the upload, not the confirm); 404 UPLOAD_CLAIM_NOT_FOUND
+   * means the 10 minutes ran out and the whole handshake must start again.
+   */
+  confirmLetterAsset: (body) => post(`${HR}/letter-branding/assets/confirm`, body),
+  /**
+   * #134 A one-page A4 proof of the letterhead itself — logo, address block,
+   * statutory numbers, accent colour, signatory — as a watermarked PDF.
+   *
+   * The body must be exactly `{}`: any key at all is a 400. Nothing is stored
+   * and no employee is involved, so this is safe to show anyone in HR.
+   */
+  previewLetterBranding: () =>
+    fetchFileBlob(`${HR}/letter-branding/preview`, { method: "POST", body: {}, filename: "branding-preview.pdf" }),
+  /**
+   * #135 The platform's letter catalog joined with this organisation's state:
+   * `{ templates: [{ code, title, current_version, is_enabled, pinned_version,
+   * has_saved_fields, is_orphaned }] }`. `?enabled=true|false` (the string, not
+   * 1/yes) narrows it.
+   *
+   * `is_orphaned: true` is a config this organisation saved for a template the
+   * platform has since withdrawn: `current_version` is null and it can neither
+   * be opened nor rendered. Those rows are deliberately surfaced rather than
+   * hidden, so "where did that letter go?" has an answer.
+   */
+  getLetterTemplates: (params) => request(`${HR}/letter-templates${qs(params)}`),
+  /**
+   * #136 One template: `{ template, config }`. `config` is null until this
+   * organisation has ever saved anything for it.
+   *
+   * Two different field lists come back and mixing them up is the trap here.
+   * `template.fields` is the FORM DESCRIPTOR — `[{ key, label, type,
+   * max_length, required }]` — describing the per-org defaults HR may save, and
+   * it is the only thing the config form should ever render. `required_fields` /
+   * `optional_fields` are the letter's own placeholders, filled from sample data
+   * today and from a real employee in a later phase; they are not editable here.
+   */
+  getLetterTemplate: (code) => request(`${HR}/letter-templates/${seg(code)}`),
+  /**
+   * #137 Turn a template on or off and store this organisation's defaults:
+   * `{ is_enabled, saved_fields, pinned_version }` (plus `reference_pattern`,
+   * `requires_acknowledgement`, `is_confidential`, which are stored but unused
+   * in Phase 1 — so nothing in the UI should promise they do anything yet).
+   *
+   * `is_enabled` is required and `saved_fields` is a full replace, not a merge.
+   * Every key is validated against THAT template's descriptor: an unknown key is
+   * a 400 rather than being quietly dropped, which is why the form must be built
+   * from #136 and never from a hard-coded field list. `pinned_version` accepts
+   * only 1 or null in Phase 1 (null = always use the current version).
+   */
+  updateLetterTemplateConfig: (code, body) => put(`${HR}/letter-templates/${seg(code)}/config`, body),
+  /**
+   * #138 The template rendered as a watermarked A4 PDF, with sample data only.
+   *
+   * `{ use_saved_fields = true, override_fields = {} }`. Values merge
+   * sample → saved → override, last one winning, so `override_fields` is how a
+   * "try this wording" preview works without touching what is saved. Its keys
+   * must be a subset of the descriptor from #136.
+   *
+   * The spec says `subject_user_id` is refused with a 400. It is NOT, as of
+   * 2026-09-27: the live root schema ignores unknown keys, so a stray
+   * `subject_user_id` is silently dropped rather than rejected. Typed and length
+   * rules DO bite (`use_saved_fields` must be a boolean; an unknown
+   * `override_fields` key and an over-length value are both 400). Never send a
+   * real person's id here regardless — a Phase 1 preview carries no PII by
+   * design, and the frontend is now the only thing enforcing that.
+   *
+   * `use_saved_fields: true` against a switched-off template is 409
+   * TEMPLATE_DISABLED, so preview a disabled letter with `false` instead of
+   * offering a button that fails. 422 PDF_DATA_INCOMPLETE names the field that
+   * resolved empty.
+   *
+   * Also live: the 503 renderer check runs BEFORE the root body validation, so
+   * on a server with no renderer every malformed body reads as 503, not 400.
+   */
+  previewLetterTemplate: (code, body) =>
+    fetchFileBlob(`${HR}/letter-templates/${seg(code)}/preview`, {
+      method: "POST",
+      body: body || {},
+      filename: `${String(code || "letter")}-preview.pdf`,
+    }),
 };

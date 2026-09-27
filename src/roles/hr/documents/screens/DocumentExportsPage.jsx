@@ -21,8 +21,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiCheckCircle, HiClipboardList, HiClock, HiCloudDownload, HiDatabase, HiExclamationCircle,
-  HiExternalLink, HiFilter, HiRefresh, HiShieldCheck, HiUserCircle, HiX,
+  HiCheckCircle,
+  HiClipboardList,
+  HiClock,
+  HiCloudDownload,
+  HiDatabase,
+  HiExclamationCircle,
+  HiFilter,
+  HiRefresh,
+  HiShieldCheck,
+  HiUserCircle,
+  HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -128,15 +137,11 @@ function ExportDetailDialog({ row, nameOf, onClose }) {
             { label: "About", value: full.subject_user_id ? nameOf(full.subject_user_id, "an employee") : "Everyone in scope" },
           ]}
         />
-        <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
-          Only the shape of the download is kept — never its contents. Nobody’s documents are stored a second time by this record.
-        </p>
       </DetailSection>
 
       {applied.length > 0 && (
         <DetailSection title="Filters used" icon={HiFilter}>
           <DetailGrid cols={2} items={applied.map((f) => ({ label: f.label, value: f.value }))} />
-          <p className="text-[11px] text-slate-400 mt-3">These are the exact filters that produced the file, so the same set can be reproduced if it is ever queried.</p>
         </DetailSection>
       )}
 
@@ -211,7 +216,7 @@ export default function DocumentExportsPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Export Log</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Every spreadsheet and leaver’s pack taken out of your documents, and who took it. The record is written before the file is sent — if it can’t be written, the download doesn’t happen.
+              Every spreadsheet and leaver’s pack taken out of your documents, and who took it.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -335,11 +340,6 @@ export default function DocumentExportsPage() {
             </div>
           )}
         </div>
-
-        <p className="text-[11px] text-slate-400">
-          Nothing here can be edited or removed — that is what makes it worth having. If a download shouldn’t have happened, the record of it stays, and the conversation is with the person who took it.{" "}
-          <Link to="/dashboard/hr/documents/settings" className="font-bold text-purple-600 hover:underline">Document Settings <HiExternalLink className="inline w-3 h-3" /></Link>
-        </p>
       </main>
 
       {detail && <ExportDetailDialog row={detail} nameOf={nameOf} onClose={() => setDetail(null)} />}

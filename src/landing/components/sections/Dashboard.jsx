@@ -1,4 +1,4 @@
-import iPad from "../../../assets/iPad.png";
+import iPad from "../../../assets/ipadreal1.png";
 import { Reveal, useParallax } from "../../../shared/motion";
 
 /* The hero product shot on the homepage.
@@ -12,8 +12,15 @@ function Dashboard() {
 
   return (
     <section className="relative z-0">
-      <div className="bottom-0 -z-10 absolute bg-primary-500 w-full h-1/2" />
-      <div className="justify-items-center grid m-auto px-4 sm:px-8 md:px-16 xl:px-24 py-8 md:py-16 max-w-[90rem]">
+      {/* The dark band the tablet sits against. Anchored to the bottom so it
+          meets AppStatistics (same colour) with no seam — so its HEIGHT is what
+          positions it: more height moves its top edge further up the section. */}
+      <div className="bottom-0 -z-10 absolute bg-primary-500 w-full h-[55%]" />
+      {/* Top padding is what holds the shot down the page. Less of it lifts the
+          tablet — and the section's bottom edge with it — towards the hero. Nudge
+          these two together: the band's height keeps the tablet's overlap with
+          the dark area roughly where it was. */}
+      <div className="justify-items-center grid m-auto px-4 sm:px-8 md:px-16 xl:px-24 pt-2 pb-8 md:pt-6 md:pb-16 max-w-[90rem]">
         <Reveal variant="scale" duration={900} className="w-full max-w-5xl">
           <div
             ref={parallax}

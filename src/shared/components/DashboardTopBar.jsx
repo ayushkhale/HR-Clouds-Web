@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { roleTitle } from "../config/dictionary";
 import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
 import { useSidebar } from "../contexts/SidebarContext";
@@ -88,9 +89,25 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
     }
   };
 
-  // Mock organizations for UI if backend doesn't provide it yet
+  // Which organisation this session is in, and as what. The role is always
+  // known (it is a token claim); the NAME is not always available, because no
+  // endpoint returns the signed-in organisation's own profile — see the comment
+  // on `orgName` below. So the block degrades to the role alone rather than
+  // inventing a company called "Current Workspace", which is what it used to do.
   const organizations = user?.organizations || [];
-  const currentOrg = organizations.find(o => o.org_id === orgId) || { name: "Current Workspace", role };
+  const currentOrg = organizations.find(o => o.org_id === orgId) || null;
+  /**
+   * Sources, best first:
+   *   · the org list a multi-organisation sign-in stored (has real names)
+   *   · whatever the login reply happened to carry on the user
+   * There is deliberately no fallback string. If the name can't be known, the
+   * top bar shows the role on its own instead of something untrue.
+   */
+  const orgName = String(
+    currentOrg?.name || user?.org_name || user?.organization_name || user?.organization?.name || "",
+  ).trim();
+  const myRole = roleTitle(role);
+  const canSwitch = organizations.length > 1;
 
   // A page embedded in another page (HR Inbox) shares the host's top bar.
   if (embedded) return null;
@@ -184,38 +201,53 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
           )}
         </div>
 
-        {/* Workspace Switcher */}
-        {organizations.length > 0 && (
-          <div className="relative hidden sm:block">
-            <button 
-              onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
-            >
-              <div className="flex flex-col text-left">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Workspace</span>
-                <span className="text-xs font-bold text-slate-800 truncate max-w-[120px]">{currentOrg.name}</span>
+        {/* Who you are and where: the organisation's name above the role
+            holding it, immediately left of the avatar. On a small screen the
+            avatar carries it alone — there is no room for two lines. */}
+        {(orgName || myRole) && (
+          <div className="hidden sm:block relative">
+            {canSwitch ? (
+              <button
+                type="button"
+                onClick={() => setShowOrgDropdown(!showOrgDropdown)}
+                className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl hover:bg-slate-50 transition-colors"
+                aria-haspopup="menu"
+                aria-expanded={showOrgDropdown}
+                title="Switch workspace"
+              >
+                <span className="flex flex-col items-end text-right leading-tight min-w-0">
+                  {orgName && <span className="text-sm font-bold text-slate-800 truncate max-w-[180px]">{orgName}</span>}
+                  {myRole && <span className="text-[11px] font-semibold text-purple-600">{myRole}</span>}
+                </span>
+                <HiChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${showOrgDropdown ? "rotate-180" : ""}`} />
+              </button>
+            ) : (
+              <div className="flex flex-col items-end text-right leading-tight min-w-0 px-1">
+                {orgName && <p className="text-sm font-bold text-slate-800 truncate max-w-[200px]">{orgName}</p>}
+                {myRole && <p className="text-[11px] font-semibold text-purple-600">{myRole}</p>}
               </div>
-              <HiChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showOrgDropdown ? "rotate-180" : ""}`} />
-            </button>
+            )}
 
-            {showOrgDropdown && (
-              <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-100 rounded-xl shadow-lg py-2 z-50 animate-slide-up">
+            {showOrgDropdown && canSwitch && (
+              <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-100 rounded-xl shadow-lg py-2 z-50 animate-slide-up" role="menu">
                 <div className="px-3 pb-2 mb-2 border-b border-slate-50">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Switch Workspace</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Switch workspace</p>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {organizations.map(org => (
                     <button
                       key={org.org_id}
+                      type="button"
+                      role="menuitem"
                       onClick={() => handleSwitchOrg(org.org_id)}
                       disabled={isSwitching}
                       className={`w-full flex items-center justify-between px-4 py-2.5 hover:bg-purple-50 transition-colors text-left ${orgId === org.org_id ? "bg-slate-50" : ""}`}
                     >
-                      <div>
-                        <p className={`text-sm font-semibold ${orgId === org.org_id ? "text-purple-700" : "text-slate-700"}`}>{org.name}</p>
-                        <p className="text-[10px] text-slate-500 capitalize">{org.role}</p>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold truncate ${orgId === org.org_id ? "text-purple-700" : "text-slate-700"}`}>{org.name}</p>
+                        <p className="text-xs text-slate-500">{roleTitle(org.role) || org.role}</p>
                       </div>
-                      {orgId === org.org_id && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                      {orgId === org.org_id && <div className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />}
                     </button>
                   ))}
                 </div>

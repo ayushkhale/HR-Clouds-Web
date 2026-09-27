@@ -105,7 +105,7 @@ function CatalogPreview({ code, selected, onToggle, onClose }) {
                 ["Kept for", entry.default_retention_days ? `${entry.default_retention_days} days` : null],
               ]}
             />
-            <p className="text-[11px] text-slate-500 mt-3">You can change everything except the code and statutory flag after activating.</p>
+            <p className="text-xs text-slate-500 mt-3">Everything here can be changed after you activate it.</p>
           </DetailSection>
         </>
       )}
@@ -115,6 +115,9 @@ function CatalogPreview({ code, selected, onToggle, onClose }) {
 
 /* ── Catalog tab ──────────────────────────────────────────────────────────── */
 function CatalogTab({ onActivated, showToast }) {
+  // `onActivated` reloads the org's list AND moves to it — activating is the
+  // one action on this tab, and leaving somebody on the catalog afterwards
+  // makes them hunt for what they just did.
   const [filters, setFilters] = useState({ group: "", country_code: "", q: "", activated: "false" });
   const [query, setQuery] = useState("");
   const [state, setState] = useState({ rows: [], loading: true, error: null });
@@ -161,11 +164,15 @@ function CatalogTab({ onActivated, showToast }) {
       if (out.activated?.length) parts.push(`${out.activated.length} activated`);
       if (out.reactivated?.length) parts.push(`${out.reactivated.length} reactivated`);
       if (out.already_active?.length) parts.push(`${out.already_active.length} already active`);
-      showToast(parts.length ? `Done — ${parts.join(", ")}` : "Done");
+      const count = (out.activated?.length || 0) + (out.reactivated?.length || 0);
+      showToast(parts.length
+        ? `${parts.join(", ")}${count ? ` — ${count === 1 ? "it is" : "they are"} now in your document types.` : ""}`
+        : "Done");
       setSelected(new Set());
       invalidateDocumentTypes();
+      // No catalog reload: `onActivated` moves to the org's list, so this tab
+      // unmounts and would only be re-reading rows nobody is looking at.
       onActivated();
-      load();
     } catch (err) {
       showToast(documentErrorMessage(err, "Couldn't activate these types."), "error");
     } finally {
@@ -201,7 +208,7 @@ function CatalogTab({ onActivated, showToast }) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-36 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
       ) : state.rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100">
-          <DocEmptyState icon={HiCollection} title={filters.activated === "false" && !filters.q && !filters.group ? "Everything in the catalog is active" : "Nothing matches"} message={filters.activated === "false" && !filters.q && !filters.group ? "You've activated every standard document. Create a custom type for anything else." : "Try another search or category."} />
+          <DocEmptyState icon={HiCollection} title={filters.activated === "false" && !filters.q && !filters.group ? "Everything in the catalog is active" : "Nothing matches"} message={filters.activated === "false" && !filters.q && !filters.group ? "You’ve activated every standard document." : "Try another search or category."} />
         </div>
       ) : (
         <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 ${state.loading ? "opacity-60" : ""}`}>
@@ -275,7 +282,13 @@ export default function DocumentTypesPage() {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const rows = arrayPayload(await documentsAPI.getTypes(filters));
-      rows.sort((a, b) => (a.is_active === false) - (b.is_active === false) || (a.display_order ?? 0) - (b.display_order ?? 0) || String(a.name).localeCompare(String(b.name)));
+      // Newest first, so a type activated a moment ago is the first thing on
+      // screen. Switched-off ones still sink to the bottom: they can't collect
+      // anything, so they are history rather than the working list.
+      rows.sort((a, b) =>
+        (a.is_active === false) - (b.is_active === false)
+        || Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0)
+        || String(a.name).localeCompare(String(b.name)));
       if (id === reqRef.current) setState({ rows, loading: false, error: null });
     } catch (error) {
       if (id === reqRef.current) setState({ rows: [], loading: false, error });
@@ -324,7 +337,7 @@ export default function DocumentTypesPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Document Types</h1>
             <p className="text-sm text-slate-500 mt-1">
-              The documents your organisation collects from its people, and the policies it issues to them. Mark one as required and it appears on the right people’s Required documents list.
+              What your organisation collects from its people, and what it issues to them.
               {!state.loading && !state.error && unfiltered && <span className="font-semibold text-slate-700"> {activeCount} active{requiredCount > 0 ? `, ${requiredCount} required` : ""}.</span>}
             </p>
           </div>
@@ -344,7 +357,7 @@ export default function DocumentTypesPage() {
         </div>
 
         {tab === "catalog" ? (
-          <CatalogTab onActivated={load} showToast={showToast} />
+          <CatalogTab onActivated={() => { load(); setTab("ours"); }} showToast={showToast} />
         ) : (
           <>
             <div className="flex flex-col lg:flex-row lg:items-center gap-2">
@@ -383,19 +396,18 @@ export default function DocumentTypesPage() {
                 <DocEmptyState
                   icon={HiTemplate}
                   title={unfiltered ? "No document types yet" : "Nothing matches"}
-                  message={unfiltered ? "Start from the catalog — PAN, Aadhaar, passport, degree certificates and more are ready to activate in one click." : "Try another search or filter."}
+                  message={unfiltered ? "Start from the catalog — PAN, Aadhaar, passport and more are ready to activate." : "Try another search or filter."}
                   action={unfiltered ? <button type="button" onClick={() => setTab("catalog")} className={PRIMARY_BTN}><HiCollection className="w-4 h-4" /> Browse the catalog</button> : null}
                 />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm min-w-[900px]">
+                  <table className="w-full text-left text-sm min-w-[760px]">
                     <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       <tr>
                         <th className="px-5 py-3.5">Document type</th>
                         <th className="px-5 py-3.5">Category</th>
-                        <th className="px-5 py-3.5">Access</th>
+                        <th className="px-5 py-3.5">Who can use it</th>
                         <th className="px-5 py-3.5">Rules</th>
-                        <th className="px-5 py-3.5">Files</th>
                         <th className="px-5 py-3.5">Status</th>
                       </tr>
                     </thead>
@@ -403,10 +415,11 @@ export default function DocumentTypesPage() {
                       {visible.map((t) => (
                         <tr key={t.id} {...rowPreviewProps(() => openType(t), `Edit ${t.name}`)} className={`hover:bg-purple-50/30 transition-colors cursor-pointer outline-none focus:bg-purple-50/40 ${t.is_active === false ? "opacity-60" : ""}`}>
                           <td className="px-5 py-3.5">
-                            <p className="font-semibold text-slate-800 flex items-center gap-1.5">{t.name}{t.is_statutory && <HiShieldCheck className="w-4 h-4 text-purple-500" title="Statutory" />}</p>
-                            <p className="text-[11px] text-slate-400 font-mono">{t.code} · {t.source === "custom" ? "Custom" : "Catalog"}</p>
-                            <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${isOrgType(t) ? "text-purple-600" : "text-slate-400"}`}>
-                              {isOrgType(t) ? "Issued by the organisation" : "About an employee"}
+                            <p className="font-semibold text-slate-800 flex items-center gap-1.5">{t.name}{t.is_statutory && <HiShieldCheck className="w-4 h-4 text-purple-500" title="Required by law" />}</p>
+                            {/* One muted line, not three. The code lives in the
+                                form and the preview; on a list it is noise. */}
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {isOrgType(t) ? "We issue it" : "We collect it"} · {t.source === "custom" ? "Your own" : "Standard"}
                             </p>
                           </td>
                           <td className="px-5 py-3.5 text-xs font-semibold text-slate-600">{groupLabel(t.group)}</td>
@@ -432,10 +445,6 @@ export default function DocumentTypesPage() {
                                 </>
                               )}
                             </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-[11px] text-slate-500 leading-snug">
-                            <p className="font-semibold text-slate-700">{formatBytes(t.max_file_size_bytes)}</p>
-                            <p className="truncate max-w-[180px]">{formatList(t.allowed_content_types || [])}</p>
                           </td>
                           <td className="px-5 py-3.5">
                             {t.is_active === false ? <Chip>Switched off</Chip> : <Chip tone="violet">Active</Chip>}

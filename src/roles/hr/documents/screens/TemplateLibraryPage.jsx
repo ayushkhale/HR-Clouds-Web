@@ -19,10 +19,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import {
-  HiCheckCircle, HiCloudDownload, HiDocumentAdd, HiDownload, HiExternalLink, HiEyeOff,
-  HiInformationCircle, HiLink, HiPencilAlt, HiRefresh, HiSearch, HiTemplate, HiX,
+  HiCheckCircle,
+  HiCloudDownload,
+  HiDocumentAdd,
+  HiExternalLink,
+  HiEyeOff,
+  HiLink,
+  HiPencilAlt,
+  HiRefresh,
+  HiSearch,
+  HiTemplate,
+  HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { Pagination, Toast, useToast } from "../../../../shared/attendance/ui";
@@ -169,7 +177,7 @@ export default function TemplateLibraryPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Form Templates</h1>
             <p className="text-sm text-slate-500 mt-1">
-              The blank forms your people download and fill in — claim sheets, declarations, nomination forms. Publishing a new version takes the old one out of circulation the same second, so nobody ends up filling in last year’s sheet.
+              The blank forms your people download and fill in. Publishing a new version retires the old one at the same moment.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -182,7 +190,7 @@ export default function TemplateLibraryPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 max-w-md">
           <Tile
             label="Live forms" value={tallies.published ?? "…"} sub="Everyone can download these"
             icon={HiCheckCircle} tone="text-violet-500"
@@ -193,13 +201,6 @@ export default function TemplateLibraryPage() {
             icon={HiPencilAlt} tone="text-fuchsia-500"
             onClick={() => update({ status: filters.status === "draft" ? "" : "draft" })} active={filters.status === "draft"}
           />
-          <div className="col-span-2 rounded-2xl border border-slate-100 bg-white shadow-xs px-4 py-3.5 flex items-start gap-3">
-            <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiInformationCircle className="w-5 h-5" /></span>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Forms hold no personal information, so there is nothing to keep from anyone: every employee and manager sees the same list. That is also why nothing here is scoped to a team.{" "}
-              <Link to="/dashboard/hr/documents/types" className="font-bold text-purple-600 hover:underline">Document types <HiExternalLink className="inline w-3 h-3" /></Link>
-            </p>
-          </div>
         </div>
 
         {tallies.draft > 0 && filters.status !== "draft" && (
@@ -338,11 +339,6 @@ export default function TemplateLibraryPage() {
             </div>
           )}
         </div>
-
-        <p className="text-[11px] text-slate-400">
-          A published form can’t be deleted, only replaced or retired — so there is always a record of what people were told to fill in and when. Drafts can be deleted freely. Each form keeps its own download count, which is a fair guide to whether anybody has actually found it.{" "}
-          <Link to="/dashboard/hr/documents/exports" className="font-bold text-purple-600 hover:underline">Export log <HiDownload className="inline w-3 h-3" /></Link>
-        </p>
       </main>
 
       {detail && (

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import PageHeader from "../../../shared/components/PageHeader";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import AttendanceCard from "../../employee/components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
@@ -311,17 +312,13 @@ function ManagerDashboard() {
     <>
       <DashboardTopBar title="Dashboard" />
       <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
-        <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-          <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-          <div className="relative z-10 max-w-2xl space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-semibold tracking-wide border border-white/20">
-              <HiSparkles className="w-3 h-3 text-purple-200" /> MANAGER WORKSPACE
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{greetingFor(user, "there")}</h1>
-            <p className="text-xs sm:text-sm text-purple-100/90 font-normal">Monitor team attendance, review pending requests and track your team&apos;s performance.</p>
-          </div>
-          <img src="https://cdn3d.iconscout.com/3d/premium/thumb/empresario-haciendo-meditacion-3d-icon-png-download-8179740.png" alt="" className="relative z-10 w-28 sm:w-40 md:w-48 object-contain drop-shadow-2xl sm:mr-8 md:mr-16 -mb-4 sm:-mb-6" />
-        </div>
+        <PageHeader
+          badgeText="MANAGER WORKSPACE"
+          badgeIcon={HiSparkles}
+          title={greetingFor(user, "there")}
+          subtitle="Monitor team attendance, review pending requests and track your team’s performance."
+          image="https://cdn3d.iconscout.com/3d/premium/thumb/empresario-haciendo-meditacion-3d-icon-png-download-8179740.png"
+        />
 
         {/* Left half: my punch card over the team's month. Right half: today's
             team numbers, stretched to the height of both. Every card uses the

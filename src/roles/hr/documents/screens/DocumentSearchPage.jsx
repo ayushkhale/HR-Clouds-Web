@@ -182,7 +182,7 @@ export default function DocumentSearchPage() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Find a Document</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Search every employee document in the organisation at once — by name, kind, person, department, state, tag or date. For an audit, filter it down and take the spreadsheet.
+              Search every employee document in the organisation at once. Filter it down and take the spreadsheet.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -264,7 +264,7 @@ export default function DocumentSearchPage() {
                 {filters.tags.length > 0 && (
                   <div className="mt-2">
                     <TagChips tags={filters.tags} onRemove={(tag) => update({ tags: filters.tags.filter((t) => t !== tag) })} />
-                    <p className="text-[10px] text-slate-400 mt-1.5">Shows anything carrying any one of these tags.</p>
+                    <p className="text-xs text-slate-400 mt-1.5">Shows anything carrying any one of these tags.</p>
                   </div>
                 )}
               </div>
@@ -282,7 +282,6 @@ export default function DocumentSearchPage() {
                   <input type="date" aria-label="Expires from" max={filters.to_expires_on || undefined} value={filters.from_expires_on} onChange={(e) => update({ from_expires_on: e.target.value })} className={`${SELECT} flex-1`} />
                   <input type="date" aria-label="Expires to" min={filters.from_expires_on || undefined} value={filters.to_expires_on} onChange={(e) => update({ to_expires_on: e.target.value })} className={`${SELECT} flex-1`} />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1.5">For “what expires this quarter”, the expiring report is quicker.</p>
               </div>
             </div>
           )}
