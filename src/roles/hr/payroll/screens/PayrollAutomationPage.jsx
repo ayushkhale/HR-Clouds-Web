@@ -19,8 +19,8 @@
 // that has switched to the new render engine. On the classic engine — which is
 // everyone, until they opt in — there is no queue and the endpoint answers all
 // zeros, so the card is not shown rather than offering work that cannot exist.
-// A server that predates the endpoint answers a bodyless 404; that hides the
-// card too, and leaves the other four alone.
+// An environment that doesn't have the route answers a bodyless 404; that hides
+// the card too, and leaves the other four alone.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
@@ -142,7 +142,7 @@ export default function PayrollAutomationPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [results, setResults] = useState({});
-  // Jobs this server answered a bodyless 404 for — not deployed here yet.
+  // Jobs this environment answered a bodyless 404 for — no such route here.
   const [hidden, setHidden] = useState({});
 
   // Both reads only describe the jobs; the Run buttons work without either.

@@ -29,9 +29,11 @@
 //    the classic engine. #220 counts those as `uncacheable`, which is why
 //    readiness is the server's `will_stream` and never `ready === total`.
 //
-// The queue endpoints ship after the setting they belong to, so a 404 with no
-// body means "this server doesn't have them yet": the tools hide themselves and
-// the ZIP button keeps working exactly as it does today.
+// #219 and #220 were verified against the live API on 2026-09-28 and behave as
+// documented. The bodyless-404 guard stays anyway: this app is deployed against
+// more than one environment, and a server that has the settings but not yet the
+// queue routes must hide the two tools rather than show a payroll error for
+// something nobody did. The ZIP button keeps working either way.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,8 +52,8 @@ import {
 } from "react-icons/hi";
 import {
   RENDER_POLL_MAX_TICKS, RENDER_POLL_MS, drainMessage, drainResultOf, enqueuedBatchOf,
-  isFullyPrepared, renderPercent, renderStatusLine, renderStatusOf, stillPreparing,
-  uncacheableNote, usesHtmlEngine, wasEnqueued,
+  isFullyPrepared, renderPercent, renderStatusLine, renderStatusOf, serverIsClassic,
+  stillPreparing, uncacheableNote, usesHtmlEngine, wasEnqueued,
 } from "./pdfRenderMeta";
 
 const PAGE_SIZE = 25;
@@ -484,8 +486,12 @@ export default function RunPayslipsPanel({ run, showToast }) {
 
       {/* How far this run's payslip PDFs have got. Only ever shown on the new
           engine — on the classic one every payslip is drawn on download and
-          there is no such thing as "ready". */}
-      {queueReady && (renderStatus || batch || pollNote) && (
+          there is no such thing as "ready".
+          `serverIsClassic` is the second half of that: #220 reports
+          `will_stream: false` on the classic engine even for a finished run, so
+          if the settings we read at mount have since gone stale this would
+          otherwise sit at "0 of 10 ready" for ever. The server's own answer wins. */}
+      {queueReady && !serverIsClassic(renderStatus) && (renderStatus || batch || pollNote) && (
         <RenderStatusStrip status={renderStatus} batch={batch} note={pollNote} />
       )}
 

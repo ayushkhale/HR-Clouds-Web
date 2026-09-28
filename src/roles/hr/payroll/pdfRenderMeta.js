@@ -43,11 +43,25 @@
 //     cleanup. That is the safety net worth telling HR about before they opt in,
 //     because it is what makes trying it a small decision rather than a big one.
 //
-// SPEC DEVIATION, recorded so nobody "corrects" it: the change record gives
-// `pdf_cache_retention_days` a default of 400 and the endpoint analysis gives it
-// 365. Neither is assumed — the value is read from the server and the form falls
-// back only when the key is absent, in which case the number shown is the one
-// the server is about to send back anyway on the next read.
+// VERIFIED AGAINST THE LIVE API 2026-09-28, and three things differ from the
+// documents — recorded so nobody "corrects" them back:
+//
+//   a. `pdf_cache_retention_days` defaults to 400, NOT the 365 the endpoint
+//      analysis claims. The change record, migration 00057 and the live
+//      `GET /payroll/hr/settings` all agree on 400. The value is still read from
+//      the server; 400 is only the fallback for a key that isn't there.
+//   b. `#220`'s `batch` block carries NO `id`, though the spec's example shows
+//      one. It is read defensively and nothing on screen depends on it.
+//   c. `#219` does NOT reject unknown body keys — the spec says
+//      `allowUnknown: false`, the live route answers 200 and ignores them. A bad
+//      `run_id` IS rejected (400 VALIDATION_ERROR), so only the strictness
+//      differs. Nothing here relies on either behaviour: only `run_id` is sent.
+//
+//   Also confirmed live: `#219` on the classic engine answers
+//   `{ engine: "pdfkit", …all zeros }` with HTTP 200, exactly as `drainMessage()`
+//   assumes, and `#220` answers `will_stream: false` on the classic engine even
+//   for a fully-approved run — which is why readiness is only ever shown for an
+//   organisation the SERVER agrees is on the new engine (see `serverIsClassic`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── The engine (setting #87) ────────────────────────────────────────────────
@@ -228,6 +242,21 @@ export function renderPercent(status) {
 
 /** A run whose payslips are all prepared has nothing worth showing a progress bar for. */
 export const isFullyPrepared = (status) => !!status && status.total > 0 && status.willStream;
+
+/**
+ * The SERVER says this organisation is on the classic engine, whatever the
+ * settings we read at mount said.
+ *
+ * Settings are read once; #220 is read continuously. If the two disagree — HR
+ * switched back in another tab, or a stale read — the fresher answer wins for
+ * anything on screen. It matters because #220 reports `will_stream: false` on
+ * the classic engine even for a finished run (verified live), so a readiness
+ * strip driven by the stale value would sit at "0 of 10 ready" and never move.
+ *
+ * Deliberately NOT folded into the gate that decides whether to CALL #220: that
+ * would clear the status, which would re-open the gate, which would fetch again.
+ */
+export const serverIsClassic = (status) => !!status && status.engine === PDF_ENGINE_CLASSIC;
 
 /**
  * One sentence about where a run's payslips have got to.

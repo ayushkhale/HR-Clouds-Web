@@ -279,11 +279,12 @@ export const isPdfRendererNotConfigured = (err) => payrollErrorCode(err) === "PD
 /**
  * A payroll endpoint this server doesn't have yet.
  *
- * PDF Phase 3's queue endpoints (#219 / #220) ship after the settings they
- * belong to, so a server can legitimately answer 404 with no JSON envelope at
- * all — an unrouted path, not a missing record. A screen treats that as "this
- * tool isn't here yet" and hides it, rather than showing a payroll error for
- * something nobody did.
+ * PDF Phase 3's queue endpoints (#219 / #220) are live on the development API
+ * as of 2026-09-28, but this app is deployed against more than one environment
+ * and the routes ship separately from the settings they belong to. An unrouted
+ * path answers 404 with no JSON envelope at all — not a missing record. A screen
+ * treats that as "no such tool here" and hides it, rather than showing a payroll
+ * error for something nobody did.
  */
 export const isPayrollRouteMissing = (err) => err?.status === 404 && !err?.data;
 
