@@ -7,6 +7,12 @@
 // myself; this one is what the company has handed me, and what it asks of me:
 // to read it, and sometimes to acknowledge it (#73) or sign it (#74).
 //
+// Since PDF Phase 2 some of these are LETTERS the company issued about the person
+// — a bonafide letter, an experience certificate — rather than policies issued to
+// everybody. They arrive through the same #70/#71 reads with no new endpoint, so
+// nothing here has to know: the only visible difference is the reference number
+// on the card, which is what the person will be asked to quote.
+//
 // "Needs you" / "Overdue" / "Done" come from the server's compliance verdict
 // (#70 `compliance_state`), judged on today's IST date — never recomputed here.
 // Opening a document records that I've read it (#72), so that is always a
@@ -86,7 +92,11 @@ function IssuedCard({ row, typeName, onOpen }) {
             : <RecipientStateBadge state={row.state} className="shrink-0" />}
         </div>
         <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-          {[typeName, doc.version > 1 ? `Version ${doc.version}` : null, obligationLabel(doc)].filter(Boolean).join(" · ")}
+          {/* A letter the company issued carries a reference number (PDF Phase
+              2), and it is the first thing a bank or an embassy asks for — so it
+              leads the line for those, and is simply absent for everything else. */}
+          {[doc.reference_number || null, typeName, doc.version > 1 ? `Version ${doc.version}` : null, obligationLabel(doc)]
+            .filter(Boolean).join(" · ")}
         </p>
         {doc.description && <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">{doc.description}</p>}
 

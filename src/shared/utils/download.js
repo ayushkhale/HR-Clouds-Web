@@ -16,6 +16,14 @@
 // blob so a caller can show the file on screen (the letter previews render an
 // inline PDF in an iframe). Both go through `fetchBinary()`, so a refusal is
 // thrown in exactly the same shape either way.
+//
+// ONE ROUTE DOES NOT ALWAYS ANSWER WITH A FILE. Since PDF Generation Phase 3,
+// the bulk payslip ZIP (#174) may answer `202 Accepted` with a JSON body saying
+// "I have started preparing these, poll here" — and `response.ok` is true for a
+// 202, so without the `acceptJson` option below this function would cheerfully
+// save that JSON to disk as `payslips_run-xxx.zip`. A corrupt archive that looks
+// like a successful download is the worst possible outcome for a payroll file,
+// so the option is opt-in per call and nothing else in the app is affected.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { API_BASE_URL, tokenHelper } from "../api/client";
@@ -55,12 +63,18 @@ function filenameFromDisposition(header) {
 
 const safeName = (name) => String(name || "download").replace(/[\\/:*?"<>|]+/g, "-");
 
+/** A 2xx that is JSON rather than a file — today only #174's `202`. */
+const isJsonResponse = (response) => /application\/json/i.test(response.headers.get("Content-Type") || "");
+
 /**
  * The shared half of both downloads: send the request with the session token,
  * turn a refusal into the error shape `request()` throws, and refuse an empty
  * body. Kept private — callers want one of the two functions below.
+ *
+ * With `acceptJson`, a successful JSON answer is returned as `{ json, response }`
+ * instead of a blob. Without it (every other caller), behaviour is unchanged.
  */
-async function fetchBinary(endpoint, { params, method = "GET", body } = {}) {
+async function fetchBinary(endpoint, { params, method = "GET", body, acceptJson = false } = {}) {
   const token = tokenHelper.get();
   const response = await fetch(`${API_BASE_URL}${endpoint}${buildQuery(params)}`, {
     method,
@@ -86,6 +100,22 @@ async function fetchBinary(endpoint, { params, method = "GET", body } = {}) {
     throw error;
   }
 
+  // Checked BEFORE the body is read as a blob: a 202 is a successful answer
+  // that happens not to be a file, and reading it as bytes would lose it.
+  if (acceptJson && isJsonResponse(response)) {
+    let json = null;
+    try {
+      json = await response.json();
+    } catch {
+      // A 2xx that claims JSON and isn't leaves nothing to hand back; it falls
+      // through to the error below rather than being guessed at.
+    }
+    if (json) return { json, response };
+    const error = new Error("The server sent an answer that couldn’t be read.");
+    error.status = response.status;
+    throw error;
+  }
+
   const blob = await response.blob();
   if (blob.size === 0) {
     const error = new Error("The server returned an empty file.");
@@ -98,12 +128,17 @@ async function fetchBinary(endpoint, { params, method = "GET", body } = {}) {
 /**
  * Fetch a file with the session token and hand it to the browser to save.
  * @param {string} endpoint path after the API base, e.g. "/payroll/hr/runs/x/bank-advice"
- * @param {{ params?: object, filename?: string, method?: string, body?: object }} [options]
+ * @param {{ params?: object, filename?: string, method?: string, body?: object, acceptJson?: boolean }} [options]
  *   `filename` is the fallback used when the response's own name can't be read.
- * @returns {Promise<{ filename: string, size: number }>}
+ *   `acceptJson` allows a successful JSON answer instead of a file — pass it
+ *   only for a route documented to answer that way (#174's `202`).
+ * @returns {Promise<{ filename: string, size: number } | { enqueued: true, status: number, data: object }>}
+ *   Nothing is saved when `enqueued` is true; the caller decides what happens next.
  */
-export async function downloadFile(endpoint, { params, filename = "download", method = "GET", body } = {}) {
-  const { blob, response } = await fetchBinary(endpoint, { params, method, body });
+export async function downloadFile(endpoint, { params, filename = "download", method = "GET", body, acceptJson = false } = {}) {
+  const { blob, response, json } = await fetchBinary(endpoint, { params, method, body, acceptJson });
+
+  if (json) return { enqueued: true, status: response.status, data: json?.data ?? json };
 
   const name = safeName(filenameFromDisposition(response.headers.get("Content-Disposition")) || filename);
   const url = URL.createObjectURL(blob);

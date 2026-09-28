@@ -12,8 +12,17 @@
 //     days; onboarding target 0–100% (Phase 4) — all SETTING_OUT_OF_RANGE
 //   · the audience size above which publishing is handed to a background
 //     worker, and the two offboarding defaults (Phase 5)
-// Only changed fields are sent. The Phase 3, 4 and 5 keys are only sent when
-// the server returned them, so an older server never sees a key it would reject.
+//   · the numbering pattern for issued letters must hold exactly one
+//     {SEQ:0000} and only known tokens (LETTER_REFERENCE_PATTERN_INVALID), and
+//     the hourly preview cap is 1–1000 (PDF Phase 2, #82–#86)
+// Only changed fields are sent. The Phase 3, 4, 5 and letter keys are only sent
+// when the server returned them, so an older server never sees a key it would
+// reject.
+//
+// The numbering pattern is the one setting here that can break something else
+// entirely: a pattern the server accepts but which resolves too long makes every
+// LETTER fail to issue, on a screen nobody would think to look at. So it is
+// validated in the box, shown as a worked example, and warned about on length.
 //
 // Every one of the five Phase 4 email switches starts OFF, and that is a
 // deliberate default rather than an oversight: an organisation that turns the
@@ -23,7 +32,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HiBadgeCheck, HiBell, HiClipboardList, HiCog, HiEye, HiLockClosed, HiLogout, HiMail, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
+import { HiBadgeCheck, HiBell, HiClipboardList, HiCog, HiEye, HiLockClosed, HiLogout, HiMail, HiPaperAirplane, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -33,6 +42,11 @@ import { DocErrorState, FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } fr
 import { invalidateDocumentSettings } from "../../../../shared/documents/useDocumentSettings";
 import { fmtDateTime } from "../../../../shared/attendance/dates";
 import { SIGNATURE_PROVIDERS } from "../../../../shared/documents/complianceMeta";
+import {
+  ACK_DEFAULT_CHOICES, LETTER_SETTING_KEYS, REFERENCE_PATTERN_DEFAULT, REFERENCE_TOKENS,
+  ackDefaultFromChoice, ackDefaultToChoice, referenceLengthWarning, referencePatternExample,
+  referencePatternProblem,
+} from "../../../../shared/documents/letterIssueMeta";
 
 const MB = 1024 * 1024;
 
@@ -45,6 +59,7 @@ const NUMBERS = {
   document_request_default_due_days: { min: 1, max: 365, label: "Default time to provide a document", unit: "days" },
   document_onboarding_completeness_threshold: { min: 0, max: 100, label: "Onboarding target", unit: "%" },
   document_publish_sync_threshold: { min: 1, max: 1_000_000, label: "Hand a publish to the background above", unit: "people" },
+  letter_preview_rate_per_hour: { min: 1, max: 1000, label: "Letter previews allowed each hour", unit: "previews" },
 };
 
 // Phase 3 settings. Present on the read only once the server has them.
@@ -101,6 +116,11 @@ const PHASE5_KEYS = [
   "document_offboarding_exit_pack_scope",
 ];
 
+// The five letter settings (#82–#86). Two of them — branding and the preview
+// cap — were enforced in PDF Phase 1 but could not be saved; Phase 2 fixed that,
+// so they only appear once the server returns them like every other phase's keys.
+const LETTER_KEYS = LETTER_SETTING_KEYS;
+
 const REMINDER_DAYS_MAX_ENTRIES = 6;
 
 /**
@@ -141,6 +161,14 @@ const toForm = (s) => ({
   document_publish_sync_threshold: String(s.document_publish_sync_threshold ?? 20000),
   document_offboarding_archive_mode: s.document_offboarding_archive_mode || "archive",
   document_offboarding_exit_pack_scope: s.document_offboarding_exit_pack_scope || "all",
+  letter_branding_enabled: s.letter_branding_enabled !== false,
+  letter_preview_rate_per_hour: String(s.letter_preview_rate_per_hour ?? 60),
+  letter_reference_pattern: s.letter_reference_pattern || REFERENCE_PATTERN_DEFAULT,
+  letter_default_confidential: s.letter_default_confidential !== false,
+  // #86 is nullable, and `null` is a real answer ("follow the document type"),
+  // not an unset value — so it round-trips through a three-way choice rather
+  // than a switch, which could only ever say true or false.
+  letter_ack_default: ackDefaultToChoice(s.letter_requires_acknowledgement_default),
 });
 
 function Card({ title, icon: Icon, children, className = "" }) {
@@ -185,6 +213,7 @@ export default function DocumentSettingsPage() {
   const hasCompliance = !!saved && COMPLIANCE_KEYS.some((k) => k in saved);
   const hasAutomation = !!saved && PHASE4_KEYS.some((k) => k in saved);
   const hasEnterprise = !!saved && PHASE5_KEYS.some((k) => k in saved);
+  const hasLetters = !!saved && LETTER_KEYS.some((k) => k in saved);
 
   const problems = useMemo(() => {
     if (!form) return {};
@@ -193,17 +222,22 @@ export default function DocumentSettingsPage() {
       if (COMPLIANCE_KEYS.includes(key) && !hasCompliance) return;
       if (PHASE4_KEYS.includes(key) && !hasAutomation) return;
       if (PHASE5_KEYS.includes(key) && !hasEnterprise) return;
+      if (LETTER_KEYS.includes(key) && !hasLetters) return;
       const n = Number(form[key]);
       if (!Number.isFinite(n) || n < r.min || n > r.max) out[key] = `Between ${r.min} and ${r.max} ${r.unit}.`;
     });
     if (hasAutomation && parseReminderDays(form.document_expiry_reminder_days) === null) {
       out.document_expiry_reminder_days = `Up to ${REMINDER_DAYS_MAX_ENTRIES} whole numbers between 0 and 365, e.g. 30, 15, 7.`;
     }
+    if (hasLetters) {
+      const pattern = referencePatternProblem(form.letter_reference_pattern);
+      if (pattern) out.letter_reference_pattern = pattern;
+    }
     if (form.document_require_separate_checker && form.manager_direct_document_authority) {
       out.conflict = "Separate checker and manager direct authority can't both be on — turn one off.";
     }
     return out;
-  }, [form, hasCompliance, hasAutomation, hasEnterprise]);
+  }, [form, hasCompliance, hasAutomation, hasEnterprise, hasLetters]);
 
   const changes = useMemo(() => {
     if (!form || !saved) return {};
@@ -234,16 +268,27 @@ export default function DocumentSettingsPage() {
         document_offboarding_archive_mode: form.document_offboarding_archive_mode,
         document_offboarding_exit_pack_scope: form.document_offboarding_exit_pack_scope,
       } : {}),
+      ...(hasLetters ? {
+        letter_branding_enabled: !!form.letter_branding_enabled,
+        letter_preview_rate_per_hour: Number(form.letter_preview_rate_per_hour),
+        letter_reference_pattern: String(form.letter_reference_pattern || "").trim(),
+        letter_default_confidential: !!form.letter_default_confidential,
+        letter_requires_acknowledgement_default: ackDefaultFromChoice(form.letter_ack_default),
+      } : {}),
     };
     return Object.fromEntries(Object.entries(next).filter(([k, v]) => {
       // A key the server never sent is never sent back.
-      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k)) && !(k in saved)) return false;
+      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k) || LETTER_KEYS.includes(k)) && !(k in saved)) return false;
       // The reminder schedule is an array, so `!==` would call it changed on
       // every render and leave the Save bar permanently up.
       if (Array.isArray(v)) return !sameDays(v, saved[k]);
+      // `letter_requires_acknowledgement_default` is legitimately null, and
+      // `null !== undefined`, so a server that has the column but no value would
+      // look permanently changed. Both nullish readings are treated as equal.
+      if (v === null && (saved[k] === null || saved[k] === undefined)) return false;
       return v !== saved[k];
     }));
-  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise]);
+  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise, hasLetters]);
 
   const dirty = Object.keys(changes).length > 0;
   const blocked = Object.keys(problems).length > 0;
@@ -296,10 +341,11 @@ export default function DocumentSettingsPage() {
           {/* The letters the company issues are set up separately — this page is
               about documents that come in, not letters that go out. */}
           <p className="text-xs text-slate-500 mt-2">
-            Issuing letters is set up separately:{" "}
-            <Link to="/dashboard/hr/documents/letterhead" className="font-bold text-purple-600 hover:underline">Letterhead &amp; Branding</Link>
-            {" "}and{" "}
-            <Link to="/dashboard/hr/documents/letter-templates" className="font-bold text-purple-600 hover:underline">Letter Templates</Link>.
+            What a letter looks like is set up separately:{" "}
+            <Link to="/dashboard/hr/documents/letterhead" className="font-bold text-purple-600 hover:underline">Letterhead &amp; Branding</Link>,{" "}
+            <Link to="/dashboard/hr/documents/letter-templates" className="font-bold text-purple-600 hover:underline">Letter Templates</Link>
+            {" "}and the{" "}
+            <Link to="/dashboard/hr/documents/letters" className="font-bold text-purple-600 hover:underline">register of issued letters</Link>.
           </p>
         </div>
 
@@ -484,6 +530,96 @@ export default function DocumentSettingsPage() {
                 <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
                   <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
                   Document emails will appear here once your server has been updated. Until then, nothing is emailed automatically.
+                </p>
+              )}
+            </Card>
+
+            <Card title="Letters you issue" icon={HiPaperAirplane}>
+              {hasLetters ? (
+                <>
+                  <SwitchRow
+                    title="Print your letterhead on every letter"
+                    description="Your logo, address, registration numbers and signature. Off, letters print as plain text — for a company using its own pre-printed paper."
+                    checked={form.letter_branding_enabled}
+                    onChange={(v) => set("letter_branding_enabled", v)}
+                    note={form.letter_branding_enabled ? "" : "Letters will carry no logo, address or signature image."}
+                  />
+                  <SwitchRow
+                    title="Keep letters between you and the person"
+                    description="Applied to each letter as it is issued. A letter already issued keeps whatever this said at the time."
+                    checked={form.letter_default_confidential}
+                    onChange={(v) => set("letter_default_confidential", v)}
+                  />
+
+                  <div className="py-4">
+                    <span className={LABEL}>Ask people to confirm they’ve read a letter</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                      {ACK_DEFAULT_CHOICES.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => set("letter_ack_default", option.value)}
+                          aria-pressed={form.letter_ack_default === option.value}
+                          className={`text-left rounded-xl border px-4 py-3 transition ${form.letter_ack_default === option.value ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
+                        >
+                          <span className="block text-sm font-bold text-slate-800">{option.label}</span>
+                          <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">{option.blurb}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="py-4">
+                    <label htmlFor="ds-ref-pattern" className={LABEL}>How letters are numbered</label>
+                    <input
+                      id="ds-ref-pattern"
+                      type="text"
+                      value={form.letter_reference_pattern}
+                      onChange={(e) => set("letter_reference_pattern", e.target.value)}
+                      placeholder={REFERENCE_PATTERN_DEFAULT}
+                      spellCheck={false}
+                      className={`${FIELD} font-mono`}
+                    />
+                    {problems.letter_reference_pattern ? (
+                      <p className="text-xs font-semibold text-rose-600 mt-1.5 leading-relaxed">{problems.letter_reference_pattern}</p>
+                    ) : (
+                      <>
+                        <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                          Your next letter would be numbered{" "}
+                          <span className="font-bold text-slate-700 tabular-nums">{referencePatternExample(form.letter_reference_pattern)}</span>.
+                          The short code for your company is filled in by the system, so it may not look exactly like this.
+                        </p>
+                        {referenceLengthWarning(form.letter_reference_pattern) && (
+                          <p className="text-[11px] font-semibold text-rose-600 mt-1 leading-relaxed">
+                            {referenceLengthWarning(form.letter_reference_pattern)}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      {REFERENCE_TOKENS.map((item) => (
+                        <span key={item.token} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-[10px]">
+                          <code className="font-bold text-purple-700">{item.token}</code>
+                          <span className="text-slate-500">{item.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      The count starts again each financial year, and separately for each kind of letter. Changing the pattern only affects letters issued from now on — letters already issued keep the numbers they were issued under, for good.
+                    </p>
+                  </div>
+
+                  <div className="py-4">
+                    {numberField("letter_preview_rate_per_hour")}
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      Only previews are counted. Issuing a real letter is never capped.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
+                  <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                  These appear once your server has been updated. Until then letters print with your letterhead, are kept between you and the recipient, and are numbered in the standard way.
                 </p>
               )}
             </Card>

@@ -8,12 +8,36 @@
 // backend drains them; HR can force a batch or retry failures.
 //
 // The bank file is deliberately the last step: it only exists for a paid run.
+//
+// PDF Generation Phase 3 adds one branch to this panel, and only for an
+// organisation that has switched to the new render engine (payroll setting #87,
+// off everywhere by default). On the classic engine nothing below changes: the
+// same buttons, the same ZIP, the same behaviour as before.
+//
+// On the new engine, released payslips are prepared once and kept, so:
+//
+//  · DOWNLOAD ALL MAY NOT HAND BACK A FILE. When a run has more unprepared
+//    payslips than the organisation's threshold, #174 answers `202` — "I have
+//    started preparing these" — with a batch to poll. That is a success, and
+//    `response.ok` is true for it, so the download goes through `acceptJson`
+//    (see shared/utils/download.js) or the browser would save the JSON as a
+//    corrupt .zip. This panel then polls #220 and downloads for real once the
+//    run is ready.
+//  · PREPARE PDFS (#219) warms a run up on demand rather than waiting for the
+//    quarter-hourly background job. Safe to press repeatedly.
+//  · A HELD payslip is never prepared — it is drawn fresh on download, always by
+//    the classic engine. #220 counts those as `uncacheable`, which is why
+//    readiness is the server's `will_stream` and never `ready === total`.
+//
+// The queue endpoints ship after the setting they belong to, so a 404 with no
+// body means "this server doesn't have them yet": the tools hide themselves and
+// the ZIP button keeps working exactly as it does today.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { payrollAPI, payrollFiles } from "../../../shared/api";
 import { downloadFile } from "../../../shared/utils/download";
-import { payrollErrorMessage } from "../../../shared/utils/payrollErrors";
+import { isPayrollRouteMissing, payrollErrorMessage } from "../../../shared/utils/payrollErrors";
 import { formatDate, formatMoney, formatPeriod } from "../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../shared/attendance/normalize";
 import {
@@ -21,15 +45,72 @@ import {
   PAYSLIP_STATUS_FILTERS, PAYSLIP_VISIBILITY_FILTERS, meta, payslipVisibility,
 } from "./phase6Meta";
 import {
-  HiCash, HiChevronLeft, HiChevronRight, HiDocumentDownload, HiExclamationCircle,
-  HiEye, HiMail, HiRefresh, HiSearch, HiUpload,
+  HiCash, HiCheckCircle, HiChevronLeft, HiChevronRight, HiDocumentDownload,
+  HiExclamationCircle, HiEye, HiLightningBolt, HiMail, HiRefresh, HiSearch, HiUpload,
 } from "react-icons/hi";
+import {
+  RENDER_POLL_MAX_TICKS, RENDER_POLL_MS, drainMessage, drainResultOf, enqueuedBatchOf,
+  isFullyPrepared, renderPercent, renderStatusLine, renderStatusOf, stillPreparing,
+  uncacheableNote, usesHtmlEngine, wasEnqueued,
+} from "./pdfRenderMeta";
 
 const PAGE_SIZE = 25;
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
 
 function Spinner() {
   return <span className="inline-block w-4 h-4 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />;
+}
+
+/**
+ * How far along this run's payslip PDFs are (#220), and what that means for the
+ * person who just pressed Download all.
+ *
+ * Counts are secondary. The headline is the only thing anybody needs: can I
+ * download the lot right now, or am I waiting? Progress is shown only while
+ * something is actually being prepared — a finished bar sitting at 100% for ever
+ * is noise.
+ */
+function RenderStatusStrip({ status, batch, note }) {
+  const waiting = !!batch || stillPreparing(status) > 0;
+  const percent = renderPercent(status);
+  const ready = isFullyPrepared(status);
+  const uncacheable = uncacheableNote(status);
+
+  return (
+    <div className={`px-5 py-3 border-b ${waiting ? "border-indigo-100 bg-indigo-50/60" : ready ? "border-violet-100 bg-violet-50/50" : "border-slate-100 bg-slate-50/60"}`}>
+      <div className="flex items-start gap-2.5">
+        {waiting
+          ? <span className="mt-0.5 shrink-0"><Spinner /></span>
+          : ready
+            ? <HiCheckCircle className="w-4 h-4 text-violet-600 shrink-0 mt-0.5" />
+            : <HiDocumentDownload className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />}
+        <div className="min-w-0 flex-1">
+          <p className={`text-xs font-bold ${waiting ? "text-indigo-900" : ready ? "text-violet-900" : "text-slate-700"}`}>
+            {waiting
+              ? "Getting this run's payslips ready"
+              : ready
+                ? "Payslips are ready to download"
+                : "Payslip PDFs"}
+          </p>
+          <p className={`text-[11px] mt-0.5 leading-relaxed ${waiting ? "text-indigo-800" : "text-slate-600"}`}>
+            {note || renderStatusLine(status) || "Checking…"}
+            {waiting && !note && " You can leave this page — the download starts on its own when it's done."}
+          </p>
+
+          {waiting && percent !== null && (
+            <div className="mt-2 flex items-center gap-2.5">
+              <div className="h-1.5 flex-1 max-w-xs rounded-full bg-indigo-100 overflow-hidden">
+                <div className="h-full rounded-full bg-indigo-500 transition-all duration-500" style={{ width: `${percent}%` }} />
+              </div>
+              <span className="text-[10px] font-bold tabular-nums text-indigo-700 shrink-0">{percent}%</span>
+            </div>
+          )}
+
+          {uncacheable && !note && <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">{uncacheable}</p>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function RunPayslipsPanel({ run, showToast }) {
@@ -44,6 +125,22 @@ export default function RunPayslipsPanel({ run, showToast }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [dispatch, setDispatch] = useState(null);
+
+  // ── PDF Generation Phase 3 ────────────────────────────────────────
+  // `settings` is read once, best-effort: if it can't be read the panel behaves
+  // exactly as it did before Phase 3, which is the safe answer rather than a
+  // degraded one.
+  const [settings, setSettings] = useState(null);
+  const [renderStatus, setRenderStatus] = useState(null);
+  // Set only while a #174 call has been queued rather than answered with a file.
+  const [batch, setBatch] = useState(null);
+  const [pollNote, setPollNote] = useState("");
+  // True once the server has no #219/#220 to answer with — the tools hide and
+  // everything else keeps working.
+  const [queueMissing, setQueueMissing] = useState(false);
+  const pollTicks = useRef(0);
+  // One automatic download per batch, however many times the poller says ready.
+  const autoDownloaded = useRef(false);
 
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ status: "", visible_to_employee: "", email_status: "" });
@@ -92,6 +189,43 @@ export default function RunPayslipsPanel({ run, showToast }) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadDispatch(); }, [loadDispatch]);
 
+  // ── PDF Generation Phase 3: engine, queue and the async ZIP ──────────────
+  useEffect(() => {
+    let cancelled = false;
+    payrollAPI.getSettings()
+      .then((res) => { if (!cancelled) setSettings(res?.data || null); })
+      // Not readable? Then this organisation is treated as classic and the panel
+      // is exactly what it was before Phase 3. Nothing to report to anyone.
+      .catch(() => { if (!cancelled) setSettings(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const htmlEngine = usesHtmlEngine(settings);
+  const queueReady = htmlEngine && !queueMissing;
+
+  /**
+   * #220. Returns the status so the poller can act on it without waiting for a
+   * re-render, and swallows failures: this is a progress indicator, and losing
+   * it must not take the panel down or interrupt a download.
+   */
+  const loadRenderStatus = useCallback(async (batchId) => {
+    if (!runId || !closed) return null;
+    try {
+      const status = renderStatusOf(await payrollAPI.getPayslipRenderStatus(runId, batchId ? { batch_id: batchId } : undefined));
+      setRenderStatus(status);
+      return status;
+    } catch (err) {
+      if (isPayrollRouteMissing(err)) setQueueMissing(true);
+      setRenderStatus(null);
+      return null;
+    }
+  }, [runId, closed]);
+
+  useEffect(() => {
+    if (!queueReady) { setRenderStatus(null); return; }
+    loadRenderStatus();
+  }, [queueReady, loadRenderStatus]);
+
   // Withdrawn and replaced payslips are hidden for good, not "held" — Publish can't release them.
   const heldCount = useMemo(() => rows.filter((r) => payslipVisibility(r).held).length, [rows]);
   const counts = dispatch?.counts || {};
@@ -105,6 +239,10 @@ export default function RunPayslipsPanel({ run, showToast }) {
       const res = await fn();
       showToast(success(res?.data || {}));
       await Promise.all([load(), loadDispatch()]);
+      // Releasing a run quietly queues its payslips for preparing (setting #88),
+      // and rebuilding changes which payslips exist at all — so the readiness
+      // counts are no longer what they were a moment ago.
+      if (queueReady) loadRenderStatus();
     } catch (err) {
       const message = payrollErrorMessage(err, "That didn't work");
       setError(message);
@@ -147,6 +285,130 @@ export default function RunPayslipsPanel({ run, showToast }) {
       const message = payrollErrorMessage(err, "Couldn't prepare that download");
       setError(message);
       showToast(message, "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  // ── Phase 3: the bulk ZIP, which may be queued instead of streamed ───────
+  const zipName = `payslips-${run?.period_month || runId}.zip`;
+
+  /**
+   * #174. `acceptJson` is what keeps a `202` from being written to disk as a
+   * corrupt archive — see the header and shared/utils/download.js.
+   *
+   * @param {boolean} [silent] true for the automatic download the poller fires
+   *   once a queued run is ready; it must not report "Download started" over the
+   *   message that says the wait is over.
+   */
+  const downloadZip = useCallback(async (silent = false) => {
+    if (!silent) { setBusy("zip"); setError(""); }
+    try {
+      const result = await downloadFile(payrollFiles.hrRunPayslipsZip(runId), { filename: zipName, acceptJson: true });
+
+      if (wasEnqueued(result)) {
+        // Too many payslips still to prepare. Nothing was downloaded and nothing
+        // is wrong; the run is being prepared and we watch it.
+        const started = enqueuedBatchOf(result.data);
+        pollTicks.current = 0;
+        autoDownloaded.current = false;
+        setBatch(started);
+        setPollNote("");
+        showToast(started.queued > 0
+          ? `Preparing ${started.queued} payslip${started.queued === 1 ? "" : "s"}. The download starts on its own once they're ready.`
+          : "Preparing this run's payslips. The download starts on its own once they're ready.");
+        loadRenderStatus(started.batchId);
+        return;
+      }
+
+      setBatch(null);
+      setPollNote("");
+      if (!silent) showToast("Download started.");
+      loadDispatch();
+      if (queueReady) loadRenderStatus();
+    } catch (err) {
+      const message = payrollErrorMessage(err, "Couldn't prepare that download");
+      setError(message);
+      showToast(message, "error");
+      // A failure ends the wait: leaving the poller running would keep promising
+      // a download that is no longer coming.
+      setBatch(null);
+    } finally {
+      if (!silent) setBusy("");
+    }
+  }, [runId, zipName, showToast, loadDispatch, loadRenderStatus, queueReady]);
+
+  /**
+   * Watch a queued run until the server says a full ZIP will stream, then fetch
+   * it once.
+   *
+   * Three things this has to get right:
+   *  · `will_stream` is the server's verdict, never recomputed here — held
+   *    payslips never become "ready" and a count-based test would poll for ever;
+   *  · a hidden tab does not poll (nothing is lost; the next visible tick picks
+   *    it up), so leaving the page open overnight costs nothing;
+   *  · there is a ceiling. A queue that is genuinely stuck stops being polled
+   *    and says so, instead of hammering the server until the tab is closed.
+   */
+  // Held in refs so the effect below can depend on the batch id alone. An
+  // interval whose effect re-runs on every render is an interval that restarts
+  // its own countdown and may never fire — and a poller that never fires is a
+  // download that never arrives, with nothing on screen to say so.
+  const pollRefs = useRef({});
+  pollRefs.current = { loadRenderStatus, downloadZip, showToast };
+
+  const batchId = batch?.batchId || "";
+  useEffect(() => {
+    if (!batch || !queueReady) return undefined;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      // A hidden tab doesn't poll. Nothing is lost — the next visible tick picks
+      // it up — and a page left open overnight costs the server nothing.
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      pollTicks.current += 1;
+      if (pollTicks.current > RENDER_POLL_MAX_TICKS) {
+        if (cancelled) return;
+        setBatch(null);
+        setPollNote("These payslips are taking longer than expected, so we’ve stopped watching. Press Download all again — whatever was prepared is kept.");
+        return;
+      }
+      const status = await pollRefs.current.loadRenderStatus(batchId);
+      if (cancelled || !status) return;
+      if (status.willStream && !autoDownloaded.current) {
+        autoDownloaded.current = true;
+        setBatch(null);
+        setPollNote("");
+        pollRefs.current.showToast("Ready — the ZIP is downloading now.");
+        pollRefs.current.downloadZip(true);
+      }
+    };
+
+    const timer = setInterval(tick, RENDER_POLL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+    // `batch` itself is a dependency, not just its id: a 202 that came back
+    // without a `batch_id` would otherwise leave `batchId` at "" and the poller
+    // would never start. Plain state, only ever set by a real action, so it is
+    // stable between renders.
+  }, [batch, batchId, queueReady]);
+
+  /** #219. Warms a run up on demand rather than waiting for the background job. */
+  const preparePdfs = async () => {
+    setBusy("prepare");
+    setError("");
+    try {
+      const result = drainResultOf(await payrollAPI.runPayslipRender({ run_id: runId }));
+      showToast(drainMessage(result));
+      await loadRenderStatus(batch?.batchId);
+    } catch (err) {
+      if (isPayrollRouteMissing(err)) {
+        setQueueMissing(true);
+      } else {
+        const message = payrollErrorMessage(err, "Couldn't prepare the payslip PDFs");
+        setError(message);
+        showToast(message, "error");
+      }
     } finally {
       setBusy("");
     }
@@ -198,9 +460,17 @@ export default function RunPayslipsPanel({ run, showToast }) {
           <button type="button" onClick={sendEmails} disabled={!!busy} title="Send queued notifications now, and retry failed ones" className="px-3 py-2 text-xs font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
             {busy === "dispatch" ? <Spinner /> : <HiMail className="w-4 h-4" />} Send emails
           </button>
-          <button type="button" onClick={() => download("zip", payrollFiles.hrRunPayslipsZip(runId), `payslips-${run?.period_month || runId}.zip`)} disabled={!!busy} className="px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
-            {busy === "zip" ? <Spinner /> : <HiDocumentDownload className="w-4 h-4" />} Download all (ZIP)
+          <button type="button" onClick={() => downloadZip()} disabled={!!busy || !!batch} className="px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
+            {busy === "zip" || batch ? <Spinner /> : <HiDocumentDownload className="w-4 h-4" />}
+            {batch ? "Preparing…" : "Download all (ZIP)"}
           </button>
+          {/* Only for an organisation on the new engine: on the classic one
+              there is nothing to prepare, and #219 would answer zeros. */}
+          {queueReady && (
+            <button type="button" onClick={preparePdfs} disabled={!!busy || !!batch} title="Get this run's payslip PDFs ready now, so downloading them is instant" className="px-3 py-2 text-xs font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
+              {busy === "prepare" ? <Spinner /> : <HiLightningBolt className="w-4 h-4" />} Prepare PDFs
+            </button>
+          )}
           {isPaid && (
             <button type="button" onClick={() => download("bank", payrollFiles.hrBankAdvice(runId), `bank-advice-${run?.period_month || runId}.csv`)} disabled={!!busy} title="NEFT file for bulk upload to the bank" className="px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
               {busy === "bank" ? <Spinner /> : <HiCash className="w-4 h-4" />} Bank file (CSV)
@@ -211,6 +481,13 @@ export default function RunPayslipsPanel({ run, showToast }) {
           </button>
         </div>
       </div>
+
+      {/* How far this run's payslip PDFs have got. Only ever shown on the new
+          engine — on the classic one every payslip is drawn on download and
+          there is no such thing as "ready". */}
+      {queueReady && (renderStatus || batch || pollNote) && (
+        <RenderStatusStrip status={renderStatus} batch={batch} note={pollNote} />
+      )}
 
       {/* Email queue */}
       {dispatch && (

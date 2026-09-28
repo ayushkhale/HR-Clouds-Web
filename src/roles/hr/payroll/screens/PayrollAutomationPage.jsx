@@ -13,6 +13,14 @@
 // Each job's schedule and status come from GET /payroll/hr/jobs (the cron the
 // server actually runs). Payroll Settings can still switch a job off for this
 // organisation; when it does, that wins and the card says "Manual only".
+//
+// A fifth job arrives with PDF Generation Phase 3 (#219) and is the only one
+// that is CONDITIONAL: preparing payslip PDFs exists solely for an organisation
+// that has switched to the new render engine. On the classic engine — which is
+// everyone, until they opt in — there is no queue and the endpoint answers all
+// zeros, so the card is not shown rather than offering work that cannot exist.
+// A server that predates the endpoint answers a bodyless 404; that hides the
+// card too, and leaves the other four alone.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
@@ -20,12 +28,13 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import {
   HiMail, HiDocumentAdd, HiRefresh, HiTrash, HiPlay, HiCheckCircle,
-  HiInformationCircle, HiCog, HiExclamationCircle, HiClock,
+  HiInformationCircle, HiCog, HiExclamationCircle, HiClock, HiLightningBolt,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { isPayrollRouteMissing, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { drainMessage, drainResultOf, usesHtmlEngine } from "../pdfRenderMeta";
 
 /**
  * `settingKey` is the switch that decides whether this job runs on its own.
@@ -80,6 +89,21 @@ const JOBS = [
     danger: true,
     done: (d) => (d?.purged != null ? `${d.purged} file${d.purged === 1 ? "" : "s"} removed` : "Old files cleared"),
   },
+  {
+    key: "payslipRender",
+    // The platform runs this every quarter of an hour, but it is not in the
+    // GET /payroll/hr/jobs list, so its schedule is stated rather than read.
+    jobId: "payslip-render",
+    icon: HiLightningBolt,
+    title: "Get payslip PDFs ready",
+    what: "Prepares the PDF for every released payslip that hasn’t been prepared yet, so downloading one — or a whole run — is instant. Useful straight after switching to the new way of making PDFs.",
+    action: "Prepare payslips now",
+    // Only for an organisation on the new engine. There is no queue on the
+    // classic one, so the card is hidden rather than offered and shrugged at.
+    showWhen: (settings) => usesHtmlEngine(settings),
+    run: () => payrollAPI.runPayslipRender({}),
+    done: (d) => drainMessage(drainResultOf({ data: d })),
+  },
 ];
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -118,6 +142,8 @@ export default function PayrollAutomationPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [results, setResults] = useState({});
+  // Jobs this server answered a bodyless 404 for — not deployed here yet.
+  const [hidden, setHidden] = useState({});
 
   // Both reads only describe the jobs; the Run buttons work without either.
   const load = useCallback(() => {
@@ -150,7 +176,13 @@ export default function PayrollAutomationPage() {
       setResults((r) => ({ ...r, [job.key]: { message, at: new Date() } }));
       showToast(message);
     } catch (err) {
-      showToast(payrollErrorMessage(err, `Couldn't run ${job.title.toLowerCase()}.`), "error");
+      // A job this server doesn't have yet is not a fault worth reporting as
+      // one; the card simply stops being offered on the next read.
+      if (isPayrollRouteMissing(err)) {
+        setHidden((h) => ({ ...h, [job.key]: true }));
+      } else {
+        showToast(payrollErrorMessage(err, `Couldn't run ${job.title.toLowerCase()}.`), "error");
+      }
     } finally {
       setBusy(null);
     }
@@ -180,7 +212,7 @@ export default function PayrollAutomationPage() {
 
         {loading ? <Skeleton type="card" /> : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-            {JOBS.map((job) => {
+            {JOBS.filter((job) => !hidden[job.key] && (!job.showWhen || job.showWhen(settings))).map((job) => {
               const Icon = job.icon;
               // An org switch that is explicitly off wins ("Manual only"). Otherwise
               // the job list says whether the platform runs it and when; if that

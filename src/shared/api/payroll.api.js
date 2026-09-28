@@ -377,6 +377,48 @@ export const payrollAPI = {
   runRunSweeper: () => request("/payroll/hr/jobs/run-sweeper/run", { method: "POST" }),
   runAttachmentSweeper: () => request("/payroll/hr/jobs/attachment-sweeper/run", { method: "POST" }),
 
+  // ── HR — Payslip PDF render queue (PDF Generation Phase 3, #219 / #220) ─────
+  //
+  // Both are HR-only and exist ONLY for the HTML render engine
+  // (`pdf_render_engine = 'html'`, payroll setting #87). Every organisation
+  // starts on the classic engine, where the queue is empty by definition — so a
+  // screen must gate these on the engine rather than offering them to everyone.
+  //
+  // Neither endpoint renders anything itself: #219 asks the server to work
+  // through its queue now instead of waiting for the quarter-hourly cron, and
+  // #220 is a pure count. Both are safe to repeat; #220 is safe to poll.
+  /**
+   * #219 Prepare payslip PDFs now. `{ run_id }` is optional — with it, that
+   * run's released payslips are queued first and then the queue is worked
+   * through; without it, whatever is already queued is worked through.
+   *
+   * Answers `200` with `{ engine, enqueued, claimed, done, failed, remaining }`.
+   * On the classic engine that is all zeros with `engine: "pdfkit"` — an
+   * informative success, NOT an error, and a screen must not present it as one.
+   *
+   * Fully idempotent: two HR users pressing it at once divide the work rather
+   * than rendering anything twice.
+   */
+  runPayslipRender: (payload) =>
+    request("/payroll/hr/jobs/payslip-render/run", { method: "POST", body: JSON.stringify(payload || {}) }),
+  /**
+   * #220 How far along one run's payslip PDFs are:
+   * `{ run_id, engine, total, ready, pending: { queued, claimed }, failed,
+   * uncacheable, will_stream, batch }`.
+   *
+   * `will_stream` is the only field a caller should branch on: it means
+   * `ready + uncacheable === total`, i.e. #174 will now hand back a complete ZIP
+   * instead of a `202`. Computing that from the other counts client-side would
+   * miss `uncacheable` (held and pre-snapshot payslips, which never cache and
+   * are rendered inline) and poll for ever.
+   *
+   * `batch_id` scopes the `batch` block to one async bulk request; without it
+   * `batch` is null. A missing or cross-org run is the same `404 RUN_NOT_FOUND`
+   * as every other run endpoint.
+   */
+  getPayslipRenderStatus: (runId, params) =>
+    request(`/payroll/hr/runs/${runId}/payslips/render-status${buildQuery(params)}`),
+
   // Manager — Encashments (#216–#217). Amounts are masked unless the manager
   // has compensation visibility (EC-25).
   proposeEncashment: (userId, payload) => request(`/payroll/manager/employees/${userId}/encashments`, { method: "POST", body: JSON.stringify(payload) }),

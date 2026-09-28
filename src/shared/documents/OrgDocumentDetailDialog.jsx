@@ -12,13 +12,29 @@
 //
 // The row opens instantly and the detail read then replaces it, so an action is
 // never taken against a status that has moved on since the list loaded.
+//
+// PDF Generation Phase 2 puts a second KIND of row through this same dialog: a
+// letter the company issued, which is an org document with `origin: "generated"`.
+// It arrives here on every plane, with a reference number and no uploaded file
+// behind it, and it changes exactly two things:
+//
+//   · New version is NOT offered. #48 answers 409 DOCUMENT_ORIGIN_GENERATED for
+//     a generated row, because the pipeline owns its bytes and their checksum. HR
+//     gets Reissue instead (#142), which redraws the letter from today's records
+//     and supersedes this copy without altering it.
+//   · The reference number is shown, and it is the first thing about a letter
+//     that anybody needs.
+//
+// Everything else — the recipient roster, acknowledgements, withdrawal, the
+// version chain, the audit trail — is identical, because a letter really is an
+// org document and nothing here has to treat it as special.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   HiBan, HiBell, HiCalendar, HiCheckCircle, HiClock, HiCollection, HiDocumentText, HiDownload,
   HiExclamationCircle, HiEye, HiLockClosed, HiPencilAlt, HiPaperAirplane, HiTrash, HiUpload,
-  HiUserCircle, HiUserGroup, HiBadgeCheck, HiShieldCheck,
+  HiUserCircle, HiUserGroup, HiBadgeCheck, HiShieldCheck, HiMail,
 } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailText } from "../components/DetailDialog";
 import AttachmentViewerDialog from "../components/AttachmentViewerDialog";
@@ -37,6 +53,8 @@ import OrgRecipientsSection from "./OrgRecipientsSection";
 import { AcknowledgeDialog, EvidenceDialog, SignDialog } from "./ComplianceDialogs";
 import { ackBlockOf, actionWindow, complianceStateMeta, dueLabel, hasEvidence, myComplianceState, nextActionOf } from "./complianceMeta";
 import { materialisationOf, remainingRecipients } from "./offboardingMeta";
+import ReissueLetterDialog from "./ReissueLetterDialog";
+import { canReissueLetter, isGeneratedLetter } from "./letterIssueMeta";
 import { PercentBar } from "./phase5Ui";
 import {
   TARGET_DIMENSIONS, canDeleteOrg, canEditOrgDraft, canRejectProposal, canReplaceOrg,
@@ -102,6 +120,8 @@ export default function OrgDocumentDetailDialog({
   const [acting, setActing] = useState(null); // "acknowledge" | "sign" | null
   const [actError, setActError] = useState(null);
   const [receipt, setReceipt] = useState(false);
+  // PDF Phase 2: the reissue form, opened over this dialog as a sibling.
+  const [reissuing, setReissuing] = useState(false);
 
   const { user } = useAuth();
   const id = initial?.id;
@@ -164,6 +184,19 @@ export default function OrgDocumentDetailDialog({
   // criteria, so the per-dimension chips wait for it rather than showing blanks.
   const showCriteria = !orgWide && hasCriteria(doc);
   const proposal = isProposal(doc);
+  // A letter the company issued rather than a file somebody uploaded.
+  const generated = isGeneratedLetter(doc);
+  /**
+   * The four calls the reissue form needs, taken from the plane rather than from
+   * the API module directly — so the capability stays in one place and a plane
+   * that carries `null` can't reach an endpoint it has no business calling.
+   */
+  const letterApi = useMemo(() => ({
+    getLetter: plane.letterDetail,
+    getLetterTemplate: plane.letterTemplate,
+    reissueLetter: plane.reissueLetter,
+    orgGetViewUrl: plane.viewUrl,
+  }), [plane]);
 
   const refreshAll = async () => {
     onChanged?.();
@@ -478,6 +511,15 @@ export default function OrgDocumentDetailDialog({
       </button>,
     );
   }
+  // A generated letter takes the other route: it is redrawn, not re-uploaded.
+  // Only HR's plane carries the capability, so nobody else sees the button.
+  if (plane.reissueLetter && canReissueLetter(doc)) {
+    footer.push(
+      <button key="reissue" type="button" onClick={() => setReissuing(true)} disabled={!!busy} className={SECONDARY_BTN}>
+        <HiMail className="w-4 h-4" /> Reissue
+      </button>,
+    );
+  }
   if (plane.publish && doc?.status === "draft") {
     const blocked = publishBlocker(doc);
     footer.push(
@@ -502,6 +544,13 @@ export default function OrgDocumentDetailDialog({
         {myNext === "sign" ? "Sign document" : "Acknowledge"}
       </button>,
     );
+  }
+
+  // Said once, on the plane that would otherwise wonder where New version went.
+  if (!footerNote && generated && plane.replace && doc?.status === "published") {
+    footerNote = plane.reissueLetter
+      ? "A letter can’t have a file uploaded over it. Reissue it instead — this copy is kept and a corrected one takes its place."
+      : "A letter can’t have a file uploaded over it. It is corrected by reissuing it in Issued Letters.";
   }
 
   if (plane.key === "manager") {
@@ -538,7 +587,7 @@ export default function OrgDocumentDetailDialog({
   return (
     <>
       <DetailDialog
-        eyebrow={typeName || "Organisation document"}
+        eyebrow={(generated && doc?.reference_number) || typeName || (generated ? "Company letter" : "Organisation document")}
         icon={HiDocumentText}
         title={doc?.title || "Document"}
         subtitle={[
@@ -589,6 +638,18 @@ export default function OrgDocumentDetailDialog({
         {doc?.status === "superseded" && (
           <Banner tone="slate" icon={HiCollection} title="A newer version replaced this">
             Kept so the people who received this version still have what they were given.
+            {generated ? "\n\nIts reference number belongs to this copy for good and is never reused." : ""}
+          </Banner>
+        )}
+        {/* An uploaded policy and an issued letter look alike in a list and are
+            not alike at all: one can be replaced with a new file, the other is
+            sealed and has to be redrawn. Said once, at the top. */}
+        {generated && (
+          <Banner tone="violet" icon={HiMail} title="This is a letter your organisation issued">
+            {`It was drawn and numbered by the system${doc?.reference_number ? ` as ${doc.reference_number}` : ""}, so no file can be uploaded over it. `}
+            {plane.reissueLetter
+              ? "To correct it, reissue it — this copy stays on file and a corrected one takes its place."
+              : "If it needs correcting, HR reissues it — this copy stays on file and a corrected one takes its place."}
           </Banner>
         )}
         {status === "scheduled" && (
@@ -659,6 +720,9 @@ export default function OrgDocumentDetailDialog({
           <DetailGrid
             items={[
               ["Kind of document", typeName || null],
+              // A letter's number, and the only thing about it anybody quotes.
+              // Absent on an uploaded document, where the row reads N/A.
+              ...(generated ? [["Reference number", doc?.reference_number || null]] : []),
               ["In force from", doc?.effective_from ? fmtDate(doc.effective_from) : "As soon as it's published"],
               ["In force until", doc?.effective_to ? fmtDate(doc.effective_to) : "No end date"],
               ["Acknowledgement", doc?.requires_acknowledgement
@@ -848,6 +912,28 @@ export default function OrgDocumentDetailDialog({
 
       {receipt && plane.myEvidence && (
         <EvidenceDialog doc={doc} audience="self" load={() => plane.myEvidence(id)} onClose={() => setReceipt(false)} />
+      )}
+
+      {/* PDF Phase 2. Rendered as a sibling of the record inspector, never a
+          child, so its own Escape and backdrop stop here. The successor becomes
+          the live version, so this dialog's own row is stale afterwards and the
+          list behind it is what should be looked at — hence onClose. */}
+      {reissuing && plane.reissueLetter && (
+        <ReissueLetterDialog
+          api={letterApi}
+          letterId={id}
+          letter={doc}
+          subjectName={Array.isArray(doc?.included_users) && doc.included_users.length === 1
+            ? (nameOf ? nameOf(doc.included_users[0], "") : "")
+            : ""}
+          onReissued={(fresh, info) => {
+            showToast?.(info?.reused
+              ? "That replacement already existed — nothing new was created."
+              : `Replaced${fresh?.reference_number ? ` · the new letter is ${fresh.reference_number}` : ""}`);
+            onChanged?.();
+          }}
+          onClose={() => { setReissuing(false); refreshAll(); }}
+        />
       )}
 
       {retiring && (

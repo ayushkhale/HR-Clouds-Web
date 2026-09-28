@@ -4,7 +4,7 @@
 // organisation-profile fallbacks, the catalog state machine, and the plain
 // wording for each standard letter. PDF Generation Phase 1 (#130–#138).
 //
-// Source of truth: public/ref docs/md_pdfs/combined_api_analysis-6.md and
+// Source of truth: public/ref docs/md_pdfs/combined_api_analysis-7.md and
 // md_pdfs/2026-09-27_pdf-generation-phase1-letter-branding-and-templates.md.
 //
 // Three contract facts shape almost every rule below, and each one has bitten

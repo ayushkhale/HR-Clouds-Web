@@ -31,7 +31,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   HiBadgeCheck, HiCog, HiExclamation, HiExternalLink, HiEye, HiInformationCircle,
-  HiMail, HiRefresh,
+  HiMail, HiPaperAirplane, HiRefresh,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -48,6 +48,7 @@ import {
 } from "../../../../shared/documents/letterMeta";
 
 const BRANDING_PATH = "/dashboard/hr/documents/letterhead";
+const LETTERS_PATH = "/dashboard/hr/documents/letters";
 
 function StateBadge({ row }) {
   const meta = letterStateMeta(row);
@@ -179,6 +180,12 @@ export default function LetterTemplatesPage() {
             <Link to={BRANDING_PATH} className={SECONDARY_BTN}>
               <HiBadgeCheck className="w-4 h-4" /> Letterhead &amp; Branding
             </Link>
+            {/* Setting a letter up and issuing one are different jobs on
+                different days, so this screen points at the register rather than
+                trying to be it. */}
+            <Link to={LETTERS_PATH} className={SECONDARY_BTN}>
+              <HiPaperAirplane className="w-4 h-4" /> Issued Letters
+            </Link>
           </div>
         </div>
 
@@ -288,6 +295,14 @@ export default function LetterTemplatesPage() {
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
+                              {row.is_enabled && !row.is_orphaned && !rendererOff && (
+                                <Link
+                                  to={`${LETTERS_PATH}?issue=${encodeURIComponent(row.code)}`}
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-50 px-2 py-1.5 rounded-lg"
+                                >
+                                  <HiPaperAirplane className="w-3.5 h-3.5" /> Issue
+                                </Link>
+                              )}
                               {openable && !rendererOff && (
                                 <button
                                   type="button" onClick={() => setPreviewing(row)}
@@ -311,6 +326,8 @@ export default function LetterTemplatesPage() {
         <p className="text-xs text-slate-400">
           What appears at the top and bottom of every one of these pages is set in{" "}
           <Link to={BRANDING_PATH} className="font-bold text-purple-600 hover:underline">Letterhead &amp; Branding</Link>.
+          Once a letter is switched on, you issue it from{" "}
+          <Link to={LETTERS_PATH} className="font-bold text-purple-600 hover:underline">Issued Letters</Link>.
         </p>
       </main>
 

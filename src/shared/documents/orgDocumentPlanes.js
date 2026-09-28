@@ -12,7 +12,11 @@
 //             signing and my own receipt (#73–#75)
 //
 // Nobody can acknowledge or sign for someone else: those two exist on the self
-// plane only.
+// plane only. And only HR can REISSUE a generated letter (#141/#142, PDF Phase
+// 2): a letter is an org document with `origin: "generated"`, so it arrives on
+// all three planes, but replacing one is HR-plane work and the manager and self
+// adapters carry `null` — which is what hides the button rather than showing one
+// that would 403.
 //
 // A capability the plane lacks is `null`, and the UI hides the action rather
 // than offering a button the server would refuse.
@@ -53,6 +57,12 @@ export const ORG_PLANES = {
     acknowledge: null,
     sign: null,
     myEvidence: null,
+
+    // PDF Phase 2. A generated letter can't be replaced by an upload (#48
+    // answers 409 DOCUMENT_ORIGIN_GENERATED); it is redrawn instead.
+    letterDetail: api.getLetter,
+    letterTemplate: api.getLetterTemplate,
+    reissueLetter: api.reissueLetter,
   },
 
   manager: {
@@ -86,6 +96,10 @@ export const ORG_PLANES = {
     acknowledge: null,
     sign: null,
     myEvidence: null,
+
+    letterDetail: null,
+    letterTemplate: null,
+    reissueLetter: null,
   },
 
   self: {
@@ -118,5 +132,9 @@ export const ORG_PLANES = {
     acknowledge: api.acknowledgeIssuedDocument,
     sign: api.signIssuedDocument,
     myEvidence: api.getMyIssuedEvidence,
+
+    letterDetail: null,
+    letterTemplate: null,
+    reissueLetter: null,
   },
 };

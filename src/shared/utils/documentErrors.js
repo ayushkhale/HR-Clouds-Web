@@ -18,6 +18,16 @@
 // different objects with different wording. The letter screens therefore call
 // `letterErrorMessage()`, which re-reads that one code (and the renderer
 // failures) and hands everything else to the map below.
+//
+// PDF Phase 2 overloads by CONTEXT rather than by code: the same renderer
+// failures mean "the preview didn't draw" on a template screen and "no letter
+// went out" on the issue screen, and those are not the same news. So the issue
+// and reissue screens call `letterIssueErrorMessage()`, which re-answers the
+// renderer and storage codes, spells out which fact or field was named, and
+// always says whether anything was issued. Three predicates decide what a screen
+// may do next, and they are NOT interchangeable: `isRenderInProgress` means
+// repeat the SAME request, `isLetterIssueRetryable` means repeat it with a FRESH
+// key, and `isRetryLimitExceeded` means stop and tell the person.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GONE = "This document isn't available any more. It may have been removed, or you may no longer have access to it. Refresh to see the latest.";
@@ -163,6 +173,27 @@ export const DOCUMENT_ERROR_MESSAGES = {
   PDF_RENDERER_NOT_CONFIGURED: "Letter previews aren't switched on for this server yet. Everything you set up here is saved and will be used as soon as they are — ask your administrator to turn on letter rendering.",
   PDF_TEMPLATE_INVALID: "This letter couldn't be drawn from its template. That's a fault on our side rather than anything in your settings — please report it.",
   STORAGE_UNAVAILABLE: "Secure storage isn't reachable right now. Nothing was changed — try again in a moment.",
+
+  // ── Issuing and reissuing letters (PDF Generation Phase 2) ──────────────
+  // Nothing here is a dead end. Every one of these either names what to fix, or
+  // says plainly that waiting a moment is the whole fix — because the thing HR
+  // must never do is start clicking Issue again and wonder how many letters
+  // they have just created.
+  LETTER_TEMPLATE_UNKNOWN: "This letter isn't in the catalogue any more. Refresh the page to see the letters you can issue today.",
+  LETTER_TEMPLATE_DISABLED: "This letter is switched off for your organisation, so it can't be issued. Switch it on in Letter Templates first.",
+  LETTER_FIELD_UNKNOWN: "One of the details typed in isn't part of this letter, so nothing was issued. Refresh the page and fill it in again.",
+  LETTER_FIELD_NOT_OVERRIDABLE: "That detail comes straight from the person's record and can't be typed in here. Correct it on their profile, then issue the letter.",
+  LETTER_FACTS_MISSING: "This person's record is missing something the letter has to print, so nothing was issued. Fill it in on their profile and try again.",
+  LETTER_NOT_REISSUABLE: "Only the letter that is currently in force can be reissued. This one has already been replaced by a newer version, or withdrawn — open the newest version and reissue that.",
+  LETTER_REFERENCE_CONFLICT: "Two letters were numbered at the same moment. Nothing was issued and no number was used up — try again.",
+  LETTER_REFERENCE_PATTERN_INVALID: "Your letter numbering pattern can't be used. Fix it in Document Settings, then issue the letter.",
+  LETTER_REFERENCE_TOO_LONG: "Your letter numbering pattern produces a number longer than 64 characters. Shorten it in Document Settings, then issue the letter.",
+  DOCUMENT_ORIGIN_GENERATED: "This is a letter your organisation issued, so a file can't be uploaded over it. Reissue it instead — that keeps the original on file and replaces it properly.",
+  DOCUMENT_TYPE_NOT_ACTIVATED: "The kind of document this letter is filed under hasn't been switched on yet. Turn it on in Document Types, then issue the letter.",
+  PDF_RENDER_IN_PROGRESS: "This letter is still being drawn. Give it a few seconds and try again — doing so won't create a second copy.",
+  PDF_RETRY_LIMIT_EXCEEDED: "This letter has failed to draw several times, so it won't be tried again automatically. Nothing was issued — start it again from the beginning, and tell your administrator if it keeps failing.",
+  PDF_TOO_LARGE: "The finished letter came out larger than 6 MB, which is too big to file. Shorten the wording you typed in, or ask your administrator to check the letterhead images.",
+  DB_COMMIT_FAILED: "The letter was drawn but couldn't be filed, so nothing was issued and no number was used up. Try again.",
 
   // Settings
   SCAN_PROVIDER_NOT_CONFIGURED: "Virus scanning isn't available yet, so it can't be turned on.",
@@ -461,3 +492,163 @@ export const isLetterTemplateDisabled = (err) => documentErrorCode(err) === "TEM
  */
 export const isLetterUploadLost = (err) =>
   ["UPLOAD_CLAIM_NOT_FOUND", "UPLOAD_NOT_FOUND"].includes(documentErrorCode(err));
+
+// ── Issuing and reissuing letters (PDF Generation Phase 2) ──────────────────
+/**
+ * Error text for the issue and reissue screens.
+ *
+ * Three codes are shared with the Phase 1 preview buttons and are worded for
+ * them ("try the preview again", "letter previews aren't switched on"). On a
+ * screen where somebody has just tried to issue a real, numbered letter to a
+ * real person, that wording is at best confusing and at worst frightening — the
+ * only question they have is "did it go out?". So those three are re-answered
+ * here, and every one of them says that nothing was issued.
+ *
+ * Two codes name what is missing, and the name IS the message: which fact the
+ * person's record lacks, and which detail may not be typed in. Both are rebuilt
+ * around that name rather than flattened to one sentence.
+ */
+export function letterIssueErrorMessage(err, fallback = "Couldn’t issue this letter.") {
+  const code = documentErrorCode(err);
+
+  if (code === "PDF_RENDERER_NOT_CONFIGURED") {
+    return "Letters can’t be drawn on this server yet, so nothing was issued. Ask your administrator to turn on letter rendering — everything you’ve set up is saved and will be used the moment they do.";
+  }
+  if (code === "PDF_RENDER_TIMEOUT") {
+    return "The letter took too long to draw and was stopped, so nothing was issued and no number was used up. Try again.";
+  }
+  if (code === "PDF_RENDERER_UNAVAILABLE") {
+    return "The service that draws letters can’t be reached right now, so nothing was issued. Nothing is wrong with your letterhead — try again in a moment.";
+  }
+  if (code === "STORAGE_UNAVAILABLE") {
+    return "Secure storage isn’t reachable right now, so nothing was issued and no number was used up. Try again in a moment.";
+  }
+  if (code === "PDF_DATA_INCOMPLETE") {
+    const missing = incompleteLetterFields(err);
+    return missing.length
+      ? `The letter needs ${listPhrase(missing)} and ${missing.length === 1 ? "it came" : "they came"} out blank, so nothing was issued. Fill ${missing.length === 1 ? "it" : "them"} in and issue it again.`
+      : "One of the details this letter needs came out blank, so nothing was issued. Fill in the missing wording and issue it again.";
+  }
+  if (code === "LETTER_FACTS_MISSING") {
+    const missing = missingLetterFacts(err);
+    return missing.length
+      ? `This person’s record is missing ${listPhrase(missing)}, and the letter has to print ${missing.length === 1 ? "it" : "them"}. Nothing was issued — fill ${missing.length === 1 ? "it" : "them"} in on their profile, then issue the letter.`
+      : DOCUMENT_ERROR_MESSAGES.LETTER_FACTS_MISSING;
+  }
+  if (code === "LETTER_FIELD_NOT_OVERRIDABLE") {
+    const field = letterErrorField(err);
+    return field
+      ? `“${field}” comes straight from this person’s record and can’t be typed in here. Correct it on their profile, then issue the letter.`
+      : DOCUMENT_ERROR_MESSAGES.LETTER_FIELD_NOT_OVERRIDABLE;
+  }
+  if (code === "LETTER_FIELD_UNKNOWN") {
+    const field = letterErrorField(err);
+    return field
+      ? `“${field}” isn’t part of this letter, so nothing was issued. It has been removed — issue the letter again.`
+      : DOCUMENT_ERROR_MESSAGES.LETTER_FIELD_UNKNOWN;
+  }
+  return letterErrorMessage(err, fallback);
+}
+
+/** "a, b and c" — used wherever a refusal names more than one thing. */
+function listPhrase(items) {
+  const parts = (items || []).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * The field a `LETTER_FIELD_*` refusal named, in words, or "".
+ *
+ * The server sends `details.field`; the message quotes it too. Both are read,
+ * because `details` is documented but a 422 raised further down the stack may
+ * carry only the sentence.
+ */
+export function letterErrorField(err) {
+  const raw = err?.data?.details?.field;
+  if (typeof raw === "string" && raw.trim()) return raw.trim().replace(/_/g, " ");
+  const quoted = /"([a-z][a-z0-9_]*)"/i.exec(String(err?.data?.message || ""));
+  return quoted ? quoted[1].replace(/_/g, " ") : "";
+}
+
+/** The raw key a `LETTER_FIELD_*` refusal named (`purpose`), for dropping it from the form. */
+export function letterErrorFieldKey(err) {
+  const raw = err?.data?.details?.field;
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  const quoted = /"([a-z][a-z0-9_]*)"/i.exec(String(err?.data?.message || ""));
+  return quoted ? quoted[1] : "";
+}
+
+/** The facts a 422 LETTER_FACTS_MISSING named, in words. `details.missing_facts`, else the sentence. */
+export function missingLetterFacts(err) {
+  if (documentErrorCode(err) !== "LETTER_FACTS_MISSING") return [];
+  const listed = err?.data?.details?.missing_facts;
+  if (Array.isArray(listed) && listed.length) {
+    return listed.filter((f) => typeof f === "string" && f.trim()).map((f) => f.trim().replace(/_/g, " "));
+  }
+  // "Required letter facts are missing: employee_code, joining_date"
+  const tail = /missing:\s*(.+)$/i.exec(String(err?.data?.message || ""));
+  if (!tail) return [];
+  return tail[1].split(/[,;]+/).map((f) => f.trim().replace(/[."']+$/, "").replace(/_/g, " ")).filter(Boolean);
+}
+
+/** The fields a 422 PDF_DATA_INCOMPLETE named, in words. `details.missing_fields`, else the sentence. */
+export function incompleteLetterFields(err) {
+  if (documentErrorCode(err) !== "PDF_DATA_INCOMPLETE") return [];
+  const listed = err?.data?.details?.missing_fields;
+  if (Array.isArray(listed) && listed.length) {
+    return listed.filter((f) => typeof f === "string" && f.trim()).map((f) => f.trim().replace(/_/g, " "));
+  }
+  const one = incompleteLetterField(err);
+  return one ? [one] : [];
+}
+
+/**
+ * Another request under the same key is still drawing this letter (#139/#142).
+ *
+ * The ONLY safe response is to wait and repeat the SAME request: the key is what
+ * stops a second letter being created, so a fresh key here would issue the
+ * duplicate this code exists to prevent.
+ */
+export const isRenderInProgress = (err) => documentErrorCode(err) === "PDF_RENDER_IN_PROGRESS";
+
+/** The reference number collided. Nothing was issued, no number was used — repeating is safe. */
+export const isReferenceConflict = (err) => documentErrorCode(err) === "LETTER_REFERENCE_CONFLICT";
+
+/** Too many failures under this key. Terminal for the key: the next attempt needs a fresh one. */
+export const isRetryLimitExceeded = (err) => documentErrorCode(err) === "PDF_RETRY_LIMIT_EXCEEDED";
+
+/** The letter to reissue isn't the one in force any more. */
+export const isLetterNotReissuable = (err) => documentErrorCode(err) === "LETTER_NOT_REISSUABLE";
+
+/** An upload was pointed at a generated letter (#45/#46/#48). Reissue is the way. */
+export const isGeneratedOrigin = (err) => documentErrorCode(err) === "DOCUMENT_ORIGIN_GENERATED";
+
+/**
+ * Nothing was issued and the same request may safely be sent again, with a
+ * FRESH key — the renderer or storage failed on the way out, or two numbers
+ * collided. `PDF_RENDER_IN_PROGRESS` is deliberately NOT in this list: it is
+ * also worth retrying, but only with the same key, which is a different rule.
+ */
+export const isLetterIssueRetryable = (err) =>
+  ["PDF_RENDERER_UNAVAILABLE", "PDF_RENDER_TIMEOUT", "STORAGE_UNAVAILABLE", "LETTER_REFERENCE_CONFLICT", "DB_COMMIT_FAILED"]
+    .includes(documentErrorCode(err));
+
+/**
+ * A refusal that named a field of the form, so the form can drop that field and
+ * let the person try again in one click instead of guessing. See
+ * `letterOverridableFields()` for why the frontend can be wrong about this.
+ */
+export const isLetterFieldRejected = (err) =>
+  ["LETTER_FIELD_UNKNOWN", "LETTER_FIELD_NOT_OVERRIDABLE"].includes(documentErrorCode(err));
+
+/**
+ * The server never answered, so nobody can say whether the letter went out.
+ *
+ * `request()` only sets `status` when an HTTP response came back, so its absence
+ * means the connection dropped, the network went, or a proxy gave up — possibly
+ * AFTER the letter was issued and numbered. This is the one failure a screen must
+ * not describe as "nothing was issued", and the one where the retry has to reuse
+ * the same idempotency key (see `keyForRetry`).
+ */
+export const isLetterOutcomeUnknown = (err) => !Number.isFinite(Number(err?.status));

@@ -52,6 +52,7 @@ import {
   HiClipboardCheck,
   HiDocumentSearch,
   HiCollection,
+  HiPaperAirplane,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -256,6 +257,10 @@ function DashboardSidebar({ role = "guest" }) {
             link("Employee Documents", "/dashboard/hr/documents/employees", HiFolderOpen),
             link("Document Requests", "/dashboard/hr/documents/requests", HiClipboardList),
             link("Organisation Documents", "/dashboard/hr/documents/organisation", HiOfficeBuilding),
+            // The register of letters the company has issued (PDF Phase 2). It
+            // belongs here rather than in SETUP: setting a letter up is a
+            // once-a-year job, issuing one is daily work.
+            link("Issued Letters", "/dashboard/hr/documents/letters", HiPaperAirplane),
             link("Document Compliance", "/dashboard/hr/documents/compliance", HiClipboardCheck),
             link("Find a Document", "/dashboard/hr/documents/search", HiDocumentSearch),
             link("Compliance Reports", "/dashboard/hr/documents/reports", HiChartBar),

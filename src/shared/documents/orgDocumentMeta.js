@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { humanizeCode } from "./documentMeta";
+import { isGeneratedLetter } from "./letterIssueMeta";
 
 // ── Status ──────────────────────────────────────────────────────────────────
 // `status` is what is stored; `display_status` is what today's date makes of it
@@ -212,7 +213,17 @@ export function publishBlocker(doc) {
   return "";
 }
 
-export const canReplaceOrg = (doc) => doc?.status === "published";
+/**
+ * A new version through the UPLOAD handshake (#48).
+ *
+ * A generated letter is excluded, and that is a PDF Phase 2 contract change, not
+ * a preference: #45/#46/#48 answer `409 DOCUMENT_ORIGIN_GENERATED` for a row the
+ * letter pipeline created, because its bytes are sealed with a checksum the
+ * pipeline owns. The way to replace one is a reissue (#142), which redraws it —
+ * see `canReissueLetter()`. Offering New version here would put a button on
+ * screen that can only fail.
+ */
+export const canReplaceOrg = (doc) => doc?.status === "published" && !isGeneratedLetter(doc);
 export const canRetire = (doc) => doc?.status === "published";
 /** Only a manager's proposal can be declined (R-50); an HR-authored draft is deleted instead. */
 export const canRejectProposal = (doc) => isDraft(doc) && isProposal(doc);
@@ -241,8 +252,19 @@ const ORG_ACTION_LABEL = {
   "org_document.acknowledged": "Acknowledged",
   "org_document.signed": "Signed",
   "org_document.compliance_exported": "Compliance report downloaded",
+  // PDF Generation Phase 2. `letter.generated` is stamped on the render record
+  // and `letter.issued` / `letter.reissued` on the document itself.
+  "letter.generated": "Letter drawn",
+  "letter.issued": "Letter issued",
+  "letter.reissued": "Letter replaced by a new version",
 };
 
+/**
+ * The audit lines the letter pipeline writes, in the same voice as the rest.
+ * `letter.generated` is deliberately absent from the register's own history
+ * card's vocabulary elsewhere, but it does land on an org document's audit trail,
+ * so it is named here rather than falling back to "Generated".
+ */
 export const orgAuditActionLabel = (action) =>
   ORG_ACTION_LABEL[action] || humanizeCode(String(action || "").split(".").pop()) || "N/A";
 

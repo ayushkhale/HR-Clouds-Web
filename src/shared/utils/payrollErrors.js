@@ -165,6 +165,14 @@ const PAYROLL_ERROR_MESSAGES = {
   UNSUPPORTED_FORMAT: "That file format isn't available for this report.",
   COMPENSATION_VIEW_DISABLED: "Your organisation doesn't let managers see individual pay. Team totals are still available.",
 
+  // How payroll PDFs are produced (PDF Generation Phase 3, settings #87-#90).
+  // The guard exists so an organisation can never switch itself into a state
+  // where no payslip can be downloaded, which is why the wording says the switch
+  // did not happen rather than that something broke.
+  PDF_RENDERER_NOT_CONFIGURED: "The new way of making payroll PDFs isn't switched on for this server yet, so the setting was left as it was. Ask your administrator to turn on PDF rendering, then try again — nothing else on this page was affected.",
+  PDF_RENDER_TIMEOUT: "Preparing that payslip took too long and was stopped. Nothing was lost — try the download again.",
+  PDF_RENDERER_UNAVAILABLE: "The service that draws payroll PDFs can't be reached right now. Try again in a moment.",
+
   // Generic
   VALIDATION_ERROR: "Some details are missing or invalid. Check the form and try again.",
   FORBIDDEN: "You don't have permission to do this.",
@@ -256,6 +264,28 @@ export function payrollErrorMessage(err, fallback = "Something went wrong. Pleas
 
 /** The typed backend error code, or "" when there is none. */
 export const payrollErrorCode = (err) => err?.data?.errorCode || "";
+
+/**
+ * The server has no PDF renderer configured, so it refused to switch this
+ * organisation onto the new engine (#23, PDF Phase 3).
+ *
+ * Worth telling apart from every other save failure: nothing the person typed is
+ * wrong, no other setting on the page was rejected, and the fix is an
+ * administrator's, not theirs. The settings form uses this to put the engine
+ * field back where it was instead of leaving a switch that looks saved.
+ */
+export const isPdfRendererNotConfigured = (err) => payrollErrorCode(err) === "PDF_RENDERER_NOT_CONFIGURED";
+
+/**
+ * A payroll endpoint this server doesn't have yet.
+ *
+ * PDF Phase 3's queue endpoints (#219 / #220) ship after the settings they
+ * belong to, so a server can legitimately answer 404 with no JSON envelope at
+ * all — an unrouted path, not a missing record. A screen treats that as "this
+ * tool isn't here yet" and hides it, rather than showing a payroll error for
+ * something nobody did.
+ */
+export const isPayrollRouteMissing = (err) => err?.status === 404 && !err?.data;
 
 // #191 `GET /payroll/me/payslips/:runId/pdf` answers 403 FORBIDDEN when HR has
 // not released the payslip yet (`visible_to_employee = false`). "You don't have

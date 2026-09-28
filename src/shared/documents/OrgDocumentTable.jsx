@@ -6,6 +6,12 @@
 // The employee table's columns don't fit here: an org document has no subject
 // and no expiry date. What matters instead is who it reaches and when it is in
 // force, so those get the columns.
+//
+// Since PDF Phase 2 a row may also be a LETTER the company issued (`origin:
+// "generated"`). It is not given a column of its own — a mixed list with a
+// mostly-empty reference-number column would be worse than useless — but its
+// number is put on the second line, because that is what somebody scanning for a
+// letter already has in their hand. The dedicated register is Issued Letters.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { HiLockClosed, HiUserGroup, HiUsers } from "react-icons/hi";
@@ -15,6 +21,7 @@ import { fmtDate } from "../attendance/dates";
 import { DocIcon } from "./ui";
 import { OrgStatusBadge } from "./orgUi";
 import { goesToEveryone, isProposal, orgDisplayStatus } from "./orgDocumentMeta";
+import { isGeneratedLetter } from "./letterIssueMeta";
 
 /** When this document is in force, in one short phrase. */
 function EffectiveCell({ doc }) {
@@ -121,10 +128,12 @@ export default function OrgDocumentTable({ rows, types, onOpen, nameOf, showProp
                         </p>
                         <p className="text-[11px] text-slate-400 truncate max-w-[300px]">
                           {[
+                            doc.reference_number || null,
                             type?.name,
                             doc.version > 1 ? `Version ${doc.version}` : null,
                             doc.requires_acknowledgement ? "Needs acknowledgement" : null,
-                          ].filter(Boolean).join(" · ") || "Organisation document"}
+                          ].filter(Boolean).join(" · ")
+                            || (isGeneratedLetter(doc) ? "Company letter" : "Organisation document")}
                         </p>
                       </div>
                     </div>

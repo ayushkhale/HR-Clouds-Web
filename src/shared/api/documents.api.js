@@ -38,9 +38,24 @@
 // again but about LETTERS the company issues rather than files it stores: the
 // org's letterhead identity, its two branding images, and the catalog of letter
 // templates with each one's per-org defaults. Source of truth:
-// public/ref docs/md_pdfs/combined_api_analysis-6.md, phase1_api_analysis.md and
+// public/ref docs/md_pdfs/combined_api_analysis-7.md, phase1_api_analysis.md and
 // the change record 2026-09-27_pdf-generation-phase1-letter-branding-and-templates.md.
 // It changed nothing that came before it — no earlier path, request or response.
+//
+// PDF Generation Phase 2 (#139–#142) turns those templates into real letters,
+// and it is the one PDF phase that DOES change earlier endpoints — additively
+// except for one refusal:
+//   · an issued letter is an ORG DOCUMENT with `origin: "generated"`, so it
+//     arrives on #52/#55 (HR) and #70/#71 (the recipient) with no new endpoint,
+//     carrying `origin`, `reference_number` and, on a detail read, `generation`;
+//   · #45/#46/#48 now answer `409 DOCUMENT_ORIGIN_GENERATED` for a generated
+//     row: a letter is corrected by reissuing it (#142), never by uploading a
+//     file over it. Unreachable before this phase, since nothing could create a
+//     generated row, so no existing flow changes;
+//   · the settings read/write gains five `letter_*` keys (#82–#86), two of which
+//     Phase 1 enforced but could not save.
+// Source of truth: md_pdfs/phase2_api_analysis.md, combined_api_analysis-7.md
+// §4–§5 and 2026-09-27_pdf-generation-phase2-letter-issuance-and-reissue.md.
 //
 // Uploads never pass through this API: an "issue" call returns a pre-signed
 // S3 PUT URL, the browser sends the bytes straight to S3, then "confirm" asks
@@ -811,4 +826,108 @@ export const documentsAPI = {
       body: body || {},
       filename: `${String(code || "letter")}-preview.pdf`,
     }),
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  LETTERS THE COMPANY HAS ISSUED — PDF Generation Phase 2 (#139–#142). HR only.
+  //
+  //  A letter is NOT a new kind of record: it is an ordinary org document with
+  //  `origin: "generated"` (Phase 2 §1). That one fact decides almost
+  //  everything about this branch:
+  //
+  //   · There is no employee or manager letters endpoint and there never will
+  //     be. A recipient reads their letter through #70/#71 and downloads it
+  //     through #72/#128, exactly as they read any company document — so
+  //     nothing on the self or manager plane needs to know letters exist.
+  //   · None of these four replies carries a `storage_key`, a view URL, HTML or
+  //     a view-model. To put the PDF in front of somebody, HR asks #57
+  //     (`orgGetViewUrl`) for a signed link, the same as for an upload.
+  //   · Deleting or withdrawing a letter is #49/#51. Correcting one is #142
+  //     reissue — never #45/#46/#48, which now answer 409
+  //     DOCUMENT_ORIGIN_GENERATED for a generated row (Phase 2 §4).
+  //
+  //  Both writes are idempotent on a client key, and that is load-bearing
+  //  rather than a nicety: a double-submitted issue must not burn a second
+  //  reference number. See `shared/documents/letterIssueMeta.js`
+  //  (`newIdempotencyKey`, `keyForRetry`) for the one correct key lifecycle —
+  //  reuse the key while a render is still in flight, mint a fresh one after a
+  //  recorded failure, because since Phase 2 a repeated key over a FAILED
+  //  render re-surfaces that failure instead of rendering again (§6).
+  // ════════════════════════════════════════════════════════════════════════════
+  /**
+   * #139 Issue one letter from an enabled template for one person.
+   *
+   * `{ template_code, subject_user_id, field_overrides?, effective_date?,
+   * idempotency_key? }`. Unknown top-level keys are a 400 (`unknown(false)`),
+   * so never send anything else — in particular there is no `is_confidential`
+   * or `requires_acknowledgement` here: both are frozen onto the letter from
+   * the organisation's settings (#85/#86) at the moment it is issued.
+   *
+   * Answers `201` with `{ letter, artifact, reused: false }` for a fresh issue
+   * and `200` with `reused: true` for an idempotent replay of the same key and
+   * inputs. `request()` doesn't surface the status code, so `reused` is the only
+   * way to tell those apart — and telling them apart matters, because a replay
+   * did NOT mint a second letter.
+   *
+   * `effective_date` is the date printed on the letter and the one its financial
+   * year is taken from; it must be within ±365 days of today. `field_overrides`
+   * may hold at most 20 flat keys, each value ≤ 500 characters, and may only
+   * name a narrative field of that template — a fact read from the person's
+   * record (their name, designation, joining date, pay) is 422
+   * LETTER_FIELD_NOT_OVERRIDABLE. The API never tells us which keys those are,
+   * so see `letterOverridableFields()` for how that is handled.
+   *
+   * No download data comes back. Use #57 for the PDF.
+   */
+  issueLetter: (body) => post(`${HR}/letters`, body),
+  /**
+   * #140 The register of letters this organisation has issued — only generated
+   * rows, never an upload. `{ items, pagination: { page, limit, total,
+   * total_pages } }`.
+   *
+   * Filters: `template_code`, `subject_user_id`, `document_type_id`, `status`
+   * (`published | superseded | retired`), `reference_number` (exact),
+   * `issued_from` / `issued_to` (ISO dates, from ≤ to or 400), `page`,
+   * `limit` (1–100, default 20), `sort` (`published_at | reference_number`),
+   * `order` (`asc | desc`).
+   *
+   * Two traps. Pagination is `page` + `limit`, NOT the `limit`/`offset` the
+   * older document lists use. And an unknown `template_code` is a 400, while a
+   * known code this organisation never activated answers an empty list — so an
+   * empty register under a template filter means "none issued", not "broken".
+   *
+   * Confidential letters are not hidden from HR.
+   */
+  getLetters: (params) => request(`${HR}/letters${qs(params)}`),
+  /**
+   * #141 One letter: the #55 org-document detail plus `origin`,
+   * `reference_number`, the version chain and a `generation` block (which
+   * template and version drew it, the renderer, the input and content hashes,
+   * how long it took, the date it was pinned to).
+   *
+   * An UPLOADED document answers `404 DOCUMENT_NOT_FOUND` here, exactly as a
+   * missing or cross-org id does — this endpoint only answers about letters. A
+   * screen holding a mixed list must read #55 for an upload and this for a
+   * letter, never this for both.
+   */
+  getLetter: (id) => request(`${HR}/letters/${seg(id)}`),
+  /**
+   * #142 Reissue a PUBLISHED letter: a new version in the same group with a new
+   * reference number, redrawn from today's facts and branding, and the previous
+   * version marked as an older version. Its bytes, its artifact and its own
+   * reference number are never touched.
+   *
+   * `{ field_overrides?, reason?, idempotency_key? }` — all optional. There is
+   * deliberately no `effective_date`: a reissue is always dated today, so its
+   * financial year and number belong to the reissue, not to the letter it
+   * replaces. The template and the person can't be changed either; that would
+   * be a different letter, which is #139.
+   *
+   * `201` / `200` + `reused: true` as for #139, plus a `supersedes` block
+   * naming the version that stepped down. The two specs disagree on whether its
+   * id is `id` or `document_id`, so read both (`supersededOf()`).
+   *
+   * `409 LETTER_NOT_REISSUABLE` means the target is already an older version or
+   * has been withdrawn — reissue the live one instead.
+   */
+  reissueLetter: (id, body) => post(`${HR}/letters/${seg(id)}/reissue`, body),
 };

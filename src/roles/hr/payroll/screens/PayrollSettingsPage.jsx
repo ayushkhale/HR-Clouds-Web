@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCog, HiChevronDown } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiCog, HiChevronDown, HiInformationCircle } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { isPdfRendererNotConfigured, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import {
+  ENGINE_SWITCH_CONFIRM, PDF_ENGINE_CLASSIC, PDF_ENGINE_NUMBERS, PDF_ENGINE_OPTIONS,
+  hasPdfEngineSettings, isSwitchingToHtml, pdfEngineOf, pdfNumberProblem, usesHtmlEngine,
+} from "../pdfRenderMeta";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -69,17 +73,21 @@ function Pick({ label, value, onChange, options, hint }) {
   );
 }
 
-function Num({ label, value, onChange, min, max, hint, suffix }) {
+function Num({ label, value, onChange, min, max, hint, suffix, problem }) {
   return (
     <div>
       <label className={labelCls}>{label}</label>
       <div className="relative">
         <input type="number" min={min} max={max} value={value ?? ""}
           onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-          className={`${fieldCls} ${suffix ? "pr-16" : ""}`} />
+          className={`${fieldCls} ${suffix ? "pr-16" : ""} ${problem ? "border-rose-300" : ""}`} />
         {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{suffix}</span>}
       </div>
-      {hint && <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{hint}</p>}
+      {/* Only ever shown when the value is out of range — a permanent
+          "between 1 and 500" line says nothing the input's own min/max doesn't. */}
+      {problem
+        ? <p className="text-xs font-semibold text-rose-600 mt-1.5 leading-relaxed">{problem}</p>
+        : hint && <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{hint}</p>}
     </div>
   );
 }
@@ -104,6 +112,11 @@ export default function PayrollSettingsPage() {
   // The last saved value of benefit charging, so a confirm only fires when it
   // is switched from off to on.
   const benefitsWereOn = useRef(false);
+  // The engine as the server last confirmed it. Two things need it: knowing
+  // whether this save is a SWITCH (which is worth warning about) rather than an
+  // unrelated save, and putting the field back when the server refuses the
+  // switch because it has no renderer.
+  const savedEngine = useRef(PDF_ENGINE_CLASSIC);
   // Deduction components, for the "recover short notice through" picker.
   // A settlement cannot be prepared until one is chosen (#201).
   const [deductionComponents, setDeductionComponents] = useState([]);
@@ -112,6 +125,9 @@ export default function PayrollSettingsPage() {
   // `upd` merges one key without repeating the spread at every call site.
   const set7 = settings || {};
   const upd = (patch) => setSettings((prev) => ({ ...prev, ...patch }));
+  // PDF Generation Phase 3. Shown only once the server returns these keys — a
+  // server without them would reject them on the way back in.
+  const showPdfEngine = hasPdfEngineSettings(settings);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -172,6 +188,10 @@ export default function PayrollSettingsPage() {
         if (loaded[k] === undefined || loaded[k] === null) loaded[k] = v;
       });
       benefitsWereOn.current = !!loaded.benefit_deductions_enabled;
+      // PDF Generation Phase 3 (#87–#90). NOT defaulted into the form: a key the
+      // server never sent must not be sent back, because this page PUTs the
+      // whole settings object and an unknown field would fail the entire save.
+      savedEngine.current = pdfEngineOf(loaded);
       setSettings(loaded);
     } catch (err) {
       showToast(err.message || "Failed to load settings", "error");
@@ -195,21 +215,54 @@ export default function PayrollSettingsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // The two Phase 3 numbers, checked before the save so an out-of-range value is
+  // caught in the box it was typed into rather than coming back as a Joi message
+  // about the whole form.
+  const pdfProblems = showPdfEngine
+    ? Object.fromEntries(
+      Object.keys(PDF_ENGINE_NUMBERS)
+        .filter((key) => key in (settings || {}))
+        .map((key) => [key, pdfNumberProblem(key, settings[key])])
+        .filter(([, problem]) => problem),
+    )
+    : {};
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (saving) return;
+
+    const firstPdfProblem = Object.keys(pdfProblems)[0];
+    if (firstPdfProblem) {
+      showToast(`${PDF_ENGINE_NUMBERS[firstPdfProblem].label}: ${pdfProblems[firstPdfProblem]}`, "error");
+      return;
+    }
+
     // Turning benefit charging on starts deductions on the next calculation.
     if (settings.benefit_deductions_enabled && !benefitsWereOn.current) {
       const ok = await window.confirm("Every active benefit enrollment will be charged from the next payroll calculation. Check the benefit totals on the Payroll Runs readiness panel first.");
       if (!ok) return;
     }
+    // Switching the render engine ON changes how every payroll PDF looks from
+    // the next download. Switching back is the documented rollback and is asked
+    // about deliberately NOT at all — friction on an escape hatch is a bug.
+    if (isSwitchingToHtml(settings, { pdf_render_engine: savedEngine.current })) {
+      if (!(await window.confirm(ENGINE_SWITCH_CONFIRM))) return;
+    }
+
     setSaving(true);
     try {
       const res = await payrollAPI.updateSettings(settings);
       const saved = res?.data ?? settings;
       benefitsWereOn.current = !!saved.benefit_deductions_enabled;
+      savedEngine.current = pdfEngineOf(saved);
       showToast("Payroll settings updated successfully");
     } catch (err) {
+      // The server refuses to switch an organisation onto an engine it cannot
+      // run. Nothing was saved, so the field is put back — leaving it showing
+      // "New" would be a switch that looks done and isn't.
+      if (isPdfRendererNotConfigured(err)) {
+        setSettings((prev) => ({ ...prev, pdf_render_engine: savedEngine.current }));
+      }
       showToast(payrollErrorMessage(err, "Failed to update settings"), "error");
     } finally {
       setSaving(false);
@@ -350,6 +403,85 @@ export default function PayrollSettingsPage() {
                     </label>
                   </div>
                 </Section>
+
+                {/* ── PDF Generation Phase 3 · how payroll PDFs are made (#87–#90) ── */}
+                {showPdfEngine && (
+                  <Section
+                    title="How payroll PDFs are made"
+                    blurb="Payslips, annual salary statements and Form 16. The figures are identical either way — this is about how the page is drawn, and how quickly a whole run downloads."
+                    defaultOpen={false}
+                  >
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {PDF_ENGINE_OPTIONS.map((option) => {
+                          const picked = pdfEngineOf(settings) === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => upd({ pdf_render_engine: option.value })}
+                              aria-pressed={picked}
+                              className={`text-left rounded-xl border px-4 py-3 transition ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
+                            >
+                              <span className="block text-sm font-bold text-slate-800">{option.label}</span>
+                              <span className="block text-xs text-slate-500 mt-1 leading-relaxed">{option.blurb}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Said before the save, not after: "why does my payslip
+                          look different?" is the one question this change
+                          generates, and it is far cheaper to answer in advance. */}
+                      {usesHtmlEngine(settings) ? (
+                        <p className="flex items-start gap-2 text-xs text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3.5 py-3 leading-relaxed">
+                          <HiInformationCircle className="w-4 h-4 shrink-0 text-indigo-500 mt-px" />
+                          <span>
+                            Every figure, name and date stays exactly the same, but the layout and typefaces change — so anyone
+                            comparing an old download with a new one will see the difference. A payslip you are still holding back
+                            from an employee is always made the classic way, so a run mid-review can show you one look and them the
+                            other. You can switch back to Classic at any time; it takes effect on the very next download.
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Nothing changes while this is set to Classic. Try the new way on a recent run first — prepare it from the
+                          run&apos;s Payslips panel, download a payslip, and compare it with the old one side by side.
+                        </p>
+                      )}
+
+                      {usesHtmlEngine(settings) && (
+                        <>
+                          {"payslip_prerender_on_publish" in settings && (
+                            <Check
+                              checked={settings.payslip_prerender_on_publish !== false}
+                              onChange={(v) => upd({ payslip_prerender_on_publish: v })}
+                              title="Get payslips ready as soon as a run is released"
+                              hint="On by default. Releasing a run quietly prepares its payslips in the background, so downloading them later is instant. Off, each one is prepared the first time somebody asks for it."
+                            />
+                          )}
+                          <div className="grid sm:grid-cols-2 gap-6">
+                            {Object.entries(PDF_ENGINE_NUMBERS).map(([key, rule]) => (
+                              key in settings ? (
+                                <Num
+                                  key={key}
+                                  label={rule.label}
+                                  value={settings[key]}
+                                  min={rule.min}
+                                  max={rule.max}
+                                  suffix={rule.unit}
+                                  hint={rule.hint}
+                                  problem={pdfProblems[key]}
+                                  onChange={(v) => upd({ [key]: v })}
+                                />
+                              ) : null
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </Section>
+                )}
 
                 {/* ── Phase 7 · Final settlement (registry #55) ───────────── */}
                 <Section
