@@ -232,8 +232,16 @@ export function fmtHours(value, fallback = "0m") {
  */
 export function workedLabel(record, fallback = "0m") {
   const text = typeof record?.worked_duration_formatted === "string" ? record.worked_duration_formatted.trim() : "";
-  if (text) return text;
+  if (text) return tidyDuration(text);
   return fmtHours(record?.effective_hours, fallback);
+}
+
+// The server writes "8h 0m" and "0h 0m"; fmtMinutes writes "8h" and "0m". The
+// same day showed both ways on the dashboard and on My Attendance.
+function tidyDuration(text) {
+  const m = /^(\d+)h (\d+)m$/.exec(text);
+  if (!m) return text;
+  return fmtMinutes(Number(m[1]) * 60 + Number(m[2]), "0m");
 }
 
 /** A month's total worked time: `total_worked_duration_formatted`, else `total_hours_worked`. */

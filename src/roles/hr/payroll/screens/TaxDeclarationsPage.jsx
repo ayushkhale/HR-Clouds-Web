@@ -9,6 +9,7 @@ import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta"
 import { formatDate } from "../../../../shared/utils/formatUtils";
 import { personName } from "../../../../shared/attendance/normalize";
 import { currentFY, fyOptions } from "../fyUtils";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -35,7 +36,7 @@ const STATUS_PILL = {
   rejected: "bg-rose-100 text-rose-700",
 };
 const statusLabel = (s) => (s || "").replace(/_/g, " ") || "N/A";
-const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{statusLabel(s)}</span>;
+const Pill = ({ s }) => <span className={`${STATUS_CHIP} border-transparent ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{statusLabel(s)}</span>;
 
 // Same label / input look as the Invite Team Member form.
 const labelCls = "block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5";

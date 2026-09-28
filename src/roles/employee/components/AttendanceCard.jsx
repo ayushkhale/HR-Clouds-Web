@@ -15,7 +15,7 @@ import { attendanceAPI } from "../../../shared/api";
 import { attendanceErrorCode, attendanceErrorMessage } from "../../../shared/utils/attendanceErrors";
 import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
-import { fmtClock, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { PUNCH_SOURCE_WEB, SHIFT_TYPES, WORK_MODES, WORK_MODE_VALUES, humanize } from "../../../shared/attendance/enums";
 import { PUNCH_NOTES_MAX } from "../../../shared/attendance/validation";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
@@ -92,8 +92,14 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     if (phase !== "done") setLastResult(null);
   }, [phase, today?.date]);
 
-  const shift = shiftData || today?.shift || null;
-  const policy = shiftData?.policy || null;
+  // `/attendance/shift` (U13) answers `{ assignment, shift, rotation,
+  // weekly_offs }`, not a bare shift. Reading `name` off the wrapper left the
+  // shift line blank on every dashboard, so unwrap it; a wrapper whose `shift`
+  // is null means no assignment and falls through to `/today`'s own copy.
+  const wrapped = !!shiftData && typeof shiftData === "object" && "shift" in shiftData;
+  const assigned = wrapped ? shiftData.shift : (typeof shiftData === "object" ? shiftData : null);
+  const shift = assigned || today?.shift || null;
+  const policy = assigned?.policy || shiftData?.policy || null;
   const fullDayMinutes = Number(policy?.full_day_threshold_minutes) || null;
 
   const worked = phase === "working"
@@ -262,7 +268,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   // Shift (U13): name + timings inline; type and grace live in the tooltip.
   const shiftType = shift?.shift_type || shift?.type;
   const shiftLabel = shift
-    ? [shift.name, shift.start_time && shift.end_time ? `${fmtClock(shift.start_time)}–${fmtClock(shift.end_time)}` : null].filter(Boolean).join(" · ")
+    ? [shift.name, shift.start_time && shift.end_time ? `${fmtClockTime(shift.start_time)}–${fmtClockTime(shift.end_time)}` : null].filter(Boolean).join(" · ")
     : "No shift assigned";
   const shiftTitle = shift
     ? [shiftType ? SHIFT_TYPES[shiftType]?.label || humanize(shiftType) : null, policy?.grace_minutes != null ? `${policy.grace_minutes}m grace` : null].filter(Boolean).join(" · ")

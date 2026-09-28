@@ -410,7 +410,7 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
                 <section className="rounded-2xl border border-slate-200 px-5 py-2 divide-y divide-slate-100">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-3 pb-2">Who can do what</p>
                   <SwitchRow title="Confidential" description="Only HR and the employee can see these documents — never managers." checked={confidential} onChange={(v) => set("is_confidential", v)} />
-                  <SwitchRow title="Employees can upload" description="Shown in My Documents so employees can add it themselves." checked={form.employee_can_upload} onChange={(v) => set("employee_can_upload", v)} />
+                  <SwitchRow title="Employees can upload" description="Shown in My Personal Documents so employees can add it themselves." checked={form.employee_can_upload} onChange={(v) => set("employee_can_upload", v)} />
                   <SwitchRow title="Employees can view" description="Employees can open and download their copy." checked={form.employee_can_view} onChange={(v) => set("employee_can_view", v)} />
                   <SwitchRow
                     title="Employees can delete a verified copy"

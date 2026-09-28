@@ -10,16 +10,17 @@ import Skeleton from "../../../shared/components/Skeleton";
 import { HiUserGroup, HiClock, HiCalendar, HiSparkles, HiLightningBolt, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
 import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
 import { departmentName, employeeCode, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
-import { fmtClock, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { DepartmentCard } from "../../hr/screens/HRDashboard";
 import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
+import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
+import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 import { greetingFor } from "../../../shared/utils/greeting";
 
-const CHART_PAGE_SIZE = 15;
 // HR's department summary endpoint is HR-only, so the manager's version is
 // counted from today's team list, in the shape HR's DepartmentCard reads.
 // Late is a subset of present; anyone not present or on leave counts as
@@ -166,6 +167,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     const code = employeeCode(mem);
                     const late = num(mem.late_minutes);
                     const dept = departmentName(mem);
+                    const shift = mem.shift || mem.shift_snapshot;
                     const id = mem.user_id || mem.id;
                     const open = () => id && navigate(`/dashboard/manager/team/member/${id}?tab=attendance`);
                     return (
@@ -191,7 +193,8 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                         <td className="px-5 py-3.5">
                           {mem.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={mem.status || "not_marked"} />}
                         </td>
-                        <td className="px-5 py-3.5 text-xs text-slate-500">{mem.shift ? `${mem.shift.name || "Shift"}${mem.shift.start_time ? ` · ${fmtClock(mem.shift.start_time)}–${fmtClock(mem.shift.end_time)}` : ""}` : "N/A"}</td>
+                        {/* /manager/team/today sends the day's frozen `shift_snapshot`, not `shift`. */}
+                        <td className="px-5 py-3.5 text-xs text-slate-500">{shift ? `${shift.name || "Shift"}${shift.start_time ? ` · ${fmtClockTime(shift.start_time)}–${fmtClockTime(shift.end_time)}` : ""}` : "N/A"}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">{fmtTime(mem.clock_in_time)}</td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">{fmtTime(mem.clock_out_time)}</td>
                         <td className="px-5 py-3.5 text-right">
@@ -223,7 +226,8 @@ function ManagerDashboard() {
   const [summaryAt, setSummaryAt] = useState(null);
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [graph, setGraph] = useState({ data: null, loading: true, error: null });
-  const [chartPage, setChartPage] = useState(0);
+  // null = not paged by hand yet, so the chart opens on the half holding today.
+  const [chartPage, setChartPage] = useState(null);
   const chartScrollTimeout = useRef(0);
   const team = useTeamToday();
   const reloadTeam = team.load;
@@ -255,7 +259,7 @@ function ManagerDashboard() {
   }, [period.month, period.year]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
-  useEffect(() => { loadGraph(); setChartPage(0); }, [loadGraph]);
+  useEffect(() => { loadGraph(); setChartPage(null); }, [loadGraph]);
   useAttendanceChanged([ATTENDANCE_EVENTS.REGULARIZATION], () => { loadSummary(); loadGraph(); });
 
   // Today's counts stay live like the HR dashboard: poll while visible.
@@ -279,9 +283,9 @@ function ManagerDashboard() {
     date: ymdOnly(d.date),
     on_leave_count: num(d.on_leave_count ?? d.counts?.on_leave_count),
   }));
-  const totalChartPages = Math.max(1, Math.ceil(daily.length / CHART_PAGE_SIZE));
-  const safeChartPage = Math.min(chartPage, totalChartPages - 1);
-  const chartData = daily.slice(safeChartPage * CHART_PAGE_SIZE, (safeChartPage + 1) * CHART_PAGE_SIZE);
+  const totalChartPages = chartPageCount(daily);
+  const safeChartPage = Math.min(chartPage ?? defaultChartPage(daily, period), totalChartPages - 1);
+  const chartData = chartPageRows(daily, safeChartPage);
   const next = shiftMonth(period.year, period.month, 1);
 
   const handleChartWheel = (e) => {
@@ -377,7 +381,8 @@ function ManagerDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} tickFormatter={(val) => fmtDate(val, { day: "numeric" }, "")} interval="preserveStartEnd" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval="preserveStartEnd" />
+                          {sundayMarkers(chartData)}
                           <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
                           <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
                           <Bar dataKey="final_present_count" name="Present" fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
@@ -409,9 +414,11 @@ function ManagerDashboard() {
                 <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${summary.loading && !summary.data ? "opacity-50" : ""}`}>
                   {stats.map(({ label, value, icon: Icon }) => (
                     <div key={label} className="rounded-2xl bg-slate-50/70 border border-slate-100 px-4 py-3.5">
-                      <div className="flex items-center gap-2 text-slate-400">
+                      {/* Wraps rather than truncates: six tiles in half a 14" screen cut
+                          "Working right now" to "Working right n…". */}
+                      <div className="flex items-start gap-2 text-slate-400">
                         <Icon className="w-4 h-4 text-purple-500 shrink-0" />
-                        <span className="text-[11px] font-semibold truncate">{label}</span>
+                        <span className="text-[11px] font-semibold leading-tight">{label}</span>
                       </div>
                       <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none mt-2 tabular-nums">{value}</p>
                     </div>

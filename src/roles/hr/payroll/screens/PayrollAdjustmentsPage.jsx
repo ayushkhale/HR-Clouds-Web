@@ -26,6 +26,7 @@ import {
   bulkRowMessage, bulkTotals, csvDataRowCount, csvHeaderProblem, embeddedEmployee, actorName,
 } from "../variablePayMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 const CUSTOM_COMPONENT = "__custom__";
@@ -739,13 +740,15 @@ export default function PayrollAdjustmentsPage() {
   return (
     <>
       <DashboardTopBar title="Salary Adjustments" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div>
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl w-full mx-auto">
+        {/* Title left, actions top-right on one line — the house header. With
+            flex-wrap the long subtitle pushed the buttons underneath it. */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Salary Adjustments</h1>
             <p className="text-sm text-slate-500 mt-1">One-time additions and deductions, such as bonuses or recoveries. Open a row to see its details and approve, reject or cancel it.</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 shrink-0">
             <button type="button" onClick={() => setBulkOpen(true)} className="h-[42px] px-4 text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-2">
               <HiUpload className="w-5 h-5" /> Bulk upload
             </button>
@@ -756,12 +759,20 @@ export default function PayrollAdjustmentsPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 flex flex-col xl:flex-row xl:items-center gap-3">
-          <div className="relative flex-1 min-w-[220px]">
+        {/* Search and actions on one line, filters wrapping underneath — the
+            same bar as Claims, so it never runs off the card on a laptop. */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 space-y-3">
+          <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
             <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter this page by employee, component or reason" aria-label="Filter this page" className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by employee, component or reason" aria-label="Filter this page" className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 xl:flex xl:items-center">
+          <div className="flex items-center gap-2 shrink-0">
+            {hasFilters && <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">Clear</button>}
+            <button type="button" onClick={() => loadList()} aria-label="Refresh" title="Refresh" className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"><HiRefresh className="w-4 h-4" /></button>
+          </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <select aria-label="Status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={selectCls}>
               {APPROVAL_STATUS_FILTERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
@@ -778,10 +789,6 @@ export default function PayrollAdjustmentsPage() {
               <option value="">Any category</option>
               {categoryChoices.map((c) => <option key={c} value={c}>{ADJUSTMENT_CATEGORY_LABEL[c]}</option>)}
             </select>
-          </div>
-          <div className="flex items-center gap-2">
-            {hasFilters && <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">Clear</button>}
-            <button type="button" onClick={() => loadList()} aria-label="Refresh" title="Refresh" className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"><HiRefresh className="w-4 h-4" /></button>
           </div>
         </div>
 
@@ -804,7 +811,7 @@ export default function PayrollAdjustmentsPage() {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1150px]">
+              <table className="w-full text-left border-collapse min-w-[960px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-5 py-4 border-b border-slate-100">Employee</th>
@@ -839,7 +846,7 @@ export default function PayrollAdjustmentsPage() {
                         </td>
                         <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{adjustmentSource(adj)}</td>
                         <td className="px-5 py-4">
-                          <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${status.pill}`}>{status.label}</span>
+                          <span className={`${STATUS_CHIP} ${status.pill}`}>{status.label}</span>
                           {isAppliedAdjustment(adj) && <span className="block mt-1.5 text-[10px] font-bold text-purple-600 uppercase">In payroll</span>}
                         </td>
                       </tr>

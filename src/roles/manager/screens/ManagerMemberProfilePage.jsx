@@ -166,7 +166,10 @@ export default function ManagerMemberProfilePage() {
             </div>
 
             <div className="min-w-0 flex flex-col gap-6">
-              <div className="bg-white rounded-2xl border border-slate-200 p-2 flex gap-1 overflow-x-auto no-scrollbar" role="tablist">
+              {/* Tabs share the bar and wrap when they run out of room. A hidden-
+                  scrollbar strip used to cut the last tabs off on a 14" screen
+                  with nothing to say they were there. */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-2 flex flex-wrap gap-1" role="tablist">
                 {TABS.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.key;
@@ -177,7 +180,7 @@ export default function ManagerMemberProfilePage() {
                       role="tab"
                       aria-selected={isActive}
                       onClick={() => setActiveTab(tab.key)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${isActive ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${isActive ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
                     >
                       <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
                       {tab.label}

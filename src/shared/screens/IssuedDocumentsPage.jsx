@@ -188,11 +188,11 @@ export default function IssuedDocumentsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Company Documents" />
+      <DashboardTopBar title="My Company Documents" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Company Documents</h1>
+            <h1 className="text-2xl font-bold text-slate-900">My Company Documents</h1>
             <p className="text-sm text-slate-500 mt-1">
               Policies, notices and letters your organisation has issued to you. Some only need reading; others ask you to acknowledge or sign them.
             </p>

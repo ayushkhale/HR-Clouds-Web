@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { documentsAPI, tokenHelper } from "../api";
+import { decodeJWT } from "../api/client";
 
 const CACHE_MS = 60_000;
 // Keyed by session token: settings must not survive a logout in the same tab.
@@ -37,6 +38,10 @@ export default function useDocumentSettings() {
       return undefined;
     }
     const token = tokenHelper.get() || "";
+    // Don't ask when the answer is a known 403: it was fired on every mount of
+    // every manager and employee screen that opens a request, filling the
+    // console with failures that were never errors.
+    if (decodeJWT(token)?.role !== "hr") return undefined;
     let alive = true;
     documentsAPI.getSettings()
       .then((res) => {

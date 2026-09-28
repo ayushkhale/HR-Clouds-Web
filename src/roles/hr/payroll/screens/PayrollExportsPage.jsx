@@ -20,6 +20,7 @@ import { EXPORT_SCOPE_LABEL, EXPORT_STATUS, EXPORT_TYPE_LABEL, exportStatusKey, 
 import {
   HiChevronLeft, HiChevronRight, HiCloudDownload, HiDocumentText, HiFilter, HiRefresh, HiX,
 } from "react-icons/hi";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 
@@ -109,11 +110,11 @@ export default function PayrollExportsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Exports" />
+      <DashboardTopBar title="Payroll Exports" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Exports</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Payroll Exports</h1>
             <p className="text-sm text-slate-500 mt-1">
               Every payslip, report and bank file that left the system — who took it, what it covered and whether it finished. Click a row for the full record.
             </p>
@@ -184,7 +185,7 @@ export default function PayrollExportsPage() {
                         <td className="px-6 py-4 text-slate-700 font-semibold">{actorOf(row)}</td>
                         <td className="px-6 py-4 text-right tabular-nums text-slate-600">{row.row_count ?? "N/A"}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${status.pill}`}>{status.label}</span>
+                          <span className={`${STATUS_CHIP} ${status.pill}`}>{status.label}</span>
                         </td>
                       </tr>
                     );

@@ -17,6 +17,18 @@ export function prettifyCode(code) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// How a salary component's amount is worked out, in the words Bonus Rules uses,
+// so one calculation reads the same on every screen. (CSS `capitalize` on the
+// raw code used to render "Percent Of Ctc".)
+const CALCULATION_LABEL = {
+  flat: "Fixed amount",
+  percent_of_basic: "% of basic pay",
+  percent_of_gross: "% of gross pay",
+  percent_of_ctc: "% of CTC",
+  balancing: "Balancing (the remainder)",
+};
+export const calculationLabel = (code) => CALCULATION_LABEL[code] || prettifyCode(code);
+
 export const toCount = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -661,3 +673,13 @@ export function payoutReadinessNotes(p) {
   }
   return notes;
 }
+
+// ── Loans ────────────────────────────────────────────────────────────────────
+// How a loan's interest is worked out, said the way the borrower would. HR's
+// register, the manager's team view and the employee's own page all read
+// this, so the same loan is described the same way to all three.
+const INTEREST_METHOD_LABELS = {
+  flat: "Flat — on the full amount throughout",
+  reducing_balance: "On what’s still owed",
+};
+export const interestMethodLabel = (method) => INTEREST_METHOD_LABELS[method] || prettifyCode(method) || "N/A";

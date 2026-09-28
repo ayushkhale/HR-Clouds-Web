@@ -10,6 +10,7 @@ import {
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, rowPreviewProps } from "../../../shared/components/DetailDialog";
 import AttachmentLink from "../../../shared/documents/AttachmentLink";
 import LeaveAttachmentField from "../../../shared/documents/LeaveAttachmentField";
+import { FilterTabs } from "../../../shared/attendance/ui";
 
 // Whether a leave's start date is today or already past. The backend decides
 // cancellation behaviour by DATE, not status: a leave entirely in the future is
@@ -38,6 +39,16 @@ function Toast({ toast, onClose }) {
     </div>
   );
 }
+
+// Filter tabs for My Leave Requests, in the order people look for them.
+const LEAVE_STATUS_TABS = [
+  ["pending", "Pending"],
+  ["approved", "Approved"],
+  ["cancellation_pending", "Cancellation requested"],
+  ["rejected", "Rejected"],
+  ["cancelled", "Cancelled"],
+  ["terminated_cancelled", "Cancelled on exit"],
+];
 
 // ─── Cancel Confirm Modal ─────────────────────────────────────────────────────
 function CancelConfirmModal({ request, onClose, onConfirm }) {
@@ -216,11 +227,11 @@ function BalanceCards({ balances }) {
           <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
           <div className="flex items-end gap-1 mb-4">
              <span className="text-3xl font-black tracking-tight text-slate-800 leading-none">{fmt(parseFloat(b.current_balance))}</span>
-             <span className="text-xs font-semibold text-slate-400 mb-1 tracking-normal">days left</span>
+             <span className="text-xs font-semibold text-slate-400 mb-1 tracking-normal">{parseFloat(b.current_balance) === 1 ? "day left" : "days left"}</span>
           </div>
-          <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[10px] uppercase font-bold text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{fmt(parseFloat(b.total_accrued))} Earned</span>
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{fmt(parseFloat(b.total_used))} Used</span>
+          <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[11px] font-semibold text-slate-400">
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{fmt(parseFloat(b.total_accrued))} given so far</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{fmt(parseFloat(b.total_used))} used</span>
           </div>
         </div>
       ))}
@@ -257,7 +268,7 @@ function UpcomingHolidaysWidget({ holidays }) {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-800">Upcoming Holidays</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Your organization's official non-working days.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Your organization’s official non-working days.</p>
           </div>
         </div>
         <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
@@ -638,7 +649,9 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
             disabled={loading}
           />
 
-          <div className="flex gap-3 pt-1">
+          {/* Pinned like the header: at 768px tall the form outgrows the dialog
+              and Submit used to scroll out of sight. */}
+          <div className="flex gap-3 sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white border-t border-slate-100">
             <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
               {loading ? "Submitting…" : "Submit Leave Request"}
             </button>
@@ -664,17 +677,32 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
   // again would 400. Only pending and approved leaves are cancellable.
   const cancellable = ["pending", "approved"];
 
+  // Tabs only for the statuses this person actually has, each with its count —
+  // the house FilterTabs pattern, not a select of seven mostly-empty options.
+  const statusTabs = useMemo(() => {
+    const counts = requests.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] || 0) + 1 }), {});
+    return [
+      { value: "", label: `All (${requests.length})` },
+      ...LEAVE_STATUS_TABS.filter(([key]) => counts[key]).map(([key, label]) => ({ value: key, label: `${label} (${counts[key]})` })),
+    ];
+  }, [requests]);
+
+  // A tab disappears when its last request moves on (cancel your only pending
+  // leave and "Pending" goes). Fall back to All rather than an empty list with
+  // no tab selected.
+  const activeStatus = statusTabs.some((t) => t.value === statusFilter) ? statusFilter : "";
+
   // my-requests has no server-side filter, so search/status are client-side.
   const filtered = useMemo(() => {
     let list = requests;
-    if (statusFilter) list = list.filter(r => r.status === statusFilter);
+    if (activeStatus) list = list.filter(r => r.status === activeStatus);
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(r =>
       (r.leave_type?.name || "").toLowerCase().includes(q) ||
       (r.reason || "").toLowerCase().includes(q)
     );
     return list;
-  }, [requests, statusFilter, search]);
+  }, [requests, activeStatus, search]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col mt-8">
@@ -688,27 +716,18 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
             <p className="text-xs text-slate-400 mt-0.5">Track your past and active leave applications.</p>
           </div>
         </div>
-        {requests.length > 0 && (
-          <div className="flex gap-2">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search type or reason…"
-              className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-            />
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white">
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="cancellation_pending">Cancellation Pending</option>
-              <option value="terminated_cancelled">Terminated Cancelled</option>
-            </select>
-          </div>
-        )}
       </div>
+      {requests.length > 0 && (
+        <div className="px-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <FilterTabs options={statusTabs} value={activeStatus} onChange={setStatusFilter} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search type or reason…"
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition sm:w-56"
+          />
+        </div>
+      )}
 
       {requests.length === 0 ? (
         <div className="p-10 flex flex-col items-center gap-3 text-center">
@@ -907,7 +926,7 @@ export default function LeaveDashboard() {
   return (
     <>
         <DashboardTopBar title="My Leaves" />
-        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 space-y-8">
+        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 space-y-8 max-w-7xl mx-auto w-full">
 
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

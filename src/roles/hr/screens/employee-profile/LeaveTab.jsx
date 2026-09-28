@@ -49,9 +49,11 @@ export function BalanceCard({ balance, index }) {
 
   return (
     <div className={`rounded-2xl border p-5 ${color.bg} ${color.border}`}>
-      <div className="flex items-center gap-2 mb-3 min-w-0">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${color.dot}`} />
-        <p className="text-xs font-bold text-slate-600 uppercase tracking-wide truncate">{balance.leave_type?.name || "Leave"}</p>
+      {/* The name wraps, never truncates: four cards across a 14" screen cut
+          "Casual Leave" to "CASUAL L…", which named nothing. */}
+      <div className="flex items-start gap-2 mb-3 min-w-0">
+        <span className={`w-2 h-2 mt-1 rounded-full shrink-0 ${color.dot}`} />
+        <p className="flex-1 min-w-0 text-xs font-bold text-slate-600 leading-snug">{balance.leave_type?.name || "Leave"}</p>
         {balance.leave_type?.code && (
           <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/70 shrink-0 ${color.accent}`}>
             {balance.leave_type.code}
@@ -59,10 +61,10 @@ export function BalanceCard({ balance, index }) {
         )}
       </div>
       <p className={`text-3xl font-extrabold ${color.accent} mb-1`}>{fmtDays(current)}</p>
-      <p className="text-xs text-slate-500 font-medium">days left</p>
-      <div className="mt-3 pt-3 border-t border-white/70 flex gap-4 text-xs text-slate-500">
-        <span><span className="font-semibold text-slate-700">{fmtDays(earned)}</span> given so far</span>
-        <span><span className="font-semibold text-slate-700">{fmtDays(taken)}</span> taken</span>
+      <p className="text-xs text-slate-500 font-medium">{current === 1 ? "day left" : "days left"}</p>
+      <div className="mt-3 pt-3 border-t border-white/70 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{fmtDays(earned)}</span> given so far</span>
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{fmtDays(taken)}</span> taken</span>
       </div>
     </div>
   );

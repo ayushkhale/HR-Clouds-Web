@@ -13,6 +13,7 @@ import { DecisionDetails } from "../../../../shared/attendance/AttendanceApprova
 import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, StatusBadge, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiCheckCircle, HiGift } from "react-icons/hi";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
+import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { settleWithLimit } from "../../../../shared/utils/promisePool";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
@@ -92,6 +93,9 @@ function AttendanceCompOffsPage() {
 
   const tabs = COMP_OFF_FILTERS.filter((t) => t.value !== "").concat([{ value: "", label: "All" }]);
 
+  // Records carry no credit figure today; a column of "N/A" says nothing.
+  const showCredit = list.items.some((co) => creditDays(co) != null);
+
   return (
     <>
       <DashboardTopBar title={TERM} />
@@ -131,10 +135,9 @@ function AttendanceCompOffsPage() {
                       <th className="px-5 py-3.5">Employee</th>
                       <th className="px-5 py-3.5">Worked on</th>
                       <th className="px-5 py-3.5">Hours</th>
-                      <th className="px-5 py-3.5">Credit</th>
+                      {showCredit && <th className="px-5 py-3.5">Credit</th>}
                       <th className="px-5 py-3.5">Expires</th>
                       <th className="px-5 py-3.5">Status</th>
-                      {actionable && <th className="px-5 py-3.5 text-right"><span className="sr-only">Actions</span></th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -143,7 +146,10 @@ function AttendanceCompOffsPage() {
                       const name = personName(co, "Employee");
                       const code = employeeCode(co);
                       return (
-                        <tr key={id} className="hover:bg-slate-50/80 transition-colors">
+                        // Waiting rows open the review itself (house rule: the row opens
+                        // it, no Review button); settled rows have nothing to open.
+                        <tr key={id} {...(actionable && !bulk ? rowPreviewProps(() => setDecision(co), `Review ${name}'s ${DICTIONARY.TERMS.COMP_OFF}`) : {})}
+                          className={`transition-colors ${actionable && !bulk ? "hover:bg-purple-50/30 cursor-pointer outline-none focus:bg-purple-50/40" : "hover:bg-slate-50/80"}`}>
                           {actionable && (
                             <td className="px-4 py-3">
                               <input type="checkbox" checked={selected.includes(id)} onChange={() => toggle(id)} disabled={!!bulk} className="accent-purple-600" aria-label={`Select ${name}`} />
@@ -160,16 +166,9 @@ function AttendanceCompOffsPage() {
                           </td>
                           <td className="px-5 py-3 text-xs whitespace-nowrap">{fmtDate(workedDate(co))}</td>
                           <td className="px-5 py-3 text-xs">{co.worked_hours != null ? fmtHours(co.worked_hours) : "N/A"}</td>
-                          <td className="px-5 py-3 text-xs font-bold text-violet-600">{creditDays(co) != null ? `${creditDays(co)} day(s)` : "N/A"}</td>
+                          {showCredit && <td className={`px-5 py-3 text-xs ${creditDays(co) != null ? "font-bold text-violet-600" : "text-slate-400"}`}>{creditDays(co) != null ? `${creditDays(co)} ${Number(creditDays(co)) === 1 ? "day" : "days"}` : "N/A"}</td>}
                           <td className="px-5 py-3 text-xs">{expiryDate(co) ? fmtDate(expiryDate(co)) : "N/A"}</td>
                           <td className="px-5 py-3"><StatusBadge kind="compoff" status={co.status} /></td>
-                          {actionable && (
-                            <td className="px-5 py-3 text-right">
-                              <button type="button" onClick={() => setDecision(co)} disabled={!!bulk} className="text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-3.5 py-1.5 rounded-lg transition disabled:opacity-50">
-                                Review
-                              </button>
-                            </td>
-                          )}
                         </tr>
                       );
                     })}

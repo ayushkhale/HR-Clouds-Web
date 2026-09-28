@@ -250,8 +250,8 @@ export default function PayrollEncashmentsPage() {
     setBusyId(row.id);
     try {
       if (action === "approve") await payrollAPI.approveEncashment(row.id);
-      else if (action === "reject") await payrollAPI.rejectEncashment(row.id, { reason });
-      else await payrollAPI.cancelEncashment(row.id, reason ? { reason } : {});
+      else if (action === "reject") await payrollAPI.rejectEncashment(row.id, reason);
+      else await payrollAPI.cancelEncashment(row.id, reason);
       showToast(action === "approve" ? "Approved — it will be paid in the chosen month"
         : action === "reject" ? "Request rejected" : "Request cancelled");
       setDetail(null);
@@ -283,7 +283,7 @@ export default function PayrollEncashmentsPage() {
   return (
     <>
       <DashboardTopBar title="Encashments" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
@@ -439,7 +439,10 @@ export default function PayrollEncashmentsPage() {
               ["Decided on", formatDate(detail.approved_at || detail.rejected_at)],
             ]} />
           </DetailSection>
-          {detail.reason && <DetailSection title="Reason" icon={HiInformationCircle}><DetailText>{detail.reason}</DetailText></DetailSection>}
+          {detail.reason && <DetailSection title="Why it was asked for" icon={HiInformationCircle}><DetailText>{detail.reason}</DetailText></DetailSection>}
+          {detail.rejection_reason && <DetailSection title="Why it was turned down" icon={HiInformationCircle}><DetailText>{detail.rejection_reason}</DetailText></DetailSection>}
+          {/* Stored since 29 Sep 2026 (R-4); older cancellations have none. */}
+          {detail.cancellation_reason && <DetailSection title="Why it was cancelled" icon={HiInformationCircle}><DetailText>{detail.cancellation_reason}</DetailText></DetailSection>}
         </DetailDialog>
       )}
 

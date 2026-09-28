@@ -7,6 +7,8 @@ import {
 } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
+const days = (n) => `${n} ${Number(n) === 1 ? "day" : "days"}`;
+
 // Phase-6 demographic gating options. Empty selection ⇒ open to everyone (null).
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -406,7 +408,7 @@ export default function LeaveTypesPage() {
   return (
     <>
         <DashboardTopBar title="Leave Types" />
-        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
+        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full">
 
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">
@@ -492,7 +494,7 @@ export default function LeaveTypesPage() {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-xs text-slate-500">
-                              {t.requires_document_threshold > 0 ? `After ${t.requires_document_threshold} days` : "0"}
+                              {t.requires_document_threshold > 0 ? `After ${days(t.requires_document_threshold)}` : "Not needed"}
                             </td>
                             <td className="px-6 py-4"><StatusBadge active={t.is_active} /></td>
                             <td className="px-6 py-4">
@@ -545,7 +547,7 @@ export default function LeaveTypesPage() {
                 ["Code", preview.code],
                 ["Pay", preview.is_paid ? "Paid" : "Unpaid (LWP)"],
                 ["Weekends in between", preview.sandwich_rule_applies ? "Counted as leave" : "Not counted"],
-                ["Document required after", preview.requires_document_threshold > 0 ? `${preview.requires_document_threshold} days` : "0 days"],
+                ["Document required after", preview.requires_document_threshold > 0 ? `After ${days(preview.requires_document_threshold)}` : "Not needed"],
               ]}
             />
             <div className="mt-3"><DetailText label="Description">{preview.description}</DetailText></div>

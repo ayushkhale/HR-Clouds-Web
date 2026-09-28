@@ -13,6 +13,7 @@ import { formatDate } from "../../../../shared/utils/formatUtils";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -369,7 +370,7 @@ export default function BankVerificationPage() {
                         <td className="px-6 py-4 text-slate-600">{acct?.bank_name || <span className="text-slate-400 font-medium">N/A</span>}</td>
                         <td className="px-6 py-4 font-mono text-slate-600">{acct?.masked_account_number || <span className="font-sans text-slate-400 font-medium">N/A</span>}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${STATE[state].pill}`}>{STATE[state].label}</span>
+                          <span className={`${STATUS_CHIP} ${STATE[state].pill}`}>{STATE[state].label}</span>
                         </td>
                       </tr>
                     );

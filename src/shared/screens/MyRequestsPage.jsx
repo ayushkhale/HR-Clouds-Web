@@ -225,11 +225,11 @@ export default function MyRequestsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Requested From Me" />
+      <DashboardTopBar title="My Document Requests" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Requested From Me</h1>
+            <h1 className="text-2xl font-bold text-slate-900">My Document Requests</h1>
             <p className="text-sm text-slate-500 mt-1">
               The documents your job needs from you, and anything HR or your manager has asked you for. Upload one and it’s ticked off by itself — there’s nothing to mark as done.
             </p>
@@ -362,7 +362,7 @@ export default function MyRequestsPage() {
         <p className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
           Everything you upload here lands in your own file.
           <Link to={myPaths.documents} className="inline-flex items-center gap-1 font-bold text-purple-600 hover:underline">
-            <HiFolderOpen className="w-3.5 h-3.5" /> My Documents <HiExternalLink className="w-3 h-3" />
+            <HiFolderOpen className="w-3.5 h-3.5" /> My Personal Documents <HiExternalLink className="w-3 h-3" />
           </Link>
         </p>
       </main>

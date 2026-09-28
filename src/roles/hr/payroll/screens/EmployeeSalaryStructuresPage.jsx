@@ -7,7 +7,7 @@ import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye, HiCurrencyRupee,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText } from "../../../../shared/components/DetailDialog";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { StatutorySummary, StatutoryUnavailableNotice, RecalculationPendingNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
@@ -15,6 +15,8 @@ import { normalizeStatutory } from "../../../../shared/utils/statutoryBreakdown"
 import { costFromPreview, deductionsFromPreview, componentFlagsByCode, hasBalancingLine, solveCtcForTargetCost } from "../../../../shared/utils/employerStatutoryCost";
 import CtcMoneyFlow from "../CtcMoneyFlow";
 import { prettifyCode } from "../runMeta";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { humanize } from "../../../../shared/attendance/enums";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -239,7 +241,7 @@ function HistoryModal({ user, onClose, showToast, nameOf }) {
                     {showDelta && <DeltaPill delta={delta} />}
                     {isCurrent
                       ? <DetailPill tone="solid">Current</DetailPill>
-                      : <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${STRUCT_STATUS[h.status] || "bg-slate-100 text-slate-500"}`}>{h.status}</span>}
+                      : <span className={`${STATUS_CHIP} border-transparent ${STRUCT_STATUS[h.status] || "bg-slate-100 text-slate-500"}`}>{humanize(h.status)}</span>}
                   </span>
                 }
               >
@@ -736,7 +738,10 @@ export default function EmployeeSalaryStructuresPage() {
                   {employees.map((user, i) => {
                     const cur = ctcByUser[userId(user)];
                     return (
-                      <tr key={userId(user) || i} className="hover:bg-slate-50/50 transition-colors">
+                      // The row opens the salary history (the record inspector); the
+                      // only button left is the real action, Revise / Assign.
+                      <tr key={userId(user) || i} {...rowPreviewProps(() => setHistoryUser(user), `Salary history for ${userName(user)}`)}
+                        className="hover:bg-purple-50/30 transition-colors cursor-pointer outline-none focus:bg-purple-50/40">
                         <td className="px-6 py-4">
                           <p className="font-bold text-slate-800">{userName(user)}</p>
                           {user.email && <p className="text-xs text-slate-400">{user.email}</p>}
@@ -756,10 +761,6 @@ export default function EmployeeSalaryStructuresPage() {
                         <td className="px-6 py-4 text-slate-500">{cur && cur !== LOAD_ERROR ? formatDate(cur.effective_from) : "N/A"}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button onClick={() => setHistoryUser(user)} title="Salary history"
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
-                              <HiClock className="w-3.5 h-3.5" /> History
-                            </button>
                             <button onClick={() => setAssignUser(user)}
                               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition">
                               <HiPencil className="w-3.5 h-3.5" /> {cur ? "Revise" : "Assign"}

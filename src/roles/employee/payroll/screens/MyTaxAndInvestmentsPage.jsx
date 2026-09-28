@@ -4,13 +4,15 @@ import { payrollAPI } from "../../../../shared/api";
 import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiPlus, HiTrash,
-  HiCalculator, HiCalendar, HiScale, HiPaperClip, HiEye
+  HiCalculator, HiCalendar, HiScale, HiPaperClip, HiEye, HiInformationCircle
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import AttachmentUploadButton from "../../../../shared/components/AttachmentUploadButton";
 import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
 import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { humanize } from "../../../../shared/attendance/enums";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -38,12 +40,12 @@ function currentFY(d = new Date()) {
 const SECTIONS = ["80C", "80D", "80CCD(1B)", "80E", "80G", "80TTA", "24B (Home Loan Interest)", "HRA", "LTA", "Other"];
 
 const STATUS_PILL = {
-  draft: "bg-slate-100 text-slate-600",
-  submitted: "bg-fuchsia-100 text-fuchsia-700",
-  under_review: "bg-fuchsia-100 text-fuchsia-700",
-  verified: "bg-violet-100 text-violet-700",
-  partially_verified: "bg-purple-100 text-purple-700",
-  rejected: "bg-rose-100 text-rose-700",
+  draft: "bg-slate-50 text-slate-600 border-slate-200",
+  submitted: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  under_review: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  verified: "bg-violet-50 text-violet-700 border-violet-200",
+  partially_verified: "bg-purple-50 text-purple-700 border-purple-200",
+  rejected: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 const TABS = [
@@ -66,12 +68,12 @@ export default function MyTaxAndInvestmentsPage() {
 
   return (
     <>
-        <DashboardTopBar title="Tax & Investments" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+        <DashboardTopBar title="My Tax & Investments" />
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Tax &amp; Investments
+            <h1 className="text-2xl font-bold text-slate-900">My Tax &amp; Investments
             </h1>
-            <p className="text-sm text-slate-500 mt-1">FY {fy} — your regime, declarations, TDS projection and Form 16.</p>
+            <p className="text-sm text-slate-500 mt-1">FY {fy} — your tax regime, investment declarations, the year’s tax estimate and Form 16.</p>
           </div>
 
           <div className="flex gap-1 mb-6 border-b border-slate-200 flex-wrap">
@@ -85,7 +87,7 @@ export default function MyTaxAndInvestmentsPage() {
           {tab === "summary" && <SummaryTab fy={fy} showToast={showToast} />}
           {tab === "declarations" && <DeclarationsTab fy={fy} showToast={showToast} />}
           {tab === "regime" && <RegimeTab fy={fy} showToast={showToast} />}
-          {tab === "projection" && <TraceTab fy={fy} showToast={showToast} fetcher={payrollAPI.getMyTaxProjection} title="Tax Projection Trace" />}
+          {tab === "projection" && <ProjectionTab fy={fy} showToast={showToast} />}
           {tab === "monthly" && <MonthlyTab fy={fy} showToast={showToast} />}
           {tab === "form16" && <Form16Tab fy={fy} showToast={showToast} />}
         </main>
@@ -127,16 +129,17 @@ function SummaryTab({ fy, showToast }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat k="Regime" v={regimeLabelOf(data)} />
-        <Stat k="Projected Annual Tax" v={money(data.projected_annual_tax ?? data.projected_liability)} />
-        <Stat k="TDS Deducted (YTD)" v={money(ytd.tds ?? ytd.income_tax)} />
-        <Stat k="Remaining TDS" v={money(data.remaining_tds ?? data.balance_tds)} />
+        {/* House wording (CLAUDE.md §6): "TDS YTD" reads as "Income tax so far". */}
+        <Stat k="Tax regime" v={regimeLabelOf(data)} />
+        <Stat k="Income tax for the year" v={money(data.projected_annual_tax ?? data.projected_liability)} />
+        <Stat k="Income tax so far" v={money(ytd.tds ?? ytd.income_tax)} />
+        <Stat k="Income tax still to deduct" v={money(data.remaining_tds ?? data.balance_tds)} />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat k="PF (YTD)" v={money(ytd.pf)} />
-        <Stat k="ESI (YTD)" v={money(ytd.esi)} />
-        <Stat k="PT (YTD)" v={money(ytd.pt ?? ytd.professional_tax)} />
-        <Stat k="Declaration" v={(data.declaration_status || "none").replace(/_/g, " ")} />
+        <Stat k="PF so far" v={money(ytd.pf)} />
+        <Stat k="ESI so far" v={money(ytd.esi)} />
+        <Stat k="Professional tax so far" v={money(ytd.pt ?? ytd.professional_tax)} />
+        <Stat k="Investment declaration" v={data.declaration_status && data.declaration_status !== "none" ? humanize(data.declaration_status) : "Not started"} />
       </div>
       {data.previous_employer && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -264,7 +267,7 @@ function DeclarationsTab({ fy, showToast }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 text-sm">
-          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[status] || "bg-slate-100 text-slate-600"}`}>{status.replace(/_/g, " ")}</span>
+          <span className={`${STATUS_CHIP} ${STATUS_PILL[status] || "bg-slate-50 text-slate-600 border-slate-200"}`}>{humanize(status)}</span>
           {decl?.proof_deadline && <span className="text-slate-500">Proof deadline: {new Date(decl.proof_deadline).toLocaleDateString()}</span>}
         </div>
         {isDraft && (
@@ -415,49 +418,71 @@ function RegimeTab({ fy, showToast }) {
   );
 }
 
-function TraceTab({ fy, showToast, fetcher, title }) {
+// `/payroll/me/tax/projection` nests its figures — `annual_projected`,
+// `projected_monthly`, a `tax` block and a `tds` block — and says whether
+// income tax is switched on at all (`income_tax_enabled`, `tax.enabled`). The
+// tab used to read flat keys (`projected_gross`, `total_tax`…) that the live
+// reply doesn't have, so every tile said ₹0 and the only real content was a
+// raw JSON dump. Flat keys stay as fallbacks for older servers.
+function ProjectionTab({ fy, showToast }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    let alive = true;
+    setLoading(true);
     (async () => {
-      try { const res = await fetcher({ financial_year: fy }); setData(res.data || res); }
-      catch (err) { showToast(err.message || "Failed to load projection", "error"); }
-      finally { setLoading(false); }
+      try { const res = await payrollAPI.getMyTaxProjection({ financial_year: fy }); if (alive) setData(res.data || res); }
+      catch (err) { if (alive) showToast(payrollErrorMessage(err, "Couldn't load your tax projection"), "error"); }
+      finally { if (alive) setLoading(false); }
     })();
-  }, [fy, showToast, fetcher]);
+    return () => { alive = false; };
+  }, [fy, showToast]);
 
   if (loading) return <Skeleton type="dashboard" />;
   if (!data) return <Empty text="No projection available yet." />;
 
-  const steps = data.steps || data.trace || data.breakdown || [];
+  const tax = data.tax || {};
+  const tds = data.tds || {};
+  const annual = data.annual_projected || {};
+  const monthly = data.projected_monthly || {};
+  const taxOn = data.income_tax_enabled !== false && tax.enabled !== false;
+  const limitations = Array.isArray(data.limitations) ? data.limitations.filter((l) => typeof l === "string") : [];
+  const notes = Array.isArray(data.notes) ? data.notes.filter((n) => typeof n === "string") : [];
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Stat k="Projected Gross" v={money(data.projected_gross ?? data.annual_gross)} />
-        <Stat k="Taxable Income" v={money(data.taxable_income)} />
-        <Stat k="Annual Tax" v={money(data.total_tax ?? data.annual_tax)} />
-        <Stat k="This Month TDS" v={money(data.monthly_tds ?? data.tds_this_month)} />
-        <Stat k="Std Deduction" v={money(data.standard_deduction)} />
-        <Stat k="Total Exemptions" v={money(data.total_exemptions ?? data.total_deductions)} />
-      </div>
-      {steps.length > 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-50 bg-slate-50/50 font-bold text-slate-800 text-sm">{title}</div>
-          <table className="w-full text-left border-collapse text-sm">
-            <tbody className="divide-y divide-slate-50">
-              {steps.map((s, i) => (
-                <tr key={i}>
-                  <td className="px-5 py-2.5 text-slate-600">{s.label || s.name || s.step}</td>
-                  <td className="px-5 py-2.5 text-right font-semibold text-slate-800">{typeof (s.value ?? s.amount) === "number" ? money(s.value ?? s.amount) : (s.value ?? s.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {!taxOn && (
+        <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl px-4 py-3 text-sm">
+          <HiInformationCircle className="w-5 h-5 shrink-0 mt-px text-indigo-500" />
+          <p>Your organisation hasn’t switched on income tax deduction in payroll yet, so none is taken from your pay. The figures below are what your pay is expected to be for the year.</p>
         </div>
-      ) : (
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Stat k="Taxable pay for the year" v={money(annual.gross_taxable ?? data.projected_gross ?? data.annual_gross)} />
+        <Stat k="Taxable pay a month" v={money(monthly.taxable)} />
+        <Stat k="Months left this year" v={data.months_remaining ?? "N/A"} />
+        {taxOn && (
+          <>
+            <Stat k="Taxable income" v={money(tax.taxable_income ?? data.taxable_income)} />
+            <Stat k="Income tax for the year" v={money(tax.total_liability ?? tax.annual_liability ?? data.total_tax ?? data.annual_tax)} />
+            <Stat k="Income tax this month" v={money(tds.this_month ?? tds.monthly_tds ?? tds.amount ?? data.monthly_tds ?? data.tds_this_month)} />
+          </>
+        )}
+        <Stat k="PF for the year" v={money(annual.epf ?? monthly.pf_employee)} />
+        <Stat k="Professional tax for the year" v={money(annual.professional_tax)} />
+        {taxOn && <Stat k="Standard deduction" v={money(tax.standard_deduction ?? data.standard_deduction)} />}
+      </div>
+      {notes.length > 0 && (
+        <ul className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-1.5 text-sm text-slate-600 list-disc pl-9">
+          {notes.map((n, i) => <li key={i}>{n}</li>)}
+        </ul>
+      )}
+      {limitations.length > 0 && (
         <details className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <summary className="text-sm font-bold text-slate-700 cursor-pointer">Raw calculation trace</summary>
-          <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto mt-3 max-h-96">{JSON.stringify(data, null, 2)}</pre>
+          <summary className="text-sm font-bold text-slate-700 cursor-pointer">What this estimate leaves out ({limitations.length})</summary>
+          <ul className="mt-3 space-y-1.5 text-xs text-slate-500 list-disc pl-5">
+            {limitations.map((l, i) => <li key={i}>{l}</li>)}
+          </ul>
         </details>
       )}
     </div>

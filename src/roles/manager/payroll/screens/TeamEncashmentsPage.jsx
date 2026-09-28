@@ -17,7 +17,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiPlus, HiCash, HiX, HiInformationCircle, HiExclamationCircle, HiCalendar, HiUser } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import PayrollToast from "../../../hr/payroll/PayrollToast";
 import useToast from "../../../hr/payroll/useToast";
 import PeriodPicker from "../../../hr/payroll/PeriodPicker";
@@ -187,7 +187,7 @@ export default function TeamEncashmentsPage() {
   return (
     <>
       <DashboardTopBar title="Encashments" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
@@ -283,6 +283,9 @@ export default function TeamEncashmentsPage() {
               ["Leave type", detail.leave_type_code || null],
             ]} />
           </DetailSection>
+          {/* Same reasons HR sees, so a manager isn't left asking why. */}
+          {detail.rejection_reason && <DetailSection title="Why HR turned it down" icon={HiInformationCircle}><DetailText>{detail.rejection_reason}</DetailText></DetailSection>}
+          {detail.cancellation_reason && <DetailSection title="Why it was cancelled" icon={HiInformationCircle}><DetailText>{detail.cancellation_reason}</DetailText></DetailSection>}
         </DetailDialog>
       )}
 

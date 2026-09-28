@@ -172,11 +172,11 @@ export default function TeamRequestsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Document Requests" />
+      <DashboardTopBar title="Document Requests" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Team Document Requests</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Document Requests</h1>
             <p className="text-sm text-slate-500 mt-1">
               What has been asked of your team and who is late, plus what each person’s job needs on file. A request closes itself the moment they upload the document.
             </p>
@@ -323,6 +323,7 @@ export default function TeamRequestsPage() {
                   onOpen={setDetail}
                   showReminders={plane.showsReminders}
                   pagination={{ page, total: state.total, limit: PAGE, onPageChange: setPage }}
+                  hiddenType={{ title: "A document HR asked for", note: "Only HR can see which kind" }}
                 />
               </div>
             )}

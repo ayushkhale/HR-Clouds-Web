@@ -7,6 +7,9 @@ import SalaryStructurePanel from "../../../../shared/components/SalaryStructureP
 import DetailDialog, { DetailPill, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { humanize } from "../../../../shared/attendance/enums";
+import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -109,6 +112,19 @@ export default function TeamSalaryPage() {
   }, [showToast]);
 
   useEffect(() => { loadTeam(); }, [loadTeam]);
+  // Same columns as HR's Employee Salaries. #team/salary-structures carries no
+  // department, so it comes from the directory (cached and shared; a failure
+  // only costs the column its text, never the page).
+  // null while the directory loads, so the column reads "Loading…" rather than
+  // claiming nobody has a department.
+  const [deptByUser, setDeptByUser] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetchAllOrgEmployees({ includeInactive: false })
+      .then((rows) => alive && setDeptByUser(new Map(rows.map((r) => [r.user_id || r.id, typeof r.department === "string" ? r.department : r.department?.name || ""]))))
+      .catch(() => alive && setDeptByUser(new Map()));
+    return () => { alive = false; };
+  }, []);
   useEffect(() => { if (tab === "proposals") loadProposals(); }, [tab, loadProposals]);
 
   const members = teamData?.members;
@@ -208,7 +224,9 @@ export default function TeamSalaryPage() {
                     <thead>
                       <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                         <th className="px-6 py-4">Team member</th>
+                        <th className="px-6 py-4">Department</th>
                         <th className="px-6 py-4 text-right">Current CTC</th>
+                        <th className="px-6 py-4">Effective from</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -221,9 +239,11 @@ export default function TeamSalaryPage() {
                               <p className="font-bold text-slate-800">{u.name || u.identifier || "N/A"}</p>
                               {u.email && <p className="text-xs text-slate-400">{u.email}</p>}
                             </td>
+                            <td className="px-6 py-4 text-slate-600">{deptByUser ? deptByUser.get(memberId(m)) || "N/A" : "Loading…"}</td>
                             <td className="px-6 py-4 text-right tabular-nums">
                               {memberCtc(m) ? <span className="font-bold text-slate-800">{formatMoney(memberCtc(m))}</span> : <span className="text-xs text-slate-400">Not set</span>}
                             </td>
+                            <td className="px-6 py-4 text-slate-500">{m.effective_from ? formatDate(m.effective_from) : "N/A"}</td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button onClick={() => openPropose(m)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition">
@@ -235,7 +255,7 @@ export default function TeamSalaryPage() {
                         );
                       })}
                       {(members || []).length === 0 && (
-                        <tr><td colSpan={3} className="px-6 py-8 text-center text-slate-500">No direct reports found.</td></tr>
+                        <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No direct reports found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -265,7 +285,7 @@ export default function TeamSalaryPage() {
                       <td className="px-6 py-4 text-right tabular-nums font-semibold text-slate-800">{formatMoney(p.annual_ctc)}</td>
                       <td className="px-6 py-4 text-slate-500">{formatDate(p.effective_from)}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${STATUS_PILL[p.status] || "bg-slate-100 text-slate-500"}`}>{p.status}</span>
+                        <span className={`${STATUS_CHIP} border-transparent ${STATUS_PILL[p.status] || "bg-slate-100 text-slate-500"}`}>{humanize(p.status)}</span>
                         {p.status === "rejected" && p.rejection_reason && <p className="text-[11px] text-rose-500 mt-1">{p.rejection_reason}</p>}
                       </td>
                       {hasCancellable && (

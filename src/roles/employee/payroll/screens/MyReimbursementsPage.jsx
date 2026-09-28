@@ -738,7 +738,7 @@ export default function MyReimbursementsPage() {
   return (
     <>
       <DashboardTopBar title="My Claims & Benefits" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">My Claims & Benefits</h1>
           <p className="text-sm text-slate-500 mt-1">{subtitle}</p>

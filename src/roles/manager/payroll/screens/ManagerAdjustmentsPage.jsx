@@ -11,6 +11,9 @@ import { PersonMultiSelect, PersonSelect } from "../../../../shared/components/P
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { personName } from "../../../../shared/attendance/normalize";
 import { formatDate } from "../../../../shared/utils/formatUtils";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { humanize } from "../../../../shared/attendance/enums";
+import { interestMethodLabel } from "../../../hr/payroll/runMeta";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -21,6 +24,73 @@ function Toast({ toast, onClose }) {
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
+  );
+}
+
+/* ── Record inspectors for a proposal ──────────────────────────────────────
+   HR's Salary Adjustments rows open a record; the manager's didn't, so the same
+   job felt like a different product. Built from the list row: the manager
+   endpoints return every field shown here, and there is no per-proposal read. */
+function AdjustmentDetail({ adj, memberName, onCancel, onClose }) {
+  const pending = adj.status === "pending";
+  return (
+    <DetailDialog
+      eyebrow="Salary adjustment"
+      icon={HiAdjustments}
+      title={memberName}
+      subtitle={`${adj.adjustment_type === "deduction" ? "Deduction" : "Addition"} · ${fmtPeriod(adj.period_month)}`}
+      badge={adj.status ? <DetailPill tone="onDark">{prettify(adj.status)}</DetailPill> : undefined}
+      onClose={onClose}
+      footer={pending ? (
+        <button type="button" onClick={() => { onCancel(adj.id); onClose(); }} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100">
+          <HiTrash className="w-4 h-4" /> Cancel proposal
+        </button>
+      ) : null}
+    >
+      <DetailStats items={[{ label: adj.adjustment_type === "deduction" ? "Taken off" : "Added", value: money(adj.amount), icon: HiCash }]} />
+      <DetailSection title="What was proposed" icon={HiDocumentText} collapsible={false}>
+        <DetailGrid
+          cols={3}
+          items={[
+            ["Kind", prettify(adj.category)],
+            ["Shown on the payslip as", adj.component_name || null],
+            ["Paid in", fmtPeriod(adj.period_month)],
+            ["Proposed on", adj.created_at ? formatDate(adj.created_at) : null],
+            ["Why", adj.reason || null],
+            ...(adj.rejection_reason ? [["Why HR turned it down", adj.rejection_reason]] : []),
+          ]}
+        />
+      </DetailSection>
+    </DetailDialog>
+  );
+}
+
+// "flat" is an amount; the two percent types say what they're a percent OF.
+// (The inspector once called every percent bonus "% of basic pay".)
+const bonusValueLabel = (b) => (b.bonus_type === "flat"
+  ? money(b.value)
+  : `${parseFloat(b.value || 0)}% of ${b.bonus_type === "percent_of_gross" ? "gross pay" : "basic pay"}`);
+
+function BonusProposalDetail({ bonus, nameOf, onClose }) {
+  const ids = bonus.eligibility_config?.user_ids || [];
+  return (
+    <DetailDialog
+      eyebrow="Bonus proposal"
+      icon={HiGift}
+      title={bonus.name || "Bonus"}
+      subtitle={fmtPeriod(bonus.period_month)}
+      badge={bonus.status ? <DetailPill tone="onDark">{prettify(bonus.status)}</DetailPill> : undefined}
+      onClose={onClose}
+    >
+      <DetailStats items={[
+        { label: "Each person gets", value: bonusValueLabel(bonus), icon: HiCash },
+        { label: "People", value: String(ids.length), icon: HiGift },
+      ]} />
+      {bonus.reason && <DetailSection title="Why" icon={HiDocumentText} collapsible={false}><p className="text-sm text-slate-600">{bonus.reason}</p></DetailSection>}
+      <DetailSection title={`Who it's for (${ids.length})`} icon={HiGift} defaultOpen={ids.length <= 8}>
+        <DetailTable rows={ids.map((id) => ({ id }))} empty="Nobody chosen." columns={[{ header: "Person", render: (r) => nameOf(r.id) }]} />
+      </DetailSection>
+    </DetailDialog>
   );
 }
 
@@ -42,7 +112,7 @@ const STATUS_PILL = {
   rejected: "bg-rose-100 text-rose-700",
   cancelled: "bg-slate-100 text-slate-600",
 };
-const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{s}</span>;
+const Pill = ({ s }) => <span className={`${STATUS_CHIP} border-transparent ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{humanize(s)}</span>;
 
 // Team loan detail + installment schedule (#90).
 // The same record-inspector HR reads on Payroll > Loans, so a manager and HR
@@ -88,7 +158,7 @@ function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
               items={[
                 ["Type", prettify(loan.loan_type)],
                 ["Interest rate", loan.interest_rate != null ? `${parseFloat(loan.interest_rate) || 0}% a year` : null],
-                ["How interest is worked out", prettify(loan.interest_method)],
+                ["How interest is worked out", interestMethodLabel(loan.interest_method)],
                 ["Repaid over", loan.tenure_months != null ? `${loan.tenure_months} months` : null],
                 ["First instalment", fmtPeriod(loan.start_period_month)],
                 ["Money paid out on", loan.disbursed_on ? formatDate(loan.disbursed_on) : null],
@@ -132,6 +202,8 @@ export default function ManagerAdjustmentsPage() {
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null); // 'adj' | 'bonus' | 'loan'
   const [loanDetail, setLoanDetail] = useState(null); // { id, name } | null
+  const [adjDetail, setAdjDetail] = useState(null);
+  const [bonusDetail, setBonusDetail] = useState(null);
 
   const [adjForm, setAdjForm] = useState({ user_id: "", adjustment_type: "earning", category: "incentive", component_name: "", amount: "", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
   const [bonusForm, setBonusForm] = useState({ name: "", bonus_type: "flat", value: "", user_ids: [], reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
@@ -265,12 +337,12 @@ export default function ManagerAdjustmentsPage() {
 
   return (
     <>
-        <DashboardTopBar title="Variable Pay" />
+        <DashboardTopBar title="Salary Adjustments" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
 
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Variable Pay</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Salary Adjustments</h1>
               <p className="text-sm text-slate-500 mt-1">Propose bonuses, one-off adjustments and loan recommendations — HR gives the final approval.</p>
             </div>
             <button onClick={addBtn.onClick} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
@@ -303,7 +375,7 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {adjustments.map((a) => (
-                        <tr key={a.id} className="hover:bg-slate-50/50">
+                        <tr key={a.id} {...rowPreviewProps(() => setAdjDetail(a), "Adjustment details")}>
                           <td className="px-6 py-4 font-bold text-slate-800">{teamName(a.user_id, a)}</td>
                           <td className="px-6 py-4 text-slate-600">{fmtPeriod(a.period_month)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{a.adjustment_type}<span className="block text-[10px] text-slate-400 font-bold">{a.category?.replace(/_/g, " ")}</span></td>
@@ -336,10 +408,10 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {bonuses.map((b) => (
-                        <tr key={b.id} className="hover:bg-slate-50/50">
+                        <tr key={b.id} {...rowPreviewProps(() => setBonusDetail(b), "Bonus proposal details")}>
                           <td className="px-6 py-4 font-bold text-slate-800">{b.name}<span className="block text-[11px] text-slate-400 font-normal line-clamp-1">{b.reason}</span></td>
                           <td className="px-6 py-4 text-slate-600">{fmtPeriod(b.period_month)}</td>
-                          <td className="px-6 py-4 text-slate-600">{b.bonus_type === "flat" ? money(b.value) : `${parseFloat(b.value || 0)}%`}</td>
+                          <td className="px-6 py-4 text-slate-600">{bonusValueLabel(b)}</td>
                           <td className="px-6 py-4 text-slate-600">{(b.eligibility_config?.user_ids || []).length}</td>
                           <td className="px-6 py-4"><Pill s={b.status} /></td>
                         </tr>
@@ -547,6 +619,12 @@ export default function ManagerAdjustmentsPage() {
         </div>
       )}
 
+      {adjDetail && (
+        <AdjustmentDetail adj={adjDetail} memberName={teamName(adjDetail.user_id, adjDetail)} onCancel={cancelAdj} onClose={() => setAdjDetail(null)} />
+      )}
+      {bonusDetail && (
+        <BonusProposalDetail bonus={bonusDetail} nameOf={(id) => teamName(id)} onClose={() => setBonusDetail(null)} />
+      )}
       {loanDetail && (
         <LoanDetailModal loanId={loanDetail.id} memberName={loanDetail.name} onClose={() => setLoanDetail(null)} showToast={showToast} />
       )}

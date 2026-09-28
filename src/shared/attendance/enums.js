@@ -95,7 +95,9 @@ export const REGULARIZATION_FILTERS = [
 // The five values the service writes. There is no `rejected` state: the reject
 // endpoint writes `cancelled`, so "Cancelled" must read as "rejected or cancelled".
 export const COMP_OFF_STATUS = {
-  earned: { label: "Earned · awaiting approval", short: "Earned", tone: "amber" },
+  // "Earned" alone read as already in the balance; the summary above every
+  // list of these calls the same state "Waiting for approval".
+  earned: { label: "Earned · waiting for approval", short: "Waiting for approval", tone: "amber" },
   approved: { label: "Approved", short: "Approved", tone: "emerald" },
   used: { label: "Used", short: "Used", tone: "blue" },
   expired: { label: "Expired", short: "Expired", tone: "slate" },
@@ -103,7 +105,7 @@ export const COMP_OFF_STATUS = {
 };
 export const COMP_OFF_FILTERS = [
   { value: "", label: "All" },
-  { value: "earned", label: "Earned" },
+  { value: "earned", label: "Waiting for approval" },
   { value: "approved", label: "Approved" },
   { value: "used", label: "Used" },
   { value: "expired", label: "Expired" },

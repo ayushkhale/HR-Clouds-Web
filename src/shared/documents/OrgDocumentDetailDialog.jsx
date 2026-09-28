@@ -691,7 +691,7 @@ export default function OrgDocumentDetailDialog({
             {myWindow.reason === "scheduled"
               ? `You can ${myNext === "sign" ? "sign" : "acknowledge"} it from ${fmtDate(doc.effective_from)}, when it comes into force.`
               : myWindow.reason === "superseded"
-                ? "A newer version replaced this one. Look for the new version in Company Documents."
+                ? "A newer version replaced this one. Look for the new version in My Company Documents."
                 : "It's no longer in force, so it can't be acknowledged or signed. Ask HR if you think it should be."}
           </Banner>
         )}

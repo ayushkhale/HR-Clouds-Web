@@ -50,11 +50,20 @@ export default function LeaveAttachmentField({ value, onChange, required = false
   useEffect(() => {
     let alive = true;
     setState((s) => ({ ...s, loading: true, error: false }));
-    documentsAPI.getMyDocuments({ status: EVIDENCE_STATUSES, limit: 100 })
-      .then((res) => { if (alive) setState({ rows: listPayload(res).rows, loading: false, error: false }); })
-      // Not being able to list them is not a reason to block the application:
-      // the link box still works, and that is said rather than left blank.
-      .catch(() => { if (alive) setState({ rows: [], loading: false, error: true }); });
+    // #3's `status` takes ONE value: an array is a 400 ("status" must be a
+    // string) and a comma list a 500, so the picker always said it couldn't
+    // read your documents. One call per status instead — exact, and a file of
+    // more than 100 documents can't push the usable ones off the page.
+    Promise.allSettled(EVIDENCE_STATUSES.map((status) => documentsAPI.getMyDocuments({ status, limit: 100 })))
+      .then((results) => {
+        if (!alive) return;
+        const ok = results.filter((r) => r.status === "fulfilled");
+        const rows = ok.flatMap((r) => listPayload(r.value).rows);
+        // Half a list is still useful; only say "couldn't read" when both failed.
+        setState({ rows, loading: false, error: ok.length === 0 });
+      });
+    // Not being able to list them is not a reason to block the application:
+    // the link box still works, and that is said rather than left blank.
     return () => { alive = false; };
   }, []);
 
@@ -135,7 +144,7 @@ export default function LeaveAttachmentField({ value, onChange, required = false
           ) : !state.loading && options.length === 0 ? (
             <p className="flex items-start gap-1.5 text-[11px] text-slate-500 mt-1.5 leading-relaxed">
               <HiDocumentText className="w-3.5 h-3.5 shrink-0 mt-px" />
-              Nothing in your documents can be attached yet. Add the certificate to My Documents first, or paste a link to it.
+              Nothing in your documents can be attached yet. Add the certificate to My Personal Documents first, or paste a link to it.
             </p>
           ) : (
             <p className="text-[10px] text-slate-400 mt-1.5">

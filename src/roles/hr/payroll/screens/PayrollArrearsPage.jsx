@@ -271,7 +271,7 @@ export default function PayrollArrearsPage() {
   return (
     <>
       <DashboardTopBar title="Pay Differences" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Pay Differences</h1>
           <p className="text-sm text-slate-500 mt-1">

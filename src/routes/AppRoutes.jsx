@@ -342,6 +342,13 @@ function AppRoutes() {
             that can create a bank account and it is self-scoped, so without this
             mount an HR user has no way to enter the account they are paid into. */}
         <Route path="/dashboard/hr/my-salary" element={<MySalaryPage />} />
+        {/* The rest of an HR user's own leave and pay (MY_PAY_PATHS). These are
+            the employee screens, unchanged: every /leaves/my-* and /payroll/me/*
+            endpoint accepts any tenant role, so HR takes leave like anyone else. */}
+        <Route path="/dashboard/hr/my-leaves" element={<LeaveDashboard />} />
+        <Route path="/dashboard/hr/my-payslips" element={<MyPayslipsPage />} />
+        <Route path="/dashboard/hr/my-loans" element={<MyLoansAndAdvancesPage />} />
+        <Route path="/dashboard/hr/my-tax" element={<MyTaxAndInvestmentsPage />} />
         <Route path="/dashboard/hr/payroll/reports" element={<PayrollReportsPage />} />
         <Route path="/dashboard/hr/payroll/payslips" element={<PayrollPayslipsPage />} />
         <Route path="/dashboard/hr/payroll/exports" element={<PayrollExportsPage />} />
@@ -407,6 +414,11 @@ function AppRoutes() {
         <Route path="/dashboard/manager/my-reimbursements" element={<MyReimbursementsPage />} />
         {/* Manager self-service pay — same reason as the HR mount above. */}
         <Route path="/dashboard/manager/my-salary" element={<MySalaryPage />} />
+        {/* Manager's own leave and pay — same reason as the HR mounts above. */}
+        <Route path="/dashboard/manager/my-leaves" element={<LeaveDashboard />} />
+        <Route path="/dashboard/manager/my-payslips" element={<MyPayslipsPage />} />
+        <Route path="/dashboard/manager/my-loans" element={<MyLoansAndAdvancesPage />} />
+        <Route path="/dashboard/manager/my-tax" element={<MyTaxAndInvestmentsPage />} />
         {/* Manager documents */}
         <Route path="/dashboard/manager/documents" element={<TeamDocumentsPage />} />
         <Route path="/dashboard/manager/documents/proposals" element={<OrgProposalsPage />} />

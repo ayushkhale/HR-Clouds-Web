@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
+import { DayTick } from "../../../shared/attendance/SundayLabel";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
 import AttendanceCard from "../components/AttendanceCard";
@@ -15,6 +17,8 @@ import { humanize } from "../../../shared/attendance/enums";
 import { ErrorState, StatusBadge } from "../../../shared/attendance/ui";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { greetingFor } from "../../../shared/utils/greeting";
+import { rowPreviewProps } from "../../../shared/components/DetailDialog";
+import { DailyLogModal } from "./EmployeeAttendancePage";
 
 const PREVIEW_ROWS = 5;
 
@@ -57,7 +61,9 @@ function HoursTooltip({ active, payload }) {
   return (
     <div className="bg-white rounded-xl shadow-lg px-3 py-2 text-xs">
       <p className="font-bold text-slate-800">{fmtDate(d.date, { weekday: "short", day: "numeric", month: "short" })}</p>
-      <p className="text-slate-600 mt-0.5"><span className="font-bold text-slate-800">{d.worked || fmtHours(d.hours)}</span> worked · {humanize(d.status)}</p>
+      <p className="text-slate-600 mt-0.5">
+        {d.note ? d.note : <><span className="font-bold text-slate-800">{d.worked || fmtHours(d.hours)}</span> worked · {humanize(d.status)}</>}
+      </p>
     </div>
   );
 }
@@ -73,6 +79,9 @@ function EmployeeDashboard() {
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [graph, setGraph] = useState({ data: null, loading: true, error: null });
+  const [logDate, setLogDate] = useState(null);
+  // null = "open on the half that holds today"; set once the person pages.
+  const [chartPage, setChartPage] = useState(null);
 
   const loadGraph = useCallback(async () => {
     setGraph((g) => ({ ...g, loading: true, error: null }));
@@ -84,22 +93,38 @@ function EmployeeDashboard() {
     }
   }, [period.month, period.year]);
 
-  useEffect(() => { loadGraph(); }, [loadGraph]);
+  useEffect(() => { loadGraph(); setChartPage(null); }, [loadGraph]);
   useAttendanceChanged([ATTENDANCE_EVENTS.PUNCH, ATTENDANCE_EVENTS.REGULARIZATION], loadGraph);
 
   const summary = graph.data?.summary || {};
+  // Graph data (U-graph) fills every day without a record as "absent" — the
+  // days before this person joined included — so someone who joined on the
+  // 12th opened their dashboard to 11 absences My Attendance didn't show
+  // (backend ask R-7). Until the server stops, those days are set aside here
+  // using the joining date `/organizations/me` already gives us.
+  const joinedOn = ymdOnly(user?.joining_date) || "";
+  const beforeJoining = (ymd) => !!joinedOn && !!ymd && ymd < joinedOn;
   const daily = listFrom(graph.data, ["daily", "days"]);
-  const recent = [...daily].filter((d) => d.status && d.status !== "not_marked").sort((a, b) => ymdOnly(b.date).localeCompare(ymdOnly(a.date))).slice(0, PREVIEW_ROWS);
+  const recent = [...daily].filter((d) => d.status && d.status !== "not_marked" && !beforeJoining(ymdOnly(d.date))).sort((a, b) => ymdOnly(b.date).localeCompare(ymdOnly(a.date))).slice(0, PREVIEW_ROWS);
 
-  // One bar per day up to today; days with nothing worked sit at zero.
+  // One bar per day of the month, paged in the same halves as the HR and
+  // manager charts; days with nothing worked sit at zero.
   const todayKey = todayYMD();
   const hoursByDay = daily
-    .map((d) => ({ date: ymdOnly(d.date), status: d.status || "not_marked", hours: Math.max(0, parseFloat(d.effective_hours) || 0), worked: workedLabel(d) }))
-    .filter((d) => d.date && d.date <= todayKey)
+    .map((d) => {
+      const date = ymdOnly(d.date);
+      const note = beforeJoining(date) ? "Before you joined" : date > todayKey ? "Still to come" : null;
+      return { date, status: d.status || "not_marked", hours: note ? 0 : Math.max(0, parseFloat(d.effective_hours) || 0), worked: workedLabel(d), note };
+    })
+    .filter((d) => d.date)
     .sort((a, b) => a.date.localeCompare(b.date));
   const hasHours = hoursByDay.some((d) => d.hours > 0);
+  const totalChartPages = chartPageCount(hoursByDay);
+  const safeChartPage = Math.min(chartPage ?? defaultChartPage(hoursByDay, period), totalChartPages - 1);
+  const chartData = chartPageRows(hoursByDay, safeChartPage);
 
-  const mix = MIX.map((m) => ({ ...m, value: num(summary[m.field]) }));
+  const absentBeforeJoining = daily.filter((d) => beforeJoining(ymdOnly(d.date)) && d.status === "absent").length;
+  const mix = MIX.map((m) => ({ ...m, value: m.key === "absent" ? Math.max(0, num(summary[m.field]) - absentBeforeJoining) : num(summary[m.field]) }));
   const markedDays = mix.reduce((s, m) => s + m.value, 0);
   const headline = [
     { label: "Avg hours / day", value: fmtHours(summary.average_hours_per_day, "0m"), icon: HiClock },
@@ -168,6 +193,15 @@ function EmployeeDashboard() {
                   ))}
                 </div>
 
+                {hasHours && totalChartPages > 1 && (
+                  <div className="flex justify-end -mb-3">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
+                      <button type="button" onClick={() => setChartPage(Math.max(0, safeChartPage - 1))} disabled={safeChartPage === 0} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Earlier days"><HiChevronLeft className="w-4 h-4" /></button>
+                      <span className="text-center select-none w-10 tabular-nums">{safeChartPage + 1}/{totalChartPages}</span>
+                      <button type="button" onClick={() => setChartPage(Math.min(totalChartPages - 1, safeChartPage + 1))} disabled={safeChartPage >= totalChartPages - 1} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Later days"><HiChevronRight className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                )}
                 <div className="relative flex-1 min-h-[12rem]">
                   <div className="absolute inset-0">
                     {graph.loading && hoursByDay.length === 0 ? (
@@ -179,9 +213,11 @@ function EmployeeDashboard() {
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={hoursByDay} margin={{ top: 5, right: 0, left: -24, bottom: 0 }} barCategoryGap="30%">
+                        <BarChart data={chartData} margin={{ top: 5, right: 0, left: -24, bottom: 0 }} barCategoryGap="30%">
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} tickFormatter={(v) => fmtDate(v, { day: "numeric" }, "")} interval="preserveStartEnd" minTickGap={8} />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval={0} />
+                          {/* Same Sunday marking and 15-day halves as the HR and manager charts. */}
+                          {sundayMarkers(chartData)}
                           <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={AXIS_TICK} tickFormatter={(v) => `${v}h`} />
                           <Tooltip cursor={{ fill: "#f8fafc" }} content={<HoursTooltip />} />
                           <Bar dataKey="hours" name="Hours worked" fill={HOURS_BAR} maxBarSize={12} radius={[4, 4, 0, 0]} />
@@ -224,7 +260,8 @@ function EmployeeDashboard() {
                       const late = num(row.late_minutes);
                       const overtime = num(row.overtime_minutes);
                       return (
-                        <tr key={row.date}>
+                        // Same record as a row on My Attendance: the day opens its log.
+                        <tr key={row.date} {...rowPreviewProps(() => setLogDate(ymdOnly(row.date)), "Daily log")}>
                           <td className="px-2 py-3 text-slate-600 whitespace-nowrap">{fmtDate(ymdOnly(row.date), { weekday: "short", day: "numeric", month: "short" })}</td>
                           <td className="px-2 py-3"><StatusBadge status={row.status} /></td>
                           <td className={`px-2 py-3 ${late > 0 ? "text-fuchsia-600" : "text-slate-400"}`}>{fmtMinutes(late)}</td>
@@ -293,6 +330,7 @@ function EmployeeDashboard() {
           </section>
         </div>
       </main>
+      {logDate && <DailyLogModal date={logDate} onClose={() => setLogDate(null)} />}
     </>
   );
 }

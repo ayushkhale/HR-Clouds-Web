@@ -253,20 +253,24 @@ export default function ChecklistPanel({
     );
   }
 
-  // An account with no employee record of its own gets 404 USER_NOT_FOUND —
-  // which is what happens when an HR or administrator login was never set up as
-  // an employee. Nothing is required of it, and saying "no longer an active
-  // member" on somebody's own page would be alarming and wrong.
-  if (state.error && isNoEmployeeRecord(state.error)) {
+  // No employee record: the checklist is worked out from an EMPLOYEE profile,
+  // so a manager or HR account has none. Two ways to hear it:
+  //   · 200 with `has_employee_record: false` — the server since 29 Sep 2026
+  //     (R-6 in md_updates/2026-09-28_frontend_requests_to_backend.md);
+  //   · 404 USER_NOT_FOUND — the server before that. Kept until every
+  //     environment runs the fix.
+  // The 200 carries `percent: 100` and `meets_threshold: true`; showing that as
+  // "all done" would be wrong, so it never reaches the score below.
+  if ((state.error && isNoEmployeeRecord(state.error)) || data?.hasEmployeeRecord === false) {
     return (
       <div className="space-y-5">
         {header}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-xs">
           <DocEmptyState
             icon={HiUserCircle}
-            title={isSelf ? "Nothing is required of you" : "No employee record"}
+            title={isSelf ? "No required-documents list for your login" : "No employee record"}
             message={isSelf
-              ? "Your login isn’t set up as an employee record, so there’s no document checklist attached to it. Anything asked of you personally still appears under “Requests”."
+              ? "Required documents are worked out for employee records, and your login is set up as a manager or HR account, so there’s no list for it. Anything HR or your manager asks you for still appears under “Requests”."
               : `${who} doesn’t have an employee record, so there’s no list of required documents for them. That’s normal for an administrator login.`}
           />
         </div>

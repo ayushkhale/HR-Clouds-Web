@@ -563,7 +563,7 @@ export default function AttendanceShiftsPage() {
   return (
     <>
       <DashboardTopBar title="Work Shifts" />
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 max-w-7xl mx-auto w-full">
         {loadError && !loading && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
             <ErrorState error={loadError} onRetry={() => { setLoading(true); load(); }} fallback="Couldn't load shifts." />

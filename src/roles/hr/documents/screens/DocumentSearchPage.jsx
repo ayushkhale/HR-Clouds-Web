@@ -363,12 +363,12 @@ export default function DocumentSearchPage() {
                               <TagChips
                                 tags={tags.slice(0, 3)}
                                 onPick={(tag) => !filters.tags.includes(tag) && update({ tags: [...filters.tags, tag] })}
-                                empty={<span className="text-[11px] text-slate-300">—</span>}
+                                empty={<span className="text-[11px] text-slate-400">N/A</span>}
                               />
                               {tags.length > 3 && <span className="text-[11px] text-slate-400 ml-1">+{tags.length - 3}</span>}
                             </span>
                           </td>
-                          <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">{row.issued_on ? fmtDate(row.issued_on) : <span className="text-slate-300">—</span>}</td>
+                          <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">{row.issued_on ? fmtDate(row.issued_on) : <span className="text-slate-400">N/A</span>}</td>
                           <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">{row.expires_on ? fmtDate(row.expires_on) : <span className="text-slate-300">Never</span>}</td>
                         </tr>
                       );

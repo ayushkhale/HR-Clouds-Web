@@ -204,7 +204,7 @@ export default function ExitPackDialog({ subjectName = "this employee", defaultS
                           </td>
                           <td className="px-4 py-3"><DocStatusBadge status={item.status} /></td>
                           <td className="px-4 py-3 text-[11px] text-slate-500 whitespace-nowrap">
-                            {item.issued_on ? `Issued ${fmtDate(item.issued_on)}` : item.due_on ? `Due ${fmtDate(item.due_on)}` : "—"}
+                            {item.issued_on ? `Issued ${fmtDate(item.issued_on)}` : item.due_on ? `Due ${fmtDate(item.due_on)}` : "N/A"}
                             {item.expires_on ? <><br />Expires {fmtDate(item.expires_on)}</> : null}
                           </td>
                           <td className="px-4 py-3 text-right">

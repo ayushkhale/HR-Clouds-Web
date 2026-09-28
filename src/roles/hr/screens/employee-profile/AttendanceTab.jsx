@@ -5,7 +5,7 @@ import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
 import { unwrap } from "../../../../shared/attendance/normalize";
 import { anomalyStatusKey, anomalyTypeLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
-import { fmtClock, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
+import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
 import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
@@ -76,8 +76,8 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
               <DetailGrid
                 items={[
                   ["Shift", log.shift.name],
-                  ["Starts", fmtClock(log.shift.start_time)],
-                  ["Ends", fmtClock(log.shift.end_time)],
+                  ["Starts", fmtClockTime(log.shift.start_time)],
+                  ["Ends", fmtClockTime(log.shift.end_time)],
                   ["Type", humanize(log.shift.type || log.shift.shift_type)],
                 ]}
               />

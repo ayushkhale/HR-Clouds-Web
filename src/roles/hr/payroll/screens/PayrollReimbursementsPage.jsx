@@ -28,6 +28,7 @@ import {
   CLAIM_STATUS_FILTERS, CATEGORY_STATUS_FILTERS,
 } from "../../../../shared/utils/reimbursementMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -602,12 +603,20 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 flex flex-col xl:flex-row xl:items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      {/* Search and actions on one line, filters wrapping underneath. Seven
+          controls in a single non-wrapping row ran off the card on a 14" screen. */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 space-y-3">
+        <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
           <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter this page by employee, number or title" aria-label="Filter this page" className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by employee, claim number or title" aria-label="Filter this page" className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:flex xl:items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          {hasFilters && <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">Clear</button>}
+          <button type="button" onClick={() => list.reload()} aria-label="Refresh" title="Refresh" className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"><HiRefresh className="w-4 h-4" /></button>
+        </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <select aria-label="Status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={selectCls}>
             {CLAIM_STATUS_FILTERS.hr.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
@@ -623,10 +632,6 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
           <input type="date" aria-label="Submitted from" value={filters.created_from} onChange={(e) => setFilter("created_from", e.target.value)} className={selectCls} />
           <input type="date" aria-label="Submitted to" value={filters.created_to} onChange={(e) => setFilter("created_to", e.target.value)} className={selectCls} />
         </div>
-        <div className="flex items-center gap-2">
-          {hasFilters && <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">Clear</button>}
-          <button type="button" onClick={() => list.reload()} aria-label="Refresh" title="Refresh" className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"><HiRefresh className="w-4 h-4" /></button>
-        </div>
       </div>
 
       {list.loading ? <Skeleton type="table" rows={6} /> : list.error ? (
@@ -638,7 +643,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1050px]">
+            <table className="w-full text-left border-collapse min-w-[960px]">
               <thead>
                 <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   <th className="px-5 py-4 border-b border-slate-100">Employee</th>
@@ -672,7 +677,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
                         {["approved", "processed"].includes(claim.status) && claim.approved_amount != null && <p className="text-[11px] text-violet-600">Approved {formatMoney(claim.approved_amount)}</p>}
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${status.pill}`}>{status.label}</span>
+                        <span className={`${STATUS_CHIP} ${status.pill}`}>{status.label}</span>
                         <p className="text-[11px] text-slate-400 mt-1">{stage.label}</p>
                       </td>
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
@@ -783,7 +788,7 @@ export default function PayrollReimbursementsPage({ embedded = false } = {}) {
   return (
     <>
       <DashboardTopBar title="Claims" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Claims</h1>
           <p className="text-sm text-slate-500 mt-1">Review every claim in the organisation and keep the category catalog employees claim against.</p>

@@ -118,6 +118,21 @@ export const remindedToday = (req, today) => !!req?.last_reminder_on && String(r
 /** A type's category, for the second line of a request row. */
 export const groupLabelOfType = (type) => (type?.group ? groupLabel(type.group) : "Document");
 
+/**
+ * The document type a request is for: the viewer's own type list first, then
+ * the name the row carries. Since 29 Sep 2026 (R-2) #82/#94/#95 send
+ * `document_type_name` / `document_type_group`, which is the only way a
+ * manager can name a type HR asked for that managers may not view. Returns
+ * null when neither knows it (an older server), so callers keep their wording
+ * for an unnamed type.
+ */
+export function requestTypeOf(request, types) {
+  const known = types?.get?.(request?.document_type_id);
+  if (known) return known;
+  if (!request?.document_type_name) return null;
+  return { id: request.document_type_id, name: request.document_type_name, group: request.document_type_group || null };
+}
+
 /** Who asked. `requested_by_role` is 'hr' or 'manager'. */
 export const requesterRoleLabel = (role) => (role === "manager" ? "their manager" : role === "hr" ? "HR" : "someone");
 
@@ -196,6 +211,11 @@ export function checklistOf(res) {
   const c = data.completeness || {};
   return {
     userId: data.user_id || "",
+    // #98 (backend, 29 Sep 2026): a self read by a login with no employee
+    // profile — a manager or HR account — is 200 with `has_employee_record:
+    // false` and an empty list, instead of 404 USER_NOT_FOUND. Absent means an
+    // older server, which only ever answered 200 for a real employee.
+    hasEmployeeRecord: data.has_employee_record !== false,
     profileIncomplete: data.profile_incomplete === true,
     completeness: {
       required: Number(c.required) || 0,

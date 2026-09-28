@@ -9,6 +9,9 @@ import {
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { humanize } from "../../../../shared/attendance/enums";
+import { interestMethodLabel } from "../runMeta";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -224,7 +227,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
   return (
     <>
         <DashboardTopBar title="Loans & Advances" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
 
           <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
             <div>
@@ -250,37 +253,37 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
           {loading ? <Skeleton type="table" rows={6} /> : (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[1100px]">
+                <table className="w-full text-left border-collapse min-w-[960px]">
                   <thead>
                     <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                      <th className="px-6 py-4 border-b border-slate-100">Employee</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Type</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Principal</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Interest</th>
-                      <th className="px-6 py-4 border-b border-slate-100">EMI</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Tenure</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Outstanding</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Status</th>
-                      <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Employee</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Type</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Principal</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Interest</th>
+                      <th className="px-4 py-4 border-b border-slate-100">EMI</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Tenure</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Outstanding</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Status</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-sm">
                     {loans.map((l) => (
                       <tr key={l.id} {...rowPreviewProps(() => openSchedule(l), `View loan for ${empName(l.user_id)}`)}>
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-slate-800">{empName(l.user_id)}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">first EMI {fmtPeriod(l.start_period_month)}</p>
+                        <td className="px-4 py-4">
+                          <p className="font-bold text-slate-800 whitespace-nowrap">{empName(l.user_id)}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">first EMI {fmtPeriod(l.start_period_month)}</p>
                         </td>
-                        <td className="px-6 py-4 capitalize text-slate-600">{prettify(l.loan_type) || "N/A"}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
-                        <td className="px-6 py-4 text-slate-600">{parseFloat(l.interest_rate || 0)}%<span className="block text-[10px] text-slate-400 capitalize">{prettify(l.interest_method) || "N/A"}</span></td>
-                        <td className="px-6 py-4 text-slate-600">{money(l.emi_amount)}</td>
-                        <td className="px-6 py-4 text-slate-600">{l.tenure_months ?? 0} mo</td>
-                        <td className="px-6 py-4 font-bold text-purple-700">{money(outstanding(l))}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[l.status] || "bg-slate-50 text-slate-600 border-slate-200"}`}>{l.status}</span>
+                        <td className="px-4 py-4 capitalize text-slate-600">{prettify(l.loan_type) || "N/A"}</td>
+                        <td className="px-4 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
+                        <td className="px-4 py-4 text-slate-600">{parseFloat(l.interest_rate || 0)}%<span className="block text-[10px] text-slate-400 capitalize">{prettify(l.interest_method) || "N/A"}</span></td>
+                        <td className="px-4 py-4 text-slate-600">{money(l.emi_amount)}</td>
+                        <td className="px-4 py-4 text-slate-600">{l.tenure_months ?? 0} mo</td>
+                        <td className="px-4 py-4 font-bold text-purple-700">{money(outstanding(l))}</td>
+                        <td className="px-4 py-4">
+                          <span className={`${STATUS_CHIP} ${STATUS_PILL[l.status] || "bg-slate-50 text-slate-600 border-slate-200"}`}>{humanize(l.status)}</span>
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-4 py-4 text-right">
                           <div className="flex justify-end gap-1.5">
                             {l.status === "pending" && (
                               <>
@@ -443,7 +446,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 items={[
                   ["Type", prettify(loan.loan_type)],
                   ["Interest rate", `${parseFloat(loan.interest_rate || 0)}% p.a.`],
-                  ["Interest method", prettify(loan.interest_method)],
+                  ["How interest is worked out", interestMethodLabel(loan.interest_method)],
                   ["Tenure", `${loan.tenure_months ?? 0} months`],
                   ["First EMI", fmtPeriod(loan.start_period_month)],
                   ["Disbursed on", fmtDate(loan.disbursed_on)],

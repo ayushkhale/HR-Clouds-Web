@@ -133,7 +133,7 @@ export function PercentBar({ value, label, sub, tone = "purple", className = "" 
     <div className={className}>
       <div className="flex items-baseline justify-between gap-3">
         {label && <p className="text-xs font-semibold text-slate-600 truncate">{label}</p>}
-        <p className="text-sm font-bold text-slate-800 tabular-nums shrink-0">{known ? `${pct}%` : "—"}</p>
+        <p className="text-sm font-bold text-slate-800 tabular-nums shrink-0">{known ? `${pct}%` : "N/A"}</p>
       </div>
       <div className="h-2 rounded-full bg-slate-100 overflow-hidden mt-1.5" role="progressbar" aria-valuenow={known ? pct : undefined} aria-valuemin={0} aria-valuemax={100} aria-label={label || "Progress"}>
         <div className={`h-full rounded-full transition-all duration-500 ${fill}`} style={{ width: `${pct}%` }} />

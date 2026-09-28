@@ -9,7 +9,7 @@ import { COMP_OFF_FILTERS } from "../../../shared/attendance/enums";
 import { num, unwrap } from "../../../shared/attendance/normalize";
 import { addDaysYMD as addDays, fmtDate, fmtHours, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
-import { workspaceFromPath } from "../../../shared/attendance/paths";
+import { MY_PAY_PATHS, workspaceFromPath } from "../../../shared/attendance/paths";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { CompOffDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
@@ -50,19 +50,29 @@ function EmployeeCompOffsPage() {
   });
 
   const s = summary.data || {};
+  // CONTRACT TRAP: `/comp-offs/mine/summary` is marked "not exhaustively
+  // verified" in the contract, and the live payload is COUNTS BY STATUS —
+  // { earned, approved, used, expired, cancelled, redeemable, total } — not the
+  // available_balance / total_earned / used_days / expired_days this page read.
+  // Every card showed 0 while the history listed an approved day. `earned` here
+  // means "waiting for approval", so the card says that. The old keys stay as
+  // fallbacks in case the server ever sends them.
   const cards = [
-    { label: "Available balance", value: num(s.available_balance), tone: "text-purple-600" },
-    { label: "Total earned", value: num(s.total_earned), tone: "text-slate-800" },
-    { label: "Used", value: num(s.used_days), tone: "text-slate-800" },
-    { label: "Expired", value: num(s.expired_days), tone: "text-slate-800" },
+    { label: "Available balance", value: num(s.redeemable ?? s.available_balance), tone: "text-purple-600" },
+    { label: "Waiting for approval", value: num(s.earned ?? s.pending), tone: "text-slate-800" },
+    { label: "Used", value: num(s.used ?? s.used_days), tone: "text-slate-800" },
+    { label: "Expired", value: num(s.expired ?? s.expired_days), tone: "text-slate-800" },
   ];
+  // Records carry no credit figure today; a column of "N/A" says nothing.
+  const showCredit = list.items.some((r) => creditDays(r) != null);
   const today = todayYMD();
-  const isEmployeeWorkspace = workspaceFromPath(pathname) === "employee";
+  // Every workspace has its own My Leaves now, so the link stays inside it.
+  const myLeavesPath = (MY_PAY_PATHS[workspaceFromPath(pathname)] || MY_PAY_PATHS.employee).leaves;
 
   return (
     <>
       <DashboardTopBar title={`My ${TERM}`} />
-      <main className="p-4 sm:p-8 max-w-[1400px] w-full mx-auto flex-1 space-y-6">
+      <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">My {TERM}</h1>
           <p className="text-sm text-slate-500 mt-1">Days credited for working on holidays or weekly offs.</p>
@@ -72,7 +82,7 @@ function EmployeeCompOffsPage() {
           <HiInformationCircle className="w-4 h-4 shrink-0 mt-px" />
           <span>
             Approved {TERM.toLowerCase()} days are added to your leave balance and must be used before they expire.
-            {isEmployeeWorkspace && <> Apply for them from <Link to="/dashboard/employee/leaves" className="font-bold underline">My Leaves</Link>.</>}
+            {" "}Apply for them from <Link to={myLeavesPath} className="font-bold underline">My Leaves</Link>.
           </span>
         </div>
 
@@ -108,7 +118,7 @@ function EmployeeCompOffsPage() {
                     <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       <th className="px-4 py-3 rounded-l-xl">Worked on</th>
                       <th className="px-4 py-3">Hours worked</th>
-                      <th className="px-4 py-3">Credit</th>
+                      {showCredit && <th className="px-4 py-3">Credit</th>}
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3 rounded-r-xl">Expires</th>
                     </tr>
@@ -128,7 +138,7 @@ function EmployeeCompOffsPage() {
                         >
                           <td className="px-4 py-3 whitespace-nowrap">{fmtDate(workedDate(record))}</td>
                           <td className="px-4 py-3">{record.worked_hours != null ? fmtHours(record.worked_hours) : "N/A"}</td>
-                          <td className="px-4 py-3 font-bold text-violet-600">{credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : "N/A"}</td>
+                          {showCredit && <td className={`px-4 py-3 ${credit != null ? "font-bold text-violet-600" : "text-slate-400"}`}>{credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : "N/A"}</td>}
                           <td className="px-4 py-3"><StatusBadge kind="compoff" status={record.status || "earned"} /></td>
                           <td className={`px-4 py-3 whitespace-nowrap ${expiringSoon ? "text-fuchsia-600 font-bold" : ""}`}>{expiry ? fmtDate(expiry) : "N/A"}</td>
                         </tr>

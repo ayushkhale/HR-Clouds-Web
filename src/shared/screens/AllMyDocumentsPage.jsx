@@ -32,7 +32,7 @@ import {
 } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { Toast, useToast } from "../attendance/ui";
-import { useMyDocumentPaths } from "../attendance/paths";
+import { useMyDocumentPaths, useMyPayPaths } from "../attendance/paths";
 import { request } from "../api/client";
 import { downloadFile } from "../utils/download";
 import { documentErrorMessage } from "../utils/documentErrors";
@@ -155,6 +155,7 @@ function SectionCard({ meta, section, to, busyId, onOpen }) {
 
 export default function AllMyDocumentsPage() {
   const myPaths = useMyDocumentPaths();
+  const payPaths = useMyPayPaths();
   const { toast, showToast, clearToast } = useToast();
   const [state, setState] = useState({ data: null, loading: true, error: null });
   const [busyId, setBusyId] = useState("");
@@ -206,17 +207,18 @@ export default function AllMyDocumentsPage() {
     my_documents: myPaths.documents,
     org_documents: myPaths.company,
     templates: myPaths.forms,
-    payroll: null,
+    // Every workspace has its own My Payslips now (MY_PAY_PATHS).
+    payroll: payPaths.payslips,
   };
   const actionCount = portfolio?.actionCount || 0;
 
   return (
     <>
-      <DashboardTopBar title="Document Home" />
+      <DashboardTopBar title="My Document Home" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Document Home</h1>
+            <h1 className="text-2xl font-bold text-slate-900">My Document Home</h1>
             <p className="text-sm text-slate-500 mt-1">
               Everything to do with your employment in one place — what you’ve uploaded, what the company has issued to you, the blank forms you can fill in, and your payslips.
             </p>
@@ -226,7 +228,13 @@ export default function AllMyDocumentsPage() {
               <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
             </button>
             <Link to={myPaths.requests} className={SECONDARY_BTN}>
-              <HiClipboardList className="w-4 h-4" /> Requested from me
+              <HiClipboardList className="w-4 h-4" /> My Document Requests
+            </Link>
+            {/* Blank Forms has no sidebar entry (a form belongs to nobody, so it
+                can't sit in the "My …" menu), so this page is its front door —
+                kept in the header so it doesn't wait for the portfolio to load. */}
+            <Link to={myPaths.forms} className={SECONDARY_BTN}>
+              <HiTemplate className="w-4 h-4" /> Blank Forms
             </Link>
           </div>
         </div>

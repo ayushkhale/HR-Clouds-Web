@@ -24,6 +24,7 @@ import {
   ENROLLMENT_STATUS_FILTERS,
 } from "../../../../shared/utils/benefitMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -445,7 +446,7 @@ function PlanMembersTable({ planId, nameOf, onEndCover }) {
               { header: "From", render: (r) => (r.enrolled_from ? formatDate(r.enrolled_from) : null) },
               { header: "To", render: (r) => (r.enrolled_to ? formatDate(r.enrolled_to) : "Ongoing") },
               { header: "Rate", render: (r) => { const c = effectiveContribution(r, null); return `${c.employee != null ? formatMoney(c.employee) : "Plan"} / ${c.employer != null ? formatMoney(c.employer) : "Plan"}`; } },
-              { header: "Status", render: (r) => { const m = enrollmentStatusMeta(r.status); return <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase ${m.pill}`}>{m.label}</span>; } },
+              { header: "Status", render: (r) => { const m = enrollmentStatusMeta(r.status); return <span className={`${STATUS_CHIP} ${m.pill}`}>{m.label}</span>; } },
               { header: "", align: "right", render: (r) => (r.status === "active" ? <button type="button" data-row-action onClick={() => onEndCover({ id: r.id, userId: r.user_id, enrolled_from: r.enrolled_from, employeeName: nameOf(r.user_id), planName: r.plan_name })} className="text-xs font-bold text-rose-600 hover:underline">End cover</button> : null) },
             ]}
             rows={list.items}
@@ -558,7 +559,7 @@ function PlansTab({ showToast, directory, nameOf }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative"><HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter this page by name, code or provider" aria-label="Filter plans" className="h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none w-64" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, code or provider" aria-label="Filter plans" className="h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none w-72" />
           </div>
           <select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
             <option value="true">Active</option><option value="false">Inactive</option><option value="">All</option>
@@ -749,7 +750,7 @@ function EmployeesTab({ showToast, directory }) {
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{r.enrolled_from ? formatDate(r.enrolled_from) : "N/A"}</td>
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{r.enrolled_to ? formatDate(r.enrolled_to) : "Ongoing"}</td>
                       <td className="px-5 py-4 text-slate-600">{c.employee != null ? formatMoney(c.employee) : "Plan"} / {c.employer != null ? formatMoney(c.employer) : "Plan"}</td>
-                      <td className="px-5 py-4"><span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase ${m.pill}`}>{m.label}</span></td>
+                      <td className="px-5 py-4"><span className={`${STATUS_CHIP} ${m.pill}`}>{m.label}</span></td>
                       <td className="px-5 py-4 text-right">{r.status === "active" && <button type="button" onClick={() => setEndTarget({ id: r.id, userId, enrolled_from: r.enrolled_from, employeeName: selected?.name, planName: r.plan_name })} className="text-xs font-bold text-rose-600 hover:underline">End cover</button>}</td>
                     </tr>
                   );
@@ -803,7 +804,7 @@ export default function PayrollBenefitsPage() {
   return (
     <>
       <DashboardTopBar title="Benefit Plans" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Benefit Plans</h1>
           <p className="text-sm text-slate-500 mt-1">Define benefit plans, enroll employees and see what each plan costs.</p>

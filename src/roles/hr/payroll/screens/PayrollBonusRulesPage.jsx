@@ -25,6 +25,7 @@ import {
   embeddedEmployee, actorName,
 } from "../variablePayMeta";
 import { PersonMultiSelect } from "../../../../shared/components/PersonPicker";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
@@ -586,7 +587,7 @@ export default function PayrollBonusRulesPage() {
   return (
     <>
       <DashboardTopBar title="Bonus Rules" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Bonus Rules</h1>
@@ -624,7 +625,7 @@ export default function PayrollBonusRulesPage() {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1100px]">
+              <table className="w-full text-left border-collapse min-w-[960px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-5 py-4 border-b border-slate-100">Rule</th>
@@ -654,7 +655,7 @@ export default function PayrollBonusRulesPage() {
                         <td className="px-5 py-4 text-slate-600">{eligibilitySummary(r)}</td>
                         <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{hasCap(r) ? formatMoney(r.max_amount_per_employee) : "No cap"}</td>
                         <td className="px-5 py-4">
-                          <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${status.pill}`}>{status.label}</span>
+                          <span className={`${STATUS_CHIP} ${status.pill}`}>{status.label}</span>
                           {r.applied_at && <span className="block mt-1.5 text-[10px] font-bold text-purple-600 uppercase">Applied · {plural(toCount(r.applied_count), "person", "people")}</span>}
                           {isReadyToApply(r) && <span className="block mt-1.5 text-[10px] font-bold text-purple-600 uppercase">Ready to apply</span>}
                         </td>

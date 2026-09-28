@@ -166,7 +166,7 @@ export function PersonCell({ entity, secondary, size = "sm" }) {
       <div className="min-w-0">
         <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
         {(code || secondary) && (
-          <p className="text-[10px] text-slate-400 font-medium truncate">{[code, secondary].filter(Boolean).join(" · ")}</p>
+          <p className="text-[10px] text-slate-400 font-medium truncate">{[...new Set([code, secondary].filter(Boolean))].join(" · ")}</p>
         )}
       </div>
     </div>

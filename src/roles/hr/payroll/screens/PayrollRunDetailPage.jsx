@@ -24,6 +24,7 @@ import {
   STATUTORY_FIELDS, PAYOUT_FIELDS, toCount, plural, prettifyCode, itemsLockedReason,
 } from "../runMeta";
 import RunPayslipsPanel from "../RunPayslipsPanel";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 // Backend maximum for run items. The preview's error_items carry no item id, so
@@ -62,7 +63,7 @@ function Spinner({ light = false }) {
 
 function ItemStatusPill({ status }) {
   const s = ITEM_STATUS[status] || { label: prettifyCode(status) || "Unknown", cls: "bg-slate-50 text-slate-600 border-slate-200" };
-  return <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${s.cls}`}>{s.label}</span>;
+  return <span className={`${STATUS_CHIP} ${s.cls}`}>{s.label}</span>;
 }
 
 // ── Payslip preview for one employee (#44) ──────────────────────────────────
@@ -633,7 +634,7 @@ export default function PayrollRunDetailPage() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-900">{formatPeriod(run.period_month)}</h1>
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border ${meta.pill}`}>{meta.label}</span>
+              <span className={`${STATUS_CHIP} ${meta.pill}`}>{meta.label}</span>
             </div>
             <p className="text-sm text-slate-500 mt-1">{run.notes || meta.hint}</p>
             <p className="text-xs text-slate-400 mt-1">

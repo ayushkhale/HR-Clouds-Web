@@ -17,7 +17,8 @@ const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
 /* ─── Daily log (U16) ────────────────────────────────────────────────────── */
 // Built on the shared record-inspector, so one day's attendance reads the same
 // here as every other record preview in the app.
-function DailyLogModal({ date, onClose, onRequestCorrection }) {
+// Exported: the dashboard's Recent days rows open the same daily log.
+export function DailyLogModal({ date, onClose, onRequestCorrection }) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
 
   const load = useCallback(() => {
@@ -203,7 +204,7 @@ export default function EmployeeAttendancePage() {
   return (
     <>
       <DashboardTopBar title="My Attendance" />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-[1400px] mx-auto w-full space-y-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">My Attendance</h1>

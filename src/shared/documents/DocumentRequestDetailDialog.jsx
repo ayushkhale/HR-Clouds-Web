@@ -30,10 +30,7 @@ import { DANGER_BTN, DocErrorState, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { RequestDueChip, RequestStatusBadge } from "./requestUi";
 import { useAuth } from "../contexts/AuthContext";
 import useDocumentSettings from "./useDocumentSettings";
-import {
-  CANCEL_REASON_MAX, CANCEL_REASON_MIN, REQUEST_MAX_REMINDERS, canCancelRequest, canFulfilRequest,
-  canRemindRequest, remindedToday, requestDisplayStatus, requesterRoleLabel,
-} from "./requestMeta";
+import { canCancelRequest, CANCEL_REASON_MAX, CANCEL_REASON_MIN, canFulfilRequest, canRemindRequest, remindedToday, REQUEST_MAX_REMINDERS, requestDisplayStatus, requesterRoleLabel, requestTypeOf } from "./requestMeta";
 
 /**
  * @param {object} props
@@ -89,7 +86,7 @@ export default function DocumentRequestDetailDialog({
   useEffect(() => { reload(); }, [reload]);
 
   const status = requestDisplayStatus(request);
-  const type = types?.get?.(request?.document_type_id);
+  const type = requestTypeOf(request, types);
   const typeName = type?.name || "This document";
   const who = nameOf ? nameOf(request?.user_id, "the employee") : "the employee";
   const raisedByMe = !!actorId && request?.requested_by === actorId;
@@ -190,7 +187,7 @@ export default function DocumentRequestDetailDialog({
                   ? "HR adds this one to your file for you — there's nothing for you to upload."
                   : "This kind of document isn't open to you to upload."
                 : plane.key === "self"
-                  ? "Upload the document from My Documents and this closes itself."
+                  ? "Upload the document from My Personal Documents and this closes itself."
                   : "Nothing to do here — it's within its deadline."}
         </DetailFooterNote>
       )}
@@ -267,7 +264,7 @@ export default function DocumentRequestDetailDialog({
                           ? "Use the button below to upload it. That's all that's needed — it ticks itself off."
                           : uploadWithheld
                             ? "HR adds this one to your file for you. There's nothing for you to upload."
-                            : "Upload this document from My Documents and this closes itself — there's nothing to tick off here."
+                            : "Upload this document from My Personal Documents and this closes itself — there's nothing to tick off here."
                         : `${who} hasn't uploaded it yet. It closes itself the moment they do.`}
                 </p>
                 <div className="mt-1.5">

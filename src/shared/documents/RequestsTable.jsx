@@ -17,7 +17,7 @@ import { rowPreviewProps } from "../components/DetailDialog";
 import { Pagination, PersonCell } from "../attendance/ui";
 import { fmtDate } from "../attendance/dates";
 import { RequestDueChip, RequestStatusBadge } from "./requestUi";
-import { REQUEST_MAX_REMINDERS, groupLabelOfType, requesterRoleLabel } from "./requestMeta";
+import { REQUEST_MAX_REMINDERS, groupLabelOfType, requestTypeOf, requesterRoleLabel } from "./requestMeta";
 
 /**
  * @param {object} props
@@ -28,8 +28,11 @@ import { REQUEST_MAX_REMINDERS, groupLabelOfType, requesterRoleLabel } from "./r
  * @param {(id: string, fallback?: string) => string} [props.nameOf]  names the requester
  * @param {boolean} [props.showReminders]            the plane is sent `reminder_count`
  * @param {{ page, total, limit, onPageChange }} [props.pagination]
+ * @param {{ title: string, note: string }} [props.hiddenType]  what to say when a row's
+ *   type can't be named at all: not in `types` (a manager isn't sent types they
+ *   may not view) and no `document_type_name` on the row (servers before R-2)
  */
-export default function RequestsTable({ rows, types, onOpen, personOf, nameOf, showReminders = false, pagination }) {
+export default function RequestsTable({ rows, types, onOpen, personOf, nameOf, showReminders = false, pagination, hiddenType = null }) {
   const totalPages = pagination ? Math.max(1, Math.ceil((pagination.total || 0) / pagination.limit)) : 1;
 
   return (
@@ -48,7 +51,7 @@ export default function RequestsTable({ rows, types, onOpen, personOf, nameOf, s
           </thead>
           <tbody className="divide-y divide-slate-50">
             {rows.map((req) => {
-              const type = types?.get?.(req.document_type_id);
+              const type = requestTypeOf(req, types);
               const reminders = Number(req.reminder_count) || 0;
               return (
                 <tr
@@ -63,9 +66,9 @@ export default function RequestsTable({ rows, types, onOpen, personOf, nameOf, s
                         <HiClipboardList className="w-5 h-5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="font-semibold text-slate-800 truncate max-w-[280px]">{type?.name || "A document"}</p>
+                        <p className="font-semibold text-slate-800 truncate max-w-[280px]">{type?.name || hiddenType?.title || "A document"}</p>
                         <p className="text-[11px] text-slate-400 truncate max-w-[280px]">
-                          {req.note ? req.note : groupLabelOfType(type)}
+                          {req.note ? req.note : !type && hiddenType ? hiddenType.note : groupLabelOfType(type)}
                         </p>
                       </div>
                     </div>

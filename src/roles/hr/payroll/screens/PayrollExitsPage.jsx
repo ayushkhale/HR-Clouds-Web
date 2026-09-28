@@ -20,7 +20,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
-  HiPlus, HiX, HiLogout, HiPencil, HiBan, HiRefresh, HiEye,
+  HiPlus, HiX, HiLogout, HiPencil, HiBan, HiRefresh,
   HiInformationCircle, HiExclamationCircle, HiCheckCircle, HiCalendar, HiCash,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
@@ -28,7 +28,7 @@ import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
 import PeriodPicker from "../PeriodPicker";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
-import DetailDialog, { DetailPill, DetailSection } from "../../../../shared/components/DetailDialog";
+import DetailDialog, { DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import SettlementFlow from "../SettlementFlow";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate, formatPeriod } from "../../../../shared/utils/formatUtils";
@@ -421,7 +421,7 @@ export default function PayrollExitsPage() {
   const doCancel = async (reason) => {
     setBusy(true);
     try {
-      await payrollAPI.cancelExit(cancelling.id, { reason });
+      await payrollAPI.cancelExit(cancelling.id, reason);
       showToast("Exit cancelled");
       setCancelling(null);
       load();
@@ -435,7 +435,7 @@ export default function PayrollExitsPage() {
   return (
     <>
       <DashboardTopBar title="Exits & Settlements" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Exits &amp; Settlements</h1>
@@ -487,7 +487,10 @@ export default function PayrollExitsPage() {
                         const served = row.notice_served_days == null ? null : Number(row.notice_served_days);
                         const short = served === null || !Number.isFinite(req) ? null : Math.max(0, req - served);
                         return (
-                          <tr key={row.id} className="hover:bg-purple-50/30 transition-colors">
+                          // The row opens the final settlement; the icons left are the
+                          // real actions (change details, cancel).
+                          <tr key={row.id} {...rowPreviewProps(() => setSettling(row), `Final settlement for ${nameOf(row.user_id, "this person")}`)}
+                            className="hover:bg-purple-50/30 transition-colors cursor-pointer outline-none focus:bg-purple-50/40">
                             <td className="px-6 py-3.5 font-semibold text-slate-800">{nameOf(row.user_id, dirStatus === "loading" ? "…" : "Unknown")}</td>
                             <td className="px-6 py-3.5 text-slate-600">{exitTypeLabel(row.exit_type)}</td>
                             <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap">{formatDate(row.last_working_day)}</td>
@@ -499,7 +502,6 @@ export default function PayrollExitsPage() {
                             </td>
                             <td className="px-6 py-3.5"><StatusPill status={row.status} /></td>
                             <td className="px-6 py-3.5 text-right whitespace-nowrap">
-                              <button onClick={() => setSettling(row)} title="Final settlement" className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50"><HiEye className="w-4 h-4" /></button>
                               <button onClick={() => setEditing(row)} disabled={!acts.canCorrect} title={acts.canCorrect ? "Change details" : acts.correctReason}
                                 className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"><HiPencil className="w-4 h-4" /></button>
                               <button onClick={() => setCancelling(row)} disabled={!acts.canCancel} title={acts.canCancel ? "Cancel this exit" : acts.cancelReason}

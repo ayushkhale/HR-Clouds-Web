@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import InboxCard from "../../../shared/components/InboxCard";
 import { attendanceAPI, leaveAPI } from "../../../shared/api";
@@ -146,10 +146,25 @@ function ManagerApprovalsInbox() {
   const waiting = GROUP.items.reduce((sum, i) => sum + (counts[i.key] || 0), 0);
   const busy = loading || leavesLoading;
 
+  // Open on the first queue that has work in it. Starting on an empty queue
+  // while three others were waiting made the inbox look clear when it wasn't.
+  // This happens once, when the counts first arrive: clearing the last item
+  // in a queue must not whisk the person off to another one mid-work, and a
+  // card they pick themselves always stands.
+  const picked = useRef(false);
+  const pick = (key) => { picked.current = true; setSelectedKey(key); };
+  useEffect(() => {
+    if (picked.current || busy) return;
+    picked.current = true;
+    if ((counts[selectedKey] || 0) > 0) return;
+    const first = GROUP.items.find((i) => (counts[i.key] || 0) > 0);
+    if (first) setSelectedKey(first.key);
+  }, [counts, busy, selectedKey]);
+
   return (
     <>
       <DashboardTopBar title="Inbox" />
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
@@ -166,7 +181,7 @@ function ManagerApprovalsInbox() {
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{GROUP.title}</h2>
           <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${GROUP.cols}`}>
             {GROUP.items.map((item) => (
-              <InboxCard key={item.key} item={item} count={counts[item.key]} loading={busy} selected={item.key === selectedKey} onSelect={setSelectedKey} />
+              <InboxCard key={item.key} item={item} count={counts[item.key]} loading={busy} selected={item.key === selectedKey} onSelect={pick} />
             ))}
           </div>
 

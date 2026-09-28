@@ -11,7 +11,11 @@ function DashboardLayout({ role }) {
 
   return (
     <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={resolvedRole} />
+      {/* Keyed by role: the four route groups render this same layout, so React
+          can keep one sidebar instance when HR moves between workspaces. Its
+          remembered open sections are per role (hrc.sidebar.open.<role>), and
+          without a remount one workspace's state was written under another's. */}
+      <DashboardSidebar key={resolvedRole} role={resolvedRole} />
       <div className="flex-1 flex flex-col min-w-0">
         <Outlet />
       </div>

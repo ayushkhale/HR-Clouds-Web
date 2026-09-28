@@ -156,7 +156,7 @@ export default function FormsLibraryPage() {
               <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
             </button>
             <Link to={myPaths.documents} className={SECONDARY_BTN}>
-              <HiFolderOpen className="w-4 h-4" /> My Documents
+              <HiFolderOpen className="w-4 h-4" /> My Personal Documents
             </Link>
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function FormsLibraryPage() {
           <HiInformationCircle className="w-4 h-4 shrink-0 mt-px text-purple-400" />
           <span>
             These are blank forms — none of them contains anybody’s personal details, and everyone in the organisation sees exactly this list. Once you’ve filled one in, add it to{" "}
-            <Link to={myPaths.documents} className="font-bold text-purple-600 hover:underline">My Documents</Link> or send it however your HR team asks.
+            <Link to={myPaths.documents} className="font-bold text-purple-600 hover:underline">My Personal Documents</Link> or send it however your HR team asks.
           </span>
         </p>
       </main>

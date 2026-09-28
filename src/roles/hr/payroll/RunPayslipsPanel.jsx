@@ -55,6 +55,7 @@ import {
   isFullyPrepared, renderPercent, renderStatusLine, renderStatusOf, serverIsClassic,
   stillPreparing, uncacheableNote, usesHtmlEngine, wasEnqueued,
 } from "./pdfRenderMeta";
+import { STATUS_CHIP } from "../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 25;
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
@@ -583,7 +584,7 @@ export default function RunPayslipsPanel({ run, showToast }) {
                     <td className="px-5 py-3 text-right tabular-nums text-slate-700">{money(row.gross_earnings)}</td>
                     <td className="px-5 py-3 text-right tabular-nums font-bold text-purple-700">{money(row.net_pay)}</td>
                     <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${slipStatus.pill}`}>v{row.version ?? 1} · {slipStatus.label}</span>
+                      <span className={`${STATUS_CHIP} ${slipStatus.pill}`}>v{row.version ?? 1} · {slipStatus.label}</span>
                     </td>
                     <td className="px-5 py-3 text-slate-600">
                       {(() => {
@@ -593,7 +594,7 @@ export default function RunPayslipsPanel({ run, showToast }) {
                       })()}
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${email.pill}`}>{email.label}</span>
+                      <span className={`${STATUS_CHIP} ${email.pill}`}>{email.label}</span>
                     </td>
                     <td className="px-5 py-3 text-right">
                       <button

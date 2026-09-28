@@ -24,6 +24,7 @@ import {
   claimStatusMeta, claimStage, claimActions, normalizeClaimDetail, limitViolations, CLAIM_STATUS_FILTERS,
 } from "../../../../shared/utils/reimbursementMeta";
 import { benefitTypeLabel, enrollmentStatusMeta, effectiveContribution, normalizeTeamBenefits, ENROLLMENT_STATUS_FILTERS } from "../../../../shared/utils/benefitMeta";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 20;
 const selectCls = "h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400";
@@ -167,7 +168,7 @@ function ClaimsTab({ showToast }) {
                       <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{claim.submitted_at ? formatDate(claim.submitted_at) : "N/A"}</td>
                       <td className="px-5 py-4 text-right tabular-nums font-bold text-slate-800">{formatMoney(claim.total_amount)}</td>
                       <td className="px-5 py-4">
-                        <span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${status.pill}`}>{status.label}</span>
+                        <span className={`${STATUS_CHIP} ${status.pill}`}>{status.label}</span>
                         <p className="text-[11px] text-slate-400 mt-1">{stage.label}</p>
                       </td>
                     </tr>
@@ -329,7 +330,7 @@ function TeamBenefitsTab() {
                     <td className="px-5 py-4 font-bold text-slate-800">{resolvePerson(row, names).name}</td>
                     <td className="px-5 py-4 text-slate-600">{row.plan_name || row.plan?.name || row.plan_code || "N/A"}</td>
                     <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{row.enrolled_from ? formatDate(row.enrolled_from) : "N/A"}</td>
-                    <td className="px-5 py-4"><span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase ${st.pill}`}>{st.label}</span></td>
+                    <td className="px-5 py-4"><span className={`${STATUS_CHIP} ${st.pill}`}>{st.label}</span></td>
                     <td className="px-5 py-4 text-slate-600">{contrib.employeeOverridden || contrib.employerOverridden ? "Custom rate" : "Plan rate"}</td>
                   </tr>
                 );
@@ -368,7 +369,7 @@ export default function TeamReimbursementsPage() {
   return (
     <>
       <DashboardTopBar title="Claims & Benefits" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Claims & Benefits</h1>
           <p className="text-sm text-slate-500 mt-1">Approve or reject your team&apos;s reimbursement claims, and look up their benefit cover.</p>

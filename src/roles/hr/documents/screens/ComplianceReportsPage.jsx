@@ -309,12 +309,11 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
                                   and the code is the fallback, never both at once. */}
                               <Link to={`/dashboard/hr/documents/employees?user=${row.user_id}`} className="inline-flex items-center gap-1.5 font-semibold text-slate-800 hover:text-purple-700">
                                 <PersonCell
-                                  entity={{ name: nameOf(row.user_id, row.employee_code || "An employee"), employee_code: row.employee_code }}
-                                  secondary={row.employee_code || undefined}
+                                  entity={{ name: nameOf(row.user_id, row.employee_code || "An employee"), employee_code: row.employee_code, user_id: row.user_id }}
                                 />
                               </Link>
                             </td>
-                            <td className="px-5 py-3.5 text-xs text-slate-600">{row.department_name || <span className="text-slate-300">—</span>}</td>
+                            <td className="px-5 py-3.5 text-xs text-slate-600">{row.department_name || <span className="text-slate-400">N/A</span>}</td>
                             <td className="px-5 py-3.5">
                               <span className="text-xs text-slate-600">
                                 {missing.length ? missing.join(", ") : `${(Number(row.required) || 0) - (Number(row.satisfied) || 0)} outstanding`}
@@ -522,7 +521,7 @@ function ExpiringReport({ types, departmentOptions, orgLoading, showToast }) {
                               <p className="text-[11px] text-slate-400 truncate max-w-[240px]">{row.document_type?.name || "Document"}</p>
                             </td>
                             <td className="px-5 py-3.5">
-                              <PersonCell entity={{ name: row.owner?.name || "An employee", employee_code: row.owner?.employee_code }} secondary={row.owner?.employee_code || undefined} />
+                              <PersonCell entity={{ name: row.owner?.name || "An employee", employee_code: row.owner?.employee_code, user_id: row.owner?.user_id }} />
                             </td>
                             <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">{fmtDate(row.expires_on)}</td>
                             <td className={`px-5 py-3.5 text-xs font-semibold whitespace-nowrap ${late ? "text-rose-700" : "text-slate-600"}`}>{daysRemainingLabel(row.days_remaining)}</td>
@@ -565,11 +564,11 @@ export default function ComplianceReportsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Compliance Reports" />
+      <DashboardTopBar title="Document Reports" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Compliance Reports</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Document Reports</h1>
             <p className="text-sm text-slate-500 mt-1">
               Who is missing paperwork they must have, and what is about to run out. Both download as a spreadsheet.
             </p>

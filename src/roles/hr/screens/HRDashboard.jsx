@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
@@ -9,38 +9,18 @@ import { attendanceAPI } from "../../../shared/api";
 import AttendanceDirectory from "../components/AttendanceDirectory";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
+import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
+import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { employeeCode, initials, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthLabelShort, parseYMDLocal, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthLabelShort, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
 import DetailDialog from "../../../shared/components/DetailDialog";
 import { greetingFor } from "../../../shared/utils/greeting";
 
-const CHART_PAGE_SIZE = 15;
 const LIVE_REFRESH_MS = 60_000;
 const MODE_COLORS = { office: "#7C3AED", remote: "#818CF8", field: "#D946EF", hybrid: "#C4B5FD" };
-
-const isSunday = (ymd) => parseYMDLocal(ymd)?.getDay() === 0;
-
-const SUNDAY_LETTERS = "SUNDAY".split("");
-const SUNDAY_EDGE = 30; // padding above the first letter and below the last
-
-/** Vertical "SUNDAY", letters spread evenly from the top of the plot to the baseline. */
-function SundayLabel({ viewBox }) {
-  if (!viewBox) return null;
-  const { x, y, height } = viewBox;
-  const step = Math.max(height - SUNDAY_EDGE * 2, 0) / (SUNDAY_LETTERS.length - 1);
-  return (
-    <g pointerEvents="none">
-      {SUNDAY_LETTERS.map((ch, i) => (
-        <text key={i} x={x} y={y + SUNDAY_EDGE + i * step} textAnchor="middle" dominantBaseline="middle" fill="#cbd5e1" fontSize={9} fontWeight={700}>
-          {ch}
-        </text>
-      ))}
-    </g>
-  );
-}
 
 /** Generic async widget state. */
 function useWidget(fetcher, deps) {
@@ -179,11 +159,12 @@ function HRDashboard() {
   const [liveAt, setLiveAt] = useState(null);
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [graph, reloadGraph] = useWidget(() => attendanceAPI.getDashboardGraphData(period.month, period.year), [period.month, period.year]);
-  const [chartPage, setChartPage] = useState(0);
+  // null = not paged by hand yet, so the chart opens on the half holding today.
+  const [chartPage, setChartPage] = useState(null);
   const chartScrollTimeout = useRef(0);
 
   useEffect(() => { if (!live.loading && !live.error) setLiveAt(new Date()); }, [live.loading, live.error]);
-  useEffect(() => { setChartPage(0); }, [period.month, period.year]);
+  useEffect(() => { setChartPage(null); }, [period.month, period.year]);
 
   // Live counts: poll while visible, refresh on focus and after corrections.
   useEffect(() => {
@@ -201,9 +182,9 @@ function HRDashboard() {
     date: ymdOnly(d.date),
     on_leave_count: num(d.on_leave_count),
   }));
-  const totalChartPages = Math.max(1, Math.ceil(daily.length / CHART_PAGE_SIZE));
-  const safePage = Math.min(chartPage, totalChartPages - 1);
-  const chartData = daily.slice(safePage * CHART_PAGE_SIZE, (safePage + 1) * CHART_PAGE_SIZE);
+  const totalChartPages = chartPageCount(daily);
+  const safePage = Math.min(chartPage ?? defaultChartPage(daily, period), totalChartPages - 1);
+  const chartData = chartPageRows(daily, safePage);
 
   const handleChartWheel = (e) => {
     const t = Date.now();
@@ -259,7 +240,9 @@ function HRDashboard() {
           </div>
 
           <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100 flex flex-col justify-between order-1">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3 mb-6">
+            {/* Controls sit under the title until the card is wide enough for both:
+                side by side, "Team Performance" ran into the day pager on a 14" screen. */}
+            <div className="flex flex-col 2xl:flex-row justify-between 2xl:items-start gap-3 mb-6">
               <div className="min-w-0">
                 <h3 className="text-lg font-bold text-slate-800 whitespace-nowrap">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
@@ -293,12 +276,9 @@ function HRDashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 20, right: 8, left: -20, bottom: 12 }} barGap={2} barCategoryGap="25%">
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} tickFormatter={(val) => fmtDate(val, { day: "numeric" }, "")} interval="preserveStartEnd" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval="preserveStartEnd" />
                     <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
-                    {/* zIndex below bars (300) so the label never hides data. */}
-                    {chartData.filter((d) => isSunday(d.date)).map((d) => (
-                      <ReferenceLine key={d.date} x={d.date} stroke="transparent" zIndex={250} label={SundayLabel} />
-                    ))}
+                    {sundayMarkers(chartData)}
                     <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
                     <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
                     {/* Approved leave is its own count — the server keeps it out of

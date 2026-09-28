@@ -82,7 +82,8 @@ function breakdownOf(structure) {
     monthlyNet,
     // TDS is trued up month to month, so twelve times the current month is an
     // estimate — not the contractual annual figure it used to be.
-    annualNet: statutory ? monthlyNet * 12 : annualGross - annualDeductions,
+    // Whole rupees: twelve times a paise-rounded month showed "₹4,55,000.04".
+    annualNet: statutory ? Math.round(monthlyNet * 12) : annualGross - annualDeductions,
   };
 }
 
@@ -97,6 +98,13 @@ function deductionHint(b) {
   if (parts.length === 0) return b.statutory ? "No statutory deductions apply" : "No deductions";
   if (parts.length === 1) return parts[0];
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+// What the take-home is net of, named from the heads actually deducted — the
+// fixed "After PF, ESI, PT and tax" claimed tax on a slip that only took PF.
+function takeHomeHint(b) {
+  if (!b.statutory) return "Before PF, ESI and tax";
+  return b.monthlyDeductions > 0 ? `After ${deductionHint(b)}` : "Nothing is deducted";
 }
 
 /** "40% of CTC", "Fixed amount", "Balance of CTC". */
@@ -261,7 +269,7 @@ export default function MySalaryPage() {
   return (
     <>
       <DashboardTopBar title="My Salary & Bank" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 w-full">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 w-full max-w-7xl mx-auto">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">My Salary &amp; Bank</h1>
@@ -316,7 +324,7 @@ export default function MySalaryPage() {
                     <div className="rounded-2xl bg-purple-600 text-white px-5 py-4 shadow-sm shadow-purple-200">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100">Take-home / month</p>
                       <p className="text-2xl font-black mt-1 tabular-nums">{formatMoney(breakdown.monthlyNet)}</p>
-                      <p className="text-[11px] text-purple-100 mt-0.5">{breakdown.statutory ? "After PF, ESI, PT and tax" : "Before PF, ESI and tax"}</p>
+                      <p className="text-[11px] text-purple-100 mt-0.5">{takeHomeHint(breakdown)}</p>
                     </div>
                     {[
                       ["Gross / month", formatMoney(breakdown.monthlyGross), `${breakdown.earnings.length} earning${breakdown.earnings.length === 1 ? "" : "s"}`],

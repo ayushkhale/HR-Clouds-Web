@@ -139,11 +139,11 @@ export default function TeamDocumentsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Team Documents" />
+      <DashboardTopBar title="Employee Documents" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Team Documents</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Employee Documents</h1>
             <p className="text-sm text-slate-500 mt-1">Check your team’s documents and recommend a decision to HR. Confidential documents are only visible to HR.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

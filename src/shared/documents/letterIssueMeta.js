@@ -610,3 +610,49 @@ export const ACK_DEFAULT_CHOICES = [
 export const ackDefaultToChoice = (value) => (value === true ? "yes" : value === false ? "no" : "inherit");
 /** The radio value → what #86 stores. `null` is a real, meaningful value here, not "unset". */
 export const ackDefaultFromChoice = (choice) => (choice === "yes" ? true : choice === "no" ? false : null);
+
+/**
+ * Who a letter in the #140 register went to, and the letter's own name.
+ *
+ * #140 list items carry `included_users` since the backend change of 29 Sep
+ * 2026 (R-1), and that wins. Older servers sent only `recipient_count` (the
+ * #141 detail had the users), so the fallback reads the name out of the
+ * generated title, "<Letter> — <Person>" ("Bonafide Letter — Asha Rao"). Keep
+ * the fallback until every environment runs R-1: a request per row is not an
+ * option, and "A colleague" for every letter is what it replaced.
+ *
+ * @returns {{ letter: string, person: string }} person is "" when unknown
+ */
+// What useEmployeeDirectory's nameOf returns when it has no answer.
+const DIRECTORY_PLACEHOLDERS = new Set(["Loading…", "Name unavailable", "Employee not found", "N/A"]);
+
+export function letterRowParts(row, nameOf) {
+  const title = String(row?.title || "").trim();
+  // R-1 doesn't pin the element shape: accept a bare user id or an object.
+  const first = Array.isArray(row?.included_users) && row.included_users.length === 1 ? row.included_users[0] : "";
+  const only = typeof first === "string" ? first : first?.user_id || first?.id || "";
+  const embeddedName = typeof first === "object" && first ? first.name || first.full_name || "" : "";
+  const split = title.lastIndexOf(" — ");
+  const fromTitle = split > 0 ? { letter: title.slice(0, split).trim(), person: title.slice(split + 3).trim() } : null;
+  // A real directory hit wins, then the title's name. `nameOf` answers with a
+  // placeholder ("Loading…", "Name unavailable") when it has no hit, and one
+  // of those must never replace a name the title already gives us.
+  const looked = only && nameOf ? nameOf(only, "") : "";
+  const hit = looked && !DIRECTORY_PLACEHOLDERS.has(looked) ? looked : "";
+  const person = embeddedName || hit || fromTitle?.person || (looked === "Loading…" ? looked : "");
+  return { letter: (fromTitle && person === fromTitle.person ? fromTitle.letter : title) || "Letter", person };
+}
+
+/**
+ * A reference number split at its "/" separators, for rendering each part
+ * unbreakable with a <wbr> after every slash — so it wraps only between
+ * parts, never inside "2026-2027". This used to rewrite the text itself
+ * (U+2011 hyphens, U+200B spaces), and those characters came along when the
+ * number was copied: people are asked to quote it, and the pasted copy no
+ * longer matched in search or in an email. Markup-only breaks copy cleanly.
+ * ["HRC", "BON", "2026-2027", "0001"] → render "HRC/" "BON/" … with <wbr>.
+ */
+export const referenceSegments = (ref) => {
+  const parts = String(ref || "").split("/");
+  return parts.map((part, i) => (i < parts.length - 1 ? `${part}/` : part));
+};

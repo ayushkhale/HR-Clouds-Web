@@ -126,11 +126,15 @@ const COLUMNS = {
     // The backend's own worked figure (breaks off) — the one overtime is measured against.
     { header: "Effective", render: (i) => (i.worked_duration_formatted || recordOf(i)?.effective_hours != null ? workedLabel(i.worked_duration_formatted ? i : recordOf(i)) : "N/A") },
   ],
+  // `when` drops a column that no row on the page can fill. The pending list
+  // carries no credit and no expiry (both are set on approval), so those two
+  // columns were a wall of "N/A"; what kind of day was worked is the useful fact.
   compoff: [
     { header: "Worked on", render: (i) => fmtDate(itemDate(i)) },
+    { header: "Day off", render: (i) => (i.worked_type ? humanize(i.worked_type) : "N/A") },
     { header: "Hours", render: (i) => (i.worked_hours != null ? fmtHours(i.worked_hours) : "N/A") },
-    { header: "Credit", render: (i) => (creditDays(i) != null ? `${creditDays(i)} day${Number(creditDays(i)) === 1 ? "" : "s"}` : "N/A") },
-    { header: "Expires", render: (i) => (expiry(i) ? fmtDate(expiry(i)) : "N/A") },
+    { header: "Credit", when: (items) => items.some((i) => creditDays(i) != null), render: (i) => (creditDays(i) != null ? `${creditDays(i)} day${Number(creditDays(i)) === 1 ? "" : "s"}` : "N/A") },
+    { header: "Expires", when: (items) => items.some((i) => expiry(i)), render: (i) => (expiry(i) ? fmtDate(expiry(i)) : "N/A") },
   ],
   anomaly: [
     { header: "Date", render: (i) => fmtDate(itemDate(i) || ymdOnly(i.created_at)) },
@@ -229,7 +233,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
     }
   };
 
-  const columns = COLUMNS[type];
+  const columns = COLUMNS[type].filter((c) => !c.when || c.when(state.items));
   const filtered = !!search.trim() || (showRoleFilter && roleFilter !== "all");
 
   return (

@@ -5,6 +5,8 @@ import { organizationAPI, tokenHelper } from "../api";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { useMayaVisibility } from "../hooks/useMayaVisibility";
 import GenderAvatar from "../components/GenderAvatar";
+import { fmtDate, ymdOnly } from "../attendance/dates";
+import { humanize } from "../attendance/enums";
 
 import {
     HiUser,
@@ -270,9 +272,15 @@ function MyProfilePage() {
             );
         }
 
+        // Read-only: a date reads "3 Mar 2002", not the column's "2002-03-03",
+        // and the two enum columns read as words, not "female" / "single".
+        const shown = !value ? value
+            : field.type === "date" ? fmtDate(ymdOnly(value), { day: "numeric", month: "short", year: "numeric" }, value)
+            : field.key === "gender" || field.key === "marital_status" ? humanize(value)
+            : value;
         return (
             <p className="text-[15px] font-medium text-slate-800 truncate">
-                {value || <span className="text-slate-400/80 italic font-normal">Not set</span>}
+                {shown || <span className="text-slate-400/80 italic font-normal">Not set</span>}
             </p>
         );
     }

@@ -62,6 +62,47 @@ export const MY_DOCUMENT_PATHS = {
   },
 };
 
+/**
+ * Self-service leave and pay routes per workspace. Everyone in the organisation
+ * takes leave and gets paid, HR and managers included, so each workspace mounts
+ * the same employee screens under its own prefix — the same arrangement as
+ * attendance and documents above. Before 28 Sep 2026 these existed only in the
+ * employee workspace, which left HR and managers with no page to apply for their
+ * own leave or open their own payslip.
+ */
+export const MY_PAY_PATHS = {
+  employee: {
+    leaves: "/dashboard/employee/leaves",
+    salary: "/dashboard/employee/payroll/my-salary",
+    payslips: "/dashboard/employee/payroll/my-payslips",
+    claims: "/dashboard/employee/payroll/reimbursements",
+    loans: "/dashboard/employee/payroll/loans",
+    tax: "/dashboard/employee/payroll/tax",
+  },
+  manager: {
+    leaves: "/dashboard/manager/my-leaves",
+    salary: "/dashboard/manager/my-salary",
+    payslips: "/dashboard/manager/my-payslips",
+    claims: "/dashboard/manager/my-reimbursements",
+    loans: "/dashboard/manager/my-loans",
+    tax: "/dashboard/manager/my-tax",
+  },
+  hr: {
+    leaves: "/dashboard/hr/my-leaves",
+    salary: "/dashboard/hr/my-salary",
+    payslips: "/dashboard/hr/my-payslips",
+    claims: "/dashboard/hr/my-reimbursements",
+    loans: "/dashboard/hr/my-loans",
+    tax: "/dashboard/hr/my-tax",
+  },
+};
+
+/** The self-service leave and pay links for whichever workspace is rendered. */
+export function useMyPayPaths() {
+  const { pathname } = useLocation();
+  return MY_PAY_PATHS[workspaceFromPath(pathname)] || MY_PAY_PATHS.employee;
+}
+
 /** The self-service Documents links for whichever workspace is rendered. */
 export function useMyDocumentPaths() {
   const { pathname } = useLocation();

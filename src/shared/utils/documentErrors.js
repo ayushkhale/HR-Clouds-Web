@@ -189,7 +189,7 @@ export const DOCUMENT_ERROR_MESSAGES = {
   LETTER_REFERENCE_PATTERN_INVALID: "Your letter numbering pattern can't be used. Fix it in Document Settings, then issue the letter.",
   LETTER_REFERENCE_TOO_LONG: "Your letter numbering pattern produces a number longer than 64 characters. Shorten it in Document Settings, then issue the letter.",
   DOCUMENT_ORIGIN_GENERATED: "This is a letter your organisation issued, so a file can't be uploaded over it. Reissue it instead — that keeps the original on file and replaces it properly.",
-  DOCUMENT_TYPE_NOT_ACTIVATED: "The kind of document this letter is filed under hasn't been switched on yet. Turn it on in Document Types, then issue the letter.",
+  DOCUMENT_TYPE_NOT_ACTIVATED: "The kind of document this letter is filed under hasn't been switched on yet. Open Document Types → Catalog → We issue, switch it on, then issue the letter.",
   PDF_RENDER_IN_PROGRESS: "This letter is still being drawn. Give it a few seconds and try again — doing so won't create a second copy.",
   PDF_RETRY_LIMIT_EXCEEDED: "This letter has failed to draw several times, so it won't be tried again automatically. Nothing was issued — start it again from the beginning, and tell your administrator if it keeps failing.",
   PDF_TOO_LARGE: "The finished letter came out larger than 6 MB, which is too big to file. Shorten the wording you typed in, or ask your administrator to check the letterhead images.",

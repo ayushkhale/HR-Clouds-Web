@@ -407,17 +407,14 @@ export default function AttendanceHolidaysPage() {
   return (
     <>
         <DashboardTopBar title="Holidays" />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 max-w-7xl mx-auto w-full">
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                <HiCalendar className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">Holidays</h1>
-                <p className="text-xs text-slate-400 mt-0.5">Manage your organisation's holiday calendar.</p>
-              </div>
+            {/* The house page header: plain 2xl title and a one-line subtitle,
+                the same as every other screen (it had its own icon-tile look). */}
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900">Holidays</h1>
+              <p className="text-sm text-slate-500 mt-1">The days your organisation is closed, and which of them people can choose to take.</p>
             </div>
             <div className="flex items-center gap-3">
               {/* Year Selector */}

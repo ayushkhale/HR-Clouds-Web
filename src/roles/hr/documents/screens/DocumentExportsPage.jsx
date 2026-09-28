@@ -210,11 +210,11 @@ export default function DocumentExportsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Export Log" />
+      <DashboardTopBar title="Document Exports" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Export Log</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Document Exports</h1>
             <p className="text-sm text-slate-500 mt-1">
               Every spreadsheet and leaver’s pack taken out of your documents, and who took it.
             </p>
@@ -323,8 +323,8 @@ export default function DocumentExportsPage() {
                               : <span className="text-xs text-slate-500">{row.requester_identifier || "N/A"}</span>}
                           </td>
                           <td className="px-5 py-3.5"><ExportStatusBadge status={row.status} /></td>
-                          <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-600 tabular-nums">{Number.isFinite(rowCount) ? rowCount.toLocaleString("en-IN") : "—"}</td>
-                          <td className="px-5 py-3.5 text-right text-xs text-slate-600 tabular-nums">{row.byte_count ? formatBytes(row.byte_count) : "—"}</td>
+                          <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-600 tabular-nums">{Number.isFinite(rowCount) ? rowCount.toLocaleString("en-IN") : "N/A"}</td>
+                          <td className="px-5 py-3.5 text-right text-xs text-slate-600 tabular-nums">{row.byte_count ? formatBytes(row.byte_count) : "N/A"}</td>
                           <td className="px-5 py-3.5 text-xs text-slate-600 whitespace-nowrap">{fmtDate(row.started_at)}</td>
                         </tr>
                       );

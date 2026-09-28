@@ -56,7 +56,7 @@ import LetterDetailDialog from "../../../../shared/documents/LetterDetailDialog"
 import ReissueLetterDialog from "../../../../shared/documents/ReissueLetterDialog";
 import { letterTemplatesOf, letterTitle, letterheadGaps, brandingOf } from "../../../../shared/documents/letterMeta";
 import {
-  LETTER_SORTS, LETTER_STATUS_FILTERS, lettersPayload, sortParams,
+  LETTER_SORTS, LETTER_STATUS_FILTERS, letterRowParts, referenceSegments, lettersPayload, sortParams,
 } from "../../../../shared/documents/letterIssueMeta";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
 
@@ -340,9 +340,14 @@ export default function IssuedLettersPage() {
         )}
 
         {/* Tabs left, the rest of the filters right — the house arrangement. */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <FilterTabs options={tabs} value={status} onChange={(next) => { setStatus(next); setPage(1); }} />
-          <div className="flex flex-wrap items-center gap-2">
+        {/* Side by side only when there is room for tabs and all four filters on
+            one line (a 15" screen at 1536px); on a 14" laptop the filters sit
+            on their own line under the tabs instead of splitting in two. */}
+        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3">
+          {/* The tabs never shrink — squeezed, "Withdrawn" wrapped onto a second
+              line on a 14" screen. The filters wrap instead. */}
+          <FilterTabs className="shrink-0 self-start" options={tabs} value={status} onChange={(next) => { setStatus(next); setPage(1); }} />
+          <div className="flex flex-wrap items-center 2xl:justify-end gap-2 min-w-0">
             <div className="relative">
               <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -424,7 +429,7 @@ export default function IssuedLettersPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {state.rows.map((row) => {
-                      const only = Array.isArray(row.included_users) && row.included_users.length === 1 ? row.included_users[0] : "";
+                      const { letter, person } = letterRowParts(row, nameOf);
                       const typeName = typeIndexMap.get(row.document_type_id)?.name || "";
                       return (
                         <tr
@@ -433,7 +438,11 @@ export default function IssuedLettersPage() {
                           className="hover:bg-purple-50/30 transition-colors cursor-pointer outline-none focus:bg-purple-50/40"
                         >
                           <td className="px-5 py-3.5">
-                            <p className="font-semibold text-slate-800 tabular-nums break-all max-w-[240px]">{row.reference_number || "N/A"}</p>
+                            <p className="font-semibold text-slate-800 tabular-nums max-w-[240px]">
+                              {row.reference_number
+                                ? referenceSegments(row.reference_number).map((part, i) => <span key={i}><span className="whitespace-nowrap">{part}</span><wbr /></span>)
+                                : "N/A"}
+                            </p>
                             {row.version > 1 && <p className="text-[10px] text-slate-400">Version {row.version}</p>}
                           </td>
                           <td className="px-5 py-3.5">
@@ -441,7 +450,7 @@ export default function IssuedLettersPage() {
                               <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiDocumentText className="w-4 h-4" /></span>
                               <div className="min-w-0">
                                 <p className="font-semibold text-slate-800 truncate max-w-[280px] flex items-center gap-1.5">
-                                  <span className="truncate">{row.title || "Letter"}</span>
+                                  <span className="truncate">{letter}</span>
                                   {row.is_confidential && <HiLockClosed className="w-3.5 h-3.5 text-purple-500 shrink-0" title="Only HR and the person it is about" />}
                                 </p>
                                 <p className="text-[11px] text-slate-400 truncate max-w-[280px]">
@@ -452,7 +461,7 @@ export default function IssuedLettersPage() {
                           </td>
                           <td className="px-5 py-3.5">
                             <p className="text-xs font-semibold text-slate-700 truncate max-w-[180px]">
-                              {only ? nameOf(only, "A colleague") : "A colleague"}
+                              {person || (row.recipient_count > 1 ? `${row.recipient_count} people` : "1 person")}
                             </p>
                           </td>
                           <td className="px-5 py-3.5">

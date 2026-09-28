@@ -13,6 +13,7 @@ import { downloadFile } from "../../../../shared/utils/download";
 import { payrollErrorMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { statementMonths, statementTotals } from "../../../../shared/utils/annualStatementMeta";
 import DetailDialog, { DetailGrid, DetailSection, DetailTable } from "../../../../shared/components/DetailDialog";
 import useToast from "../../../hr/payroll/useToast";
 import PayrollToast from "../../../hr/payroll/PayrollToast";
@@ -161,8 +162,8 @@ function AnnualStatementTab({ showToast }) {
     }
   };
 
-  const months = Array.isArray(state.data?.months) ? state.data.months : [];
-  const ytd = state.data?.ytd_totals;
+  const months = statementMonths(state.data);
+  const ytd = statementTotals(state.data);
 
   return (
     <div className="space-y-4">
@@ -203,11 +204,11 @@ function AnnualStatementTab({ showToast }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {months.map((m) => (
-                  <tr key={m.period_month} className={m.status === "empty" ? "text-slate-400" : ""}>
-                    <td className="px-5 py-3 font-semibold text-slate-800">{formatPeriod(m.period_month)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{m.status === "empty" ? "No pay run" : money(m.gross_earnings)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{m.status === "empty" ? "N/A" : money(m.total_deductions)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums font-bold text-purple-700">{m.status === "empty" ? "N/A" : money(m.net_pay)}</td>
+                  <tr key={m.key} className={m.empty ? "text-slate-400" : ""}>
+                    <td className={`px-5 py-3 font-semibold ${m.empty ? "text-slate-500" : "text-slate-800"}`}>{formatPeriod(m.period)}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{m.empty ? "No pay run" : money(m.gross_earnings)}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{m.empty ? "" : money(m.total_deductions)}</td>
+                    <td className={`px-5 py-3 text-right tabular-nums font-bold ${m.empty ? "" : "text-purple-700"}`}>{m.empty ? "" : money(m.net_pay)}</td>
                   </tr>
                 ))}
                 {months.length === 0 && (
@@ -314,7 +315,7 @@ export default function MyPayslipsPage() {
   return (
     <>
       <DashboardTopBar title="My Payslips" />
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+      <main className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">My Payslips</h1>

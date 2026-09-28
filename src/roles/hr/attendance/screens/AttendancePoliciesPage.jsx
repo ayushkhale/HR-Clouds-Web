@@ -8,8 +8,15 @@ import { validatePolicy, hasErrors, MISSING_PUNCH_ACTIONS, NAME_MAX } from "../.
 import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
+import { fmtHours } from "../../../../shared/attendance/dates";
 import { HiClipboardList, HiPlus, HiX, HiPencil, HiBadgeCheck, HiInformationCircle, HiClock, HiPause, HiExclamationCircle, HiLightningBolt, HiRefresh } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+
+const days = (n) => `${n} ${Number(n) === 1 ? "day" : "days"}`;
+// "7.00" → "7h": nine columns have to fit a 14" laptop, and "7.00 hrs / 4.00 hrs"
+// broke over four lines there.
+// fmtHours, so 7.25 reads "7h 15m" (not "7.25h") and junk reads "N/A" (not "NaNh").
+const shortHours = (v) => fmtHours(v, "N/A");
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 
@@ -344,7 +351,7 @@ export default function AttendancePoliciesPage() {
   return (
     <>
       <DashboardTopBar title="Attendance Policies" />
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Attendance Policies</h1>
@@ -382,14 +389,14 @@ export default function AttendancePoliciesPage() {
                   <thead>
                     <tr className="border-b border-slate-100">
                       {["Policy Name", "Grace", "Full / Half Day", "Breaks", "Overtime", "Corrections", TERM, "Status", "Actions"].map((h) => (
-                        <th key={h} className={`px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                        <th key={h} className={`px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {policies.map((p) => (
                       <tr key={p.id} {...rowPreviewProps(() => openPreview(p), `View ${p.name}`)}>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-slate-800">{p.name}</span>
                             {p.is_default && (
@@ -400,25 +407,25 @@ export default function AttendancePoliciesPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.grace_minutes != null ? `${p.grace_minutes} mins` : "N/A"}</td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.full_day_min_hours != null ? `${p.full_day_min_hours} hrs` : "N/A"} / {p.half_day_min_hours != null ? `${p.half_day_min_hours} hrs` : "N/A"}</td>
-                        <td className="px-6 py-4 text-xs text-slate-600">
+                        <td className="px-4 py-4 text-xs text-slate-600">{p.grace_minutes != null ? `${p.grace_minutes} mins` : "N/A"}</td>
+                        <td className="px-4 py-4 text-xs text-slate-600 whitespace-nowrap">{shortHours(p.full_day_min_hours)} / {shortHours(p.half_day_min_hours)}</td>
+                        <td className="px-4 py-4 text-xs text-slate-600">
                           {p.max_break_duration_minutes != null ? `${p.max_break_duration_minutes} mins max` : "No limit"}
                           {p.max_breaks_per_day != null && <span className="block text-[10px] text-slate-400">{p.max_breaks_per_day} per day</span>}
                         </td>
-                        <td className="px-6 py-4 text-xs text-slate-600">
+                        <td className="px-4 py-4 text-xs text-slate-600">
                           {p.overtime_enabled ? `After ${p.overtime_min_minutes ?? 0} mins` : "Off"}
                           {p.overtime_enabled && <span className="block text-[10px] text-slate-400">{p.overtime_requires_approval === false ? "Auto-approved" : "Needs approval"}</span>}
                         </td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.regularization_allowed ? `${p.regularization_window_days ?? "N/A"} days` : "Not allowed"}</td>
-                        <td className="px-6 py-4 text-xs text-slate-600">{p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"}</td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4 text-xs text-slate-600">{p.regularization_allowed ? (p.regularization_window_days != null ? days(p.regularization_window_days) : "N/A") : "Not allowed"}</td>
+                        <td className="px-4 py-4 text-xs text-slate-600">{p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"}</td>
+                        <td className="px-4 py-4">
                           <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${p.is_active ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500"}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${p.is_active ? "bg-violet-500" : "bg-slate-400"}`} />
                             {p.is_active ? "Active" : "Inactive"}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-2 justify-end">
                             <button onClick={() => handleEditClick(p)} disabled={editLoading === p.id} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Edit policy" aria-label={`Edit ${p.name}`}>
                               {editLoading === p.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
@@ -485,7 +492,7 @@ export default function AttendancePoliciesPage() {
                   cols={2}
                   items={[
                     ["Late arrivals per half day", p.late_count_half_day_threshold ?? "Off"],
-                    ["Consecutive late days", p.consecutive_late_penalty_days != null ? `${p.consecutive_late_penalty_days} days` : "Off"],
+                    ["Consecutive late days", p.consecutive_late_penalty_days != null ? days(p.consecutive_late_penalty_days) : "Off"],
                   ]}
                 />
               </DetailSection>
@@ -514,7 +521,7 @@ export default function AttendancePoliciesPage() {
                 items={[
                   ["Overtime", p.overtime_enabled ? `After ${p.overtime_min_minutes ?? 0} mins` : "Off"],
                   ["Overtime approval", p.overtime_enabled ? (p.overtime_requires_approval === false ? "Auto-approved" : "Needs approval") : null],
-                  ["Corrections", p.regularization_allowed ? `Within ${p.regularization_window_days ?? 0} days` : "Not allowed"],
+                  ["Corrections", p.regularization_allowed ? `Within ${days(p.regularization_window_days ?? 0)}` : "Not allowed"],
                   [TERM, p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"],
                 ]}
               />

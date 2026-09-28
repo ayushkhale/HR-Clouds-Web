@@ -346,7 +346,9 @@ export const payrollAPI = {
   getExit: (id) => request(`/payroll/hr/exits/${id}`),
   // PATCH, not PUT: every field is optional and an empty body is 422 NO_CHANGES.
   correctExit: (id, payload) => request(`/payroll/hr/exits/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  cancelExit: (id, payload) => request(`/payroll/hr/exits/${id}/cancel`, { method: "POST", body: JSON.stringify(payload) }),
+  // #199 names the field `cancellation_reason`; a bare `reason` is a 400
+  // ("cancellation_reason" is required), so the key is fixed here, not by the page.
+  cancelExit: (id, reason) => request(`/payroll/hr/exits/${id}/cancel`, { method: "POST", body: JSON.stringify({ cancellation_reason: reason }) }),
 
   // HR — Full & final settlement (#200–#202).
   // Preview persists NOTHING; prepare writes adjustments and debits leave
@@ -365,8 +367,16 @@ export const payrollAPI = {
   getEncashments: (params) => request(`/payroll/hr/encashments${buildQuery(params)}`),
   getEncashment: (id) => request(`/payroll/hr/encashments/${id}`),
   approveEncashment: (id) => request(`/payroll/hr/encashments/${id}/approve`, { method: "POST" }),
-  rejectEncashment: (id, payload) => request(`/payroll/hr/encashments/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
-  cancelEncashment: (id, payload) => request(`/payroll/hr/encashments/${id}/cancel`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  // #210 requires `rejection_reason` (not `reason`), like every other reject.
+  rejectEncashment: (id, reason) => request(`/payroll/hr/encashments/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
+  // #211 takes an optional `cancellation_reason` (1–1000) since 29 Sep 2026 (R-4);
+  // it is stored on the row and in the audit log. Before that the spec had no
+  // body, so the reason HR typed was thrown away.
+  // Trimmed: a blank reason is sent as no reason, not as "   " (which fails the 1–1000 rule).
+  cancelEncashment: (id, reason) => {
+    const text = String(reason ?? "").trim();
+    return request(`/payroll/hr/encashments/${id}/cancel`, { method: "POST", body: JSON.stringify(text ? { cancellation_reason: text } : {}) });
+  },
 
   // HR — Manual triggers for the four background jobs (#212–#215). All are
   // org-scoped and idempotent: running one twice does not double-apply.

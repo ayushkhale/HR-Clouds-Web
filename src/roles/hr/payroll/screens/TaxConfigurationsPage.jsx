@@ -8,6 +8,7 @@ import {
 import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
 import { findIndianState, searchIndianStates } from "../../../../shared/data/indianStates";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 // State-code field for PT slabs: type a code or a state name, pick a
 // suggestion, and both the code and the state name are filled in.
@@ -636,7 +637,7 @@ function RegimesTab({ showToast }) {
                   <h3 className="font-bold text-slate-800 capitalize">{r.name || r.code}</h3>
                   <p className="text-[11px] text-slate-400">{r.slab_count ?? r.slabs_count ?? "?"} slabs {r.is_default && <span className="text-purple-600 font-bold">· DEFAULT</span>}</p>
                 </div>
-                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${r.is_active === false ? "bg-slate-100 text-slate-500" : "bg-violet-100 text-violet-700"}`}>{r.is_active === false ? "inactive" : "active"}</span>
+                <span className={`${STATUS_CHIP} border-transparent ${r.is_active === false ? "bg-slate-100 text-slate-500" : "bg-violet-100 text-violet-700"}`}>{r.is_active === false ? "Inactive" : "Active"}</span>
               </div>
               <div className="p-5 space-y-2 text-sm">
                 <Row k="Standard Deduction" v={money(r.standard_deduction)} />

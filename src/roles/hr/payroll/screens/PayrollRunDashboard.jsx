@@ -21,6 +21,7 @@ import {
   statutoryReadinessNotes, payoutReadinessNotes, taxTablesMissing, alreadyRunText, toCount, plural, inferredExitDate,
 } from "../runMeta";
 import { currentPeriod } from "../variablePayMeta";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const PAGE_SIZE = 10;
 const INTERACTIVE = "button, a, input, select, textarea, label";
@@ -323,7 +324,7 @@ function RunCard({ run, busy, onOpen, onCalculate }) {
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2.5 mb-1">
           <h3 className="font-bold text-slate-800 text-lg">{formatPeriod(run.period_month)}</h3>
-          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${meta.pill}`}>{meta.label}</span>
+          <span className={`${STATUS_CHIP} ${meta.pill}`}>{meta.label}</span>
           {/* Regular is the norm and stays unlabelled; the other two are
               exceptions and must be obvious at a glance in a shared list. */}
           {run.run_type && run.run_type !== "regular" && (

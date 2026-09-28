@@ -448,7 +448,7 @@ export default function DocumentSettingsPage() {
                   </div>
                   <SwitchRow
                     title="Flag overdue documents as a priority"
-                    description="A stronger warning in Company Documents for anyone overdue. It locks nobody out."
+                    description="A stronger warning in My Company Documents for anyone overdue. It locks nobody out."
                     checked={form.document_acknowledgement_blocking}
                     onChange={(v) => set("document_acknowledgement_blocking", v)}
                   />

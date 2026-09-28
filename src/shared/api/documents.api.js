@@ -149,7 +149,19 @@ export const documentsAPI = {
   // ═══════════════════════════════════════════════════════════════════════════
   //  HR — catalog & types (#1–#9)
   // ═══════════════════════════════════════════════════════════════════════════
-  /** #1 Platform catalog with this org's activation state. Filters: plane, group, country_code, q, activated, include_inactive. */
+  /**
+   * #1 Platform catalog with this org's activation state.
+   *
+   * Call it with NOTHING by default. Filters (plane, group, country_code, q,
+   * activated, include_inactive) belong to a control the user touched; a
+   * hardcoded default silently hides half the catalog. Pinning
+   * `plane=employee&activated=false` was exactly that bug: the 19 org-plane
+   * letters and policies were unreachable, so `experience_letter_issued` could
+   * never be activated and issuing one 409'd on DOCUMENT_TYPE_NOT_ACTIVATED.
+   * `qs` already drops empty values, so a cleared filter never reaches the URL
+   * as `?plane=` (a 400). Backend guidance:
+   * md_updates/2026-09-28_document_catalog_url_and_filters_guidance.md.
+   */
   getCatalog: (params) => request(`${HR}/catalog${qs(params)}`),
   /** #2 One catalog entry with its default_* policy, for the activation preview. */
   getCatalogEntry: (code) => request(`${HR}/catalog/${seg(code)}`),

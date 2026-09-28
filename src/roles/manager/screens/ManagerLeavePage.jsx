@@ -174,7 +174,7 @@ export default function ManagerLeavePage() {
   return (
     <>
         <DashboardTopBar title="Leave Requests" />
-        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
+        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full">
 
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">

@@ -224,7 +224,7 @@ export default function TeamCompliancePage() {
             {peopleLate > 0 && (
               <p className="flex items-start gap-2 text-xs text-slate-600">
                 <HiExclamationCircle className="w-4 h-4 text-rose-500 shrink-0 mt-px" />
-                {peopleLate === 1 ? "One person is late." : `${peopleLate} people are late.`} Remind them to open Company Documents — only they can acknowledge or sign.
+                {peopleLate === 1 ? "One person is late." : `${peopleLate} people are late.`} Remind them to open My Company Documents — only they can acknowledge or sign.
               </p>
             )}
 

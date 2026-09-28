@@ -13,6 +13,7 @@ import {
   componentMeta, budgetFromPreview, estimateBudget, rowAnnual, estimateLine, moYr, buildSuggestions,
 } from "../ctcBudget";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { calculationLabel } from "../runMeta";
 
 // Org employee rows carry `user_id`; payroll rows carry `id`. Accept either.
 const orgUserId = (u) => u?.user_id ?? u?.id ?? u?._id;
@@ -633,7 +634,7 @@ export default function PayrollTemplatesPage() {
                             </td>
                           ) : (
                             <td className="px-4 py-3 text-xs">
-                              <span className="font-bold text-purple-500 capitalize">{c.calculation_type?.replace(/_/g, ' ')}</span>
+                              <span className="font-bold text-purple-500">{calculationLabel(c.calculation_type)}</span>
                               <span className="text-slate-500 ml-1">({formatComponentValue(c, { balancingLabel: "BAL" })})</span>
                               {annual != null && (
                                 <div className="text-[11px] text-slate-400 mt-0.5 tabular-nums">

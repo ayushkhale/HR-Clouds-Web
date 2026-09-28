@@ -14,6 +14,7 @@ import { downloadFile } from "../../../../shared/utils/download";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate, formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { statementMonths, statementTotals } from "../../../../shared/utils/annualStatementMeta";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
@@ -25,6 +26,7 @@ import {
   HiExclamationCircle, HiRefresh, HiUser, HiX,
 } from "react-icons/hi";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 
 const TABS = [
   ["payslips", "Payslip history"],
@@ -260,8 +262,8 @@ function AnnualStatementTab({ userId, employeeName, showToast }) {
     }
   };
 
-  const months = Array.isArray(state.data?.months) ? state.data.months : [];
-  const ytd = state.data?.ytd_totals;
+  const months = statementMonths(state.data);
+  const ytd = statementTotals(state.data);
 
   return (
     <div className="space-y-4">
@@ -303,12 +305,12 @@ function AnnualStatementTab({ userId, employeeName, showToast }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {months.map((m) => (
-                  <tr key={m.period_month} className={m.status === "empty" ? "text-slate-400" : ""}>
-                    <td className="px-5 py-3 font-semibold text-slate-800">{formatPeriod(m.period_month)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{m.status === "empty" ? "No payroll" : money(m.gross_earnings)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{m.status === "empty" ? "N/A" : money(m.total_deductions)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums font-bold text-purple-700">{m.status === "empty" ? "N/A" : money(m.net_pay)}</td>
-                    <td className="px-5 py-3 text-xs text-slate-500">{m.source === "live_projection" ? "From the run" : m.source === "snapshot" ? "Frozen payslip" : "N/A"}</td>
+                  <tr key={m.key} className={m.empty ? "text-slate-400" : ""}>
+                    <td className={`px-5 py-3 font-semibold ${m.empty ? "text-slate-500" : "text-slate-800"}`}>{formatPeriod(m.period)}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{m.empty ? "No payroll" : money(m.gross_earnings)}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{m.empty ? "" : money(m.total_deductions)}</td>
+                    <td className={`px-5 py-3 text-right tabular-nums font-bold ${m.empty ? "" : "text-purple-700"}`}>{m.empty ? "" : money(m.net_pay)}</td>
+                    <td className="px-5 py-3 text-xs text-slate-500">{m.empty ? "" : m.source === "live_projection" ? "From the run" : m.source === "snapshot" ? "Frozen payslip" : "N/A"}</td>
                   </tr>
                 ))}
                 {months.length === 0 && (
@@ -486,9 +488,9 @@ export default function PayrollPayslipsPage() {
                           <tr key={row.payslip_id || `${row.run_id}-${row.version}`} {...rowPreviewProps(() => setOpenSlip(row), `Open the ${formatPeriod(row.period_month)} payslip`)}>
                             <td className="px-6 py-4 font-bold text-slate-800">{formatPeriod(row.period_month)}</td>
                             <td className="px-6 py-4 text-slate-600 tabular-nums">v{row.version ?? 1}</td>
-                            <td className="px-6 py-4"><span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${status.pill}`}>{status.label}</span></td>
+                            <td className="px-6 py-4"><span className={`${STATUS_CHIP} ${status.pill}`}>{status.label}</span></td>
                             <td className="px-6 py-4 text-slate-600">{payslipVisibility(row).label}</td>
-                            <td className="px-6 py-4"><span className={`px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider ${email.pill}`}>{email.label}</span></td>
+                            <td className="px-6 py-4"><span className={`${STATUS_CHIP} ${email.pill}`}>{email.label}</span></td>
                             <td className="px-6 py-4 text-slate-500">{row.published_at ? formatDate(row.published_at) : "N/A"}</td>
                           </tr>
                         );

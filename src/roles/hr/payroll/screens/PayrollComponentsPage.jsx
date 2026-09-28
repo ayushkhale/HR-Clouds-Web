@@ -4,6 +4,7 @@ import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiCurrencyRupee, HiAdjustments } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { formatComponentValue } from "../../../../shared/utils/formatUtils";
+import { calculationLabel } from "../runMeta";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 
 function Toast({ toast, onClose }) {
@@ -175,7 +176,7 @@ export default function PayrollComponentsPage() {
                             <p className="text-[10px] font-medium text-slate-400 font-mono mt-0.5">{comp.code}</p>
                           </td>
                           <td className="px-6 py-4 capitalize font-semibold text-slate-600">{prettify(comp.component_type) || "N/A"}</td>
-                          <td className="px-6 py-4 capitalize text-slate-600">{prettify(comp.calculation_type) || "N/A"}</td>
+                          <td className="px-6 py-4 text-slate-600">{calculationLabel(comp.calculation_type) || "N/A"}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{componentValue(comp)}</td>
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap gap-1">
@@ -231,7 +232,7 @@ export default function PayrollComponentsPage() {
           <DetailStats
             items={[
               { label: "Type", value: prettify(preview.component_type) },
-              { label: "Calculation", value: prettify(preview.calculation_type) },
+              { label: "Calculation", value: calculationLabel(preview.calculation_type) },
               { label: "Value", value: componentValue(preview) },
               { label: "Display order", value: preview.display_order ?? 0 },
             ]}
