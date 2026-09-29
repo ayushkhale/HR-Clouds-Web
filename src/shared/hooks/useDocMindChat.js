@@ -4,6 +4,10 @@ import { uuid } from '../utils/uuid';
 const API_URL = import.meta.env.VITE_DOCMIND_API_URL || 'https://api.codewithrishi.fun/api/public';
 const API_KEY = import.meta.env.VITE_DOCMIND_API_KEY;
 
+// Without a key every request fails, so nothing should route questions to Maya
+// (the field-help "Ask Maya" link reads this through the widget).
+export const DOCMIND_CONFIGURED = !!API_KEY;
+
 // The RAG backend emits this sentinel when no relevant context is found.
 // We replace it with a friendly message that doesn't expose implementation details.
 const NOT_IN_CONTEXT_SENTINEL = "I could not find any relevant information in the uploaded documents to answer your question.";

@@ -163,11 +163,16 @@ elsewhere behaves as before.
 Usage in a form:
 
 ```jsx
-<label htmlFor="bank-ifsc" className={labelCls}>
-  IFSC code <span className="text-rose-500">*</span>
-  <FieldHelp form="payroll.bank_details" field="ifsc_code" />
-</label>
+<div className="flex items-center">
+  <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-rose-500">*</span></label>
+  <FieldHelp form="payroll.bank_details" field="ifsc_code" label="an IFSC code" className="mb-1.5" />
+</div>
 ```
+
+(Implemented 2026-09-29: the ⓘ sits *beside* the label, not inside it — a
+button inside a `<label>` becomes part of the input's accessible name. Where the
+whole control is a `<label>` card, point the input at its title with
+`aria-labelledby` instead.)
 
 - The icon is `HiInformationCircle` from `react-icons/hi` (hi only, §0). It is small
   (`w-3.5 h-3.5`), slate that turns purple on hover or focus, and aligned inline with

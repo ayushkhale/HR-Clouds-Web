@@ -13,6 +13,7 @@ import TeamMemberLeaveTab from "../components/TeamMemberLeaveTab";
 import ProfileTab from "../../hr/screens/employee-profile/ProfileTab";
 import SalaryTab from "../../hr/screens/employee-profile/SalaryTab";
 import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
+import ProfileTabStrip from "../../../shared/components/ProfileTabStrip";
 import SubjectDocumentsPanel from "../../../shared/documents/SubjectDocumentsPanel";
 
 const TEAM_PATH = "/dashboard/manager/team";
@@ -166,28 +167,8 @@ export default function ManagerMemberProfilePage() {
             </div>
 
             <div className="min-w-0 flex flex-col gap-6">
-              {/* Tabs share the bar and wrap when they run out of room. A hidden-
-                  scrollbar strip used to cut the last tabs off on a 14" screen
-                  with nothing to say they were there. */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-2 flex flex-wrap gap-1" role="tablist">
-                {TABS.map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${isActive ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
-                    >
-                      <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* The same strip HR's employee profile uses (CLAUDE.md §2). */}
+              <ProfileTabStrip tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
               <div>
                 {loading ? (

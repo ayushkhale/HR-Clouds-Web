@@ -12,6 +12,7 @@ import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { normalizeStatutory, statutoryTotals } from "../../../../shared/utils/statutoryBreakdown";
 import { humanize } from "../../../../shared/attendance/enums";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const REVISION_LABELS = {
   initial: "Initial",
@@ -312,7 +313,7 @@ export default function MySalaryPage() {
                 </div>
                 {structure && (
                   <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Annual CTC</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider"><HelpLabel text="Annual CTC" help={{ surface: "payroll.my_salary", field: "annual_ctc", label: "annual CTC", size: "sm" }} /></p>
                     <p className="text-xl font-black text-purple-700 tabular-nums">{formatMoney(structure.annual_ctc)}</p>
                   </div>
                 )}
@@ -322,7 +323,7 @@ export default function MySalaryPage() {
                 <>
                   <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="rounded-2xl bg-purple-600 text-white px-5 py-4 shadow-sm shadow-purple-200">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100">Take-home / month</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100"><HelpLabel text="Take-home / month" help={{ surface: "payroll.my_salary", field: "take_home_monthly", label: "take-home pay", tone: "onDark" }} /></p>
                       <p className="text-2xl font-black mt-1 tabular-nums">{formatMoney(breakdown.monthlyNet)}</p>
                       <p className="text-[11px] text-purple-100 mt-0.5">{takeHomeHint(breakdown)}</p>
                     </div>
@@ -602,11 +603,17 @@ export default function MySalaryPage() {
                     <input id="bank-number" type="text" required value={bankFormData.account_number} onChange={(e) => setBankFormData({ ...bankFormData, account_number: e.target.value })} placeholder={bankAccount ? "Re-enter the full number" : ""} className={inputCls} />
                   </div>
                   <div>
-                    <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-rose-400">*</span></label>
+                    <div className="flex items-center">
+                      <label htmlFor="bank-ifsc" className={labelCls}>IFSC code <span className="text-rose-400">*</span></label>
+                      <FieldHelp surface="payroll.bank_details" field="ifsc_code" label="an IFSC code" className="mb-1.5" />
+                    </div>
                     <input id="bank-ifsc" type="text" required value={bankFormData.ifsc_code} onChange={(e) => setBankFormData({ ...bankFormData, ifsc_code: e.target.value.toUpperCase() })} className={`${inputCls} uppercase`} />
                   </div>
                   <div>
-                    <label htmlFor="bank-type" className={labelCls}>Account type <span className="text-rose-400">*</span></label>
+                    <div className="flex items-center">
+                      <label htmlFor="bank-type" className={labelCls}>Account type <span className="text-rose-400">*</span></label>
+                      <FieldHelp surface="payroll.bank_details" field="account_type" label="the account type" className="mb-1.5" />
+                    </div>
                     <select
                       id="bank-type"
                       required

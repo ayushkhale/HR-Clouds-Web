@@ -7,7 +7,7 @@ import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import AttendanceApprovalQueue from "../../../shared/attendance/AttendanceApprovalQueue";
 import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
 import { listFrom } from "../../../shared/attendance/normalize";
-import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../../../shared/attendance/events";
+import { ATTENDANCE_EVENTS, INBOX_EVENT_KINDS, emitAttendanceChanged, useAttendanceChanged } from "../../../shared/attendance/events";
 import {
   HiCheckCircle, HiXCircle, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
   HiInformationCircle, HiRefresh,
@@ -80,7 +80,7 @@ function ManagerApprovalsInbox() {
   }, [fetchAttendanceCounts, fetchLeaves]);
 
   useEffect(() => { refresh(); }, [refresh]);
-  useAttendanceChanged(INBOX_EVENT_KINDS, fetchAttendanceCounts);
+  useAttendanceChanged(INBOX_EVENT_KINDS, refresh);
 
   // The open attendance queue reports its own length after every reload.
   const onQueueCount = useCallback((type, n) => {
@@ -106,6 +106,7 @@ function ManagerApprovalsInbox() {
         setActionModal({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
         setRemarks("");
         fetchLeaves();
+        emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id, action });
       } else {
         showToast(res?.message || "Action failed", "error");
       }
@@ -124,7 +125,10 @@ function ManagerApprovalsInbox() {
         {leaves.map(item => (
           <LeaveRequestCard
             key={item.id}
-            item={item}
+            // The prop is `request`, not `item`: passing `item` left `request`
+            // undefined and the card threw on its first field, so the Inbox's
+            // whole Leave requests panel rendered as a blank crash.
+            request={item}
             onApprove={(req) => {
               const empName = leaveApplicantName(req);
               const isCxl = req.status === "cancellation_pending";

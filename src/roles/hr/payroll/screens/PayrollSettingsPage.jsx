@@ -277,7 +277,7 @@ export default function PayrollSettingsPage() {
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900">Payroll Settings
             </h1>
-            <p className="text-sm text-slate-500 mt-1">Configure global payroll policies, LOP rules, and manager authorities.</p>
+            <p className="text-sm text-slate-500 mt-1">Configure global payroll policies, unpaid-day rules, and manager authorities.</p>
           </div>
 
           {loading ? <Skeleton type="card" /> : (
@@ -288,7 +288,7 @@ export default function PayrollSettingsPage() {
                 <Section title="Calculation Policies">
                   <div className="grid sm:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">LOP Divisor Basis</label>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Unpaid days: month divided by</label>
                       <select value={settings.lop_basis} onChange={e => setSettings({...settings, lop_basis: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                         <option value="calendar_days">Calendar Days in Month</option>
                         <option value="standard_working_days">Standard Working Days in Month</option>

@@ -11,7 +11,7 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
 import { downloadFile } from "../../../../shared/utils/download";
 import { payrollErrorMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
-import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
+import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { statementMonths, statementTotals } from "../../../../shared/utils/annualStatementMeta";
 import DetailDialog, { DetailGrid, DetailSection, DetailTable } from "../../../../shared/components/DetailDialog";
@@ -91,7 +91,7 @@ function PayslipDialog({ runId, period, onClose, showToast }) {
                 ["Gross pay", money(figures.gross_earnings ?? figures.gross_pay)],
                 ["Deductions", money(figures.total_deductions)],
                 ["Net pay", money(figures.net_pay)],
-                ["Paid days", figures.payable_days ?? "N/A"],
+                { label: "Paid days", value: formatDayCount(figures.payable_days), help: { surface: "payroll.payslip", field: "payable_days", label: "paid days" } },
               ]}
             />
             {d?.statutory_note && (
@@ -348,7 +348,7 @@ export default function MyPayslipsPage() {
                     <div className="p-5 border-b border-slate-50 bg-slate-50/50 flex justify-between items-start">
                       <div>
                         <h3 className="font-bold text-slate-800 text-lg">{formatPeriod(period)}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Paid days: {slip.payable_days ?? "N/A"}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Paid days: {formatDayCount(slip.payable_days)}</p>
                       </div>
                       {(slip.payroll_run?.status === "paid" || slip.run_status === "paid") && (
                         <span className="bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full">Paid</span>

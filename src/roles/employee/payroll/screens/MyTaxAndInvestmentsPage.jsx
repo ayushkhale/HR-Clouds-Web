@@ -13,6 +13,7 @@ import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta"
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { humanize } from "../../../../shared/attendance/enums";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -133,7 +134,7 @@ function SummaryTab({ fy, showToast }) {
         <Stat k="Tax regime" v={regimeLabelOf(data)} />
         <Stat k="Income tax for the year" v={money(data.projected_annual_tax ?? data.projected_liability)} />
         <Stat k="Income tax so far" v={money(ytd.tds ?? ytd.income_tax)} />
-        <Stat k="Income tax still to deduct" v={money(data.remaining_tds ?? data.balance_tds)} />
+        <Stat k="Income tax still to deduct" v={money(data.remaining_tds ?? data.balance_tds)} help={{ surface: "payroll.tax_summary", field: "remaining_tds", label: "income tax still to deduct" }} />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat k="PF so far" v={money(ytd.pf)} />
@@ -143,7 +144,7 @@ function SummaryTab({ fy, showToast }) {
       </div>
       {data.previous_employer && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <h3 className="font-bold text-slate-800 mb-3">Previous Employer (Form 12B)</h3>
+          <h3 className="font-bold text-slate-800 mb-3"><HelpLabel text="Previous Employer (Form 12B)" help={{ surface: "payroll.tax_summary", field: "previous_employer", label: "previous employer income" }} /></h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <KV k="Gross" v={money(data.previous_employer.gross ?? data.previous_employer.previous_employer_gross)} />
             <KV k="TDS" v={money(data.previous_employer.tds ?? data.previous_employer.previous_employer_tds)} />
@@ -279,11 +280,11 @@ function DeclarationsTab({ fy, showToast }) {
         <table className="w-full text-left border-collapse text-sm">
           <thead>
             <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-              <th className="px-5 py-3">Section</th>
+              <th className="px-5 py-3"><HelpLabel text="Section" help={{ surface: "payroll.tax_declaration", field: "section", label: "the section" }} /></th>
               <th className="px-5 py-3">Detail</th>
               <th className="px-5 py-3 text-right">Declared ₹</th>
-              <th className="px-5 py-3 text-right">Verified ₹</th>
-              <th className="px-5 py-3">Proof Reference</th>
+              <th className="px-5 py-3 text-right"><HelpLabel text="Verified ₹" help={{ surface: "payroll.tax_declaration", field: "verified_amount", label: "the verified amount" }} /></th>
+              <th className="px-5 py-3"><HelpLabel text="Proof Reference" help={{ surface: "payroll.tax_declaration", field: "proof_reference", label: "the proof reference" }} /></th>
               {isDraft && <th className="px-5 py-3"></th>}
             </tr>
           </thead>
@@ -399,6 +400,9 @@ function RegimeTab({ fy, showToast }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <p className="md:col-span-2 -mb-2 flex items-center text-sm font-bold text-slate-700">
+        Your tax regime <FieldHelp surface="payroll.tax_regime" field="regime_code" label="the tax regime" />
+      </p>
       {[
         { code: "old", title: "Old Regime", blurb: "Lower slabs but you can claim HRA, 80C, 80D and other Chapter VI-A deductions." },
         { code: "new", title: "New Regime", blurb: "Higher standard deduction, wider slabs, but most exemptions are not available." },
@@ -470,7 +474,7 @@ function ProjectionTab({ fy, showToast }) {
         )}
         <Stat k="PF for the year" v={money(annual.epf ?? monthly.pf_employee)} />
         <Stat k="Professional tax for the year" v={money(annual.professional_tax)} />
-        {taxOn && <Stat k="Standard deduction" v={money(tax.standard_deduction ?? data.standard_deduction)} />}
+        {taxOn && <Stat k="Standard deduction" v={money(tax.standard_deduction ?? data.standard_deduction)} help={{ surface: "payroll.tax_projection", field: "standard_deduction", label: "the standard deduction", overlay: true }} />}
       </div>
       {notes.length > 0 && (
         <ul className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-1.5 text-sm text-slate-600 list-disc pl-9">
@@ -565,7 +569,7 @@ function Form16Tab({ fy, showToast }) {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="font-bold text-slate-800">Form 16 — Part B (FY {fy})</h3>
+        <h3 className="font-bold text-slate-800"><HelpLabel text={`Form 16 — Part B (FY ${fy})`} help={{ surface: "payroll.form16", field: "form16", label: "Form 16" }} /></h3>
         <p className="text-sm text-slate-500 mt-1">Available only after HR finalizes the financial year. A provisional Form 16 is never issued.</p>
         <button onClick={fetchIt} disabled={state === "loading"} className="mt-4 px-4 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50">
           {state === "loading" ? "Checking…" : "Fetch My Form 16"}
@@ -591,9 +595,9 @@ function Form16Tab({ fy, showToast }) {
   );
 }
 
-const Stat = ({ k, v }) => (
+const Stat = ({ k, v, help }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-    <p className="text-[11px] font-bold text-slate-400 uppercase">{k}</p>
+    <p className="text-[11px] font-bold text-slate-400 uppercase"><HelpLabel text={k} help={help} /></p>
     <p className="text-lg font-black text-slate-800 mt-1 capitalize">{v}</p>
   </div>
 );

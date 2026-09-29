@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { leaveAPI } from "../../../../shared/api";
 import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
 import { noticeValue } from "../../../../shared/utils/leaveConfig";
+import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil,
   HiCalendar, HiInformationCircle, HiRefresh,
@@ -39,8 +40,6 @@ export function balanceGridCols(count) {
   return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
 }
 
-const fmtDays = (n) => (Number.isFinite(n) ? (Number.isInteger(n) ? `${n}` : n.toFixed(1)) : "0");
-
 export function BalanceCard({ balance, index }) {
   const color = CARD_COLORS[index % CARD_COLORS.length];
   const current = parseFloat(balance.current_balance);
@@ -60,11 +59,11 @@ export function BalanceCard({ balance, index }) {
           </span>
         )}
       </div>
-      <p className={`text-3xl font-extrabold ${color.accent} mb-1`}>{fmtDays(current)}</p>
-      <p className="text-xs text-slate-500 font-medium">{current === 1 ? "day left" : "days left"}</p>
+      <p className={`text-xl font-extrabold leading-tight ${color.accent} mb-1`}>{formatDayCount(current, { fallback: "0 Days" })}</p>
+      <p className="text-xs text-slate-500 font-medium">left</p>
       <div className="mt-3 pt-3 border-t border-white/70 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{fmtDays(earned)}</span> given so far</span>
-        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{fmtDays(taken)}</span> taken</span>
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(earned, { lower: true, fallback: "0 days" })}</span> given so far</span>
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(taken, { lower: true, fallback: "0 days" })}</span> taken</span>
       </div>
     </div>
   );
@@ -431,9 +430,9 @@ export default function LeaveTab({ userId }) {
                         {b.leave_type?.code && <span className="font-mono text-[10px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">{b.leave_type.code}</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm font-bold text-slate-700">{fmtDays(parseFloat(b.current_balance))} days</td>
+                    <td className="px-6 py-3 text-sm font-bold text-slate-700">{formatDayCount(b.current_balance, { fallback: "0 days" })}</td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {fmtDays(parseFloat(b.total_accrued))} given · {fmtDays(parseFloat(b.total_used))} taken
+                      {formatDayCount(b.total_accrued, { lower: true, fallback: "0 days" })} given · {formatDayCount(b.total_used, { lower: true, fallback: "0 days" })} taken
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex justify-end">

@@ -20,6 +20,7 @@ import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 import { greetingFor } from "../../../shared/utils/greeting";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 // HR's department summary endpoint is HR-only, so the manager's version is
 // counted from today's team list, in the shape HR's DepartmentCard reads.
@@ -156,7 +157,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Shift</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">In</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Out</th>
-                    <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide">Lateness</th>
+                    <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide"><HelpLabel text="Lateness" help={{ surface: "attendance.team", field: "late_minutes", label: "lateness", overlay: true }} /></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -304,7 +305,7 @@ function ManagerDashboard() {
   const stats = [
     { label: "Team members", value: num(s.team_size), icon: HiUserGroup },
     { label: "Present today", value: num(s.final_present_count), icon: HiCheckCircle, tag: "Present" },
-    { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent" },
+    { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent", help: { surface: "attendance.team", field: "final_absent_count", ariaLabel: "Who counts as absent today?", size: "sm", overlay: true } },
     { label: "Late arrivals", value: num(s.counts?.late), icon: HiClock, tag: "Late" },
     // From today's team list: the summary's `counts` keys aren't documented
     // beyond `late`, so these are counted from each member's own status.
@@ -412,13 +413,13 @@ function ManagerDashboard() {
                 <ErrorState error={summary.error} onRetry={loadSummary} fallback="Couldn't load today's team summary." />
               ) : (
                 <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${summary.loading && !summary.data ? "opacity-50" : ""}`}>
-                  {stats.map(({ label, value, icon: Icon }) => (
+                  {stats.map(({ label, value, icon: Icon, help }) => (
                     <div key={label} className="rounded-2xl bg-slate-50/70 border border-slate-100 px-4 py-3.5">
                       {/* Wraps rather than truncates: six tiles in half a 14" screen cut
                           "Working right now" to "Working right n…". */}
                       <div className="flex items-start gap-2 text-slate-400">
                         <Icon className="w-4 h-4 text-purple-500 shrink-0" />
-                        <span className="text-[11px] font-semibold leading-tight">{label}</span>
+                        <span className="text-[11px] font-semibold leading-tight"><HelpLabel text={label} help={help} /></span>
                       </div>
                       <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none mt-2 tabular-nums">{value}</p>
                     </div>

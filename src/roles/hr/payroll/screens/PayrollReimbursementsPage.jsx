@@ -12,6 +12,7 @@ import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, 
 import ClaimDetailSections from "../../../../shared/components/ClaimDetailSections";
 import ClaimDecisionDialog from "../../../../shared/components/ClaimDecisionDialog";
 import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { payrollErrorMessage, payrollErrorCode } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/formatUtils";
 import { listFrom } from "../../../../shared/attendance/normalize";
@@ -562,6 +563,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
     setDecisionViolations([]);
     try {
       const res = await payrollAPI.approveReimbursementClaim(detail.id, payload);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CLAIM, { id: detail.id, action: "approve" });
       const claim = res?.data ?? res;
       setDecisionOpen(false);
       closeDetail();
@@ -587,6 +589,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
     setRejectError("");
     try {
       await payrollAPI.rejectReimbursementClaim(rejectTarget.id, reason);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CLAIM, { id: rejectTarget.id, action: "reject" });
       setRejectTarget(null);
       closeDetail();
       showToast("Claim rejected. The employee will see your reason.");

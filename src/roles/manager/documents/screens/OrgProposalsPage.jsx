@@ -23,6 +23,7 @@ import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
 import { ORG_PLANES } from "../../../../shared/documents/orgDocumentPlanes";
 import { listPayload } from "../../../../shared/documents/documentMeta";
 import { DocEmptyState, DocErrorState, PRIMARY_BTN } from "../../../../shared/documents/ui";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE = 25;
 const plane = ORG_PLANES.manager;
@@ -105,13 +106,15 @@ export default function OrgProposalsPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: "Waiting on HR (this page)", value: outcomes.waiting, icon: HiInbox, tone: "text-purple-500" },
+            { label: "Waiting on HR (this page)", value: outcomes.waiting, icon: HiInbox, tone: "text-purple-500", help: true },
             { label: "Issued (this page)", value: outcomes.issued, icon: HiCheckCircle, tone: "text-violet-500" },
             { label: "Sent back (this page)", value: outcomes.declined, icon: HiXCircle, tone: "text-rose-500" },
-          ].map(({ label, value, icon: Icon, tone }) => (
+          ].map(({ label, value, icon: Icon, tone, help }) => (
             <div key={label} className="rounded-2xl bg-white border border-slate-100 shadow-xs px-4 py-3.5">
               <div className="flex items-center gap-2 text-slate-400">
                 <Icon className={`w-4 h-4 ${tone}`} /><span className="text-[11px] font-semibold truncate">{label}</span>
+                {/* Once, on the first tile: the three share the "(this page)" caveat. */}
+                {help && <FieldHelp surface="documents.proposals" field="outcome_counts" ariaLabel="What do these counts cover?" label="these counts" size="sm" className="-ml-1.5" />}
               </div>
               <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none mt-2 tabular-nums">{state.loading && !state.rows.length ? "…" : value}</p>
             </div>

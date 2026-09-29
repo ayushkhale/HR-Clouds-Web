@@ -10,6 +10,7 @@ import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -202,7 +203,7 @@ export default function TeamSalaryPage() {
                 <p className="text-2xl font-black text-slate-800 mt-1 tabular-nums">{teamData?.headcount ?? 0}</p>
               </div>
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p className="text-[11px] font-bold text-slate-400 uppercase">Total CTC</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase"><HelpLabel text="Total CTC" help={{ surface: "payroll.team_salary", field: "team_ctc_total", label: "total CTC", size: "sm" }} /></p>
                 <p className="text-2xl font-black text-purple-700 mt-1 tabular-nums">{formatMoney(teamData?.team_ctc_total)}</p>
               </div>
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -309,26 +310,35 @@ export default function TeamSalaryPage() {
 
       {proposeMember && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose revision — {memberUser(proposeMember).name}</h2>
               <button onClick={() => setProposeMember(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitPropose} className="p-6 space-y-4">
+            <form onSubmit={submitPropose} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">New annual CTC <span className="text-rose-500">*</span></label>
+                <div className="flex items-center">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">New annual CTC <span className="text-rose-500">*</span></label>
+                  <FieldHelp surface="payroll.salary_revision" field="annual_ctc" label="annual CTC" className="mb-2" />
+                </div>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                   <input type="number" required min="1" value={form.annual_ctc} onChange={(e) => setForm({ ...form, annual_ctc: e.target.value })} className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Effective from</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Effective from</label>
+                    <FieldHelp surface="payroll.salary_revision" field="effective_from" label="the effective date" className="mb-2" />
+                  </div>
                   <input type="date" required value={form.effective_from} onChange={(e) => setForm({ ...form, effective_from: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Revision type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Revision type</label>
+                    <FieldHelp surface="payroll.salary_revision" field="revision_type" label="the revision type" className="mb-2" />
+                  </div>
                   <select value={form.revision_type} onChange={(e) => setForm({ ...form, revision_type: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="increment">Increment</option>
                     <option value="promotion">Promotion</option>
@@ -337,11 +347,11 @@ export default function TeamSalaryPage() {
                   </select>
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <input type="text" required value={form.revision_reason} onChange={(e) => setForm({ ...form, revision_reason: e.target.value })} placeholder="Why is this revision being proposed?" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
-              <div className="flex gap-3 pt-4 border-t border-slate-100">
+              <div className="sm:col-span-2 flex gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setProposeMember(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" disabled={submitting} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 flex justify-center items-center gap-2">
                   {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Propose to HR"}

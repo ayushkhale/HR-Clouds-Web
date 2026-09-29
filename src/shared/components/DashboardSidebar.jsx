@@ -118,6 +118,7 @@ function DashboardSidebar({ role = "guest" }) {
   const group = (label, icon, items) => ({ group: label, icon, items });
   const COMP_OFF = DICTIONARY.TERMS.COMP_OFF;
   const REGULARIZATION = DICTIONARY.TERMS.REGULARIZATION;
+  const ENCASHMENT = DICTIONARY.TERMS.ENCASHMENT;
   const inboxBadge = { badge: inboxCount > 0 ? inboxCount : null };
 
   // Self-service pages mount in every workspace under that workspace's prefix,
@@ -237,7 +238,7 @@ function DashboardSidebar({ role = "guest" }) {
             group("Pay", HiCurrencyRupee, [
               link("Salary Components", `${H}/payroll/components`, HiTemplate),
               link("Structure Templates", `${H}/payroll/templates`, HiDocumentReport),
-              link("Statutory & Tax", `${H}/payroll/statutory`, HiScale),
+              link("Tax & Legal Deductions", `${H}/payroll/statutory`, HiScale),
               link("Benefit Plans", `${H}/payroll/benefits`, HiHeart),
               link("Payroll Settings", `${H}/payroll/settings`, HiCog),
               link("Payroll Automation", `${H}/payroll/automation`, HiLightningBolt),
@@ -291,9 +292,9 @@ function DashboardSidebar({ role = "guest" }) {
             link("Bonus Rules", `${H}/payroll/bonus-rules`, HiGift),
             link("Claims", `${H}/payroll/reimbursements`, HiReceiptRefund),
             link("Loans & Advances", `${H}/payroll/loans`, HiCash),
-            link("Encashments", `${H}/payroll/encashments`, HiCash),
+            link(`${ENCASHMENT}s`, `${H}/payroll/encashments`, HiCash),
             link("Pay Differences", `${H}/payroll/arrears`, HiSwitchHorizontal),
-            link("Exits & Settlements", `${H}/payroll/exits`, HiLogout),
+            link("Exits & Final Pay", `${H}/payroll/exits`, HiLogout),
             step(3, "Close and pay"),
             link("Lock Attendance", `${H}/attendance/lock-periods`, HiLockClosed),
             link("Payroll Runs", `${H}/payroll/runs`, HiPlay, { nested: true }),
@@ -320,6 +321,7 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiPaperAirplane,
           items: [
             link("Issued Letters", `${H}/documents/letters`, HiPaperAirplane),
+            link("Letter Proposals", `${H}/documents/letter-proposals`, HiMail),
             link("Organisation Documents", `${H}/documents/organisation`, HiOfficeBuilding),
           ],
         },
@@ -393,7 +395,7 @@ function DashboardSidebar({ role = "guest" }) {
             step(2, "This month"),
             link("Salary Adjustments", `${M}/payroll/adjustments`, HiAdjustments),
             link("Claims & Benefits", `${M}/payroll/reimbursements`, HiReceiptRefund),
-            link("Encashments", `${M}/payroll/encashments`, HiCash),
+            link(`${ENCASHMENT}s`, `${M}/payroll/encashments`, HiCash),
             step(3, "Close and pay"),
             link("Payslips", `${M}/payroll/team-payslips`, HiDocumentText),
           ],
@@ -408,12 +410,14 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         {
-          // A manager can't issue a company document, only propose one to HR.
+          // A manager can't issue anything, only ask HR to: a company document
+          // (#62–#69) or a letter (PDF Phase 4, #145/#146).
           title: "DOCUMENTS WE ISSUE",
           icon: HiPaperAirplane,
           forceDropdown: true,
           items: [
             link("Document Proposals", `${M}/documents/proposals`, HiPaperAirplane),
+            link("Letter Proposals", `${M}/documents/letter-proposals`, HiMail),
           ],
         },
         {

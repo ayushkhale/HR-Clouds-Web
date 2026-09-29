@@ -47,6 +47,11 @@ import {
   ackDefaultFromChoice, ackDefaultToChoice, referenceLengthWarning, referencePatternExample,
   referencePatternProblem,
 } from "../../../../shared/documents/letterIssueMeta";
+import {
+  AUTO_ISSUE_MAX_TEMPLATES, BULK_MAX_SUBJECTS_CEILING, LETTER_PHASE4_SETTING_KEYS,
+} from "../../../../shared/documents/letterProposalMeta";
+import { letterTemplatesOf, letterTitle } from "../../../../shared/documents/letterMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const MB = 1024 * 1024;
 
@@ -60,6 +65,7 @@ const NUMBERS = {
   document_onboarding_completeness_threshold: { min: 0, max: 100, label: "Onboarding target", unit: "%" },
   document_publish_sync_threshold: { min: 1, max: 1_000_000, label: "Hand a publish to the background above", unit: "people" },
   letter_preview_rate_per_hour: { min: 1, max: 1000, label: "Letter previews allowed each hour", unit: "previews" },
+  letter_bulk_max_subjects: { min: 1, max: BULK_MAX_SUBJECTS_CEILING, label: "Most people one batch may go to", unit: "people" },
 };
 
 // Phase 3 settings. Present on the read only once the server has them.
@@ -121,6 +127,12 @@ const PHASE5_KEYS = [
 // so they only appear once the server returns them like every other phase's keys.
 const LETTER_KEYS = LETTER_SETTING_KEYS;
 
+// The four PDF Phase 4 settings (#91–#94), likewise only sent once the server
+// returns them. All four default to today's behaviour, so an organisation that
+// updates its server does not start bulk-issuing, auto-issuing or accepting
+// manager drafts until somebody here turns one on.
+const LETTER_BULK_KEYS = LETTER_PHASE4_SETTING_KEYS;
+
 const REMINDER_DAYS_MAX_ENTRIES = 6;
 
 /**
@@ -141,6 +153,14 @@ function parseReminderDays(text) {
 }
 
 const sameDays = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((n, i) => n === b[i]);
+
+/** Two lists of template codes, order disregarded. */
+const sameCodes = (a, b) => {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((code, i) => code === right[i]);
+};
 
 const toForm = (s) => ({
   ...s,
@@ -169,6 +189,12 @@ const toForm = (s) => ({
   // not an unset value — so it round-trips through a three-way choice rather
   // than a switch, which could only ever say true or false.
   letter_ack_default: ackDefaultToChoice(s.letter_requires_acknowledgement_default),
+  letter_bulk_max_subjects: String(s.letter_bulk_max_subjects ?? 200),
+  // A stored empty list means "auto-issue nothing", which is the default and
+  // has to survive a round trip — so it is an empty array, never a fallback.
+  letter_auto_issue_on_exit: Array.isArray(s.letter_auto_issue_on_exit) ? s.letter_auto_issue_on_exit : [],
+  manager_can_propose_letters: !!s.manager_can_propose_letters,
+  document_notify_letter_issued: !!s.document_notify_letter_issued,
 });
 
 function Card({ title, icon: Icon, children, className = "" }) {
@@ -193,6 +219,18 @@ export default function DocumentSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // The letter catalogue, for the auto-issue picker only. Context rather than
+  // content: if it can't be read, that one control is left out and every other
+  // setting on the page still saves.
+  const [catalog, setCatalog] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    documentsAPI.getLetterTemplates()
+      .then((res) => { if (alive) setCatalog(letterTemplatesOf(res)); })
+      .catch(() => { if (alive) setCatalog([]); });
+    return () => { alive = false; };
+  }, []);
+
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -214,6 +252,7 @@ export default function DocumentSettingsPage() {
   const hasAutomation = !!saved && PHASE4_KEYS.some((k) => k in saved);
   const hasEnterprise = !!saved && PHASE5_KEYS.some((k) => k in saved);
   const hasLetters = !!saved && LETTER_KEYS.some((k) => k in saved);
+  const hasLetterBulk = !!saved && LETTER_BULK_KEYS.some((k) => k in saved);
 
   const problems = useMemo(() => {
     if (!form) return {};
@@ -223,6 +262,7 @@ export default function DocumentSettingsPage() {
       if (PHASE4_KEYS.includes(key) && !hasAutomation) return;
       if (PHASE5_KEYS.includes(key) && !hasEnterprise) return;
       if (LETTER_KEYS.includes(key) && !hasLetters) return;
+      if (LETTER_BULK_KEYS.includes(key) && !hasLetterBulk) return;
       const n = Number(form[key]);
       if (!Number.isFinite(n) || n < r.min || n > r.max) out[key] = `Between ${r.min} and ${r.max} ${r.unit}.`;
     });
@@ -237,7 +277,7 @@ export default function DocumentSettingsPage() {
       out.conflict = "Separate checker and manager direct authority can't both be on — turn one off.";
     }
     return out;
-  }, [form, hasCompliance, hasAutomation, hasEnterprise, hasLetters]);
+  }, [form, hasCompliance, hasAutomation, hasEnterprise, hasLetters, hasLetterBulk]);
 
   const changes = useMemo(() => {
     if (!form || !saved) return {};
@@ -275,12 +315,21 @@ export default function DocumentSettingsPage() {
         letter_default_confidential: !!form.letter_default_confidential,
         letter_requires_acknowledgement_default: ackDefaultFromChoice(form.letter_ack_default),
       } : {}),
+      ...(hasLetterBulk ? {
+        letter_bulk_max_subjects: Number(form.letter_bulk_max_subjects),
+        letter_auto_issue_on_exit: form.letter_auto_issue_on_exit,
+        manager_can_propose_letters: !!form.manager_can_propose_letters,
+        // #94 is deliberately never written from this screen — see the card.
+      } : {}),
     };
     return Object.fromEntries(Object.entries(next).filter(([k, v]) => {
       // A key the server never sent is never sent back.
-      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k) || LETTER_KEYS.includes(k)) && !(k in saved)) return false;
-      // The reminder schedule is an array, so `!==` would call it changed on
-      // every render and leave the Save bar permanently up.
+      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k) || LETTER_KEYS.includes(k) || LETTER_BULK_KEYS.includes(k)) && !(k in saved)) return false;
+      // The reminder schedule and the auto-issue list are arrays, so `!==`
+      // would call them changed on every render and leave the Save bar
+      // permanently up. The auto-issue list is of strings and its order carries
+      // no meaning, so it is compared as a set.
+      if (Array.isArray(v) && v.every((x) => typeof x === "string")) return !sameCodes(v, saved[k]);
       if (Array.isArray(v)) return !sameDays(v, saved[k]);
       // `letter_requires_acknowledgement_default` is legitimately null, and
       // `null !== undefined`, so a server that has the column but no value would
@@ -288,7 +337,7 @@ export default function DocumentSettingsPage() {
       if (v === null && (saved[k] === null || saved[k] === undefined)) return false;
       return v !== saved[k];
     }));
-  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise, hasLetters]);
+  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise, hasLetters, hasLetterBulk]);
 
   const dirty = Object.keys(changes).length > 0;
   const blocked = Object.keys(problems).length > 0;
@@ -620,6 +669,97 @@ export default function DocumentSettingsPage() {
                 <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
                   <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
                   These appear once your server has been updated. Until then letters print with your letterhead, are kept between you and the recipient, and are numbered in the standard way.
+                </p>
+              )}
+            </Card>
+
+            <Card title="Sending letters to many, and letting managers draft them" icon={HiUserGroup}>
+              {hasLetterBulk ? (
+                <>
+                  <div className="py-4">
+                    {numberField("letter_bulk_max_subjects")}
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                      A safety ceiling on “Send to many”, so one mistake can’t put a letter in front of the whole organisation. Everyone in a batch gets their own numbered letter.
+                    </p>
+                  </div>
+
+                  <SwitchRow
+                    title="Let managers draft letters for their team"
+                    description="A manager can ask you to issue a letter to one of their reports. Nothing is issued until you approve it — you decide every one."
+                    checked={form.manager_can_propose_letters}
+                    onChange={(v) => set("manager_can_propose_letters", v)}
+                    note={form.manager_can_propose_letters
+                      ? "What they ask for arrives in Documents → Letter Proposals, and in your Inbox."
+                      : "Managers can’t draft letters. Anything already waiting is unaffected and can still be decided."}
+                  />
+
+                  <div className="py-4">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={`${LABEL} mb-0`}>Issue automatically when somebody leaves</span>
+                      <FieldHelp
+                        surface="documents.letter_settings"
+                        field="letter_auto_issue_on_exit"
+                        label="issuing letters automatically"
+                        ariaLabel="What does issuing letters automatically do?"
+                        size="sm"
+                      />
+                    </div>
+                    {catalog.length === 0 ? (
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Switch a letter on in Letter Templates first, and it can be added here.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {catalog.filter((row) => row.is_enabled && !row.is_orphaned).map((row) => {
+                            const picked = form.letter_auto_issue_on_exit.includes(row.code);
+                            const full = !picked && form.letter_auto_issue_on_exit.length >= AUTO_ISSUE_MAX_TEMPLATES;
+                            return (
+                              <button
+                                key={row.code}
+                                type="button"
+                                disabled={full}
+                                aria-pressed={picked}
+                                onClick={() => set(
+                                  "letter_auto_issue_on_exit",
+                                  picked
+                                    ? form.letter_auto_issue_on_exit.filter((code) => code !== row.code)
+                                    : [...form.letter_auto_issue_on_exit, row.code],
+                                )}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 ${picked ? "border-purple-300 bg-purple-50 text-purple-700" : "border-slate-200 bg-white text-slate-600 hover:border-purple-200"}`}
+                              >
+                                {picked && <HiBadgeCheck className="w-3.5 h-3.5" />}
+                                {letterTitle(row)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-2.5 leading-relaxed">
+                          {form.letter_auto_issue_on_exit.length === 0
+                            ? "Nothing is issued automatically. A leaver’s letters are issued by hand, as now."
+                            : `Issued to each leaver on their last working day, without anybody pressing anything. Up to ${AUTO_ISSUE_MAX_TEMPLATES} letters.`}
+                          {" "}A letter that states somebody’s pay can’t be issued this way — an unreviewed letter must never quote a salary.
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* #94 is registered on the server and deliberately left off:
+                      its "view your letter" link points at a route this app
+                      doesn't have. A switch that must not be used would be worse
+                      than none, so it is stated instead. Letters are still
+                      issued and visible in the portal — only the email is off. */}
+                  <div className="py-4">
+                    <p className="text-sm font-bold text-slate-700">Emailing people when a letter is issued</p>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Not available yet. Letters are still issued and appear in the person’s portal straight away — they just aren’t emailed about it. This is switched on once the link in that email has somewhere to point.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
+                  <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                  These appear once your server has been updated. Until then letters are issued one at a time, managers can’t draft them, and nothing is issued automatically.
                 </p>
               )}
             </Card>

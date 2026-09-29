@@ -14,6 +14,7 @@ import { formatDate } from "../../../../shared/utils/formatUtils";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { interestMethodLabel } from "../../../hr/payroll/runMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -454,19 +455,22 @@ export default function ManagerAdjustmentsPage() {
       {/* Propose Adjustment */}
       {modal === "adj" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose Adjustment</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitAdj} className="p-6 space-y-4">
-              <div>
+            <form onSubmit={submitAdj} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
                 <PersonSelect people={team} value={adjForm.user_id} onChange={(id) => setAdjForm({ ...adjForm, user_id: id })} placeholder="Choose a report" emptyText="No reports found." />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <FieldHelp surface="payroll.adjustment_proposal" field="adjustment_type" label="the adjustment type" className="mb-2" />
+                  </div>
                   <select value={adjForm.adjustment_type} onChange={(e) => setAdjForm({ ...adjForm, adjustment_type: e.target.value, category: e.target.value === "earning" ? "incentive" : "ad_hoc_deduction" })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="earning">Earning (+)</option>
                     <option value="deduction">Deduction (-)</option>
@@ -477,9 +481,12 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required min="1" value={adjForm.amount} onChange={(e) => setAdjForm({ ...adjForm, amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                    <FieldHelp surface="payroll.adjustment_proposal" field="period_month" label="the pay month" className="mb-2" />
+                  </div>
                   <select value={adjForm.month} onChange={(e) => setAdjForm({ ...adjForm, month: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     {MONTHS.map((mo, i) => <option key={i} value={i + 1}>{mo}</option>)}
                   </select>
@@ -490,15 +497,18 @@ export default function ManagerAdjustmentsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Label</label>
+                <div className="flex items-center">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Label</label>
+                  <FieldHelp surface="payroll.adjustment_proposal" field="component_name" label="the payslip label" className="mb-2" />
+                </div>
                 <input type="text" value={adjForm.component_name} onChange={(e) => setAdjForm({ ...adjForm, component_name: e.target.value })} placeholder="e.g. Spot Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <input type="text" required value={adjForm.reason} onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
-              <p className="text-xs text-slate-400 italic">Sent to HR for final approval before it reaches payroll.</p>
-              <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
+              <p className="sm:col-span-2 text-xs text-slate-400 italic">Sent to HR for final approval before it reaches payroll.</p>
+              <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Propose to HR</button>
               </div>
@@ -510,19 +520,22 @@ export default function ManagerAdjustmentsPage() {
       {/* Propose Bonus */}
       {modal === "bonus" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose Team Bonus</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitBonus} className="p-6 space-y-4 overflow-y-auto">
-              <div>
+            <form onSubmit={submitBonus} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-rose-500">*</span></label>
                 <input type="text" required value={bonusForm.name} onChange={(e) => setBonusForm({ ...bonusForm, name: e.target.value })} placeholder="e.g. Sprint Delivery Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <FieldHelp surface="payroll.bonus_proposal" field="bonus_type" label="the bonus type" className="mb-2" />
+                  </div>
                   <select value={bonusForm.bonus_type} onChange={(e) => setBonusForm({ ...bonusForm, bonus_type: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="flat">Flat ₹</option>
                     <option value="percent_of_basic">% of Basic</option>
@@ -534,7 +547,7 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required min="0.01" step="0.01" value={bonusForm.value} onChange={(e) => setBonusForm({ ...bonusForm, value: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
                   <select value={bonusForm.month} onChange={(e) => setBonusForm({ ...bonusForm, month: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
@@ -546,15 +559,15 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required value={bonusForm.year} onChange={(e) => setBonusForm({ ...bonusForm, year: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reports <span className="text-rose-500">*</span></label>
                 <PersonMultiSelect people={team} value={bonusForm.user_ids} onChange={(ids) => setBonusForm((f) => ({ ...f, user_ids: ids }))} placeholder="Choose reports" emptyText="No reports found." />
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={bonusForm.reason} onChange={(e) => setBonusForm({ ...bonusForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
-              <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
+              <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Propose to HR</button>
               </div>
@@ -566,19 +579,22 @@ export default function ManagerAdjustmentsPage() {
       {/* Recommend Loan */}
       {modal === "loan" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Recommend Loan / Advance</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitLoan} className="p-6 space-y-4">
-              <div>
+            <form onSubmit={submitLoan} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
                 <PersonSelect people={team} value={loanForm.user_id} onChange={(id) => setLoanForm({ ...loanForm, user_id: id })} placeholder="Choose a report" emptyText="No reports found." />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="loan_type" label="the loan type" className="mb-2" />
+                  </div>
                   <select value={loanForm.loan_type} onChange={(e) => setLoanForm({ ...loanForm, loan_type: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="salary_advance">Salary Advance</option>
                     <option value="loan">Company Loan</option>
@@ -589,13 +605,19 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required min="1" value={loanForm.principal_amount} onChange={(e) => setLoanForm({ ...loanForm, principal_amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid sm:col-span-2 grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Tenure</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Tenure</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="tenure_months" label="the tenure" className="mb-2" />
+                  </div>
                   <input type="number" required min="1" value={loanForm.tenure_months} onChange={(e) => setLoanForm({ ...loanForm, tenure_months: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="start_period_month" label="the first instalment month" className="mb-2" />
+                  </div>
                   <select value={loanForm.month} onChange={(e) => setLoanForm({ ...loanForm, month: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     {MONTHS.map((mo, i) => <option key={i} value={i + 1}>{mo.slice(0, 3)}</option>)}
                   </select>
@@ -605,12 +627,12 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required value={loanForm.year} onChange={(e) => setLoanForm({ ...loanForm, year: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={loanForm.reason} onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
-              <p className="text-xs text-slate-400 italic">HR reviews and, if approved, generates the EMI schedule.</p>
-              <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
+              <p className="sm:col-span-2 text-xs text-slate-400 italic">HR reviews and, if approved, generates the instalment schedule.</p>
+              <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Send to HR</button>
               </div>

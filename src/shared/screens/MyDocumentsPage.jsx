@@ -28,6 +28,7 @@ import useDocumentTypes from "../documents/useDocumentTypes";
 import { DOCUMENT_PLANES } from "../documents/documentPlanes";
 import { LIVE_STATUSES, displayStatus, groupLabel, listPayload, typePolicyLine } from "../documents/documentMeta";
 import { DocEmptyState, DocErrorState, DocStatusBadge, PRIMARY_BTN, SECONDARY_BTN } from "../documents/ui";
+import FieldHelp from "../fieldHelp/FieldHelp";
 
 const plane = DOCUMENT_PLANES.self;
 const PAGE_SIZE = 200;
@@ -215,10 +216,16 @@ export default function MyDocumentsPage() {
         {view === "mine" ? (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 overflow-x-auto">
-              <FilterTabs options={FILTERS.map((f) => {
-                const n = f.value ? withDisplay.filter((d) => matches(d, f.value)).length : 0;
-                return { ...f, label: n ? `${f.label} (${n})` : f.label };
-              })} value={filter} onChange={setFilter} />
+              {/* The ⓘ sits beside the tablist, never inside it — a non-tab
+                  inside role="tablist" breaks the pattern. `overlay` so the tabs
+                  keep their full width and wrap exactly as before. */}
+              <div className="flex items-center">
+                <FilterTabs options={FILTERS.map((f) => {
+                  const n = f.value ? withDisplay.filter((d) => matches(d, f.value)).length : 0;
+                  return { ...f, label: n ? `${f.label} (${n})` : f.label };
+                })} value={filter} onChange={setFilter} />
+                <FieldHelp surface="documents.my_documents" field="status" label="the document statuses" ariaLabel="What do these statuses mean?" overlay className="translate-x-1" />
+              </div>
             </div>
             {state.error ? (
               <DocErrorState error={state.error} onRetry={load} fallback="Couldn't load your documents." />

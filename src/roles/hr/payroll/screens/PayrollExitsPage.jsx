@@ -108,7 +108,9 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
+      {/* Wide, two columns: nine fields plus the notice-period card made this
+          the longest scroll in payroll at max-w-xl. */}
+      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">{editing ? "Change the exit details" : "Record someone leaving"}</h2>
@@ -118,6 +120,8 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
         </div>
 
         <div className="px-6 py-5 space-y-4 overflow-y-auto">
+          <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4 items-start">
+          <div className="space-y-4">
           {!editing && (
             <div>
               <label className={labelCls}>Who is leaving</label>
@@ -126,7 +130,7 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
           )}
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <div>
+            <div className="sm:col-span-2">
               <label className={labelCls}>Why they are leaving</label>
               <select value={form.exit_type} onChange={(e) => set({ exit_type: e.target.value })} className={fieldCls}>
                 {EXIT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -140,6 +144,8 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
               <label className={labelCls}>Date they resigned <span className="font-medium text-slate-400 normal-case">(optional)</span></label>
               <input type="date" value={form.resignation_date} onChange={(e) => set({ resignation_date: e.target.value })} className={fieldCls} />
             </div>
+          </div>
+
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
@@ -192,9 +198,10 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
             )}
           </div>
 
-          <div>
+          <div className="lg:col-span-2">
             <label className={labelCls}>Notes <span className="font-medium text-slate-400 normal-case">(optional)</span></label>
             <input type="text" maxLength={500} value={form.exit_reason} onChange={(e) => set({ exit_reason: e.target.value })} placeholder="e.g. Relocating abroad" className={fieldCls} />
+          </div>
           </div>
 
           {error && (
@@ -250,7 +257,7 @@ function SettlementPanel({ exit, onClose, onChanged, showToast, nameOf }) {
   const prepare = async () => {
     const who = nameOf(exit.user_id, "this employee");
     const ok = await window.confirm(
-      `Lock in the final settlement for ${who}?\n\n` +
+      `Lock in the final pay for ${who}?\n\n` +
       `The amounts below are added to the ${formatPeriod(period)} payroll and any leave being paid out is taken off their balance now.\n\n` +
       `You can undo this until that payroll is approved.`
     );
@@ -434,12 +441,12 @@ export default function PayrollExitsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Exits & Settlements" />
+      <DashboardTopBar title="Exits & Final Pay" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Exits &amp; Settlements</h1>
-            <p className="text-sm text-slate-500 mt-1">Record a last working day, then work out and pay the final settlement.</p>
+            <h1 className="text-2xl font-bold text-slate-900">Exits &amp; Final Pay</h1>
+            <p className="text-sm text-slate-500 mt-1">Record a last working day, then work out and pay what they are owed.</p>
           </div>
           <button onClick={() => setCreating(true)} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 flex items-center gap-2">
             <HiPlus className="w-4 h-4" /> Record someone leaving

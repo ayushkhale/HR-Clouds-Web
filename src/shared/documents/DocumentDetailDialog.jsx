@@ -35,6 +35,7 @@ import TagsDialog from "./TagsDialog";
 import { supportsTags, tagsOf } from "./reportMeta";
 import { triggerDownload } from "./documentUpload";
 import { useAuth } from "../contexts/AuthContext";
+import FieldHelp from "../fieldHelp/FieldHelp";
 
 const RECOMMENDATION_LABEL = { verify: "Recommends verifying", reject: "Recommends rejecting", none: "No recommendation" };
 
@@ -65,7 +66,10 @@ function RecommendDialog({ doc, subjectName, busy, error, onSubmit, onClose }) {
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-in fade-in zoom-in-95 duration-200"
       >
         <div className="px-6 py-5 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-800">Recommend a decision</h2>
+          <div className="flex items-center">
+            <h2 className="text-lg font-bold text-slate-800">Recommend a decision</h2>
+            <FieldHelp surface="documents.recommendation" field="recommendation" label="a recommendation" ariaLabel="Who decides after my recommendation?" />
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">{doc?.title}{subjectName ? ` · ${subjectName}` : ""}. HR sees your recommendation and note before deciding.</p>
         </div>
         <div className="px-6 py-5 space-y-4">

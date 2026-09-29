@@ -10,6 +10,7 @@ import { HiX, HiExclamationCircle } from "react-icons/hi";
 import { formatDate, formatMoney } from "../utils/formatUtils";
 import { itemBucketKey, LIMIT_PERIOD_LABEL, parseMoney, sameMoney } from "../utils/reimbursementMeta";
 import { prettifyCode } from "../../roles/hr/payroll/runMeta";
+import { HelpLabel } from "../fieldHelp/FieldHelp";
 
 const fieldCls = "w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
 
@@ -174,7 +175,7 @@ export default function ClaimDecisionDialog({ claim, levelLabel, busy = false, e
 
           {limitPreview.length > 0 && (
             <div className="rounded-xl border border-purple-100 bg-white p-3.5">
-              <p className="text-[11px] font-bold text-purple-700 uppercase mb-2">Category limits</p>
+              <p className="text-[11px] font-bold text-purple-700 uppercase mb-2"><HelpLabel text="Category limits" help={{ surface: "payroll.claim_review", field: "category_limits", ariaLabel: "What are category limits?", size: "sm" }} /></p>
               <ul className="space-y-1 text-xs">
                 {limitPreview.map((p) => (
                   <li key={`${p.row.category_code}-${p.row.period_key}`} className={p.over ? "text-rose-600 font-semibold" : "text-slate-600"}>

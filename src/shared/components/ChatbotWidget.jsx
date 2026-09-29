@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   HiXMark, HiPaperAirplane,
@@ -7,8 +7,10 @@ import {
 } from 'react-icons/hi2';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useDocMindChat } from '../hooks/useDocMindChat';
+import { useDocMindChat, DOCMIND_CONFIGURED } from '../hooks/useDocMindChat';
 import { useMayaVisibility } from '../hooks/useMayaVisibility';
+import { MAYA_ASK_EVENT, consumePendingQuestion, registerMaya } from '../maya/mayaBridge';
+import { mayaLayerFor } from '../fieldHelp/fieldHelpLayer';
 
 /* ─── helpers ─── */
 const ts = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -83,8 +85,18 @@ const ChatbotWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  // Opened by a field's "Ask Maya" (FieldHelp → mayaBridge): she then sits above
+  // the form dialog that asked, instead of opening invisibly behind it. Holds
+  // the z-index to use (0 = not raised) — just above the asking dialog.
+  const [raised, setRaised] = useState(0);
+  const [focusRequest, setFocusRequest] = useState(0);
   const messagesEndRef = useRef(null);
   const textareaRef    = useRef(null);
+  const panelRef       = useRef(null);
+  const fabRef         = useRef(null);
+  // A pre-filled question waiting for the caret: null, "now", or "deferred"
+  // (it arrived while she was answering — see the focus effect).
+  const pendingFocusRef = useRef(null);
 
   const { messages, sendMessage, clearMessages, stopStreaming, isLoading, isStreaming, error, config } = useDocMindChat();
   const { hidden } = useMayaVisibility(); // toggled from My Profile
@@ -103,17 +115,94 @@ const ChatbotWidget = () => {
   // Mounted once for the whole app, so an open panel would otherwise follow the
   // user to every page and sit over its content. Close it on navigation; the
   // conversation is kept and "Ask Maya" reopens it.
+  const closeChat = useCallback(() => {
+    setIsOpen(false);
+    setRaised(0);
+    pendingFocusRef.current = null;
+  }, []);
+
   const { pathname } = useLocation();
   useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
+    closeChat();
+  }, [pathname, closeChat]);
+
+  // Tell field help whether she can take a question right now. Hidden from My
+  // Profile or no API key → the "Ask Maya" links are left out, not broken.
+  // Her live query limit goes with it, so a stored question she'd reject is
+  // never offered.
+  useEffect(() => {
+    registerMaya(!hidden && DOCMIND_CONFIGURED, maxLen);
+    return () => registerMaya(false);
+  }, [hidden, maxLen]);
+
+  // A pre-written question from a form field. It is only placed in the input —
+  // never sent: the user reads it and presses Send. The conversation so far is
+  // kept, and the question replaces any half-typed text because the click was
+  // explicit. Declared after the pathname effect so an ask waiting from before
+  // she loaded isn't closed again by the first-mount close.
+  useEffect(() => {
+    if (hidden || !DOCMIND_CONFIGURED) return undefined;
+    const take = () => {
+      const ask = consumePendingQuestion();
+      if (!ask) return;
+      setInputValue(ask.question.slice(0, maxLen));
+      setIsOpen(true);
+      setRaised(mayaLayerFor(ask.layer));
+      pendingFocusRef.current = "now";
+      setFocusRequest((n) => n + 1);
+    };
+    take();
+    window.addEventListener(MAYA_ASK_EVENT, take);
+    return () => window.removeEventListener(MAYA_ASK_EVENT, take);
+  }, [hidden, maxLen]);
+
+  // Caret at the end so Enter sends it. While she's still answering, the input
+  // is disabled and can't take focus — and the "Ask Maya" link that had it has
+  // just unmounted, which used to drop keyboard focus to <body>. Focus then
+  // holds on the panel (so Escape stays hers) and moves to the input when the
+  // stream ends — unless the person has gone back to the page by then.
+  useEffect(() => {
+    if (!pendingFocusRef.current) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    if (el.disabled) {
+      pendingFocusRef.current = "deferred";
+      panelRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    const deferred = pendingFocusRef.current === "deferred";
+    pendingFocusRef.current = null;
+    // Only a *deferred* move checks where focus is now: the ask itself always
+    // takes the caret (focus was still in the form field the person had been
+    // typing in — that's expected), but after waiting out an answer, someone
+    // who has gone back to the page keeps their place.
+    const active = document.activeElement;
+    if (deferred && active && active !== document.body && !panelRef.current?.contains(active)) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [focusRequest, busy]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen]);
+    const inPanel = () => !!panelRef.current?.contains(document.activeElement);
+    // Capture phase: an Escape typed inside Maya closes Maya and stops there.
+    // Several forms close on *any* Escape (the reimbursement claim editor, the
+    // correction request…), and she can now sit on top of them.
+    const onCapture = (e) => {
+      if (e.key !== 'Escape' || !inPanel()) return;
+      e.stopPropagation();
+      closeChat();
+      fabRef.current?.focus({ preventScroll: true });
+    };
+    // Anywhere else, as before: she closes and the page still gets the key.
+    const onBubble = (e) => { if (e.key === 'Escape') closeChat(); };
+    window.addEventListener('keydown', onCapture, true);
+    window.addEventListener('keydown', onBubble);
+    return () => {
+      window.removeEventListener('keydown', onCapture, true);
+      window.removeEventListener('keydown', onBubble);
+    };
+  }, [isOpen, closeChat]);
 
   /* Auto-scroll */
   useEffect(() => {
@@ -153,20 +242,38 @@ const ChatbotWidget = () => {
          landing content        ≤ z-50
          landing header           z-[60]
          Maya (this)              z-[70]
-         dialogs / modals         z-[100] – z-[200]
+         dialogs / modals         z-[100] – z-[150]
+         field-help popover       z-[155]  or host dialog + 5
+         Maya, raised             z-[160]  or host dialog + 10 — opened from a
+                                           field's "Ask Maya" (fieldHelpLayer.js)
+         claim review             z-[160]
+         attachment viewer        z-[165]
+         reason prompt, document
+           recommend / request    z-[170]
+         toasts                   z-[200]
          global alerts            z-[99999]
        Maya has to clear the header — enlarged she reaches the top of the
-       viewport — but must stay under dialogs, which should cover her. */
-    <div className="fixed bottom-6 right-6 z-[70] flex flex-col items-end font-sans select-none pointer-events-none">
+       viewport — but normally stays under dialogs, which should cover her.
+       The exception is a question asked *from* a form: she then has to sit on
+       top of that form, or she opens invisibly behind it and a click toward
+       her lands on its backdrop and closes it. A form above z-150 (the claim
+       review, the z-170 document dialogs) lifts her just above itself.
+       Closing drops her back. */
+    <div
+      className={`fixed bottom-6 right-6 ${isOpen && raised ? '' : 'z-[70]'} flex flex-col items-end font-sans select-none pointer-events-none`}
+      style={isOpen && raised ? { zIndex: raised } : undefined}
+    >
 
       {/* ══ Chat Window ══ */}
       <div
+        ref={panelRef}
         id="maya-chat-panel"
+        tabIndex={-1}
         role="dialog"
         aria-label="Chat with Maya, the HR Clouds assistant"
         aria-hidden={!isOpen}
         {...(isOpen ? {} : { inert: "" })}
-        className={`transition-all duration-300 ease-in-out origin-bottom-right mb-3 rounded-2xl
+        className={`outline-none transition-all duration-300 ease-in-out origin-bottom-right mb-3 rounded-2xl
           shadow-2xl bg-white flex flex-col overflow-hidden border border-purple-100
           ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                    : 'opacity-0 scale-95 translate-y-4 pointer-events-none'}
@@ -203,7 +310,7 @@ const ChatbotWidget = () => {
               className="hidden sm:block p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               {isExpanded ? <HiArrowsPointingIn className="w-4 h-4" /> : <HiArrowsPointingOut className="w-4 h-4" />}
             </button>
-            <button onClick={() => setIsOpen(false)}
+            <button onClick={closeChat}
               aria-label="Close chat" title="Close chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiXMark className="w-4 h-4" />
@@ -352,7 +459,8 @@ const ChatbotWidget = () => {
 
       {/* ══ FAB pill ══ */}
       <button
-        onClick={() => setIsOpen(p => !p)}
+        ref={fabRef}
+        onClick={() => (isOpen ? closeChat() : setIsOpen(true))}
         aria-expanded={isOpen}
         aria-controls="maya-chat-panel"
         aria-label={isOpen ? 'Close the Maya assistant' : 'Open the Maya assistant'}

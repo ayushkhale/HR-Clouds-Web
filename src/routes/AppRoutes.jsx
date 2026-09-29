@@ -159,6 +159,7 @@ const DocumentSettingsPage = lazy(() => import("../roles/hr/documents/screens/Do
 const LetterBrandingPage = lazy(() => import("../roles/hr/documents/screens/LetterBrandingPage"));
 const LetterTemplatesPage = lazy(() => import("../roles/hr/documents/screens/LetterTemplatesPage"));
 const IssuedLettersPage = lazy(() => import("../roles/hr/documents/screens/IssuedLettersPage"));
+const HRLetterProposalsPage = lazy(() => import("../roles/hr/documents/screens/LetterProposalsPage"));
 const OrgDocumentsPage = lazy(() => import("../roles/hr/documents/screens/OrgDocumentsPage"));
 const DocumentCompliancePage = lazy(() => import("../roles/hr/documents/screens/DocumentCompliancePage"));
 const DocumentRequestsPage = lazy(() => import("../roles/hr/documents/screens/DocumentRequestsPage"));
@@ -170,6 +171,7 @@ const ComplianceReportsPage = lazy(() => import("../roles/hr/documents/screens/C
 const DocumentExportsPage = lazy(() => import("../roles/hr/documents/screens/DocumentExportsPage"));
 const TeamDocumentsPage = lazy(() => import("../roles/manager/documents/screens/TeamDocumentsPage"));
 const OrgProposalsPage = lazy(() => import("../roles/manager/documents/screens/OrgProposalsPage"));
+const ManagerLetterProposalsPage = lazy(() => import("../roles/manager/documents/screens/LetterProposalsPage"));
 const TeamCompliancePage = lazy(() => import("../roles/manager/documents/screens/TeamCompliancePage"));
 const TeamRequestsPage = lazy(() => import("../roles/manager/documents/screens/TeamRequestsPage"));
 
@@ -368,14 +370,19 @@ function AppRoutes() {
         <Route path="/dashboard/hr/documents/exports" element={<DocumentExportsPage />} />
         <Route path="/dashboard/hr/documents/types" element={<DocumentTypesPage />} />
         <Route path="/dashboard/hr/documents/settings" element={<DocumentSettingsPage />} />
-        {/* Issuing letters is an HR-plane capability in both PDF phases — no
-            manager or employee route exists to mount, so there is nothing to
-            mirror. A letter a recipient receives is an ORDINARY org document, so
-            they read it on Company Documents (`/company-documents`, mounted in
-            all three workspaces) with no letter-specific screen at all. */}
+        {/* Issuing a letter is still HR-only, and a letter a recipient receives
+            is an ORDINARY org document, so they read it on Company Documents
+            (`/company-documents`, mounted in all three workspaces) with no
+            letter-specific screen.
+
+            PDF Phase 4 adds the one exception: a manager may ASK for a letter
+            (#145/#146). That is a proposal, not a letter, so it mounts as its
+            own screen in both workspaces — the same shared component, HR
+            deciding and the manager asking (§2). */}
         <Route path="/dashboard/hr/documents/letterhead" element={<LetterBrandingPage />} />
         <Route path="/dashboard/hr/documents/letter-templates" element={<LetterTemplatesPage />} />
         <Route path="/dashboard/hr/documents/letters" element={<IssuedLettersPage />} />
+        <Route path="/dashboard/hr/documents/letter-proposals" element={<HRLetterProposalsPage />} />
         <Route path="/dashboard/hr/my-documents" element={<MyDocumentsPage />} />
         <Route path="/dashboard/hr/company-documents" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/hr/my-document-requests" element={<MyRequestsPage />} />
@@ -422,6 +429,7 @@ function AppRoutes() {
         {/* Manager documents */}
         <Route path="/dashboard/manager/documents" element={<TeamDocumentsPage />} />
         <Route path="/dashboard/manager/documents/proposals" element={<OrgProposalsPage />} />
+        <Route path="/dashboard/manager/documents/letter-proposals" element={<ManagerLetterProposalsPage />} />
         <Route path="/dashboard/manager/documents/compliance" element={<TeamCompliancePage />} />
         <Route path="/dashboard/manager/documents/requests" element={<TeamRequestsPage />} />
         <Route path="/dashboard/manager/my-documents" element={<MyDocumentsPage />} />

@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TeamEncashmentsPage.jsx — a manager's view of comp-off cash-outs for their
+// TeamEncashmentsPage.jsx — a manager's view of "Leave Payouts" (the screen
+// word for an encashment, DICTIONARY.TERMS.ENCASHMENT) for their
 // reports (API #216 propose, #217 list).
 //
 // Managers propose; HR decides (Tier B → Tier C). A manager can therefore raise
@@ -22,22 +23,19 @@ import PayrollToast from "../../../hr/payroll/PayrollToast";
 import useToast from "../../../hr/payroll/useToast";
 import PeriodPicker from "../../../hr/payroll/PeriodPicker";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/formatUtils";
+import { formatMoney, formatPeriod, formatDate, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import CompOffPicker from "../../../../shared/components/CompOffPicker";
 import { useTeamNames } from "../../../../shared/attendance/useTeamNames";
 import { ENCASHMENT_STATUS, encashmentStatusMeta, sourceKindLabel, toneClass, amount } from "../../../hr/payroll/phase7Meta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import { DICTIONARY } from "../../../../shared/config/dictionary";
 
 const PAGE_SIZE = 20;
+const ENCASHMENT = DICTIONARY.TERMS.ENCASHMENT;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 const STATUS_FILTERS = [["", "All requests"], ...Object.entries(ENCASHMENT_STATUS).map(([k, v]) => [k, v.label])];
-
-const fmtDays = (v) => {
-  const n = amount(v);
-  if (n === null) return "N/A";
-  return `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? "day" : "days"}`;
-};
 
 function StatusPill({ status }) {
   const meta = encashmentStatusMeta(status);
@@ -80,7 +78,9 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col animate-in fade-in zoom-in-95">
+      {/* Wide: the day picker is tall, and at max-w-lg the pay month and the
+          submit button sat below the fold. Matches HR’s own payout form. */}
+      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Cash out earned leave</h2>
@@ -89,7 +89,8 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
           <button type="button" onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg"><HiX className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto">
+          <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4">
           <div>
             <label className={labelCls}>Who it is for</label>
             <PersonSelect
@@ -101,7 +102,7 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
             />
             <p className="text-[11px] text-slate-400 mt-1.5">Only people who report to you.</p>
           </div>
-          <div>
+          <div className="lg:col-span-2">
             <span className={labelCls}>Which days to cash out</span>
             {/* The API needs the comp-off ids, and no manager endpoint lists a
                 report's approved comp-offs (only /manager/comp-offs/pending,
@@ -111,12 +112,16 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
               userId={form.user_id}
               value={compOffIds}
               onChange={setCompOffIds}
-              unavailable="Picking earned leave days isn't available to managers yet: the system doesn't give managers a list of their team's approved earned leave. Ask HR to cash this out from Payroll › Encashments, where they can tick the days."
+              unavailable="Picking earned leave days isn't available to managers yet: the system doesn't give managers a list of their team's approved earned leave. Ask HR to pay it out from Payroll › Leave Payouts, where they can tick the days."
             />
           </div>
           <div>
-            <label className={labelCls}>Pay it in</label>
+            <div className="flex items-center">
+              <label className={labelCls}>Pay it in</label>
+              <FieldHelp surface="payroll.encashment_proposal" field="period_month" label="the pay month" className="mb-2" />
+            </div>
             <PeriodPicker value={form.period_month} onChange={(v) => setForm({ ...form, period_month: v })} idPrefix="prop-period" selectClassName={fieldCls} yearsBack={1} yearsAhead={1} />
+          </div>
           </div>
           {error && (
             <p className="flex items-start gap-2 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-2.5">
@@ -125,7 +130,7 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+        <div className="shrink-0 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
           {problem && <p className="text-[11px] font-semibold text-slate-500 mb-2.5">{problem}</p>}
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
@@ -186,11 +191,11 @@ export default function TeamEncashmentsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Encashments" />
+      <DashboardTopBar title={`${ENCASHMENT}s`} />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{ENCASHMENT}s</h1>
             <p className="text-sm text-slate-500 mt-1">Earned leave cash-outs: pay your team for days they worked instead of them taking the time off.</p>
           </div>
           <button onClick={() => setProposing(true)} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 flex items-center gap-2">
@@ -231,7 +236,7 @@ export default function TeamEncashmentsPage() {
                       <tr>
                         <th className="px-6 py-3.5">Employee</th>
                         <th className="px-6 py-3.5">What</th>
-                        <th className="px-6 py-3.5">Days</th>
+                        <th className="px-6 py-3.5">How much leave</th>
                         {showMoney && <th className="px-6 py-3.5 text-right">Amount</th>}
                         <th className="px-6 py-3.5">Paid in</th>
                         <th className="px-6 py-3.5">Status</th>
@@ -242,7 +247,7 @@ export default function TeamEncashmentsPage() {
                         <tr key={row.id} {...rowPreviewProps(() => setDetail(row))} className="hover:bg-purple-50/30 transition-colors cursor-pointer">
                           <td className="px-6 py-3.5 font-semibold text-slate-800">{nameOf(row.user_id) || row.employee_code || "Team member"}</td>
                           <td className="px-6 py-3.5 text-slate-600">{sourceKindLabel(row.source_kind)}{row.leave_type_code ? ` · ${row.leave_type_code}` : ""}</td>
-                          <td className="px-6 py-3.5 text-slate-600">{fmtDays(row.days)}</td>
+                          <td className="px-6 py-3.5 text-slate-600">{formatDayCount(row.days)}</td>
                           {showMoney && <td className="px-6 py-3.5 text-right font-bold tabular-nums text-slate-800">{amount(row.amount) === null ? <span className="text-slate-400 font-semibold">N/A</span> : formatMoney(row.amount)}</td>}
                           <td className="px-6 py-3.5 text-slate-600">{formatPeriod(row.period_month)}</td>
                           <td className="px-6 py-3.5"><StatusPill status={row.status} /></td>
@@ -272,7 +277,7 @@ export default function TeamEncashmentsPage() {
           subtitle={`${sourceKindLabel(detail.source_kind)} · ${formatPeriod(detail.period_month)}`}
           badge={<DetailPill tone="onDark">{encashmentStatusMeta(detail.status).label}</DetailPill>}>
           <DetailStats items={[
-            { label: "Days", value: fmtDays(detail.days), icon: HiCalendar },
+            { label: "Leave paid out", value: formatDayCount(detail.days), icon: HiCalendar },
             ...(amount(detail.amount) !== null ? [{ label: "Amount", value: formatMoney(detail.amount), icon: HiCash }] : []),
             { label: "Paid in", value: formatPeriod(detail.period_month), icon: HiCalendar },
           ]} />

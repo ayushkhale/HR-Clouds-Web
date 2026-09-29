@@ -243,7 +243,7 @@ export default function PayrollComponentsPage() {
                 ["Basic component", yesNo(preview.is_basic)],
                 ["Part of CTC", yesNo(preview.is_part_of_ctc)],
                 ["Taxable (TDS)", yesNo(preview.is_taxable)],
-                ["Cut for unpaid leave (LOP)", yesNo(preview.is_lop_applicable)],
+                ["Cut for unpaid days", yesNo(preview.is_lop_applicable)],
                 ["Prorated on joining", yesNo(preview.is_prorated_on_joining)],
                 ["PF applicable", yesNo(preview.pf_applicable)],
                 ["ESI applicable", yesNo(preview.esi_applicable)],
@@ -342,7 +342,7 @@ export default function PayrollComponentsPage() {
                     </label>
                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                       <input type="checkbox" checked={formData.is_lop_applicable} onChange={e => setFormData({...formData, is_lop_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      LOP Applicable
+                      Cut for unpaid days
                     </label>
                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                       <input type="checkbox" checked={formData.pf_applicable} onChange={e => setFormData({...formData, pf_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />

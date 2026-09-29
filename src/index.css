@@ -62,3 +62,19 @@
   }
 }
 
+
+@layer utilities {
+  /* Hides the scrollbar on a strip that carries its own affordances (arrows and
+     edge fades) — the profile tab strip, the document tab rows, the sticky
+     profile column. It was used in half a dozen places before it was ever
+     defined, so those strips showed a stray gutter on Windows and Linux.
+     The element must stay scrollable by wheel, trackpad, touch and keyboard:
+     this only removes the bar, never `overflow`. */
+  .no-scrollbar {
+    scrollbar-width: none;            /* Firefox */
+    -ms-overflow-style: none;         /* old Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;                    /* Chrome, Safari */
+  }
+}

@@ -103,7 +103,8 @@ function ComponentTables({ components, compact = false }) {
     return <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">No component breakdown was recorded for this version.</p>;
   }
 
-  const columns = (tone) => [
+  // `withHelp`: the basis column appears in both tables; its ⓘ goes on the first only.
+  const columns = (tone, withHelp = false) => [
     {
       header: "Component",
       render: (c) => (
@@ -113,7 +114,7 @@ function ComponentTables({ components, compact = false }) {
         </span>
       ),
     },
-    { header: "How it’s worked out", render: (c) => <DetailPill tone="muted">{componentBasis(c)}</DetailPill> },
+    { header: "How it’s worked out", help: withHelp ? { surface: "payroll.salary_structure", field: "calculation_basis", label: "how it’s worked out", ariaLabel: "How is each part worked out?" } : undefined, render: (c) => <DetailPill tone="muted">{componentBasis(c)}</DetailPill> },
     { header: "Monthly", align: "right", render: (c) => <span className={`font-bold tabular-nums ${tone}`}>{money(c.monthly_amount)}</span> },
     { header: "Annual", align: "right", render: (c) => <span className="tabular-nums text-slate-500">{money(c.annual_amount)}</span> },
     ...(compact ? [] : [{ header: "Applies to", render: (c) => <Flags component={c} /> }]),
@@ -131,7 +132,7 @@ function ComponentTables({ components, compact = false }) {
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
       <div>
         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Earnings</p>
-        <DetailTable columns={columns("text-slate-800")} rows={earnings} empty="No earnings recorded." rowKey={(c, i) => c.id || c.component_code || i} />
+        <DetailTable columns={columns("text-slate-800", true)} rows={earnings} empty="No earnings recorded." rowKey={(c, i) => c.id || c.component_code || i} />
         {earnings.length > 0 && total("Total earnings", monthlyEarnings, annualEarnings)}
       </div>
       <div>

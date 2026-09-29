@@ -146,7 +146,7 @@ export const ADJUSTMENT_CATEGORY_LABEL = {
   ad_hoc_earning: "One-time addition",
   ad_hoc_deduction: "One-time deduction",
   recovery: "Recovery",
-  arrear: "Arrear",
+  arrear: "Backdated pay",
 };
 
 // Categories that can be created. `arrear` is rejected at create, but rows with

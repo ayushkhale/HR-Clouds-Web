@@ -3,6 +3,7 @@ import { leaveAPI } from "../../../shared/api";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import { fmtDate, fmtDateTime, parseYMDLocal, todayYMD } from "../../../shared/attendance/dates";
 import { humanize } from "../../../shared/attendance/enums";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { personName } from "../../../shared/attendance/normalize";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
@@ -10,17 +11,12 @@ import {
   HiMail, HiThumbDown, HiThumbUp, HiTrendingUp,
 } from "react-icons/hi";
 import AttachmentLink from "../../../shared/documents/AttachmentLink";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 // Leave endpoints nest the applicant as `applicant: { id, identifier, profile: { first_name, last_name } }`.
 export function leaveApplicantName(request) {
   return personName(request?.applicant || request?.user, "Employee");
 }
-
-const fmtDays = (value) => {
-  const n = parseFloat(value);
-  if (!Number.isFinite(n)) return "N/A";
-  return `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? "day" : "days"}`;
-};
 
 /** "Starts tomorrow" / "Starts in 3 days" / "Started 2 days ago" relative to today. */
 function startsLabel(startYmd, endYmd) {
@@ -115,11 +111,11 @@ export default function LeaveRequestCard({ request, onApprove, onReject, busy = 
                   <p className="text-[10px] font-semibold text-violet-600 mt-0.5">Half day · {request.half_day_type ? humanize(request.half_day_type) : "N/A"}</p>
                 )}
               >
-                {fmtDays(totalDays)}
+                {formatDayCount(totalDays)}
               </Tile>
               <Tile label="Pay">
-                <span className="text-violet-600">{fmtDays(paidDays)} paid</span>
-                {unpaidDays > 0 && <span className="block text-rose-500">{fmtDays(unpaidDays)} unpaid (LWP)</span>}
+                <span className="text-violet-600">{formatDayCount(paidDays, { lower: true })} paid</span>
+                {unpaidDays > 0 && <span className="block text-rose-500">{formatDayCount(unpaidDays, { lower: true })} unpaid</span>}
               </Tile>
             </div>
 
@@ -169,11 +165,11 @@ export default function LeaveRequestCard({ request, onApprove, onReject, busy = 
                 const projected = current - paidDays;
                 return (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span className="text-slate-500">Current <strong className="text-slate-800">{Number.isInteger(current) ? current : current.toFixed(1)}</strong></span>
-                    <span className="text-slate-400">− {paidDays.toFixed(1)} paid</span>
-                    <span className="text-slate-500">→ after approval <strong className={projected < 0 ? "text-rose-600" : "text-violet-700"}>{Number.isInteger(projected) ? projected : projected.toFixed(1)}</strong></span>
+                    <span className="text-slate-500">Current <strong className="text-slate-800">{formatDayCount(current)}</strong></span>
+                    <span className="text-slate-400">− {formatDayCount(paidDays, { lower: true })} paid</span>
+                    <span className="text-slate-500">→ after approval<FieldHelp surface="leaves.approval" field="balance_after" label="the balance after approval" ariaLabel="What happens to their balance?" size="sm" /> <strong className={projected < 0 ? "text-rose-600" : "text-violet-700"}>{formatDayCount(projected)}</strong></span>
                     {projected < 0 && (
-                      <span className="flex items-center gap-1 text-rose-600 font-semibold"><HiExclamationCircle className="w-3.5 h-3.5" /> Goes negative — approval may hit the overdraft limit.</span>
+                      <span className="flex items-center gap-1 text-rose-600 font-semibold"><HiExclamationCircle className="w-3.5 h-3.5" /> Goes negative — approval may use up the extra days allowed below zero.</span>
                     )}
                   </div>
                 );

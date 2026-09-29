@@ -5,6 +5,7 @@ import { DICTIONARY } from "../../../../shared/config/dictionary";
 import { attendanceErrorMessage } from "../../../../shared/utils/attendanceErrors";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import { COMP_OFF_FILTERS } from "../../../../shared/attendance/enums";
+import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import { employeeCode, entityId, personName } from "../../../../shared/attendance/normalize";
 import { fmtDate, fmtHours, ymdOnly } from "../../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "../../../../shared/attendance/events";
@@ -166,7 +167,7 @@ function AttendanceCompOffsPage() {
                           </td>
                           <td className="px-5 py-3 text-xs whitespace-nowrap">{fmtDate(workedDate(co))}</td>
                           <td className="px-5 py-3 text-xs">{co.worked_hours != null ? fmtHours(co.worked_hours) : "N/A"}</td>
-                          {showCredit && <td className={`px-5 py-3 text-xs ${creditDays(co) != null ? "font-bold text-violet-600" : "text-slate-400"}`}>{creditDays(co) != null ? `${creditDays(co)} ${Number(creditDays(co)) === 1 ? "day" : "days"}` : "N/A"}</td>}
+                          {showCredit && <td className={`px-5 py-3 text-xs ${creditDays(co) != null ? "font-bold text-violet-600" : "text-slate-400"}`}>{formatDayCount(creditDays(co))}</td>}
                           <td className="px-5 py-3 text-xs">{expiryDate(co) ? fmtDate(expiryDate(co)) : "N/A"}</td>
                           <td className="px-5 py-3"><StatusBadge kind="compoff" status={co.status} /></td>
                         </tr>

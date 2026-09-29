@@ -5,6 +5,8 @@ HR Clouds Web — React SPA for HR / payroll / attendance / documents. Four work
 
 House rules below are decisions already made, most after something was built wrong
 once. Don't relitigate them. `.agents/rules/uirule.md` is the short form of §4.
+Anything new ships with its ⓘ field help already wired (§10) — that pass is part
+of the build, not a follow-up someone has to ask for.
 
 React 18 · Vite 6 · React Router 7 · Tailwind 3.4 · ESLint 9 flat · Recharts ·
 icons from `react-icons/hi` only · motion is in-house (`shared/motion`) — **never add
@@ -99,8 +101,20 @@ splits Earnings / Deductions side by side. Reference: the salary history dialog 
 `ReasonDialog`). A form is not a record inspector. Big forms copy Create Attendance
 Policy instead: `max-w-5xl`/`6xl`, `max-h-[92vh]`, uppercase 11px labels, pinned footer.
 
+**A form dialog must not make the user scroll.** Four or more fields means wide
+and gridded — `max-w-3xl` up to `5xl`, `grid sm:grid-cols-2 gap-x-6 gap-y-4`,
+long fields (`PersonSelect`, `CompOffPicker`, a reason box) on `sm:col-span-2`.
+Wrap an existing pair in `className="contents"` to lift it into the form's own
+grid rather than re-nesting every field. `max-w-md` on a multi-field form is a
+bug, not a style: salary adjustments, leave payouts, exits, document requests
+and attendance corrections were all fixed this way. Single-field confirms,
+reason prompts and person pickers stay narrow (`max-w-sm`/`md`).
+
 **Stacking:** `DetailDialog` `z-[140]` < `AttachmentViewerDialog` `z-[165]` <
 `ReasonDialog` `z-[170]`. Render those as **siblings** of `DetailDialog`, not children.
+The ⓘ popover and a Maya raised by "Ask Maya" sit just above whatever dialog hosts
+the ⓘ (`z-[155]`/`z-[160]` up to a z-150 host, host + 5 / + 10 above that — see
+`fieldHelp/fieldHelpLayer.js`); keep new layers below the toasts at `z-[200]`.
 
 ## 4. Never show an ID
 
@@ -140,7 +154,12 @@ green/amber/orange/blue class.
 Don't rebuild these: `GenderAvatar` (never hand-roll initials or `<img>` avatars) ·
 `TimeField` (**never `<input type="time">`**) · `PersonPicker` · `FilterTabs`
 (`attendance/ui.jsx` — tabs left, search right, counts in labels; a plain `<select>` of
-roles was rejected) · `ReasonDialog` · `Skeleton` · `SalaryStructurePanel`.
+roles was rejected) · `ReasonDialog` · `Skeleton` · `SalaryStructurePanel` ·
+`ProfileTabStrip` (the employee-profile tabs, shared by HR and the manager —
+it **scrolls horizontally**; a wrapped bar grew to three rows on a laptop, and a
+bare scroll strip hid the last tabs, so the strip carries arrows, edge fades and
+scroll-the-selected-tab-into-view. Don't turn it back into `flex-wrap`).
+`.no-scrollbar` is defined in `index.css`; it hides the bar only, never `overflow`.
 
 ## 6. Wording
 
@@ -154,7 +173,22 @@ Established: Override Config → **Customise Leave Rules** · accrued → **give
 upfront/monthly → **All at once / Every month** · carry forward → **kept for next
 year** · probation → **wait after joining** · overdraft → **extra days below zero** ·
 TDS YTD → **Income tax so far** · Net Pay → **what reaches the bank** · Gross →
-**before deductions — not take-home**.
+**before deductions — not take-home** · encashment → **Leave Payout** (the action
+is "pay out", never "encash" or "cash out") · Exits & Settlements → **Exits &
+Final Pay** · Statutory & Tax → **Tax & Legal Deductions** · statutory deductions
+→ **PF, ESI and tax** (or "deductions required by law") · LOP / LWP → **unpaid
+days** · EMI → **monthly repayment** · disbursement → **money paid out on** ·
+arrear → **backdated pay**. Words with a single source live in
+`DICTIONARY.TERMS` (`shared/config/dictionary.js`) — put a new one there rather
+than typing it on each screen.
+
+**A day is whole or half, never a decimal.** `formatDayCount()`
+(`shared/utils/formatUtils.js`) is the only way to print a day count, in leave,
+comp-off, payout, payroll and attendance alike: `0.5` → **"1 Half Day"**, `2.5` →
+**"2 Days and 1 Half Day"**, with `{ lower: true }` mid-sentence. Never `2.5`,
+`2½` or "2 and a half". The phrase carries its own unit, so a tile or column
+beside it must not add a "days" caption — say "left", "paid", "unpaid". Eight
+hand-rolled copies of this disagreed with each other once; don't write a ninth.
 
 Use `’` (U+2019) in JSX text — `react/no-unescaped-entities` is on.
 
@@ -176,6 +210,13 @@ Use `’` (U+2019) in JSX text — `react/no-unescaped-entities` is on.
 - Distinguish **"nothing on file"** from **"couldn't load"**: a failed read shows
   "Couldn't load", never "Not set" (which invites a duplicate assignment). Use a
   sentinel, not `null`, for a failed lookup.
+- **A decision that empties a queue must clear its count without a reload.** There
+  is no query cache, so emit `emitAttendanceChanged(ATTENDANCE_EVENTS.<kind>)`
+  (`shared/attendance/events.js`) the moment an approve/reject/cancel succeeds, and
+  list the kind in `INBOX_EVENT_KINDS` — the sidebar badge and the inbox cards both
+  subscribe to it. The bus is app-wide despite the folder: leave, claims, loans,
+  salary proposals and tax declarations all emit. A new approval queue joins that
+  list on the day it is added, or its badge goes stale until F5.
 - Pollers check `document.visibilityState`. Bulk writes use `settleWithLimit`, never a
   sequential await loop. Duplicate dev requests are StrictMode, not a bug.
 
@@ -202,3 +243,54 @@ implement**), plus `md_payrolls/`, `md_docs/`, `md_attendance/`, `md_leave/`,
 The spec is occasionally wrong. When live behaviour contradicts it, trust the live API,
 fix the code, and record the deviation in the file's header comment so the next person
 doesn't "correct" it back.
+
+## 10. ⓘ help and "Ask Maya" — part of every new form and screen
+
+**Ship every new development with its ⓘ help already in it — nobody has to ask.**
+A feature, form, dialog, column, tile or data screen is not done until it has had a
+field-help pass, in every role that renders it. Treat it as part of the build, like
+the empty state or the loading skeleton: same task, same commit, same lint run. The
+same pass runs when you change what an existing field means — a reworded label, a
+new status, a changed calculation — because the old hint is now wrong, not missing.
+
+**How much help a thing gets follows how far it sits from everyday knowledge.** Walk
+the new surface and rate each field on that distance:
+
+| The field is… | Do |
+|---|---|
+| Ordinary (name, date, title, amount, reason, search, notes) | No ⓘ — never |
+| Ours: a system-specific field, toggle or state set we invented | ⓘ saying what it changes for the person |
+| Domain: a payroll, tax, leave, attendance or compliance term | ⓘ in plain words (§6), plus an Ask Maya question |
+| Derived: a figure we computed (balances, pro-rata, net, accruals) | ⓘ saying what it is worked out from |
+| On someone else's behalf: an HR/manager choice that lands on an employee | ⓘ saying who feels the consequence |
+
+Keep the cap: at most 4 per screen state, once per concept, and nothing where the
+screen already explains itself. If the whole surface is ordinary fields, it gets
+none — say so when you report the work rather than forcing one in.
+
+**Reporting:** every hand-off of new UI states the field-help outcome in one line —
+the surface id, how many hints, and any Ask Maya questions added, or "no field
+qualifies" with the reason. A hand-off that doesn't mention ⓘ help is unfinished.
+
+- **One source:** `src/shared/fieldHelp/fieldHelp.json` (v2 `surfaces`). Surface
+  ids name the domain, not the role (`attendance.approval_queue`); keys are the API
+  payload/response key, never the label. No hint text in JSX. The dev-only
+  validator in `fieldHelpMeta.js` flags mistakes.
+- **Wiring:** `<FieldHelp>` *beside* a form `<label>` in a `flex items-center` row
+  (never inside it); `HelpLabel` on a `th`, tile or heading; the `help` hook on
+  `DetailGrid`/`DetailStats` items, `DetailSection` and `DetailTable` columns.
+  List-shaped data is wired by key and the config chooses which rows get one.
+- **Placement:** no layout shift (measure at 1366 and 390; `overlay` where a label
+  would wrap), never inside another interactive element or a tablist, headers not
+  cells, once per concept per screen, at most 4 per screen state, and not where the
+  screen already explains it. The header of `FieldHelp.jsx` has the full rules.
+- **Workspaces:** gate each entry to every workspace that renders its component —
+  a component shared by manager and HR gets both (§2). Write the hint in a voice
+  that is right for all of them ("the employee", not "your report"); a screen about
+  someone else never reuses an entry written to the employee about their own data.
+- **Wording:** hint ≤ 160 characters, the consequence, not the mechanism (§6); no
+  figures that change with law, state or year. Settle facts from code and
+  `public/ref docs/`, or leave them out. Ask Maya questions are static and
+  conceptual — never a name, amount or id — and Maya **never auto-sends**.
+- Briefs and history: `.agents/prompts/*-ask-maya.md` and the audit report in
+  `public/ref docs/md_updates/`.

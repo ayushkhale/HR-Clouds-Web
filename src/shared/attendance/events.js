@@ -13,6 +13,12 @@
 //   anomaly        → sidebar inbox badge, manager lists
 //   config         → shift/policy selectors that are already mounted
 //   lock           → lock page, recompute consumers
+//
+// The bus is app-wide despite living in `attendance/`: the inbox counts a
+// manager or HR sees span leave, claims, loans, salary proposals, tax
+// declarations and letter proposals too, and each of those decisions has to clear the badge and the
+// inbox card without a reload. Every kind below marked in INBOX_EVENT_KINDS is
+// emitted the moment such a decision succeeds.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef } from "react";
@@ -25,14 +31,32 @@ export const ATTENDANCE_EVENTS = Object.freeze({
   ANOMALY: "anomaly",
   CONFIG: "config",
   LOCK: "lock",
+  // Decided outside attendance, but counted in the same inbox.
+  LEAVE: "leave",
+  CLAIM: "claim",
+  LOAN: "loan",
+  SALARY_PROPOSAL: "salary_proposal",
+  TAX_DECLARATION: "tax_declaration",
+  // A manager's letter proposal waiting on HR (PDF Generation Phase 4, #148).
+  LETTER_PROPOSAL: "letter_proposal",
 });
 
-/** Kinds that change the manager approvals inbox count. */
+/**
+ * Kinds that change an inbox count, for the sidebar badge and the inbox cards.
+ * A queue whose decisions are not emitted here goes stale until a reload, so a
+ * new approval queue belongs in this list on the day it is added.
+ */
 export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.REGULARIZATION,
   ATTENDANCE_EVENTS.OVERTIME,
   ATTENDANCE_EVENTS.COMPOFF,
   ATTENDANCE_EVENTS.ANOMALY,
+  ATTENDANCE_EVENTS.LEAVE,
+  ATTENDANCE_EVENTS.CLAIM,
+  ATTENDANCE_EVENTS.LOAN,
+  ATTENDANCE_EVENTS.SALARY_PROPOSAL,
+  ATTENDANCE_EVENTS.TAX_DECLARATION,
+  ATTENDANCE_EVENTS.LETTER_PROPOSAL,
 ];
 
 const listeners = new Set();

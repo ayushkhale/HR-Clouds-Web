@@ -36,6 +36,7 @@ import { documentTypeName, orgDisplayStatus } from "../documents/orgDocumentMeta
 import { ackBlockOf, actionWindow, asksForSomething, hasEvidence, myComplianceState, nextActionOf, obligationLabel } from "../documents/complianceMeta";
 import { DocEmptyState, DocErrorState, DocIcon, PRIMARY_BTN } from "../documents/ui";
 import { ComplianceStateBadge, DueChip, OrgStatusBadge, RecipientStateBadge } from "../documents/orgUi";
+import FieldHelp from "../fieldHelp/FieldHelp";
 
 const PAGE = 24;
 const plane = ORG_PLANES.self;
@@ -232,7 +233,13 @@ export default function IssuedDocumentsPage() {
           <Tile label="Done" value={count(tallies.completed)} icon={HiCheckCircle} tone="text-violet-500" onClick={() => pick("completed")} active={filter === "completed"} />
         </div>
 
-        <FilterTabs options={FILTERS} value={filter} onChange={pick} />
+        {/* Beside the tablist, not inside it (a non-tab in role="tablist" breaks
+            it). `overlay` so the tabs keep their full width: on a phone they sit
+            2px short of wrapping onto a second row. */}
+        <div className="flex items-center">
+          <FilterTabs options={FILTERS} value={filter} onChange={pick} />
+          <FieldHelp surface="documents.company_documents" field="compliance_state" label="the document statuses" ariaLabel="What do these statuses mean?" overlay className="translate-x-1" />
+        </div>
 
         {state.error ? (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">

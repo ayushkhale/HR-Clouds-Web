@@ -8,6 +8,7 @@ import { fmtDate, fmtDateTime, ymdOnly } from "../../../shared/attendance/dates"
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { AnomalyDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 function AttendanceAnomaliesPage() {
   const [status, setStatus] = useState("open");
@@ -43,7 +44,7 @@ function AttendanceAnomaliesPage() {
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                     <tr>
                       <th className="px-6 py-3.5">Date</th>
-                      <th className="px-6 py-3.5">Flag</th>
+                      <th className="px-6 py-3.5"><HelpLabel text="Flag" help={{ surface: "attendance.anomalies", field: "type", label: "an attendance flag" }} /></th>
                       <th className="px-6 py-3.5">Severity</th>
                       <th className="px-6 py-3.5">Status</th>
                       <th className="px-6 py-3.5">Sorted out</th>

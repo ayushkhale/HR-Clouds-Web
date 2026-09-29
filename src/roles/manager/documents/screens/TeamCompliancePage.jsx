@@ -24,6 +24,7 @@ import { complianceListOf } from "../../../../shared/documents/complianceMeta";
 import { ComplianceStateBadge, DueChip, RecipientStateBadge } from "../../../../shared/documents/orgUi";
 import { DocEmptyState, DocErrorState, Switch } from "../../../../shared/documents/ui";
 import { isTeamVisibilityOff } from "../../../../shared/utils/documentErrors";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE = 25;
 
@@ -68,7 +69,7 @@ function MemberCard({ row, person, open, onToggle }) {
               <thead className="bg-slate-50/80 text-[10px] uppercase font-bold tracking-wider text-slate-400">
                 <tr>
                   <th className="px-4 py-2">Document</th>
-                  <th className="px-3 py-2">Where they’re at</th>
+                  <th className="px-3 py-2"><HelpLabel text="Where they’re at" help={{ surface: "documents.team_compliance", field: "compliance_state", ariaLabel: "What do these states mean?", size: "sm" }} /></th>
                   <th className="px-3 py-2">Due</th>
                 </tr>
               </thead>

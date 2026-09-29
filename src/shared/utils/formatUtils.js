@@ -7,6 +7,46 @@ export const formatDecimalHours = (val) => {
   return `${hrs}h ${mins}m`;
 };
 
+// ── Day counts ───────────────────────────────────────────────────────────────
+// A day off is only ever whole or half — there is no quarter day anywhere in
+// leave, comp-off, encashment or payroll. The API still sends decimals
+// ("2.50"), and "2.5 days" reads as a sum to work out rather than a number of
+// days, so it is never printed. A value that is not a multiple of a half is a
+// backend bug; it is snapped to the nearest half instead of leaking a decimal.
+//
+// ONE rendering, everywhere, and it spells the half out:
+//   0.5 → "1 Half Day"      2   → "2 Days"
+//   1   → "1 Day"           2.5 → "2 Days and 1 Half Day"
+// No decimal, no "2½", no "2 and a half" — this is the only form the screen is
+// allowed to use. Because the phrase carries its own unit, a tile must NOT put
+// a "days" caption beside it; say "left", "paid", "unpaid" instead.
+// Eight near-identical local copies of this used to disagree with each other;
+// don't write a ninth.
+const halvesOf = (val) => {
+  const n = parseFloat(val);
+  if (!Number.isFinite(n)) return null;
+  return { halves: Math.round(Math.abs(n) * 2), sign: n < 0 ? "-" : "" };
+};
+
+/**
+ * "1 Half Day" / "1 Day" / "2 Days and 1 Half Day". Pass `lower` mid-sentence,
+ * where Title Case would read as a proper noun.
+ */
+export const formatDayCount = (val, { fallback = "N/A", lower = false } = {}) => {
+  const parsed = halvesOf(val);
+  if (!parsed) return fallback;
+  const { halves, sign } = parsed;
+  let text = "0 Days";
+  if (halves > 0) {
+    const whole = Math.floor(halves / 2);
+    const parts = [];
+    if (whole > 0) parts.push(`${sign}${whole} ${whole === 1 ? "Day" : "Days"}`);
+    if (halves % 2 === 1) parts.push(`${whole > 0 ? "" : sign}1 Half Day`);
+    text = parts.join(" and ");
+  }
+  return lower ? text.toLowerCase() : text;
+};
+
 // "2026-09" → "September 2026". Payroll periods are always YYYY-MM strings.
 export const formatPeriod = (periodMonth) => {
   if (!periodMonth) return "N/A";

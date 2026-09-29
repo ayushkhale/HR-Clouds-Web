@@ -5,10 +5,20 @@
 // another, each a grid of labelled values. Compose the body from DetailSection /
 // DetailGrid / DetailStats / DetailTable / DetailText.
 // Empty values always render as "N/A" (never "—" or "-").
+//
+// ⓘ help (fieldHelp.json): a DetailGrid/DetailStats item may carry
+// `help: { surface, field }`, and DetailSection takes a `help` prop. All three
+// are optional and render nothing extra without it — HR and manager screens
+// share these components. The config decides which workspaces see an ⓘ. A
+// section's ⓘ sits in the header's right-hand area, never inside the fold
+// toggle <button>: nested controls are invalid and the click would fold it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useId, useRef, useState } from "react";
 import { HiX, HiInformationCircle, HiChevronDown } from "react-icons/hi";
+import FieldHelp, { HelpLabel } from "../fieldHelp/FieldHelp";
+import { getFieldHelp } from "../fieldHelp/fieldHelpMeta";
+import { useWorkspace } from "../contexts/WorkspaceContext";
 
 /** null / undefined / "" / NaN → "N/A". Numbers (including 0) are kept. */
 export function displayValue(value, fallback = "N/A") {
@@ -124,10 +134,15 @@ export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, bad
  * can be folded down to the parts you need. `defaultOpen={false}` starts it
  * folded (for long tables); `collapsible={false}` pins it open.
  */
-export function DetailSection({ title, icon: Icon, action, children, className = "", collapsible = true, defaultOpen = true }) {
+export function DetailSection({ title, icon: Icon, action, help, children, className = "", collapsible = true, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   const bodyId = useId();
   const canCollapse = collapsible && !!title;
+  // Resolved here, not left to FieldHelp: a `help` with nothing for this
+  // workspace must not open an empty right-hand slot (it takes 12px and would
+  // shift the title in HR/manager, who share this component).
+  const workspace = useWorkspace();
+  const showHelp = !!help && !!getFieldHelp(help.surface, help.field, workspace);
   const heading = title && (
     <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 min-w-0">
       {Icon && <Icon className="w-4 h-4 text-purple-600 shrink-0" />}
@@ -136,7 +151,7 @@ export function DetailSection({ title, icon: Icon, action, children, className =
   );
   return (
     <section className={`border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs ${className}`}>
-      {(title || action) && (
+      {(title || action || showHelp) && (
         <div className={`flex items-center justify-between gap-3 bg-slate-50/80 ${open ? "border-b border-slate-100" : ""}`}>
           {canCollapse ? (
             <button
@@ -151,8 +166,9 @@ export function DetailSection({ title, icon: Icon, action, children, className =
           ) : (
             <div className="flex-1 min-w-0 px-5 py-3.5">{heading}</div>
           )}
-          {(action || canCollapse) && (
+          {(action || canCollapse || showHelp) && (
             <div className="flex items-center gap-2 pr-3 shrink-0">
+              {showHelp && <FieldHelp surface={help.surface} field={help.field} label={help.label || (typeof title === "string" ? title : undefined)} />}
               {action}
               {canCollapse && (
                 <button
@@ -182,14 +198,14 @@ const GRID_COLS = {
   4: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
 };
 
-/** items: [{ label, value, mono?, wide? }] or [label, value] tuples. Labels sit above their values, like form fields. */
+/** items: [{ label, value, mono?, wide?, help? }] or [label, value] tuples. Labels sit above their values, like form fields. */
 export function DetailGrid({ items, cols = 4 }) {
   const rows = items.map((it) => (Array.isArray(it) ? { label: it[0], value: it[1] } : it));
   return (
     <dl className={`grid gap-4 ${GRID_COLS[Math.min(cols, 4)] || GRID_COLS[4]}`}>
-      {rows.map(({ label, value, mono, wide }, i) => (
+      {rows.map(({ label, value, mono, wide, help }, i) => (
         <div key={`${label}-${i}`} className={`min-w-0 ${wide ? "sm:col-span-2" : ""}`}>
-          <dt className={LABEL}>{label}</dt>
+          <dt className={LABEL}><HelpLabel text={label} help={help} /></dt>
           <dd className={`${FIELD} break-words ${isEmpty(value) ? "text-slate-400" : "text-slate-800 font-semibold"} ${mono ? "font-mono" : ""}`}>
             <span className="min-w-0 break-words">{displayValue(value)}</span>
           </dd>
@@ -199,16 +215,16 @@ export function DetailGrid({ items, cols = 4 }) {
   );
 }
 
-/** Headline numbers. items: [{ label, value, icon?, hint? }] */
+/** Headline numbers. items: [{ label, value, icon?, hint?, help? }] */
 export function DetailStats({ items }) {
   const cols = items.length >= 4 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : items.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
   return (
     <div className={`grid gap-4 ${cols}`}>
-      {items.map(({ label, value, icon: Icon, hint }) => (
+      {items.map(({ label, value, icon: Icon, hint, help }) => (
         <div key={label} className="border border-slate-200/80 rounded-2xl bg-white shadow-2xs px-4 py-3.5 flex items-center gap-3 min-w-0">
           {Icon && <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>}
           <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{label}</p>
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider"><HelpLabel text={label} help={help} /></p>
             <p className={`text-lg font-bold mt-0.5 truncate ${isEmpty(value) ? "text-slate-400" : "text-slate-900"}`}>{displayValue(value)}</p>
             {hint && <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>}
           </div>
@@ -230,7 +246,7 @@ export function DetailPill({ children, tone = "soft", className = "" }) {
   return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${tones[tone] || tones.soft} ${className}`}>{children}</span>;
 }
 
-/** columns: [{ header, render(row, i), align? }] */
+/** columns: [{ header, render(row, i), align?, help? }] — `help` ({ surface, field, … }) puts an ⓘ on that header; none in this workspace → the plain text, as before. */
 export function DetailTable({ columns, rows, empty = "No records.", rowKey = (r, i) => r.id ?? i }) {
   const alignCls = (c) => (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "");
   return (
@@ -238,7 +254,7 @@ export function DetailTable({ columns, rows, empty = "No records.", rowKey = (r,
       <table className="w-full text-left text-xs">
         <thead className="bg-slate-50/80 text-[11px] uppercase font-bold tracking-wider text-slate-600 border-b border-slate-100">
           <tr>
-            {columns.map((c) => <th key={c.header} className={`px-4 py-3 whitespace-nowrap ${alignCls(c)}`}>{c.header}</th>)}
+            {columns.map((c) => <th key={c.header} className={`px-4 py-3 whitespace-nowrap ${alignCls(c)}`}><HelpLabel text={c.header} help={c.help} /></th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 bg-white">

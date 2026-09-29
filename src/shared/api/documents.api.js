@@ -57,6 +57,23 @@
 // Source of truth: md_pdfs/phase2_api_analysis.md, combined_api_analysis-7.md
 // §4–§5 and 2026-09-27_pdf-generation-phase2-letter-issuance-and-reissue.md.
 //
+// PDF Generation Phase 4 (#143–#150) adds three more ways a letter gets issued,
+// all of them driving the SAME #139 issuance path underneath — bulk (#143/#144
+// + the manual queue drain #147), a manager maker–checker (#145/#146 proposing,
+// #148/#149/#150 deciding), and an unattended auto-issue on a leaver's last day
+// (no endpoint at all: a cron and setting #92). #139's wire contract is
+// unchanged; its five new parameters are internal to the server.
+//
+// It also overturns one thing this file used to state as permanent: there IS
+// now a manager letters plane. `/documents/manager/letters` is the first letter
+// endpoint outside `/documents/hr`, and it is gated twice — by role and by the
+// org setting `manager_can_propose_letters` (#93, default off). What a manager
+// creates there is a PROPOSAL, not a letter; no letter exists until HR approves
+// it. A recipient still reads the finished letter through #70/#71 as an
+// ordinary org document, exactly as before.
+// Source of truth: md_pdfs/phase4_api_analysis-2.md, combined_api_analysis-8.md
+// and 2026-09-29's pdf_letters_phase4_2026_09_29.md.
+//
 // Uploads never pass through this API: an "issue" call returns a pre-signed
 // S3 PUT URL, the browser sends the bytes straight to S3, then "confirm" asks
 // the server to check the object landed. See shared/documents/documentUpload.js.
@@ -846,10 +863,12 @@ export const documentsAPI = {
   //  `origin: "generated"` (Phase 2 §1). That one fact decides almost
   //  everything about this branch:
   //
-  //   · There is no employee or manager letters endpoint and there never will
-  //     be. A recipient reads their letter through #70/#71 and downloads it
+  //   · A recipient reads their letter through #70/#71 and downloads it
   //     through #72/#128, exactly as they read any company document — so
-  //     nothing on the self or manager plane needs to know letters exist.
+  //     nothing on the self plane needs to know letters exist. (Phase 2 said
+  //     the same of the manager plane; Phase 4's #145/#146 proposal endpoints
+  //     changed that, and they are the only two. A manager still cannot read,
+  //     issue or reissue a letter.)
   //   · None of these four replies carries a `storage_key`, a view URL, HTML or
   //     a view-model. To put the PDF in front of somebody, HR asks #57
   //     (`orgGetViewUrl`) for a signed link, the same as for an upload.
@@ -942,4 +961,126 @@ export const documentsAPI = {
    * has been withdrawn — reissue the live one instead.
    */
   reissueLetter: (id, body) => post(`${HR}/letters/${seg(id)}/reissue`, body),
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  BULK, PROPOSALS AND THE RENDER QUEUE — PDF Generation Phase 4 (#143–#150).
+  //
+  //  Three drivers over one issuance path. What makes this branch different from
+  //  every other one in this file:
+  //
+  //   · BULK DOES NOT ISSUE ANYTHING WHILE YOU WAIT. #143 answers 202 with a
+  //     batch id and nothing else; the letters are drawn afterwards by a
+  //     15-minute worker, or sooner if somebody calls #147. So every bulk screen
+  //     is a poll of #144, never a response reader.
+  //   · THERE IS NO "LIST MY BATCHES" ENDPOINT. #144 answers about one batch id
+  //     and that id exists nowhere else — lose it and the batch becomes
+  //     unreachable even though it is still running. `recentLetterBatches.js`
+  //     keeps the handles this browser has been given.
+  //   · THE TWO WRITES THAT ISSUE A LETTER TAKE NO IDEMPOTENCY KEY. #149 and a
+  //     batch item are keyed server-side on a salted value (`proposal:{id}`,
+  //     `batch:{id}:{subject}`), which is what makes approve-once true. Sending
+  //     a client key here would be a 400 on #149 and would defeat the guarantee.
+  //     Only #143 takes an OPTIONAL batch-level key, and only to collapse a
+  //     double-submitted batch — it is not the per-letter key.
+  //   · A PROPOSAL IS NOT A LETTER. #145 writes a row that mentions a template
+  //     and a person; nothing is rendered, nothing is numbered, and the person
+  //     it is about cannot see anything until HR approves (#149).
+  // ════════════════════════════════════════════════════════════════════════════
+  /**
+   * #143 Queue one letter for each of many people. HR only.
+   *
+   * `{ template_code, subject_user_ids, field_overrides?, effective_date?,
+   * idempotency_key? }`. `subject_user_ids` must hold no repeats (422
+   * LETTER_BULK_DUPLICATE_SUBJECT) and no more than the organisation's
+   * `letter_bulk_max_subjects` (#91, 422 LETTER_BULK_TOO_MANY_SUBJECTS).
+   *
+   * Answers `{ batch_id, total, reused, counts }`. `reused: true` means this
+   * exact batch was already queued and a second one was NOT created — the
+   * server de-duplicates on the key given, or on one derived from the template,
+   * the people, the overrides and the date when none is given. Either way a
+   * double submit is safe.
+   *
+   * ALL OR NOTHING: if one person fails validation, none are queued and the
+   * call is 422 LETTER_BULK_VALIDATION_FAILED with a `failures` array naming
+   * them (`bulkValidationFailures()`).
+   *
+   * No letter exists when this returns. Poll #144.
+   */
+  bulkIssueLetters: (body) => post(`${HR}/letters/bulk`, body),
+  /**
+   * #144 How far a batch has got: `{ batch, counts, queue, failures,
+   * pagination }`, where `failures` pages with `limit` (1–100) and `offset`.
+   *
+   * `batch.status` is `queued | running | completed | completed_with_failures |
+   * cancelled`; the last three are terminal and polling stops there.
+   *
+   * The two Phase 4 specs disagree about this shape — the change record spells
+   * the tallies `batch.total_count` / `pending_count` / … and calls a job in
+   * flight `processing`, the API analysis spells them `counts.pending` / … and
+   * `queue.claimed`. Both are read (`batchProgressOf()`); neither is trusted
+   * alone. A cross-org or unknown id is 404 DOCUMENT_NOT_FOUND.
+   */
+  getLetterBatch: (batchId, params) => request(`${HR}/letters/bulk/${seg(batchId)}${qs(params)}`),
+  /**
+   * #147 Draw whatever letters are waiting in this organisation's queue, now,
+   * instead of waiting for the worker. `{ batch_id?, limit? }` — with a batch
+   * id, that batch's stragglers are re-queued first.
+   *
+   * Answers `{ claimed, done, retried, failed, cancelled, remaining }`. Safe to
+   * press repeatedly: the jobs are claimed with SKIP LOCKED, so a second press
+   * (or the worker running at the same moment) picks up different work, and
+   * per-letter idempotency means nothing is issued twice. A drain is not a
+   * preview and never touches the preview cap.
+   */
+  runLetterRenderQueue: (body) => post(`${HR}/jobs/pdf-render/run`, body),
+  /**
+   * #148 The proposals waiting on HR, across the whole organisation. Defaults
+   * to `status=pending` when none is given. Filters: `status`, `template_code`,
+   * `subject_user_id`, `proposed_by`, `limit` (1–200), `offset`.
+   *
+   * Registered before `/letters/:id` on the server, so "proposals" is never
+   * read as a letter id. On a server that predates Phase 4 it IS read as one,
+   * which is why a 400 or a 404 from this read means "not deployed yet" rather
+   * than "no proposals" — see `proposalsUnavailable()`.
+   */
+  getLetterProposals: (params) => request(`${HR}/letters/proposals${qs(params)}`),
+  /**
+   * #149 Approve a proposal, which ISSUES the letter. HR only.
+   *
+   * `{ field_overrides?, effective_date?, acknowledge_stale_scope? }` — and
+   * deliberately no idempotency key (see the branch note above). `field_overrides`
+   * REPLACES what the manager wrote rather than merging with it.
+   *
+   * Answers `{ letter, artifact, proposal, reused }`, and inherits every #139
+   * render failure. `409 PROPOSAL_SCOPE_STALE` means the person no longer
+   * reports to whoever proposed it: re-send with `acknowledge_stale_scope: true`
+   * to approve anyway. `409 SELF_APPROVAL_NOT_ALLOWED` means the organisation
+   * requires a second pair of eyes (#60) and these are the first pair.
+   */
+  approveLetterProposal: (id, body) => post(`${HR}/letters/proposals/${seg(id)}/approve`, body),
+  /**
+   * #150 Turn a proposal down. `{ reason }` is REQUIRED (400 VALIDATION_ERROR
+   * without it) and is shown to the manager who raised it. Terminal: a second
+   * decision on the same proposal is 409 LETTER_PROPOSAL_NOT_PENDING.
+   */
+  rejectLetterProposal: (id, body) => post(`${HR}/letters/proposals/${seg(id)}/reject`, body),
+  /**
+   * #145 Propose a letter for a direct report. Manager plane (managers and HR).
+   *
+   * `{ template_code, subject_user_id, field_overrides?, reason? }`. No letter
+   * is created and nothing is rendered — HR issues it by approving (#149).
+   *
+   * Three refusals, each meaning something different: `403
+   * LETTER_PROPOSALS_DISABLED` is the organisation's switch (#93) being off and
+   * applies to every manager; `403 FORBIDDEN` is this person not being one of
+   * the caller's reports; `409 LETTER_PROPOSAL_EXISTS` is one already waiting
+   * for the same person and the same letter.
+   */
+  proposeLetter: (body) => post(`${MGR}/letters`, body),
+  /**
+   * #146 The caller's OWN proposals, and only ever their own — the server
+   * filters on the caller whatever is asked for, so a manager can't read
+   * another manager's queue. Same filters as #148 minus `proposed_by`.
+   */
+  getMyLetterProposals: (params) => request(`${MGR}/letters${qs(params)}`),
 };

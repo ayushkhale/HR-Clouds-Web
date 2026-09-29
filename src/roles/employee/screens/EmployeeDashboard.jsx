@@ -19,6 +19,7 @@ import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { greetingFor } from "../../../shared/utils/greeting";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { DailyLogModal } from "./EmployeeAttendancePage";
+import FieldHelp, { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 const PREVIEW_ROWS = 5;
 
@@ -67,6 +68,9 @@ function HoursTooltip({ active, payload }) {
     </div>
   );
 }
+
+// Same entry as the Effective column on My Attendance — one concept, one hint.
+const EFFECTIVE_HELP = { surface: "attendance.daily_log", field: "effective_hours", label: "effective hours" };
 
 /* ─── Employee Dashboard ──────────────────────────────────────────── */
 // Row 1: my punch card beside my month (three headline numbers over a
@@ -128,7 +132,7 @@ function EmployeeDashboard() {
   const markedDays = mix.reduce((s, m) => s + m.value, 0);
   const headline = [
     { label: "Avg hours / day", value: fmtHours(summary.average_hours_per_day, "0m"), icon: HiClock },
-    { label: "On-time arrival", value: `${num(summary.punctuality_percentage)}%`, icon: HiCheckCircle },
+    { label: "On-time arrival", value: `${num(summary.punctuality_percentage)}%`, icon: HiCheckCircle, help: { surface: "attendance.summary", field: "punctuality_percentage", label: "on-time arrival" } },
     { label: "Total hours", value: totalWorkedLabel(summary), icon: HiChartBar },
   ];
 
@@ -182,11 +186,15 @@ function EmployeeDashboard() {
               <div className={`flex-1 flex flex-col gap-5 ${graph.loading ? "opacity-60" : ""}`} aria-busy={graph.loading}>
                 {/* Three headline numbers in one quiet row, divided rather than boxed. */}
                 <div className="grid grid-cols-3 divide-x divide-slate-100">
-                  {headline.map(({ label, value, icon: Icon }) => (
+                  {headline.map(({ label, value, icon: Icon, help }) => (
                     <div key={label} className="px-3 first:pl-0 last:pr-0 min-w-0">
                       <div className="flex items-center gap-1.5 text-slate-400">
                         <Icon className="w-3.5 h-3.5 text-purple-500 shrink-0" />
                         <span className="text-[11px] font-semibold truncate">{label}</span>
+                        {/* Beside the truncating label, not inside it, so an ellipsis can never swallow the ⓘ.
+                            Hidden below sm: on a phone the label is already cut to "On-time a…" and
+                            the ⓘ would cut it to "On…". */}
+                        {help && <FieldHelp {...help} className="-ml-1 hidden sm:inline-flex" />}
                       </div>
                       <p className="text-xl font-bold tracking-tight text-slate-800 leading-none mt-1.5 tabular-nums truncate">{value}</p>
                     </div>
@@ -252,7 +260,7 @@ function EmployeeDashboard() {
                       <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide">Status</th>
                       <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide">Late</th>
                       <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide">Overtime</th>
-                      <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide text-right">Effective</th>
+                      <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide text-right"><HelpLabel text="Effective" help={EFFECTIVE_HELP} /></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-xs font-semibold text-slate-700">

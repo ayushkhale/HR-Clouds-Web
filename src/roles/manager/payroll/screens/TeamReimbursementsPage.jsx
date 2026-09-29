@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import {
   HiRefresh, HiChevronLeft, HiChevronRight, HiExclamationCircle, HiReceiptRefund, HiX, HiCheck, HiHeart,
 } from "react-icons/hi";
@@ -87,6 +88,7 @@ function ClaimsTab({ showToast }) {
     setDecisionViolations([]);
     try {
       const res = await payrollAPI.approveTeamReimbursementClaim(detail.id, payload);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CLAIM, { id: detail.id, action: "approve" });
       const claim = res?.data ?? res;
       setDecisionOpen(false);
       closeDetail();
@@ -108,6 +110,7 @@ function ClaimsTab({ showToast }) {
     setRejectError("");
     try {
       await payrollAPI.rejectTeamReimbursementClaim(rejectTarget.id, reason);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.CLAIM, { id: rejectTarget.id, action: "reject" });
       setRejectTarget(null);
       closeDetail();
       showToast("Claim rejected. The employee will see your reason.");

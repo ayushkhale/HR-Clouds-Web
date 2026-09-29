@@ -1,5 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PayrollEncashmentsPage.jsx — cashing out comp-offs and unused leave
+// PayrollEncashmentsPage.jsx — paying out comp-offs and unused leave. The
+// screen calls this a "Leave Payout": "encashment" is the API's word and a
+// payroll word (DICTIONARY.TERMS.ENCASHMENT).
 // (API #206–#211).
 //
 // A comp-off is a day earned for working on an off day. Rather than taking the
@@ -27,25 +29,20 @@ import useToast from "../useToast";
 import PeriodPicker from "../PeriodPicker";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/formatUtils";
+import { formatMoney, formatPeriod, formatDate, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
   ENCASHMENT_STATUS, SOURCE_KINDS, encashmentStatusMeta, sourceKindLabel, encashmentActions, toneClass, amount,
 } from "../phase7Meta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { DICTIONARY } from "../../../../shared/config/dictionary";
 import CompOffPicker, { loadHrCompOffsFor } from "../../../../shared/components/CompOffPicker";
 
 const PAGE_SIZE = 20;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
+const ENCASHMENT = DICTIONARY.TERMS.ENCASHMENT;
 const STATUS_FILTERS = [["", "All requests"], ...Object.entries(ENCASHMENT_STATUS).map(([k, v]) => [k, v.label])];
-
-/** Days can be fractional (half a comp-off), so never round them away. */
-const fmtDays = (v) => {
-  const n = amount(v);
-  if (n === null) return "N/A";
-  return `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? "day" : "days"}`;
-};
 
 function StatusPill({ status }) {
   const meta = encashmentStatusMeta(status);
@@ -107,7 +104,9 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
+      {/* Wide: the day picker is tall, and at max-w-lg it pushed the pay month
+          and the submit button below the fold on a laptop. */}
+      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Pay out a balance</h2>
@@ -117,6 +116,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
         </div>
 
         <div className="px-6 py-5 space-y-4 overflow-y-auto">
+          <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4">
           <div>
             <label className={labelCls}>Employee</label>
             <PersonSelect people={people} value={form.user_id} onChange={(id) => setForm({ ...form, user_id: id })} placeholder="Choose an employee" loading={dirStatus === "loading"} />
@@ -138,7 +138,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
           </div>
 
           {isCompOff ? (
-            <div>
+            <div className="lg:col-span-2">
               <span className={labelCls}>Which days to cash out</span>
               <CompOffPicker userId={form.user_id} value={compOffIds} onChange={setCompOffIds} load={loadHrCompOffsFor} personName={personName} />
             </div>
@@ -159,6 +159,7 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
             <label className={labelCls}>Pay it in</label>
             <PeriodPicker value={form.period_month} onChange={(v) => setForm({ ...form, period_month: v })} idPrefix="enc-period" selectClassName={fieldCls} yearsBack={1} yearsAhead={1} />
             <p className="text-[11px] text-slate-400 mt-1.5">The month whose payslip this is added to. It must still be open.</p>
+          </div>
           </div>
 
           {disabledReason && (
@@ -264,7 +265,7 @@ export default function PayrollEncashmentsPage() {
   };
 
   const approve = async (row) => {
-    const days = fmtDays(row.days);
+    const days = formatDayCount(row.days, { lower: true });
     const money = amount(row.amount) === null ? "" : ` (${formatMoney(row.amount)})`;
     const ok = await window.confirm(
       `Approve ${days}${money} for ${nameOf(row.user_id, "this employee")}?\n\n` +
@@ -282,11 +283,11 @@ export default function PayrollEncashmentsPage() {
 
   return (
     <>
-      <DashboardTopBar title="Encashments" />
+      <DashboardTopBar title={`${ENCASHMENT}s`} />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Encashments</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{ENCASHMENT}s</h1>
             <p className="text-sm text-slate-500 mt-1">
               Pay people for earned leave and unused leave instead of them taking the time off.
               {pending > 0 && <span className="font-semibold text-fuchsia-700"> {pending} waiting for approval.</span>}
@@ -348,7 +349,7 @@ export default function PayrollEncashmentsPage() {
                       <tr>
                         <th className="px-6 py-3.5">Employee</th>
                         <th className="px-6 py-3.5">What</th>
-                        <th className="px-6 py-3.5">Days</th>
+                        <th className="px-6 py-3.5">How much leave</th>
                         <th className="px-6 py-3.5 text-right">Amount</th>
                         <th className="px-6 py-3.5">Paid in</th>
                         <th className="px-6 py-3.5">Status</th>
@@ -366,7 +367,7 @@ export default function PayrollEncashmentsPage() {
                               {acts.isOwnRequest && <span className="ml-2 text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full">You raised</span>}
                             </td>
                             <td className="px-6 py-3.5 text-slate-600">{sourceKindLabel(row.source_kind)}{row.leave_type_code ? ` · ${row.leave_type_code}` : ""}</td>
-                            <td className="px-6 py-3.5 text-slate-600">{fmtDays(row.days)}</td>
+                            <td className="px-6 py-3.5 text-slate-600">{formatDayCount(row.days)}</td>
                             <td className="px-6 py-3.5 text-right font-bold tabular-nums text-slate-800">{amt === null ? <span className="text-slate-400 font-semibold">N/A</span> : formatMoney(amt)}</td>
                             <td className="px-6 py-3.5 text-slate-600">{formatPeriod(row.period_month)}</td>
                             <td className="px-6 py-3.5"><StatusPill status={row.status} /></td>
@@ -408,8 +409,8 @@ export default function PayrollEncashmentsPage() {
         <ReasonDialog
           title={reasonFor.action === "reject" ? "Reject this request?" : "Cancel this request?"}
           description={reasonFor.action === "reject"
-            ? `${fmtDays(reasonFor.row.days)} for ${nameOf(reasonFor.row.user_id, "this employee")}. They keep the days — nothing is paid out.`
-            : `${fmtDays(reasonFor.row.days)} for ${nameOf(reasonFor.row.user_id, "this employee")}. Any balance already taken off is put back.`}
+            ? `${formatDayCount(reasonFor.row.days)} for ${nameOf(reasonFor.row.user_id, "this employee")}. They keep the days — nothing is paid out.`
+            : `${formatDayCount(reasonFor.row.days)} for ${nameOf(reasonFor.row.user_id, "this employee")}. Any balance already taken off is put back.`}
           label="Why?"
           confirmLabel={reasonFor.action === "reject" ? "Reject" : "Cancel request"}
           tone="danger"
@@ -421,11 +422,11 @@ export default function PayrollEncashmentsPage() {
       )}
 
       {detail && (
-        <DetailDialog open onClose={() => setDetail(null)} title={nameOf(detail.user_id, "Encashment")}
+        <DetailDialog open onClose={() => setDetail(null)} title={nameOf(detail.user_id, ENCASHMENT)}
           subtitle={`${sourceKindLabel(detail.source_kind)} · ${formatPeriod(detail.period_month)}`}
           badge={<DetailPill tone="onDark">{encashmentStatusMeta(detail.status).label}</DetailPill>}>
           <DetailStats items={[
-            { label: "Days", value: fmtDays(detail.days), icon: HiCalendar },
+            { label: "Leave paid out", value: formatDayCount(detail.days), icon: HiCalendar },
             { label: "Amount", value: amount(detail.amount) === null ? "Not worked out yet" : formatMoney(detail.amount), icon: HiCash },
             { label: "Paid in", value: formatPeriod(detail.period_month), icon: HiCalendar },
           ]} />

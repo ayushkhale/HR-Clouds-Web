@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCheck, HiClipboardList } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
@@ -47,6 +48,7 @@ export default function PayrollApprovalsPage() {
   const handleApprove = async (id) => {
     try {
       await payrollAPI.approveProposal(id);
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id, action: "approve" });
       showToast("Proposal approved successfully");
       loadProposals();
     } catch (err) {
@@ -59,6 +61,7 @@ export default function PayrollApprovalsPage() {
     if (!rejectionReason.trim()) return showToast("Reason is required", "error");
     try {
       await payrollAPI.rejectProposal(rejectingId, { rejection_reason: rejectionReason });
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id: rejectingId, action: "reject" });
       showToast("Proposal rejected");
       setRejectingId(null);
       setRejectionReason("");

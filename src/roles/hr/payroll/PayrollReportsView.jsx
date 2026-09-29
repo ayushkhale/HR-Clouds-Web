@@ -6,14 +6,22 @@
 //
 // Preview on screen is `format=json`; CSV and PDF stream as downloads and each
 // one writes a row in the export audit trail before the first byte.
+//
+// ⓘ help: every column header is wired by its key under `payroll.reports`, and
+// fieldHelp.json decides which ones actually show one. Unpaid days share the
+// `payroll.pay_days` entry with the payslip screens — one concept, one text.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { downloadFile } from "../../../shared/utils/download";
 import { payrollErrorMessage } from "../../../shared/utils/payrollErrors";
-import { formatMoney, formatPeriod } from "../../../shared/utils/formatUtils";
+import { formatMoney, formatPeriod, formatDayCount } from "../../../shared/utils/formatUtils";
 import Skeleton from "../../../shared/components/Skeleton";
 import MultiSelectDropdown from "../../../shared/components/MultiSelectDropdown";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+
+const COLUMN_HELP = { lop_days: { surface: "payroll.pay_days", ariaLabel: "What are unpaid days?" } };
+const columnHelp = (key) => ({ surface: "payroll.reports", field: key, ...COLUMN_HELP[key] });
 import {
   REPORTS, currentPeriodMonth, exportFileName, reportByKey, reportRangeProblem, shiftPeriodMonth,
 } from "./phase6Meta";
@@ -47,7 +55,7 @@ function columnsFor(reportKey, data) {
       { key: "full_name", label: "Employee", render: (r) => r.full_name || "N/A" },
       { key: "department_name", label: "Department", render: (r) => r.department_name || "Unassigned" },
       { key: "paid_days", label: "Paid days", align: "right", render: (r) => count(r.paid_days) },
-      { key: "lop_days", label: "Unpaid days", align: "right", render: (r) => count(r.lop_days) },
+      { key: "lop_days", label: "Unpaid days", align: "right", render: (r) => formatDayCount(r.lop_days) },
       ...dynamic.map((c) => ({
         key: c.key,
         label: c.name || c.label || c.code,
@@ -442,7 +450,7 @@ export default function PayrollReportsView({
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     {columns.map((c) => (
-                      <th key={c.key} className={`px-4 py-3 whitespace-nowrap ${c.align === "right" ? "text-right" : ""}`}>{c.label}</th>
+                      <th key={c.key} className={`px-4 py-3 whitespace-nowrap ${c.align === "right" ? "text-right" : ""}`}><HelpLabel text={c.label} help={columnHelp(c.key)} /></th>
                     ))}
                   </tr>
                 </thead>

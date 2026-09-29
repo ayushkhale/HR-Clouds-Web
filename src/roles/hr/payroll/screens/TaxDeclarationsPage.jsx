@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiClipboardList, HiCheck, HiRefresh, HiBan, HiEye, HiDocumentText } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
@@ -122,6 +123,7 @@ export default function TaxDeclarationsPage() {
         };
       });
       await payrollAPI.verifyDeclaration(detail.id, { items, remarks: hrRemarks || undefined });
+      emitAttendanceChanged(ATTENDANCE_EVENTS.TAX_DECLARATION, { id: detail.id, action: "verify" });
       showToast("Declaration verified");
       setDetail(null);
       load();
@@ -137,6 +139,7 @@ export default function TaxDeclarationsPage() {
     setBusy(true);
     try {
       await payrollAPI.rejectDeclaration(detail.id, { rejection_reason: reasonText.trim() });
+      emitAttendanceChanged(ATTENDANCE_EVENTS.TAX_DECLARATION, { id: detail.id, action: "reject" });
       showToast("Declaration rejected");
       setDetail(null);
       load();

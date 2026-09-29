@@ -7,11 +7,12 @@
 // A queue that fails to load counts as `null` (shown as N/A), never as 0.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { attendanceAPI, leaveAPI, payrollAPI, tokenHelper } from "../api";
+import { attendanceAPI, documentsAPI, leaveAPI, payrollAPI, tokenHelper } from "../api";
 import { normalizePaginated } from "../attendance/normalize";
+import { isProposalQueueMissing } from "./documentErrors";
 import { currentFY } from "../../roles/hr/payroll/fyUtils";
 
-// Nine queues cost ten requests, so this is deliberately long: the badge is a
+// Ten queues cost eleven requests, so this is deliberately long: the badge is a
 // hint, not a live figure. Decisions refresh it through attendance events, and
 // the HR Inbox has its own Refresh button.
 const CACHE_MS = 5 * 60_000;
@@ -39,6 +40,21 @@ export const HR_INBOX_QUEUES = [
   {
     key: "declarations",
     load: () => payrollAPI.getDeclarationQueue({ financial_year: currentFY(), status: "submitted" }).then(total(["records", "declarations"])),
+  },
+  {
+    // Letters a manager has asked HR to issue (PDF Phase 4, #148).
+    key: "letterProposals",
+    load: () =>
+      documentsAPI.getLetterProposals({ status: "pending", limit: 1, offset: 0 })
+        .then(total(["proposals", "records"]))
+        // A server from before Phase 4 reads "proposals" as a letter id and
+        // answers 400 or 404. That is "this server has no such queue", which is
+        // honestly zero — not the `null` that would put N/A on the badge for
+        // ever on every server that hasn't been updated yet.
+        .catch((err) => {
+          if (isProposalQueueMissing(err)) return 0;
+          throw err;
+        }),
   },
 ];
 

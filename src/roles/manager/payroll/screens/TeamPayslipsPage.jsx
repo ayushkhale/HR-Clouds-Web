@@ -6,8 +6,9 @@ import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiUserGroup,
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
+import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -72,7 +73,7 @@ function PayslipDetailModal({ userId, runId, period, memberName, onClose, showTo
               { label: "Gross pay", value: formatMoney(item.gross_earnings ?? item.gross_pay), icon: HiCurrencyRupee },
               { label: "Deductions", value: formatMoney(item.total_deductions), icon: HiCurrencyRupee },
               { label: "Net pay", value: formatMoney(item.net_pay), hint: "what reaches the bank", icon: HiCurrencyRupee },
-              { label: "Paid days", value: item.payable_days != null ? String(item.payable_days) : null, hint: item.lop_days != null ? `${item.lop_days} unpaid` : undefined, icon: HiCalendar },
+              { label: "Paid days", value: item.payable_days != null ? formatDayCount(item.payable_days) : null, hint: item.lop_days != null ? `${formatDayCount(item.lop_days, { lower: true })} unpaid` : undefined, icon: HiCalendar },
             ]}
           />
 
@@ -170,7 +171,7 @@ function TeamRunModal({ runId, period, onClose, showToast }) {
             { label: "People", value: String(summary.headcount ?? list.length), icon: HiUserGroup },
             { label: "Gross", value: formatMoney(summary.total_gross), icon: HiCurrencyRupee },
             { label: "Net", value: formatMoney(summary.total_net), hint: "after deductions", icon: HiCurrencyRupee },
-            { label: "Unpaid days", value: summary.total_lop_days != null ? String(summary.total_lop_days) : null, hint: "across the team", icon: HiCalendar },
+            { label: "Unpaid days", value: summary.total_lop_days != null ? formatDayCount(summary.total_lop_days) : null, hint: "across the team", icon: HiCalendar, help: { surface: "payroll.pay_days", field: "lop_days", ariaLabel: "What are unpaid days?" } },
           ]}
         />
       )}
@@ -282,7 +283,7 @@ export default function TeamPayslipsPage() {
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-6 py-4">Period</th>
-                    <th className="px-6 py-4 text-right">Payable / LOP</th>
+                    <th className="px-6 py-4 text-right"><HelpLabel text="Paid / unpaid" help={{ surface: "payroll.pay_days", field: "lop_days", label: "unpaid days" }} /></th>
                     <th className="px-6 py-4 text-right">Gross</th>
                     <th className="px-6 py-4 text-right">Deductions</th>
                     <th className="px-6 py-4 text-right">Net Pay</th>
@@ -299,7 +300,7 @@ export default function TeamPayslipsPage() {
                     return (
                       <tr key={slip.id} {...preview}>
                         <td className="px-6 py-4 font-bold text-slate-800">{formatPeriod(period)}</td>
-                        <td className="px-6 py-4 text-right tabular-nums text-slate-600">{slip.payable_days ?? "N/A"} / {slip.lop_days ?? "N/A"}</td>
+                        <td className="px-6 py-4 text-right tabular-nums text-slate-600">{formatDayCount(slip.payable_days)} / {formatDayCount(slip.lop_days)}</td>
                         <td className="px-6 py-4 text-right tabular-nums font-semibold text-slate-700">{formatMoney(slip.gross_earnings ?? slip.gross_pay)}</td>
                         <td className="px-6 py-4 text-right tabular-nums font-semibold text-rose-600">{formatMoney(slip.total_deductions)}</td>
                         <td className="px-6 py-4 text-right tabular-nums font-black text-violet-600">{formatMoney(slip.net_pay)}</td>

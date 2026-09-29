@@ -630,7 +630,7 @@ export function statutoryReadinessNotes(st) {
   const tax = !!st.income_tax_enabled;
   const count = (key) => toCount(st[key]);
   if (taxTablesMissing(st)) {
-    notes.push({ tone: "bad", text: "Income tax is on but this financial year has no tax slabs, so the run can't be created. Set them up under Statutory & Tax." });
+    notes.push({ tone: "bad", text: "Income tax is on but this financial year has no tax slabs, so the run can't be created. Set them up under Tax & Legal Deductions." });
   }
   if (tax && count("missing_pan_count") > 0) {
     notes.push({ tone: "warn", text: `${plural(count("missing_pan_count"), "employee")} with no PAN will have tax deducted at the higher no-PAN rate.` });

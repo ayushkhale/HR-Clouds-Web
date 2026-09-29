@@ -101,7 +101,12 @@ export const DICTIONARY = {
     // phrases say "3 earned leave days".
     COMP_OFF: "Earned Leave",
     // A request to fix a missed or wrong punch. Pluralises normally.
-    REGULARIZATION: "Attendance Correction"
+    REGULARIZATION: "Attendance Correction",
+    // Turning unused leave, or a day earned for working an off day, into money
+    // on a payslip. "Encashment" is the API's word and a payroll word — nobody
+    // outside payroll says it, so it never reaches the screen. Pluralises
+    // normally ("Leave Payouts"), and the action is "pay out", never "encash".
+    ENCASHMENT: "Leave Payout"
   }
 };
 

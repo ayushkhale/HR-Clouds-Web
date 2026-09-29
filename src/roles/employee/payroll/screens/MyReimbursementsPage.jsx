@@ -27,6 +27,7 @@ import {
   parseMoney, receiptNeeded, receiptRuleText, claimLimitText, periodLimitText, limitViolations, receiptProblem,
   CLAIM_STATUS_FILTERS,
 } from "../../../../shared/utils/reimbursementMeta";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -278,7 +279,10 @@ function ClaimEditorDialog({ claim, categories, onClose, onSaved, onSubmitted, s
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Category</label>
+                        <div className="flex items-center">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Category</label>
+                          <FieldHelp surface="payroll.reimbursement_claim" field="category_id" label="the expense category" className="mb-1" />
+                        </div>
                         <select value={it.category_id} onChange={(e) => setItem(it.key, { category_id: e.target.value })} className={fieldCls} aria-invalid={!!err && !it.category_id}>
                           <option value="">Choose</option>
                           {catOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -613,7 +617,7 @@ function LimitsTab({ categories }) {
                 <th className="px-5 py-4 border-b border-slate-100">Category</th>
                 <th className="px-5 py-4 border-b border-slate-100">Receipt rule</th>
                 <th className="px-5 py-4 border-b border-slate-100 text-right">Per claim</th>
-                <th className="px-5 py-4 border-b border-slate-100">Period limit</th>
+                <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Period limit" help={{ surface: "payroll.reimbursement_limits", field: "period_limit", label: "the period limit" }} /></th>
                 <th className="px-5 py-4 border-b border-slate-100 text-right">Used</th>
                 <th className="px-5 py-4 border-b border-slate-100 text-right">Left</th>
               </tr>

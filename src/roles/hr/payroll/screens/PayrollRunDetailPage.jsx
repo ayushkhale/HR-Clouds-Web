@@ -11,7 +11,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage, runFailureAdvice } from "../../../../shared/utils/payrollErrors";
-import { formatPeriod, formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
+import { formatPeriod, formatMoney, formatDate, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated, personName, employeeCode, departmentName } from "../../../../shared/attendance/normalize";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
@@ -46,7 +46,7 @@ const ITEM_STATUS = {
   excluded: { label: "Excluded", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
 };
 
-const dayCount = (v) => String(toCount(v));
+const dayCount = (v) => formatDayCount(toCount(v), { fallback: "0 days" });
 const minutesLabel = (mins) => {
   const m = Math.round(toCount(mins));
   if (!m) return "0m";
@@ -222,7 +222,7 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
             ["Pay period ends", item.period_end ? formatDate(item.period_end) : null],
             ...(hasFigures ? [
               ["Days paid", dayCount(item.payable_days)],
-              ["Unpaid days (LOP)", dayCount(item.lop_days)],
+              ["Unpaid days", dayCount(item.lop_days)],
               ["Paid holidays & week-offs", dayCount(item.paid_non_working_days)],
               ["Working days in month", dayCount(item.standard_working_days)],
               ["Days used for a day's pay", dayCount(item.lop_divisor)],
@@ -266,7 +266,7 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
       )}
 
       {hasStatutory && (
-        <DetailSection title="Statutory figures" icon={HiShieldCheck}>
+        <DetailSection title="Deductions required by law" icon={HiShieldCheck}>
           <DetailGrid
             items={[
               ["Pay counted for PF", formatMoney(item.pf_wage)],
@@ -921,7 +921,7 @@ export default function PayrollRunDetailPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-700 truncate">{d.department || "Unassigned"}</p>
                     <p className="text-[11px] text-slate-400">
-                      {[plural(toCount(d.headcount), "employee"), toCount(d.total_lop_days) > 0 ? `${toCount(d.total_lop_days)} unpaid days` : ""].filter(Boolean).join(" · ")}
+                      {[plural(toCount(d.headcount), "employee"), toCount(d.total_lop_days) > 0 ? `${formatDayCount(d.total_lop_days, { lower: true })} unpaid` : ""].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

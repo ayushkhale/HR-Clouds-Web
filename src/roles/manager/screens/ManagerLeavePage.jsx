@@ -2,10 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../shared/api";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiCalendar, HiChevronLeft, HiChevronRight,
 } from "react-icons/hi";
 import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const HISTORY_LIMIT = 20;
 
@@ -146,6 +149,7 @@ export default function ManagerLeavePage() {
       await leaveAPI.approveRequest(id);
       showToast("Leave request approved.");
       setRequests(prev => prev.filter(r => r.id !== id));
+      emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id, action: "approve" });
     } catch (err) {
       if (err.status === 403) {
         showToast("You don't have authority to approve this request.", "error");
@@ -166,6 +170,7 @@ export default function ManagerLeavePage() {
     setRejectTarget(null);
     showToast(msg);
     setRequests(prev => prev.filter(r => r.id !== rejectTarget?.id));
+    emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id: rejectTarget?.id, action: "reject" });
   }
 
   const pendingCount = requests.filter(r => r.status === "pending").length;
@@ -278,7 +283,7 @@ export default function ManagerLeavePage() {
                           {new Date(req.start_date).toLocaleDateString()} 
                           {req.start_date !== req.end_date && ` – ${new Date(req.end_date).toLocaleDateString()}`}
                           <span className="mx-2">•</span> 
-                          {parseFloat(req.total_days).toFixed(1)} days
+                          {formatDayCount(req.total_days, { lower: true })}
                         </p>
                       </div>
                     </div>
@@ -320,6 +325,8 @@ export default function ManagerLeavePage() {
                     <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                       Pending Approval ({requests.filter(r => r.status === "pending").length})
                     </h2>
+                    {/* Explains every card's "Pay" tile once, here, rather than on each card. */}
+                    <FieldHelp surface="leaves.approval" field="paid_split" ariaLabel="What do paid and unpaid days mean?" label="paid and unpaid days" size="sm" className="-ml-1.5" />
                   </div>
                   <div className="space-y-4">
                     {requests.filter(r => r.status === "pending").map(r => (

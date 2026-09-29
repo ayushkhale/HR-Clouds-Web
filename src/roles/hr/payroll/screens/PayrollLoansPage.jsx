@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiCash, HiCheck,
@@ -162,6 +163,8 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
     try {
       await fn();
       showToast(okMsg);
+      // Approve / reject / cancel all land here, so the inbox badge follows.
+      emitAttendanceChanged(ATTENDANCE_EVENTS.LOAN, {});
       setSchedule(null);
       loadData();
     } catch (err) {
@@ -232,7 +235,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
           <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Loans &amp; Advances</h1>
-              <p className="text-sm text-slate-500 mt-1">Grant company loans and salary advances with an auto-generated EMI schedule. Click a row to see its details.</p>
+              <p className="text-sm text-slate-500 mt-1">Grant company loans and salary advances with a repayment schedule worked out for you. Click a row to see its details.</p>
             </div>
             <div className="flex items-center gap-3">
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-[42px] px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
@@ -260,7 +263,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                       <th className="px-4 py-4 border-b border-slate-100">Type</th>
                       <th className="px-4 py-4 border-b border-slate-100">Principal</th>
                       <th className="px-4 py-4 border-b border-slate-100">Interest</th>
-                      <th className="px-4 py-4 border-b border-slate-100">EMI</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Monthly</th>
                       <th className="px-4 py-4 border-b border-slate-100">Tenure</th>
                       <th className="px-4 py-4 border-b border-slate-100">Outstanding</th>
                       <th className="px-4 py-4 border-b border-slate-100">Status</th>
@@ -272,7 +275,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                       <tr key={l.id} {...rowPreviewProps(() => openSchedule(l), `View loan for ${empName(l.user_id)}`)}>
                         <td className="px-4 py-4">
                           <p className="font-bold text-slate-800 whitespace-nowrap">{empName(l.user_id)}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">first EMI {fmtPeriod(l.start_period_month)}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">first payment {fmtPeriod(l.start_period_month)}</p>
                         </td>
                         <td className="px-4 py-4 capitalize text-slate-600">{prettify(l.loan_type) || "N/A"}</td>
                         <td className="px-4 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
@@ -364,7 +367,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>First EMI Month</label>
+                    <label className={labelClass}>First repayment month</label>
                     <select value={form.start_month} onChange={(e) => setForm({ ...form, start_month: parseInt(e.target.value) })} className={fieldClass}>
                       {MONTHS.map((mo, i) => <option key={i} value={i + 1}>{mo}</option>)}
                     </select>
@@ -377,7 +380,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
                 <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
                   <div>
-                    <label className={labelClass}>Disbursement Date</label>
+                    <label className={labelClass}>Money paid out on</label>
                     <input type="date" value={form.disbursed_on} onChange={(e) => setForm({ ...form, disbursed_on: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
@@ -389,7 +392,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 {est && (
                   <div className="bg-purple-50 rounded-xl p-4 grid grid-cols-3 gap-3 text-center">
                     <div>
-                      <p className="text-[10px] font-bold text-purple-500 uppercase">Est. EMI</p>
+                      <p className="text-[10px] font-bold text-purple-500 uppercase">Est. monthly</p>
                       <p className="text-base font-black text-purple-700 mt-0.5">{money(est.emi)}</p>
                     </div>
                     <div>
@@ -421,7 +424,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
             eyebrow="Loan details"
             icon={HiCash}
             title={empName(loan.user_id)}
-            subtitle={prettify(loan.loan_type) ? `${prettify(loan.loan_type)} · first EMI ${fmtPeriod(loan.start_period_month)}` : undefined}
+            subtitle={prettify(loan.loan_type) ? `${prettify(loan.loan_type)} · first payment ${fmtPeriod(loan.start_period_month)}` : undefined}
             badge={<DetailPill tone="onDark">{loan.status || "N/A"}</DetailPill>}
             loading={schedule.loading}
             onClose={() => setSchedule(null)}
@@ -434,7 +437,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
             <DetailStats
               items={[
                 { label: "Principal", value: money(loan.principal_amount), icon: HiCash },
-                { label: "Monthly EMI", value: money(loan.emi_amount), icon: HiCalendar },
+                { label: "Monthly repayment", value: money(loan.emi_amount), icon: HiCalendar },
                 { label: "Recovered", value: money(loan.recovered_amount ?? loan.total_recovered), icon: HiCheckCircle },
                 { label: "Outstanding", value: money(outstanding(loan)), icon: HiTrendingUp },
               ]}
@@ -448,8 +451,8 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                   ["Interest rate", `${parseFloat(loan.interest_rate || 0)}% p.a.`],
                   ["How interest is worked out", interestMethodLabel(loan.interest_method)],
                   ["Tenure", `${loan.tenure_months ?? 0} months`],
-                  ["First EMI", fmtPeriod(loan.start_period_month)],
-                  ["Disbursed on", fmtDate(loan.disbursed_on)],
+                  ["First payment", fmtPeriod(loan.start_period_month)],
+                  ["Money paid out on", fmtDate(loan.disbursed_on)],
                 ]}
               />
               <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">

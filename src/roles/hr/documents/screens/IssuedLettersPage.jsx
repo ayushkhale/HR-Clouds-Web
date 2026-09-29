@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // IssuedLettersPage.jsx — The register of every letter this organisation has
 // issued. PDF Generation Phase 2 (#140 list, #141 detail, #139 issue,
-// #142 reissue), with the catalog (#135) for the letter filter.
+// #142 reissue), with the catalog (#135) for the letter filter, and Phase 4's
+// bulk send (#143) with the batch it hands back (#144, #147).
 //
 // This is the permanent record of what the company has signed, so it reads as a
 // register: one scannable row per letter, newest first, with the reference number
@@ -30,6 +31,12 @@
 //    would be useless as evidence. The default view shows everything and the tabs
 //    narrow it.
 //
+//  · A BATCH IS NOT PART OF THE REGISTER. Sending to many queues work; nothing
+//    joins this list until each letter is actually drawn. So a batch appears as
+//    a handle above the register rather than as rows in it, and the register
+//    refreshes when the batch finishes. The handles live in localStorage
+//    because no endpoint lists batches — see `recentLetterBatches.js`.
+//
 //  · WHO A LETTER WENT TO IS A NAME, NEVER AN ID. #140 doesn't nest the person,
 //    only `included_users`, so the name comes from the org roster and an unloaded
 //    one reads "Loading…".
@@ -39,7 +46,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   HiBadgeCheck, HiCollection, HiDocumentText, HiExclamation, HiExternalLink, HiInformationCircle,
-  HiLockClosed, HiMail, HiRefresh, HiSearch, HiX,
+  HiLockClosed, HiMail, HiRefresh, HiSearch, HiUserGroup, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -52,12 +59,17 @@ import { OrgStatusBadge } from "../../../../shared/documents/orgUi";
 import { orgDisplayStatus } from "../../../../shared/documents/orgDocumentMeta";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
 import IssueLetterDialog from "../../../../shared/documents/IssueLetterDialog";
+import BulkIssueLettersDialog from "../../../../shared/documents/BulkIssueLettersDialog";
+import LetterBatchDialog from "../../../../shared/documents/LetterBatchDialog";
 import LetterDetailDialog from "../../../../shared/documents/LetterDetailDialog";
 import ReissueLetterDialog from "../../../../shared/documents/ReissueLetterDialog";
+import useDocumentSettings from "../../../../shared/documents/useDocumentSettings";
+import { forgetLetterBatch, recentLetterBatches, rememberLetterBatch } from "../../../../shared/documents/recentLetterBatches";
 import { letterTemplatesOf, letterTitle, letterheadGaps, brandingOf } from "../../../../shared/documents/letterMeta";
 import {
   LETTER_SORTS, LETTER_STATUS_FILTERS, letterRowParts, referenceSegments, lettersPayload, sortParams,
 } from "../../../../shared/documents/letterIssueMeta";
+import { BULK_MAX_SUBJECTS_FALLBACK } from "../../../../shared/documents/letterProposalMeta";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
 
 const PAGE = 20;
@@ -82,6 +94,10 @@ export default function IssuedLettersPage() {
   // `index` is the id → type map; a row carries only `document_type_id`.
   const { index: typeIndexMap } = useDocumentTypes("hrOrg");
   const { rows: people, status: peopleStatus, nameOf } = useEmployeeDirectory();
+  // #91, for the bulk picker's ceiling. A server that doesn't send it leaves the
+  // documented default standing, and the server stays the authority either way.
+  const { settings } = useDocumentSettings();
+  const bulkMax = Number(settings?.letter_bulk_max_subjects) || BULK_MAX_SUBJECTS_FALLBACK;
 
   const [state, setState] = useState({ rows: [], total: 0, totalPages: 1, loading: true, error: null });
   const [tallies, setTallies] = useState({ live: null, replaced: null });
@@ -101,6 +117,12 @@ export default function IssuedLettersPage() {
   const [issuing, setIssuing] = useState(false);
   const [issueCode, setIssueCode] = useState("");
   const [reissuing, setReissuing] = useState(null);
+  const [bulking, setBulking] = useState(false);
+  // The batch handles this browser has been given. There is no endpoint that
+  // lists an organisation's batches (#144 answers about one id), so without
+  // these a batch still being drawn would be unreachable after a reload.
+  const [batches, setBatches] = useState(() => recentLetterBatches());
+  const [watching, setWatching] = useState(null);
 
   /**
    * Two deep links, read once and then cleared from the address bar so a refresh
@@ -245,6 +267,27 @@ export default function IssuedLettersPage() {
       : `Letter issued${letter?.reference_number ? ` · ${letter.reference_number}` : ""}`);
   }, [refresh, showToast]);
 
+  /** A batch that is now queued: remembered, then opened on its progress. */
+  const onQueued = useCallback((batch, { templateCode: queuedCode, templateTitle }) => {
+    setBulking(false);
+    if (!batch.batchId) {
+      showToast("The letters were queued, but the reply didn’t say which batch. They will still be prepared — check the register in a few minutes.");
+      refresh();
+      return;
+    }
+    rememberLetterBatch({ id: batch.batchId, templateCode: queuedCode, templateTitle, total: batch.total });
+    setBatches(recentLetterBatches());
+    setWatching({ id: batch.batchId, title: templateTitle });
+    showToast(batch.reused
+      ? "That batch was already queued — you are looking at the one that exists. Nobody is sent two copies."
+      : `Queued · ${batch.total} ${batch.total === 1 ? "letter" : "letters"} are being prepared`);
+  }, [refresh, showToast]);
+
+  const dropBatch = useCallback((id) => {
+    forgetLetterBatch(id);
+    setBatches(recentLetterBatches());
+  }, []);
+
   const onReissued = useCallback((letter, { reused }) => {
     setReissuing(null);
     setDetail(null);
@@ -265,7 +308,9 @@ export default function IssuedLettersPage() {
               Every letter your organisation has issued, with the number it was issued under. Nothing here is ever removed or renumbered.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+          {/* Wraps: three actions plus Refresh are wider than a phone, and a
+              button row that runs off the screen is worse than a second line. */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
             <button
               type="button" onClick={refresh} disabled={state.loading}
               className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50"
@@ -277,9 +322,14 @@ export default function IssuedLettersPage() {
               <HiBadgeCheck className="w-4 h-4" /> Letter Templates
             </Link>
             {!rendererOff && issuable.length > 0 && (
-              <button type="button" onClick={() => { setIssueCode(""); setIssuing(true); }} className={PRIMARY_BTN}>
-                <HiMail className="w-4 h-4" /> Issue a letter
-              </button>
+              <>
+                <button type="button" onClick={() => setBulking(true)} className={SECONDARY_BTN}>
+                  <HiUserGroup className="w-4 h-4" /> Send to many
+                </button>
+                <button type="button" onClick={() => { setIssueCode(""); setIssuing(true); }} className={PRIMARY_BTN}>
+                  <HiMail className="w-4 h-4" /> Issue a letter
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -300,6 +350,30 @@ export default function IssuedLettersPage() {
             tone="text-fuchsia-500"
           />
         </div>
+
+        {batches.length > 0 && (
+          <div className="rounded-2xl border border-slate-100 bg-white shadow-xs px-4 py-3.5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <HiUserGroup className="w-3.5 h-3.5 text-purple-500" /> Batches you’ve sent recently
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              {batches.map((batch) => (
+                <button
+                  key={batch.id}
+                  type="button"
+                  onClick={() => setWatching({ id: batch.id, title: batch.templateTitle })}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-purple-100 bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition"
+                >
+                  {batch.templateTitle || "A batch of letters"}
+                  <span className="text-purple-400 tabular-nums">{batch.total || "?"}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+              Open one to see how far it has got and who was left out. They stop being listed here after a week — every letter they issued stays on the register for good.
+            </p>
+          </div>
+        )}
 
         {issuable.length === 0 && catalog.length > 0 && (
           <Link
@@ -522,6 +596,31 @@ export default function IssuedLettersPage() {
           onIssued={onIssued}
           onRendererOff={() => setRendererOff(true)}
           onClose={() => { setIssuing(false); setIssueCode(""); }}
+        />
+      )}
+
+      {bulking && (
+        <BulkIssueLettersDialog
+          api={documentsAPI}
+          people={people}
+          peopleStatus={peopleStatus}
+          maxSubjects={bulkMax}
+          onQueued={onQueued}
+          onRendererOff={() => setRendererOff(true)}
+          onClose={() => setBulking(false)}
+        />
+      )}
+
+      {watching && (
+        <LetterBatchDialog
+          api={documentsAPI}
+          batchId={watching.id}
+          templateTitle={watching.title}
+          nameOf={nameOf}
+          showToast={showToast}
+          onSettled={refresh}
+          onMissing={dropBatch}
+          onClose={() => setWatching(null)}
         />
       )}
 

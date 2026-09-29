@@ -12,6 +12,7 @@ import { AnomalyDetails, OvertimeDetails, RegularizationDetails, recordOf } from
 import { DECISION_TYPES, runDecision } from "./decisions.js";
 import { resolvePerson, useTeamNames } from "./useTeamNames.js";
 import { entityId, listFrom } from "./normalize.js";
+import { formatDayCount } from "../utils/formatUtils.js";
 import { anomalyTypeLabel, humanize } from "./enums.js";
 import { fmtClockTime, fmtDate, fmtHours, fmtMinutes, fmtTime, toLocalYMD, workedLabel, ymdOnly } from "./dates.js";
 import { useAttendanceChanged } from "./events.js";
@@ -19,6 +20,7 @@ import { isAlreadyProcessed, isHierarchyViolation, isNotFound } from "../utils/a
 import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, StatusBadge, Toast, useToast } from "./ui.jsx";
 import GenderAvatar from "../components/GenderAvatar.jsx";
 import { fetchAllOrgEmployees } from "../utils/orgEmployees.js";
+import { HelpLabel } from "../fieldHelp/FieldHelp.jsx";
 
 const itemDate = (i) => ymdOnly(i.date || i.record_date || recordOf(i)?.date || i.earned_date || i.worked_date);
 const otMinutes = (i) => i.overtime_minutes ?? i.minutes ?? i.requested_minutes ?? (i.hours != null ? Math.round(Number(i.hours) * 60) : null);
@@ -95,6 +97,7 @@ const COLUMNS = {
     { header: "Requested", render: (i) => <span className="font-bold text-violet-700"><RequestedTime iso={i.requested_clock_in} date={itemDate(i)} /> → <RequestedTime iso={i.requested_clock_out} date={itemDate(i)} /></span> },
     {
       header: "Mode",
+      help: { surface: "attendance.approval_queue", field: "work_mode", label: "work mode" },
       render: (i) => {
         const recorded = recordOf(i)?.work_mode;
         if (!i.work_mode) return "N/A";
@@ -107,7 +110,7 @@ const COLUMNS = {
   ],
   overtime: [
     { header: "Date", render: (i) => fmtDate(itemDate(i)) },
-    { header: "Overtime", render: (i) => <span className="font-bold text-indigo-600">{fmtMinutes(otMinutes(i))}</span> },
+    { header: "Overtime", help: { surface: "attendance.team", field: "overtime_minutes", label: "overtime" }, render: (i) => <span className="font-bold text-indigo-600">{fmtMinutes(otMinutes(i))}</span> },
     {
       header: "Shift",
       render: (i) => {
@@ -124,7 +127,7 @@ const COLUMNS = {
     },
     { header: "Worked", render: (i) => <PunchRange record={recordOf(i)} date={itemDate(i)} /> },
     // The backend's own worked figure (breaks off) — the one overtime is measured against.
-    { header: "Effective", render: (i) => (i.worked_duration_formatted || recordOf(i)?.effective_hours != null ? workedLabel(i.worked_duration_formatted ? i : recordOf(i)) : "N/A") },
+    { header: "Effective", help: { surface: "attendance.team", field: "effective_hours", label: "effective hours" }, render: (i) => (i.worked_duration_formatted || recordOf(i)?.effective_hours != null ? workedLabel(i.worked_duration_formatted ? i : recordOf(i)) : "N/A") },
   ],
   // `when` drops a column that no row on the page can fill. The pending list
   // carries no credit and no expiry (both are set on approval), so those two
@@ -133,7 +136,7 @@ const COLUMNS = {
     { header: "Worked on", render: (i) => fmtDate(itemDate(i)) },
     { header: "Day off", render: (i) => (i.worked_type ? humanize(i.worked_type) : "N/A") },
     { header: "Hours", render: (i) => (i.worked_hours != null ? fmtHours(i.worked_hours) : "N/A") },
-    { header: "Credit", when: (items) => items.some((i) => creditDays(i) != null), render: (i) => (creditDays(i) != null ? `${creditDays(i)} day${Number(creditDays(i)) === 1 ? "" : "s"}` : "N/A") },
+    { header: "Credit", help: { surface: "attendance.approval_queue", field: "days_earned", label: "comp-off credit", overlay: true }, when: (items) => items.some((i) => creditDays(i) != null), render: (i) => formatDayCount(creditDays(i)) },
     { header: "Expires", when: (items) => items.some((i) => expiry(i)), render: (i) => (expiry(i) ? fmtDate(expiry(i)) : "N/A") },
   ],
   anomaly: [
@@ -271,7 +274,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="px-5 py-3.5">Employee</th>
-                {columns.map((c) => <th key={c.header} className="px-5 py-3.5">{c.header}</th>)}
+                {columns.map((c) => <th key={c.header} className="px-5 py-3.5"><HelpLabel text={c.header} help={c.help} /></th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">

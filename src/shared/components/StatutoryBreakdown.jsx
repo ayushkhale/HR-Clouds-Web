@@ -10,12 +10,22 @@
 // Zero-value heads are kept on screen with the sentence that explains the zero
 // (not covered by ESI, no state PT, no tax due), because a missing row reads as
 // "we forgot" and a bare ₹0.00 reads as a bug.
+//
+// ⓘ help: every head is wired by its own `line.key` (pf, esi, pt, tds,
+// pf_employer, esi_employer, edli, pf_admin) under surface `payroll.statutory`.
+// fieldHelp.json decides which heads — and which workspaces — actually get an
+// ⓘ; everything else renders exactly as before. Keep wiring by data key rather
+// than hand-picking rows here. `overlay`: at phone width "Provident fund
+// (EPF)" fills its cell exactly, so the ⓘ draws in the cell padding instead.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { HiShieldCheck, HiInformationCircle, HiExclamation, HiOfficeBuilding, HiCalculator } from "react-icons/hi";
 import { DetailGrid, DetailSection, DetailTable } from "./DetailDialog";
 import { formatMoney } from "../utils/formatUtils";
 import { statutoryTotals } from "../utils/statutoryBreakdown";
+import { HelpLabel } from "../fieldHelp/FieldHelp";
+
+const HELP_SURFACE = "payroll.statutory";
 
 /** One tile of the summary strip. `tone` only ever picks from the purple family (or rose for money taken away). */
 function Tile({ label, value, hint, tone = "plain" }) {
@@ -128,7 +138,7 @@ function AmountTable({ rows, empty, sign = "" }) {
           header: "Head",
           render: (l) => (
             <span className="block min-w-0">
-              <span className={`font-semibold ${l.applicable ? "text-slate-800" : "text-slate-500"}`}>{l.label}</span>
+              <span className={`font-semibold ${l.applicable ? "text-slate-800" : "text-slate-500"}`}><HelpLabel text={l.label} help={{ surface: HELP_SURFACE, field: l.key, overlay: true }} /></span>
               {l.note && <span className="block text-[11px] text-slate-500 mt-0.5">{l.note}</span>}
             </span>
           ),

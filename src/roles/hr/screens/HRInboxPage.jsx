@@ -11,9 +11,10 @@ import PayrollApprovalsPage from "../payroll/screens/PayrollApprovalsPage";
 import PayrollReimbursementsPage from "../payroll/screens/PayrollReimbursementsPage";
 import PayrollLoansPage from "../payroll/screens/PayrollLoansPage";
 import TaxDeclarationsPage from "../payroll/screens/TaxDeclarationsPage";
+import LetterProposalsPage from "../documents/screens/LetterProposalsPage";
 import {
   HiCash, HiClipboardCheck, HiClock, HiCurrencyRupee, HiDocumentText,
-  HiExclamationCircle, HiGift, HiLightningBolt, HiReceiptRefund, HiRefresh,
+  HiExclamationCircle, HiGift, HiLightningBolt, HiMail, HiReceiptRefund, HiRefresh,
 } from "react-icons/hi";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
@@ -40,6 +41,15 @@ const GROUPS = [
       { key: "claims", label: "Claims", hint: "New and manager-reviewed claims", icon: HiReceiptRefund, render: () => <PayrollReimbursementsPage embedded /> },
       { key: "loans", label: "Loans & advances", hint: "Loan requests to approve", icon: HiCash, render: () => <PayrollLoansPage initialStatus="pending" /> },
       { key: "declarations", label: "Tax declarations", hint: "Submitted this financial year", icon: HiClipboardCheck, render: () => <TaxDeclarationsPage /> },
+    ],
+  },
+  {
+    title: "Documents",
+    cols: "lg:grid-cols-4",
+    items: [
+      // Approving one of these issues a real, numbered letter — so it is
+      // reviewed in the same place as every other decision that waits on HR.
+      { key: "letterProposals", label: "Letter Proposals", hint: "Letters managers have asked you to issue", icon: HiMail, render: () => <LetterProposalsPage embedded /> },
     ],
   },
 ];

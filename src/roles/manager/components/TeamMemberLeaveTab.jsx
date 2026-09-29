@@ -3,6 +3,7 @@ import { HiCalendar, HiRefresh } from "react-icons/hi";
 import { leaveAPI } from "../../../shared/api";
 import { listFrom } from "../../../shared/attendance/normalize";
 import { fmtDate } from "../../../shared/attendance/dates";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { EmptyState, ErrorState, LoadingRows } from "../../../shared/attendance/ui";
 import { BalanceCard, balanceGridCols } from "../../hr/screens/employee-profile/LeaveTab";
 
@@ -12,11 +13,6 @@ const STATUS_TONE = {
   cancelled: "bg-slate-100 text-slate-600 border-slate-200",
 };
 const statusLabel = (s) => (s ? String(s).replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "N/A");
-const days = (v) => {
-  const n = parseFloat(v);
-  if (!Number.isFinite(n)) return "N/A";
-  return `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? "day" : "days"}`;
-};
 
 /**
  * A direct report's leave, read through the manager-scoped
@@ -97,7 +93,7 @@ export default function TeamMemberLeaveTab({ userId }) {
                     <tr key={req.id || i} className="hover:bg-slate-50/50">
                       <td className="px-6 py-3.5 font-semibold text-slate-800">{req.leave_type?.name || "Leave"}</td>
                       <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap">{req.start_date === req.end_date ? start : `${start} – ${end}`}</td>
-                      <td className="px-6 py-3.5 text-slate-600">{days(req.total_days)}</td>
+                      <td className="px-6 py-3.5 text-slate-600">{formatDayCount(req.total_days)}</td>
                       <td className="px-6 py-3.5 text-slate-500 max-w-[240px] truncate" title={req.reason || undefined}>{req.reason || "N/A"}</td>
                       <td className="px-6 py-3.5">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_TONE[req.status] || "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200"}`}>

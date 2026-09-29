@@ -7,7 +7,7 @@ import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, Detai
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { formatDate } from "../../../../shared/utils/formatUtils";
+import { formatDate, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { DICTIONARY } from "../../../../shared/config/dictionary";
 import { interestMethodLabel } from "../../../hr/payroll/runMeta";
 
@@ -74,12 +74,6 @@ const DIVISOR_BASIS = {
   working_days: "the working days in the month",
 };
 
-/** "1 day" / "2.5 days" — `days` arrives as a decimal string ("1.00"). */
-const daysLabel = (v) => {
-  const n = parseFloat(v);
-  if (!Number.isFinite(n)) return "N/A";
-  return `${Number.isInteger(n) ? n : Number(n.toFixed(2))} ${n === 1 ? "day" : "days"}`;
-};
 
 export default function MyLoansAndAdvancesPage() {
   const [tab, setTab] = useState("loans");
@@ -117,7 +111,7 @@ export default function MyLoansAndAdvancesPage() {
       ]);
       if (encashRes.err) {
         setEncashments([]);
-        setEncashError(payrollErrorMessage(encashRes.err, "Couldn't load your encashments"));
+        setEncashError(payrollErrorMessage(encashRes.err, "Couldn't load your leave payouts"));
       } else {
         setEncashments(asList(encashRes.res?.data));
         setEncashError("");
@@ -150,7 +144,7 @@ export default function MyLoansAndAdvancesPage() {
   const TABS = [
     { key: "loans", label: "Loans & Advances", icon: HiCash },
     { key: "variable", label: "Bonuses & Adjustments", icon: HiGift },
-    { key: "encashments", label: "Encashments", icon: HiSwitchHorizontal },
+    { key: "encashments", label: `${DICTIONARY.TERMS.ENCASHMENT}s`, icon: HiSwitchHorizontal },
   ];
 
   const allBonusRows = [
@@ -175,7 +169,7 @@ export default function MyLoansAndAdvancesPage() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-900">My Loans &amp; Variable Pay
             </h1>
-            <p className="text-sm text-slate-500 mt-1">Your loan balances, EMI schedules, bonuses, one-off adjustments and encashed leave.</p>
+            <p className="text-sm text-slate-500 mt-1">Your loan balances, repayment schedules, bonuses, one-off adjustments and leave paid out as money.</p>
           </div>
 
           <div className="flex gap-1 mb-6 border-b border-slate-200">
@@ -220,9 +214,9 @@ function LoansTable({ loans, onOpen }) {
             <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
               <th className="px-6 py-3.5 border-b border-slate-100">Loan</th>
               <th className="px-6 py-3.5 border-b border-slate-100 text-right">Borrowed</th>
-              <th className="px-6 py-3.5 border-b border-slate-100 text-right">Monthly EMI</th>
+              <th className="px-6 py-3.5 border-b border-slate-100 text-right">Monthly repayment</th>
               <th className="px-6 py-3.5 border-b border-slate-100 text-right">Still to repay</th>
-              <th className="px-6 py-3.5 border-b border-slate-100">Next EMI</th>
+              <th className="px-6 py-3.5 border-b border-slate-100">Next payment</th>
               <th className="px-6 py-3.5 border-b border-slate-100 text-center">Status</th>
             </tr>
           </thead>
@@ -259,7 +253,7 @@ function LoanDetail({ loan, installments, loading, failed = false, onClose }) {
       eyebrow="Loan details"
       icon={HiCash}
       title={type}
-      subtitle={`First EMI ${fmtPeriod(loan.start_period_month)} · ${loan.tenure_months ?? 0} months`}
+      subtitle={`First payment ${fmtPeriod(loan.start_period_month)} · ${loan.tenure_months ?? 0} months`}
       badge={<DetailPill tone="onDark">{humanize(loan.status) || "N/A"}</DetailPill>}
       loading={loading}
       onClose={onClose}
@@ -268,7 +262,7 @@ function LoanDetail({ loan, installments, loading, failed = false, onClose }) {
       <DetailStats
         items={[
           { label: "Borrowed", value: money(loan.principal_amount), icon: HiCash },
-          { label: "Monthly EMI", value: money(loan.emi_amount), icon: HiCalendar },
+          { label: "Monthly repayment", value: money(loan.emi_amount), icon: HiCalendar },
           { label: "Repaid so far", value: money(loan.recovered_amount ?? loan.total_recovered), icon: HiCheckCircle },
           { label: "Still to repay", value: money(outstanding(loan)), icon: HiTrendingUp },
         ]}
@@ -280,10 +274,10 @@ function LoanDetail({ loan, installments, loading, failed = false, onClose }) {
           items={[
             ["Type", type],
             ["Interest rate", `${parseFloat(loan.interest_rate || 0)}% a year`],
-            ["How interest is worked out", interestMethodLabel(loan.interest_method)],
+            { label: "How interest is worked out", value: interestMethodLabel(loan.interest_method), help: { surface: "payroll.loans", field: "interest_method", label: "how interest is worked out" } },
             ["Tenure", `${loan.tenure_months ?? 0} months`],
-            ["First EMI", fmtPeriod(loan.start_period_month)],
-            ["Next EMI", loan.next_due_period_month ? fmtPeriod(loan.next_due_period_month) : null],
+            ["First payment", fmtPeriod(loan.start_period_month)],
+            ["Next payment", loan.next_due_period_month ? fmtPeriod(loan.next_due_period_month) : null],
           ]}
         />
         {loan.reason && <div className="mt-3"><DetailText label="Reason">{loan.reason}</DetailText></div>}
@@ -294,11 +288,11 @@ function LoanDetail({ loan, installments, loading, failed = false, onClose }) {
           rows={installments}
           rowKey={(inst, i) => inst.id || inst.installment_number || i}
           // A failed read must not look like "no EMIs": it would read as nothing owed.
-          empty={failed ? "Couldn’t load the repayment schedule. Close this and open the loan again." : loan.status === "pending" ? "The schedule is created once the loan is approved." : "No EMIs scheduled."}
+          empty={failed ? "Couldn’t load the repayment schedule. Close this and open the loan again." : loan.status === "pending" ? "The schedule is created once the loan is approved." : "No payments scheduled."}
           columns={[
             { header: "#", render: (inst) => inst.installment_number },
             { header: "Due", render: (inst) => fmtPeriod(inst.due_period_month) },
-            { header: "EMI", align: "right", render: (inst) => <span className="font-semibold text-slate-800">{money(inst.total_amount ?? inst.amount)}</span> },
+            { header: "Payment", align: "right", render: (inst) => <span className="font-semibold text-slate-800">{money(inst.total_amount ?? inst.amount)}</span> },
             { header: "Status", align: "center", render: (inst) => <DetailPill tone={INST_TONE[inst.status] || "soft"}>{INST_LABEL[inst.status] || humanize(inst.status) || "N/A"}</DetailPill> },
           ]}
         />
@@ -374,7 +368,7 @@ function EncashmentsTable({ rows, error, onOpen }) {
             <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
               <th className="px-6 py-3.5 border-b border-slate-100">Requested</th>
               <th className="px-6 py-3.5 border-b border-slate-100">Type</th>
-              <th className="px-6 py-3.5 border-b border-slate-100 text-right">Days</th>
+              <th className="px-6 py-3.5 border-b border-slate-100 text-right">How much leave</th>
               <th className="px-6 py-3.5 border-b border-slate-100">Paid with</th>
               <th className="px-6 py-3.5 border-b border-slate-100 text-right">Amount</th>
               <th className="px-6 py-3.5 border-b border-slate-100 text-center">Status</th>
@@ -384,13 +378,13 @@ function EncashmentsTable({ rows, error, onOpen }) {
             {rows.map((r) => {
               const meta = ENCASH_STATUS[r.status] || { label: humanize(r.status) || "N/A", pill: "bg-slate-50 text-slate-600 border-slate-200" };
               return (
-                <tr key={r.id} {...rowPreviewProps(() => onOpen(r), `View this ${sourceLabel(r).toLowerCase()} encashment`)}>
+                <tr key={r.id} {...rowPreviewProps(() => onOpen(r), `View this ${sourceLabel(r).toLowerCase()} payout`)}>
                   <td className="px-6 py-3.5 text-slate-600">{formatDate(r.created_at)}</td>
                   <td className="px-6 py-3.5">
                     <span className="font-semibold text-slate-800">{sourceLabel(r)}</span>
                     {r.balance_year && <span className="block text-[11px] text-slate-400 font-normal">{r.balance_year} entitlement</span>}
                   </td>
-                  <td className="px-6 py-3.5 text-right text-slate-600 tabular-nums">{daysLabel(r.days)}</td>
+                  <td className="px-6 py-3.5 text-right text-slate-600 tabular-nums">{formatDayCount(r.days)}</td>
                   <td className="px-6 py-3.5 text-slate-600">{r.period_month ? `${fmtPeriod(r.period_month)} payroll` : "N/A"}</td>
                   <td className="px-6 py-3.5 text-right font-bold text-slate-800 tabular-nums">{money(r.amount)}</td>
                   <td className="px-6 py-3.5 text-center">
@@ -430,9 +424,9 @@ function EncashmentDetail({ record: r, onClose }) {
 
   return (
     <DetailDialog
-      eyebrow="Encashment"
+      eyebrow={DICTIONARY.TERMS.ENCASHMENT}
       icon={HiSwitchHorizontal}
-      title={`${daysLabel(r.days)} · ${money(r.amount)}`}
+      title={`${formatDayCount(r.days)} · ${money(r.amount)}`}
       subtitle={sourceLabel(r)}
       badge={<DetailPill tone={r.status === "approved" ? "solid" : "soft"}>{meta.label}</DetailPill>}
       onClose={onClose}
@@ -442,16 +436,16 @@ function EncashmentDetail({ record: r, onClose }) {
         <DetailGrid
           cols={3}
           items={[
-            ["Days encashed", daysLabel(r.days)],
+            ["Leave paid out", formatDayCount(r.days)],
             ["Rate based on", rate],
             ["Per day", money(r.per_day_amount)],
-            ["Month divided by", r.divisor_days ? `${r.divisor_days} days` : null],
+            { label: "Month divided by", value: r.divisor_days ? `${r.divisor_days} days` : null, help: { surface: "payroll.encashment", field: "divisor_days", label: "the month divider" } },
             ["Total", money(r.amount)],
             ["Paid with", r.period_month ? `${fmtPeriod(r.period_month)} payroll` : null],
           ]}
         />
         <p className="mt-4 text-[11px] text-slate-500">
-          {daysLabel(r.days)} at {money(r.per_day_amount)} a day. The daily rate is your {rate.toLowerCase()}
+          {formatDayCount(r.days)} at {money(r.per_day_amount)} a day. The daily rate is your {rate.toLowerCase()}
           {divisor ? ` divided by ${divisor}` : ""}
           {r.divisor_days ? ` (${r.divisor_days} days)` : ""}.
         </p>

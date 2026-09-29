@@ -9,14 +9,22 @@
 // the file before anything is sent, "tracks expiry" makes the expiry date
 // required, and a confidential type can't be made visible (tighten-only, D-12).
 // A replace keeps the predecessor live until the new version is confirmed.
+//
+// ⓘ help reads `documents.upload` for your own file and
+// `documents.upload_for_report` when `subjectName` says it goes into someone
+// else's (a manager's or HR's upload). The two need different wording — "hides
+// it from your manager" is wrong when a manager is the one uploading — and
+// subjectName is already how this form tells the cases apart, so no caller has
+// to remember a second prop.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { HiCheck, HiClipboardList, HiLockClosed, HiUpload, HiX, HiInformationCircle, HiRefresh } from "react-icons/hi";
 import { DocumentUploadError, documentUploadMessage, uploadDocument } from "./documentUpload";
 import { fileProblem, groupLabel, typePolicyLine } from "./documentMeta";
 import { FIELD, FileDropField, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { fmtDate, todayYMD } from "../attendance/dates";
+import FieldHelp from "../fieldHelp/FieldHelp";
 
 const STAGES = [
   { key: "issue", label: "Preparing a secure upload link" },
@@ -58,6 +66,8 @@ export default function DocumentUploadDialog({ mode = "upload", types = [], pres
   // issued with, so while it exists the form is locked: "Try again" resends
   // exactly that, and "Start over" discards it before anything can change.
   const [draft, setDraft] = useState(null);
+  const confId = useId(); // ids for the Confidential checkbox's name and description
+  const helpSurface = subjectName ? "documents.upload_for_report" : "documents.upload";
   const [discarding, setDiscarding] = useState(false);
   const busy = (stage && stage !== "done") || discarding;
   const locked = busy || !!draft;
@@ -211,7 +221,10 @@ export default function DocumentUploadDialog({ mode = "upload", types = [], pres
               {show("title") && <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.title}</p>}
             </div>
             <div>
-              <label htmlFor="doc-number" className={LABEL}>Document number <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+              <div className="flex items-center">
+                <label htmlFor="doc-number" className={LABEL}>Document number <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+                <FieldHelp surface={helpSurface} field="document_number" label="the document number" className="mb-2" />
+              </div>
               <input id="doc-number" type="text" value={form.document_number} maxLength={100} autoComplete="off" onChange={(e) => set("document_number", e.target.value)} disabled={locked} placeholder={replacing ? "Re-enter if it changed" : "e.g. ABCDE1234F"} className={`${FIELD} font-mono`} />
               {show("number") ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.number}</p>
                 : <p className="text-[10px] text-slate-400 mt-1">Stored securely; only the last 4 characters are ever shown.</p>}
@@ -235,10 +248,16 @@ export default function DocumentUploadDialog({ mode = "upload", types = [], pres
 
           {/* Confidential */}
           <label className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${confidentialForced ? "bg-slate-50 border-slate-200 cursor-not-allowed" : "border-slate-200 hover:border-purple-200 cursor-pointer"}`}>
-            <input type="checkbox" checked={confidentialForced || form.is_confidential} disabled={confidentialForced || locked} onChange={(e) => set("is_confidential", e.target.checked)} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+            {/* Named by its title, described by the line below: the ⓘ sits
+                inside this <label>, and would otherwise be read out as part of
+                the checkbox's name. */}
+            <input type="checkbox" aria-labelledby={`${confId}-title`} aria-describedby={`${confId}-note`} checked={confidentialForced || form.is_confidential} disabled={confidentialForced || locked} onChange={(e) => set("is_confidential", e.target.checked)} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
             <span className="min-w-0">
-              <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700"><HiLockClosed className="w-4 h-4 text-purple-500" /> Confidential</span>
-              <span className="block text-xs text-slate-500 mt-0.5">
+              <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700">
+                <HiLockClosed className="w-4 h-4 text-purple-500" /> <span id={`${confId}-title`}>Confidential</span>
+                <FieldHelp surface={helpSurface} field="is_confidential" label="a confidential document" />
+              </span>
+              <span id={`${confId}-note`} className="block text-xs text-slate-500 mt-0.5">
                 {confidentialForced ? "This document is confidential and stays hidden from managers." : "Hide it from managers — only HR and the employee can see it. Can't be undone."}
               </span>
             </span>

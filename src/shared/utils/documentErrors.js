@@ -65,6 +65,9 @@ export const DOCUMENT_ERROR_MESSAGES = {
 
   // Review
   DOCUMENT_NOT_PENDING_VERIFICATION: "This document has already been decided. The list has been refreshed.",
+  // Shared with PDF Phase 4's #149 — a letter proposal hits the same rule, and
+  // reads it through `proposalDecisionErrorMessage()` so it says "approve a
+  // letter" rather than "verify a document".
   SELF_APPROVAL_NOT_ALLOWED: "Separate checker is on: you can't verify a document you uploaded or proposed. Another HR administrator must decide it.",
   RECOMMENDATION_SCOPE_STALE: "The manager who recommended this no longer manages this employee.",
 
@@ -193,7 +196,19 @@ export const DOCUMENT_ERROR_MESSAGES = {
   PDF_RENDER_IN_PROGRESS: "This letter is still being drawn. Give it a few seconds and try again — doing so won't create a second copy.",
   PDF_RETRY_LIMIT_EXCEEDED: "This letter has failed to draw several times, so it won't be tried again automatically. Nothing was issued — start it again from the beginning, and tell your administrator if it keeps failing.",
   PDF_TOO_LARGE: "The finished letter came out larger than 6 MB, which is too big to file. Shorten the wording you typed in, or ask your administrator to check the letterhead images.",
-  DB_COMMIT_FAILED: "The letter was drawn but couldn't be filed, so nothing was issued and no number was used up. Try again.",
+  DB_COMMIT_FAILED: "The letter was drawn but couldn’t be filed, so nothing was issued and no number was used up. Try again.",
+
+  // ── Bulk, proposals and auto-issue (PDF Generation Phase 4, #143–#150) ─────
+  // Every one of these happens BEFORE anything is drawn, so each says plainly
+  // that nothing went out — the whole worry with a batch of two hundred is
+  // "how many of those did I just send?".
+  LETTER_BULK_DUPLICATE_SUBJECT: "Somebody appears twice in this list, so nothing was queued. Remove the repeat and send it again — one person can only be sent one copy per batch.",
+  LETTER_BULK_TOO_MANY_SUBJECTS: "This batch has more people in it than your organisation allows at once, so nothing was queued. Send it in smaller batches, or raise the limit in Document Settings.",
+  LETTER_BULK_VALIDATION_FAILED: "Some of these people can’t be sent this letter, so none of them were — a batch goes out whole or not at all. Take the ones listed below out and send the rest.",
+  LETTER_PROPOSALS_DISABLED: "Your organisation hasn’t opened letter drafting to managers, so this can’t be sent to HR. Ask HR to switch it on in Document Settings.",
+  LETTER_PROPOSAL_EXISTS: "You’ve already asked for this letter for this person and HR hasn’t decided yet. Wait for that one rather than raising a second.",
+  LETTER_PROPOSAL_NOT_PENDING: "Somebody has already decided this one, so nothing changed. Refresh to see what was decided.",
+  PROPOSAL_SCOPE_STALE: "This person no longer reports to whoever drafted the letter, so it wasn’t approved automatically. Check it still makes sense, then approve it anyway if it does.",
 
   // Settings
   SCAN_PROVIDER_NOT_CONFIGURED: "Virus scanning isn't available yet, so it can't be turned on.",
@@ -652,3 +667,51 @@ export const isLetterFieldRejected = (err) =>
  * the same idempotency key (see `keyForRetry`).
  */
 export const isLetterOutcomeUnknown = (err) => !Number.isFinite(Number(err?.status));
+
+// ── Bulk, proposals and auto-issue (PDF Generation Phase 4, #143–#150) ───────
+
+/** The batch was refused whole. Each entry names one person and why. */
+export function bulkValidationFailures(err) {
+  const raw = err?.data?.details?.failures ?? err?.data?.failures;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => ({
+      subjectUserId: row?.subject_user_id || row?.user_id || "",
+      code: row?.failure_code || row?.code || "",
+      reason: row?.failure_reason || row?.reason || row?.message || "",
+    }))
+    .filter((row) => row.subjectUserId || row.reason);
+}
+
+/** Over `letter_bulk_max_subjects` — the ceiling, when the refusal names it. */
+export function bulkSubjectLimit(err) {
+  const raw = err?.data?.details?.max ?? err?.data?.details?.limit ?? err?.data?.details?.letter_bulk_max_subjects;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export const isBulkValidationFailed = (err) => documentErrorCode(err) === "LETTER_BULK_VALIDATION_FAILED";
+export const isBulkTooMany = (err) => documentErrorCode(err) === "LETTER_BULK_TOO_MANY_SUBJECTS";
+export const isProposalsDisabled = (err) => documentErrorCode(err) === "LETTER_PROPOSALS_DISABLED";
+export const isProposalDuplicate = (err) => documentErrorCode(err) === "LETTER_PROPOSAL_EXISTS";
+export const isProposalDecided = (err) => documentErrorCode(err) === "LETTER_PROPOSAL_NOT_PENDING";
+export const isSelfApproval = (err) => documentErrorCode(err) === "SELF_APPROVAL_NOT_ALLOWED";
+/** The proposer no longer manages the subject. Clearable — see #149's `acknowledge_stale_scope`. */
+export const isProposalScopeStale = (err) => documentErrorCode(err) === "PROPOSAL_SCOPE_STALE";
+
+/**
+ * This server doesn't have the proposal queue yet, as opposed to having it and
+ * finding nothing in it.
+ *
+ * A server from before Phase 4 has no `/letters/proposals` route, so the word
+ * "proposals" falls through to `/letters/:id` and comes back as a malformed id
+ * (400) or a missing letter (404) — neither of which means what it says. Both
+ * readings are "the feature isn't deployed", which a screen shows as an
+ * explanation rather than as a failure, and a badge counts as zero rather than
+ * as unknown.
+ */
+export const isProposalQueueMissing = (err) => {
+  const status = Number(err?.status);
+  if (status === 404) return true;
+  return status === 400 && ["VALIDATION_ERROR", "", undefined].includes(documentErrorCode(err));
+};

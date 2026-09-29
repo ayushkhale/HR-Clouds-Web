@@ -3,7 +3,8 @@
 // (#80 for HR, #93 for a manager).
 //
 // Three fields, two of them optional, because the whole point is that asking
-// should take five seconds. Leaving the date blank is the normal case: the
+// should take five seconds. Wide, with the kind and the deadline side by side,
+// so the whole form is on screen without a scroll. Leaving the date blank is the normal case: the
 // server applies the organisation's standard window, which is one fewer
 // decision than picking a date nobody will remember agreeing to.
 //
@@ -22,6 +23,7 @@ import { documentErrorMessage, duplicateRequestId, isDocumentAlreadyPresent } fr
 import { groupLabel } from "./documentMeta";
 import { REQUEST_DUE_MAX_DAYS, REQUEST_NOTE_MAX } from "./requestMeta";
 import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
+import FieldHelp from "../fieldHelp/FieldHelp";
 
 /**
  * @param {object} props
@@ -117,7 +119,7 @@ export default function RequestDocumentDialog({
         role="dialog"
         aria-modal="true"
         aria-label={`Ask ${subjectName} for a document`}
-        className="bg-white rounded-2xl shadow-2xl shadow-purple-900/20 w-full max-w-lg flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl shadow-2xl shadow-purple-900/20 w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200"
       >
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-purple-100">
           <div className="flex items-start gap-3 min-w-0">
@@ -135,6 +137,7 @@ export default function RequestDocumentDialog({
         </div>
 
         <div className="px-6 py-5 space-y-4 overflow-y-auto">
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start">
           <div>
             <label htmlFor="req-type" className={LABEL}>What you need</label>
             <select id="req-type" value={typeId} onChange={(e) => { setTypeId(e.target.value); setError(""); setExistingId(""); }} className={FIELD} disabled={busy}>
@@ -153,7 +156,10 @@ export default function RequestDocumentDialog({
           </div>
 
           <div>
-            <label htmlFor="req-due" className={LABEL}>Due by <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+            <div className="flex items-center">
+              <label htmlFor="req-due" className={LABEL}>Due by <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+              <FieldHelp surface="documents.request" field="due_on" label="the due date" className="mb-2" />
+            </div>
             <input
               id="req-due" type="date" value={dueOn} min={today} max={maxDue} disabled={busy}
               onChange={(e) => setDueOn(e.target.value)} className={FIELD}
@@ -190,7 +196,7 @@ export default function RequestDocumentDialog({
             )}
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label htmlFor="req-note" className={LABEL}>Anything they should know <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
             <textarea
               id="req-note" rows={3} value={note} maxLength={REQUEST_NOTE_MAX} disabled={busy}
@@ -201,6 +207,7 @@ export default function RequestDocumentDialog({
             <p className={`text-[10px] mt-1 ${problems.note ? "font-semibold text-rose-600" : "text-slate-400"}`}>
               {problems.note || `Goes straight into their email. ${REQUEST_NOTE_MAX - note.length} characters left.`}
             </p>
+          </div>
           </div>
 
           <p className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[11px] text-slate-600 leading-relaxed">

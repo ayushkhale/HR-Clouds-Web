@@ -16,6 +16,7 @@ import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { RegularizationDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
 import { HiPencilAlt, HiPlus, HiX } from "react-icons/hi";
 import TimeField from "../../../shared/components/TimeField";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const inputClass = (invalid) =>
   `w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all ${invalid ? "border-rose-300" : "border-slate-200"}`;
@@ -74,7 +75,9 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[100] flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !submitting && onClose()}>
-      <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="reg-title">
+      {/* Wide, two columns: at max-w-md every field sat in one column and the
+          reason box was below the fold, so people scrolled a five-field form. */}
+      <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="reg-title">
         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
             <h3 id="reg-title" className="font-bold text-lg text-slate-800">Request a correction</h3>
@@ -87,12 +90,23 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
 
         <div className="p-6 space-y-4 overflow-y-auto">
           {error && <InlineAlert tone="rose">{error}</InlineAlert>}
-          <div>
-            <label htmlFor="reg-date" className="block text-sm font-semibold text-slate-700 mb-1.5">Date *</label>
-            <input id="reg-date" type="date" max={maxDate} className={inputClass(!!errors.date)} value={form.date} onChange={(e) => set("date", e.target.value)} />
-            {errors.date ? <FieldError message={errors.date} /> : <p className="text-[11px] text-slate-400 mt-1">Only past dates within your policy's correction window can be requested.</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 gap-x-5 gap-y-4">
+            <div>
+              <label htmlFor="reg-date" className="block text-sm font-semibold text-slate-700 mb-1.5">Date *</label>
+              <input id="reg-date" type="date" max={maxDate} className={inputClass(!!errors.date)} value={form.date} onChange={(e) => set("date", e.target.value)} />
+              {errors.date ? <FieldError message={errors.date} /> : <p className="text-[11px] text-slate-400 mt-1">Only past dates within your policy's correction window can be requested.</p>}
+            </div>
+            <div>
+              <div className="flex items-center">
+                <label htmlFor="reg-mode" className="block text-sm font-semibold text-slate-700 mb-1.5">Worked from <span className="font-normal text-slate-400">(optional)</span></label>
+                <FieldHelp surface="attendance.regularization" field="work_mode" label="Worked from" className="mb-1.5" />
+              </div>
+              <select id="reg-mode" className={`${inputClass(!!errors.work_mode)} bg-white`} value={form.work_mode} onChange={(e) => set("work_mode", e.target.value)}>
+                <option value="">Keep as recorded</option>
+                {WORK_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+              {errors.work_mode ? <FieldError message={errors.work_mode} /> : <p className="text-[11px] text-slate-400 mt-1">Applied to the day if the correction is approved.</p>}
+            </div>
             <div>
               <span className="block text-sm font-semibold text-slate-700 mb-1.5">Clock in</span>
               <TimeField label="Clock in" value={form.clockIn} onChange={(v) => set("clockIn", v)} invalid={!!(errors.clockIn || errors.times)} />
@@ -102,28 +116,22 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
               <span className="block text-sm font-semibold text-slate-700 mb-1.5">Clock out</span>
               <TimeField label="Clock out" value={form.clockOut} onChange={(v) => set("clockOut", v)} invalid={!!(errors.clockOut || errors.times)} />
             </div>
-          </div>
-          {showNextDay && (
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <input type="checkbox" checked={form.outNextDay} onChange={(e) => set("outNextDay", e.target.checked)} className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
-              Clock-out was the next day (overnight shift)
-            </label>
-          )}
-          <FieldError message={errors.times || errors.clockOut} />
-          <div>
-            <label htmlFor="reg-mode" className="block text-sm font-semibold text-slate-700 mb-1.5">Worked from <span className="font-normal text-slate-400">(optional)</span></label>
-            <select id="reg-mode" className={`${inputClass(!!errors.work_mode)} bg-white`} value={form.work_mode} onChange={(e) => set("work_mode", e.target.value)}>
-              <option value="">Keep as recorded</option>
-              {WORK_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-            {errors.work_mode ? <FieldError message={errors.work_mode} /> : <p className="text-[11px] text-slate-400 mt-1">Applied to the day if the correction is approved.</p>}
-          </div>
-          <div>
-            <label htmlFor="reg-reason" className="block text-sm font-semibold text-slate-700 mb-1.5">Reason *</label>
-            <textarea id="reg-reason" rows={3} maxLength={REGULARIZATION_REASON_MAX} placeholder="e.g. Forgot to clock out after the client meeting" className={`${inputClass(!!errors.reason)} resize-none`} value={form.reason} onChange={(e) => set("reason", e.target.value)} />
-            <div className="flex justify-between">
-              <FieldError message={errors.reason} />
-              <span className="text-[10px] text-slate-400 tabular-nums ml-auto mt-1">{form.reason.length}/{REGULARIZATION_REASON_MAX}</span>
+            <div className="sm:col-span-2 space-y-2">
+              {showNextDay && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <input type="checkbox" checked={form.outNextDay} onChange={(e) => set("outNextDay", e.target.checked)} className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
+                  Clock-out was the next day (overnight shift)
+                </label>
+              )}
+              <FieldError message={errors.times || errors.clockOut} />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="reg-reason" className="block text-sm font-semibold text-slate-700 mb-1.5">Reason *</label>
+              <textarea id="reg-reason" rows={3} maxLength={REGULARIZATION_REASON_MAX} placeholder="e.g. Forgot to clock out after the client meeting" className={`${inputClass(!!errors.reason)} resize-none`} value={form.reason} onChange={(e) => set("reason", e.target.value)} />
+              <div className="flex justify-between">
+                <FieldError message={errors.reason} />
+                <span className="text-[10px] text-slate-400 tabular-nums ml-auto mt-1">{form.reason.length}/{REGULARIZATION_REASON_MAX}</span>
+              </div>
             </div>
           </div>
         </div>

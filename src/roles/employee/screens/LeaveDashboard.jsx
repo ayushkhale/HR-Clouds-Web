@@ -11,6 +11,8 @@ import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, Detai
 import AttachmentLink from "../../../shared/documents/AttachmentLink";
 import LeaveAttachmentField from "../../../shared/documents/LeaveAttachmentField";
 import { FilterTabs } from "../../../shared/attendance/ui";
+import FieldHelp, { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
 
 // Whether a leave's start date is today or already past. The backend decides
 // cancellation behaviour by DATE, not status: a leave entirely in the future is
@@ -125,10 +127,6 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
 
   if (!requestId) return null;
 
-  const days = (v) => {
-    const n = parseFloat(v);
-    return Number.isFinite(n) ? `${n.toFixed(1)} ${n === 1 ? "day" : "days"}` : null;
-  };
   const onDate = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null);
   const sameDay = details && details.start_date === details.end_date;
 
@@ -150,9 +148,9 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
         <>
           <DetailStats
             items={[
-              { label: "Days off", value: days(details.total_days), icon: HiCalendar },
-              { label: "Paid", value: days(details.paid_days ?? 0), hint: "comes out of your balance", icon: HiCheckCircle },
-              { label: "Unpaid", value: days(details.unpaid_days ?? 0), hint: "leave without pay", icon: HiScale },
+              { label: "Days off", value: formatDayCount(details.total_days), icon: HiCalendar },
+              { label: "Paid", value: formatDayCount(details.paid_days ?? 0), hint: "comes out of your balance", icon: HiCheckCircle },
+              { label: "Unpaid", value: formatDayCount(details.unpaid_days ?? 0), hint: "not paid for", icon: HiScale, help: { surface: "leaves.request_detail", field: "unpaid_days", label: "unpaid leave" } },
             ]}
           />
 
@@ -162,10 +160,10 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
                 ["Leave type", details.leave_type?.name],
                 ["From", onDate(details.start_date)],
                 ["To", onDate(details.end_date)],
-                ["Total", days(details.total_days)],
+                ["Total", formatDayCount(details.total_days)],
                 ["Half day", details.is_half_day ? (details.half_day_type === "first_half" ? "First half" : "Second half") : "No"],
-                ["Paid", days(details.paid_days ?? details.total_days)],
-                ["Unpaid", days(details.unpaid_days ?? 0)],
+                ["Paid", formatDayCount(details.paid_days ?? details.total_days)],
+                ["Unpaid", formatDayCount(details.unpaid_days ?? 0)],
                 ["Applied on", onDate(details.created_at || details.requested_at)],
               ]}
             />
@@ -207,11 +205,6 @@ function BalanceCards({ balances }) {
     );
   }
 
-  function fmt(n) {
-    const f = parseFloat(n);
-    return Number.isInteger(f) ? `${f}` : f.toFixed(1);
-  }
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {balances.map((b) => (
@@ -226,12 +219,12 @@ function BalanceCards({ balances }) {
           </div>
           <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
           <div className="flex items-end gap-1 mb-4">
-             <span className="text-3xl font-black tracking-tight text-slate-800 leading-none">{fmt(parseFloat(b.current_balance))}</span>
-             <span className="text-xs font-semibold text-slate-400 mb-1 tracking-normal">{parseFloat(b.current_balance) === 1 ? "day left" : "days left"}</span>
+             <span className="text-2xl font-black tracking-tight text-slate-800 leading-tight">{formatDayCount(b.current_balance, { fallback: "0 Days" })}</span>
+             <span className="text-xs font-semibold text-slate-400 mb-0.5 tracking-normal">left</span>
           </div>
           <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[11px] font-semibold text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{fmt(parseFloat(b.total_accrued))} given so far</span>
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{fmt(parseFloat(b.total_used))} used</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{formatDayCount(b.total_accrued, { lower: true, fallback: "0 days" })} given so far</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{formatDayCount(b.total_used, { lower: true, fallback: "0 days" })} used</span>
           </div>
         </div>
       ))}
@@ -448,16 +441,16 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
           <div className="p-6 space-y-4">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-slate-900">{parseFloat(req.total_days).toFixed(1)}</p>
-                <p className="text-xs text-slate-400 mt-1">total days</p>
+                <p className="text-lg font-extrabold text-slate-900 leading-tight">{formatDayCount(req.total_days)}</p>
+                <p className="text-xs text-slate-400 mt-1">in total</p>
               </div>
               <div className="bg-violet-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-violet-700">{parseFloat(req.paid_days || 0).toFixed(1)}</p>
-                <p className="text-xs text-violet-500 mt-1">paid days</p>
+                <p className="text-lg font-extrabold text-violet-700 leading-tight">{formatDayCount(req.paid_days || 0)}</p>
+                <p className="text-xs text-violet-500 mt-1">paid</p>
               </div>
               <div className="bg-rose-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-rose-600">{parseFloat(req.unpaid_days || 0).toFixed(1)}</p>
-                <p className="text-xs text-rose-400 mt-1">LWP days</p>
+                <p className="text-lg font-extrabold text-rose-600 leading-tight">{formatDayCount(req.unpaid_days || 0)}</p>
+                <p className="text-xs text-rose-400 mt-1">unpaid</p>
               </div>
             </div>
             <div>
@@ -508,9 +501,12 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
 
           {/* Leave Type */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Leave Type <span className="text-rose-400">*</span>
-            </label>
+            <div className="flex items-center">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Leave Type <span className="text-rose-400">*</span>
+              </label>
+              <FieldHelp surface="leaves.apply" field="leave_type_id" label="the leave type" className="mb-1.5" />
+            </div>
             <select
               value={form.leave_type_id}
               onChange={e => set("leave_type_id", e.target.value)}
@@ -522,7 +518,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                 const left = bal ? parseFloat(bal.current_balance) : null;
                 return (
                   <option key={t.id} value={t.id}>
-                    {t.name}{t.code ? ` (${t.code})` : ""}{left !== null ? ` — ${Number.isInteger(left) ? left : left.toFixed(1)} left` : ""}
+                    {t.name}{t.code ? ` (${t.code})` : ""}{left !== null ? ` — ${formatDayCount(left, { lower: true })} left` : ""}
                   </option>
                 );
               })}
@@ -534,15 +530,15 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                 {available !== null ? (
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
-                      <p className="text-sm font-extrabold text-slate-800">{Number.isInteger(available) ? available : available.toFixed(1)}</p>
+                      <p className="text-sm font-extrabold text-slate-800 leading-tight">{formatDayCount(available)}</p>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Available</p>
                     </div>
                     <div>
-                      <p className="text-sm font-extrabold text-fuchsia-600">{pendingHold ? (Number.isInteger(pendingHold) ? pendingHold : pendingHold.toFixed(1)) : "0"}</p>
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Pending hold</p>
+                      <p className="text-sm font-extrabold text-fuchsia-600 leading-tight">{formatDayCount(pendingHold || 0)}</p>
+                      <p className="text-[10px] uppercase font-bold text-slate-400"><HelpLabel text="Pending hold" help={{ surface: "leaves.apply", field: "pending_hold", label: "pending hold", size: "sm", overlay: true }} /></p>
                     </div>
                     <div>
-                      <p className="text-sm font-extrabold text-purple-700">{Number.isInteger(effective) ? effective : effective.toFixed(1)}</p>
+                      <p className="text-sm font-extrabold text-purple-700 leading-tight">{formatDayCount(effective)}</p>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Effective</p>
                     </div>
                   </div>
@@ -552,7 +548,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                 {mayNeedLWP && (
                   <p className="flex items-start gap-1.5 text-[11px] text-rose-600">
                     <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    This request may exceed your balance — the extra days will be unpaid (LWP). The exact split is confirmed after submit.
+                    This request may exceed your balance — the extra days will be unpaid. The exact split is confirmed after submit.
                   </p>
                 )}
                 {docMayBeRequired && (
@@ -774,13 +770,12 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
                     {r.start_date !== r.end_date && <> → {fmtDate(r.end_date)}</>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-sm font-bold text-slate-800">{parseFloat(r.total_days).toFixed(1)}</span>
-                    <span className="text-[10px] text-slate-400 ml-1">days</span>
+                    <span className="text-sm font-bold text-slate-800">{formatDayCount(r.total_days)}</span>
                     {parseFloat(r.unpaid_days || 0) > 0 && (
                       <p className="text-[10px] mt-0.5">
-                        <span className="text-purple-600 font-semibold">{parseFloat(r.paid_days || 0).toFixed(1)}p</span>
+                        <span className="text-purple-600 font-semibold">{formatDayCount(r.paid_days || 0, { lower: true })} paid</span>
                         {" · "}
-                        <span className="text-slate-400 font-semibold">{parseFloat(r.unpaid_days).toFixed(1)} LWP</span>
+                        <span className="text-slate-400 font-semibold">{formatDayCount(r.unpaid_days, { lower: true })} unpaid</span>
                       </p>
                     )}
                   </td>
@@ -946,7 +941,7 @@ export default function LeaveDashboard() {
           {/* Balance Cards */}
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-slate-700">Leave Balances</h2>
+              <h2 className="text-sm font-bold text-slate-700"><HelpLabel text="Leave Balances" help={{ surface: "leaves.balances", field: "total_accrued", label: "your leave balance" }} /></h2>
               <select
                 value={year}
                 onChange={e => setYear(Number(e.target.value))}

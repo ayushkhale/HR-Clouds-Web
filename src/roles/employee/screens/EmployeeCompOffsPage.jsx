@@ -6,6 +6,7 @@ import { DICTIONARY } from "../../../shared/config/dictionary";
 import { HiGift, HiInformationCircle } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { COMP_OFF_FILTERS } from "../../../shared/attendance/enums";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { num, unwrap } from "../../../shared/attendance/normalize";
 import { addDaysYMD as addDays, fmtDate, fmtHours, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
@@ -138,7 +139,7 @@ function EmployeeCompOffsPage() {
                         >
                           <td className="px-4 py-3 whitespace-nowrap">{fmtDate(workedDate(record))}</td>
                           <td className="px-4 py-3">{record.worked_hours != null ? fmtHours(record.worked_hours) : "N/A"}</td>
-                          {showCredit && <td className={`px-4 py-3 ${credit != null ? "font-bold text-violet-600" : "text-slate-400"}`}>{credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : "N/A"}</td>}
+                          {showCredit && <td className={`px-4 py-3 ${credit != null ? "font-bold text-violet-600" : "text-slate-400"}`}>{credit != null ? `+${formatDayCount(credit, { lower: true })}` : "N/A"}</td>}
                           <td className="px-4 py-3"><StatusBadge kind="compoff" status={record.status || "earned"} /></td>
                           <td className={`px-4 py-3 whitespace-nowrap ${expiringSoon ? "text-fuchsia-600 font-bold" : ""}`}>{expiry ? fmtDate(expiry) : "N/A"}</td>
                         </tr>

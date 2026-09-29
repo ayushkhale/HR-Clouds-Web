@@ -94,7 +94,7 @@ const CONFIG_GROUPS = [
       { key: "pf_employer_rate", label: "Employer Rate %", type: "pct" },
       { key: "pf_wage_ceiling", label: "Wage Ceiling ₹", type: "money" },
       { key: "pf_restrict_to_ceiling", label: "Restrict to ceiling", type: "bool" },
-      { key: "pf_lop_reduces_ceiling", label: "LOP reduces ceiling", type: "bool" },
+      { key: "pf_lop_reduces_ceiling", label: "Unpaid days lower the ceiling", type: "bool" },
       { key: "pf_include_overtime", label: "Include overtime in wage", type: "bool" },
       { key: "pf_admin_charge_rate", label: "Admin Charge %", type: "pct" },
       { key: "pf_admin_charge_min", label: "Admin Charge Min ₹", type: "money" },
@@ -147,10 +147,10 @@ export default function TaxConfigurationsPage() {
 
   return (
     <>
-        <DashboardTopBar title="Statutory & Tax" />
+        <DashboardTopBar title="Tax & Legal Deductions" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Statutory &amp; Tax</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Tax &amp; Legal Deductions</h1>
             <p className="text-sm text-slate-500 mt-1">Organisation-wide PF, ESI, Professional Tax and Income-Tax rules that drive every payroll run.</p>
           </div>
 
@@ -211,7 +211,7 @@ function ConfigTab({ showToast }) {
       setConfig(cfg);
       setDraft(cfg);
       setAffected(res.data?.affected_runs || []);
-      showToast("Statutory config saved");
+      showToast("Saved");
     } catch (err) {
       showToast(err.message || "Failed to save", "error");
     } finally {

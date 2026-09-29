@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { HiCash, HiClock, HiCreditCard, HiInformationCircle, HiCheckCircle } from "react-icons/hi";
-import { formatMoney, formatPeriod } from "../../../shared/utils/formatUtils";
+import { formatDayCount, formatMoney, formatPeriod } from "../../../shared/utils/formatUtils";
 import { amount, settlementNet } from "./phase7Meta";
 
 const LABEL = "text-[10px] font-bold uppercase tracking-wider text-slate-400";
@@ -88,7 +88,7 @@ export default function SettlementFlow({ preview, prepared = false }) {
               {encashments.map((e, i) => (
                 <Line
                   key={`${e.leave_type_code}-${i}`}
-                  label={`${e.leave_type_code || "Leave"} · ${e.days} ${Number(e.days) === 1 ? "day" : "days"}`}
+                  label={`${e.leave_type_code || "Leave"} · ${formatDayCount(e.days, { lower: true })}`}
                   hint={amount(e.per_day_amount) === null ? undefined : `${formatMoney(e.per_day_amount)} a day`}
                   value={formatMoney(e.amount)}
                 />
@@ -116,7 +116,7 @@ export default function SettlementFlow({ preview, prepared = false }) {
           }>
           {notice > 0 && (
             <Line
-              label={`${noticeBlock.days} ${Number(noticeBlock.days) === 1 ? "day" : "days"} short`}
+              label={`${formatDayCount(noticeBlock.days)} short`}
               hint={amount(noticeBlock.per_day_amount) === null ? undefined : `${formatMoney(noticeBlock.per_day_amount)} a day`}
               value={formatMoney(noticeBlock.amount)}
             />
@@ -168,8 +168,8 @@ export default function SettlementFlow({ preview, prepared = false }) {
             : <HiInformationCircle className="w-3.5 h-3.5 shrink-0 text-purple-500 mt-px" />}
           <span>
             {prepared
-              ? "These amounts are locked in and waiting to be paid. Statutory deductions and tax are worked out when the payroll runs."
-              : "Nothing has been charged or paid yet — this is just a projection. Statutory deductions and tax are worked out when the payroll runs."}
+              ? "These amounts are locked in and waiting to be paid. PF, ESI and tax are worked out when the payroll runs."
+              : "Nothing has been charged or paid yet — this is just an estimate. PF, ESI and tax are worked out when the payroll runs."}
           </span>
         </p>
       </div>

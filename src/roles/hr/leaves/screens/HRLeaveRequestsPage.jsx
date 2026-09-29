@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI, organizationAPI } from "../../../../shared/api";
 import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
-import { formatDate } from "../../../../shared/utils/formatUtils";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
+import { formatDate, formatDayCount } from "../../../../shared/utils/formatUtils";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import {
@@ -35,12 +36,6 @@ function empLabel(e) {
 const ACTIONABLE = ["pending", "cancellation_pending"];
 const statusLabel = (status) => (status ? status.replace(/_/g, " ") : "N/A");
 
-/** "1 day" / "2.5 days"; null when the value is missing. */
-function fmtDays(value) {
-  const n = parseFloat(value);
-  if (!Number.isFinite(n)) return null;
-  return `${Number.isInteger(n) ? n : n.toFixed(1)} day${n === 1 ? "" : "s"}`;
-}
 const dateRange = (req) =>
   req.start_date && req.end_date && req.start_date !== req.end_date
     ? `${formatDate(req.start_date)} – ${formatDate(req.end_date)}`
@@ -146,7 +141,7 @@ function LeaveTable({ rows, onOpen }) {
         <table className="w-full min-w-[820px] text-left">
           <thead>
             <tr className="border-b border-slate-100">
-              {["Employee", "Leave Type", "Dates", "Days", "Applied On", "Status"].map((h) => (
+              {["Employee", "Leave Type", "Dates", "How long", "Applied On", "Status"].map((h) => (
                 <th key={h} className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -173,9 +168,9 @@ function LeaveTable({ rows, onOpen }) {
                   </td>
                   <td className="px-6 py-4 text-xs text-slate-600 whitespace-nowrap">{dateRange(r)}</td>
                   <td className="px-6 py-4 text-xs text-slate-600 whitespace-nowrap">
-                    {fmtDays(r.total_days) || "N/A"}
+                    {formatDayCount(r.total_days)}
                     {r.is_half_day && <span className="block text-[10px] text-slate-400">{r.half_day_type === "first_half" ? "First half" : "Second half"}</span>}
-                    {unpaid > 0 && <span className="block text-[10px] font-semibold text-rose-500">{fmtDays(unpaid)} unpaid</span>}
+                    {unpaid > 0 && <span className="block text-[10px] font-semibold text-rose-500">{formatDayCount(unpaid, { lower: true })} unpaid</span>}
                   </td>
                   <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{formatDate(r.created_at || r.requested_at)}</td>
                   <td className="px-6 py-4"><StatusPill status={r.status} /></td>
@@ -236,7 +231,7 @@ function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
 
   const current = balance.row ? parseFloat(balance.row.current_balance) : null;
   const after = Number.isFinite(current) ? current - paidDays : null;
-  const fmtBal = (n) => (Number.isFinite(n) ? (Number.isInteger(n) ? n : n.toFixed(1)) : null);
+  const fmtBal = (n) => (Number.isFinite(n) ? formatDayCount(n) : null);
 
   return (
     <DetailDialog
@@ -271,10 +266,10 @@ function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
             ["Leave type", request.leave_type?.name || "Leave"],
             ["From", formatDate(request.start_date)],
             ["To", formatDate(request.end_date)],
-            ["Total", fmtDays(request.total_days)],
+            ["Total", formatDayCount(request.total_days)],
             ["Half day", request.is_half_day ? (request.half_day_type === "first_half" ? "First half" : "Second half") : "No"],
-            ["Paid", fmtDays(request.paid_days ?? request.total_days)],
-            ["Unpaid", fmtDays(request.unpaid_days ?? 0)],
+            ["Paid", formatDayCount(request.paid_days ?? request.total_days)],
+            ["Unpaid", formatDayCount(request.unpaid_days ?? 0)],
             ["Applied on", formatDate(request.created_at || request.requested_at)],
           ]}
         />
@@ -399,9 +394,12 @@ export default function HRLeaveRequestsPage() {
   function changeUser(v) { setUserFilter(v); setPage(1); }
 
   // A decision drops the request from the queue and refreshes history if it's open.
+  // Both decisions come through here, so the inbox badge and the inbox card
+  // drop by one the moment one is made — no reload.
   function afterDecision(id) {
     setPending(prev => prev.filter(r => r.id !== id));
     if (activeTab === "history") loadHistory();
+    emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id });
   }
 
   async function handleApprove(request) {

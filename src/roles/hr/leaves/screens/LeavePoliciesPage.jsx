@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import { noticeModeOf, noticeValue } from "../../../../shared/utils/leaveConfig";
+import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
@@ -435,10 +436,10 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                         <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{ent.leave_type?.code}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm font-semibold text-slate-700">{parseFloat(ent.annual_quota)} days</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-700">{formatDayCount(ent.annual_quota)}</td>
                     <td className="px-6 py-3"><AccrualPill type={ent.accrual_type} /></td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {ent.max_carry_forward > 0 ? `Max ${parseFloat(ent.max_carry_forward)} days` : "None"}
+                      {ent.max_carry_forward > 0 ? `Max ${formatDayCount(ent.max_carry_forward, { lower: true })}` : "None"}
                     </td>
                     <td className="px-6 py-3 text-xs text-slate-500">
                       {ent.probation_restriction_days > 0 ? `${ent.probation_restriction_days} days` : "None"}

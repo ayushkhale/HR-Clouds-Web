@@ -101,7 +101,7 @@ const PAYROLL_ERROR_MESSAGES = {
   NEGATIVE_MONEY: "Amounts must be more than zero. Choose addition or deduction to set the direction.",
 
   // Statutory & tax
-  TAX_TABLES_MISSING: "Income tax is switched on but there are no tax slabs for this financial year. Set them up under Statutory & Tax first.",
+  TAX_TABLES_MISSING: "Income tax is switched on but there are no tax slabs for this financial year. Set them up under Tax & Legal Deductions first.",
   PT_SLAB_RANGE_INVALID: "The professional-tax bands have a gap or overlap. Each band must start exactly where the previous one ended, with one open-ended top band.",
   TAX_SLAB_RANGE_INVALID: "The tax slabs have a gap or overlap within an age band. Each slab must start exactly where the previous one ended.",
   FINANCIAL_YEAR_FINALIZED: "This financial year is finalised and locked. Tax details can no longer be changed for it.",
@@ -433,7 +433,7 @@ const RUN_FAILURE_ADVICE = {
   INVALID_COMPONENT_AMOUNT: "A salary component worked out to an invalid amount. Check the formula or amount of the component named in the reason, then retry.",
   CTC_RECONCILIATION_FAILED: "A salary structure's components don't add up to its CTC. Fix that structure, then retry.",
   OVERTIME_BASIS_UNRESOLVED: "Overtime pay couldn't find the salary figure it is based on. Check the overtime settings in the attendance policy and Payroll Settings, then retry.",
-  TAX_TABLES_MISSING: "Income tax is switched on but there are no tax slabs for this financial year. Add them under Statutory & Tax, then retry.",
+  TAX_TABLES_MISSING: "Income tax is switched on but there are no tax slabs for this financial year. Add them under Tax & Legal Deductions, then retry.",
 };
 
 /**
