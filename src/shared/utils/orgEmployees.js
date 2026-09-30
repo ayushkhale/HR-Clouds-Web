@@ -9,9 +9,16 @@
 // never cache them in storage or log them.
 //
 // A dozen screens need this list, and every mount used to re-page the whole
-// organisation. Results are now shared through a short in-memory cache, keyed
-// by session token so another login never sees them, and dropped when the tab
-// closes. `clearOrgEmployeesCache()` forces the next read to refetch.
+// organisation. There is now ONE cached copy — keyed by session token so
+// another login never sees it, dropped when the tab closes, and shared even
+// with callers whose request is still in flight.
+// `clearOrgEmployeesCache()` forces the next read to refetch.
+//
+// It is one copy on purpose: asking for current employees only used to be a
+// SECOND cache entry and a second trip through every page, and the two copies
+// were read at different moments, so the same person could carry a live photo
+// link on one screen and an expired one on the next. Hiding leavers is a
+// filter over the one list now, never another read.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { organizationAPI, tokenHelper } from "../api";
@@ -22,17 +29,19 @@ const MAX_PAGES = 50; // 5,000 people; a safety stop, not an expected size
 const KEYS = ["employees", "records"];
 const CACHE_MS = 5 * 60_000;
 
-let cache = { token: null, entries: new Map() };
+let cache = { token: null, at: 0, rows: null, promise: null };
 
-function entryFor(includeInactive) {
+function sameSession() {
   const token = tokenHelper.get();
-  if (cache.token !== token) cache = { token, entries: new Map() };
-  return { token, key: includeInactive ? "with-inactive" : "active-only" };
+  if (cache.token !== token) cache = { token, at: 0, rows: null, promise: null };
+  return token;
 }
 
-async function loadAllPages(includeInactive) {
-  const base = { purpose: "emp_report", limit: PAGE_LIMIT };
-  if (includeInactive) base.include_inactive = true;
+async function loadAllPages() {
+  // ALWAYS the superset: leavers included, widest projection. One read serves
+  // both kinds of caller, so a picker that hides leavers can never cost a
+  // second trip to the server.
+  const base = { purpose: "emp_report", limit: PAGE_LIMIT, include_inactive: true };
 
   const first = await organizationAPI.getEmployees({ ...base, page: 1 });
   const firstPage = normalizePaginated(first, KEYS, { page: 1, limit: PAGE_LIMIT });
@@ -54,35 +63,44 @@ async function loadAllPages(includeInactive) {
   return all;
 }
 
+const isActive = (row) => row?.is_active !== false && row?.status !== "inactive";
+
 /**
+ * The organisation's people. Screens don't call this — they read
+ * `useEmployeeDirectory()` (shared/contexts/EmployeeDirectoryContext), which is
+ * built on it; this is the network layer underneath.
+ *
  * @param {{ includeInactive?: boolean, maxAgeMs?: number }} [options]
- *   `maxAgeMs` — accept a cached copy only this fresh. The rows' `avatar_url`s
- *   are presigned links that expire ~5 minutes after the read (30 Sep 2026), so
- *   a caller that keeps photos asks for a younger copy than the default.
+ *   `includeInactive: false` FILTERS the one list, it never asks for a
+ *   different one. `maxAgeMs` — accept a cached copy only this fresh: the rows'
+ *   `avatar_url`s are presigned links that expire ~5 minutes after the read
+ *   (30 Sep 2026), so a caller that keeps photos asks for a younger copy than
+ *   the default.
  * @returns {Promise<object[]>} every employee row, unique by `user_id`
  */
 export function fetchAllOrgEmployees({ includeInactive = true, maxAgeMs = CACHE_MS } = {}) {
-  const { token, key } = entryFor(includeInactive);
-  const hit = cache.entries.get(key);
-  if (hit?.rows && Date.now() - hit.at < Math.min(maxAgeMs, CACHE_MS)) return Promise.resolve(hit.rows);
-  // A second screen mounting while the first is still loading shares the request.
-  if (hit?.promise) return hit.promise;
+  const token = sameSession();
+  const pick = (rows) => (includeInactive ? rows : rows.filter(isActive));
 
-  const promise = loadAllPages(includeInactive)
+  if (cache.rows && Date.now() - cache.at < Math.min(maxAgeMs, CACHE_MS)) return Promise.resolve(pick(cache.rows));
+  // A second screen mounting while the first is still loading shares the request.
+  if (cache.promise) return cache.promise.then(pick);
+
+  const promise = loadAllPages()
     .then((rows) => {
-      if (cache.token === token) cache.entries.set(key, { at: Date.now(), rows, promise: null });
+      if (cache.token === token) cache = { token, at: Date.now(), rows, promise: null };
       return rows;
     })
     .catch((err) => {
-      if (cache.token === token) cache.entries.delete(key);
+      if (cache.token === token) cache = { token, at: 0, rows: null, promise: null };
       throw err;
     });
 
-  cache.entries.set(key, { at: 0, rows: hit?.rows || null, promise });
-  return promise;
+  cache = { token, at: 0, rows: cache.rows, promise };
+  return promise.then(pick);
 }
 
 /** Drop the cached roster, e.g. after inviting or deactivating someone. */
 export function clearOrgEmployeesCache() {
-  cache = { token: null, entries: new Map() };
+  cache = { token: null, at: 0, rows: null, promise: null };
 }

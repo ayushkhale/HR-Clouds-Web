@@ -107,8 +107,16 @@ export const organizationAPI = {
   // ── HR › Employee Management ───────────────────────────────────────────────
   //    List, view, update, deactivate, and delete employees
   /**
-   * Get organization employees (for shift assignments / dropdowns)
-   * GET /organizations/employees?purpose=shift_assignment
+   * Get organization employees.
+   * GET /organizations/employees?purpose=emp_report&include_inactive=true
+   *
+   * SCREENS DO NOT CALL THIS. It is paginated (100 per page) and its `purpose`
+   * decides which fields come back — `shift_assignment` and `all_*_list` carry
+   * no `avatar_url` — so calling it per screen gave the same person a photo on
+   * one and initials on the next, and lost everyone past page one. The whole
+   * app reads `useEmployeeDirectory()`
+   * (shared/contexts/EmployeeDirectoryContext), which pages the widest
+   * projection once per session and shares it.
    * @param {Object} params
    */
   getEmployees(params = {}) {
@@ -287,6 +295,54 @@ export const organizationAPI = {
    */
   getOrganizationDetails() {
     return request("/organizations/details");
+  },
+
+  // ── HR › Company Profile (edit + logo) ─────────────────────────────────────
+  //    Contract: `public/ref docs/6_org_profile_management_api.md`. HR only.
+  /**
+   * Change the company's own details. PARTIAL — send only what changed, and at
+   * least one field, or the server rejects it (`.min(1)`).
+   * PATCH /organizations/profile
+   *
+   * `org_name` also renames the organisation itself (one transaction). Nullable
+   * fields take `null` or "" to clear. Unknown keys are stripped, so the logo
+   * CANNOT be set here — it has its own handshake below.
+   * @param {Object} payload only the changed keys
+   * @returns the refreshed GET /organizations/details payload
+   */
+  updateOrganizationProfile(payload) {
+    return request("/organizations/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Step 1 of the company-logo handshake — mint a presigned PUT.
+   * POST /organizations/logo/upload-url
+   * PNG/JPEG/WebP, ≤ 5 MB. 50 per hour per org (429 `LOGO_RATE_LIMITED`).
+   * @param {{ content_type: "image/png"|"image/jpeg"|"image/webp", size_bytes: number, file_name?: string }} payload
+   * @returns `{ upload_url, storage_key_token, expires_in, required_headers }`
+   */
+  requestLogoUploadUrl(payload) {
+    return request("/organizations/logo/upload-url", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Step 3 — verify the uploaded object and make it the company logo.
+   * POST /organizations/logo/confirm
+   * Idempotent: replaying a committed token is a no-op.
+   * @param {{ storage_key_token: string }} payload
+   * @returns the refreshed GET /organizations/details payload
+   */
+  confirmLogoUpload(payload) {
+    return request("/organizations/logo/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   /**

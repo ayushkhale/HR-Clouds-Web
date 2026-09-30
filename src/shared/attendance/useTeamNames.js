@@ -1,11 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // attendance/useTeamNames.js — user_id → name lookup for manager screens.
-// Some manager endpoints return only `user_id` (e.g. team anomalies). Names are
-// resolved from the hierarchy-scoped team-today list so no out-of-scope data
-// is requested and a UUID is never shown.
+// Some manager endpoints return only `user_id` (e.g. team anomalies), and a
+// UUID must never reach the screen.
+//
+// Names come from the app-wide employee directory, which the server already
+// scopes to a manager's own reports — so this costs no request of its own and
+// answers with exactly the names every other screen shows. Only when a manager
+// can't read that roster does it fall back to the team-today list, which names
+// the same people but carries nothing else.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useEmployeeDirectory } from "../contexts/EmployeeDirectoryContext";
 import { attendanceAPI, tokenHelper } from "../api";
 import { employeeCode, listFrom, personName } from "./normalize.js";
 
@@ -40,15 +46,25 @@ function loadTeamNames() {
 }
 
 export function useTeamNames() {
-  const [map, setMap] = useState(() => (cache.key === sessionKey() && cache.map) || {});
+  const { byId, status } = useEmployeeDirectory();
+  const [fallback, setFallback] = useState(() => (cache.key === sessionKey() && cache.map) || {});
+
+  // Only when the roster itself is out of reach — otherwise this endpoint is
+  // one more request for names we already have.
+  const needFallback = status === "unavailable" || status === "error";
   useEffect(() => {
+    if (!needFallback) return undefined;
     let alive = true;
-    loadTeamNames().then((m) => alive && setMap(m));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return map;
+    loadTeamNames().then((m) => alive && setFallback(m));
+    return () => { alive = false; };
+  }, [needFallback]);
+
+  return useMemo(() => {
+    if (!byId.size) return fallback;
+    const map = {};
+    byId.forEach((entry, id) => { map[id] = { name: entry.name, code: entry.code }; });
+    return map;
+  }, [byId, fallback]);
 }
 
 /** `{ name, code }` for an attendance item, falling back to the team lookup. */

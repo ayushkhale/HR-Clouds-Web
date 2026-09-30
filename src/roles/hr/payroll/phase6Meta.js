@@ -59,11 +59,16 @@ export const EXPORT_TYPE_LABEL = {
   department_distribution: "Department distribution",
   deduction_summary: "Deduction summary",
   component_report: "Component report",
-  bank_advice: "Bank file (NEFT)",
+  // One label for both files: #181's CSV and #223's printable PDF are logged
+  // under `bank_advice`, told apart by the row's format.
+  bank_advice: "Bank advice",
   payslip_bulk: "Payslips (ZIP)",
   payslip_single: "Payslip PDF",
   annual_statement: "Annual statement",
   form16: "Form 16",
+  // #222 / #224 (30 Sep 2026).
+  statutory_summary: "Statutory summary worksheet",
+  fnf_statement: "Final settlement statement",
 };
 
 export const EXPORT_SCOPE_LABEL = {

@@ -61,9 +61,11 @@ import useDocumentSettings from "./useDocumentSettings";
 import { letterTemplateOf, letterTemplatesOf, letterTitle } from "./letterMeta";
 import {
   issueDateMax, issueDateMin, issueDateNote, issueDateProblem, issuedLetterOf, keyForRetry,
-  letterFactFields, letterOverridableFields, newIdempotencyKey, overrideProblems,
-  overridesPayload, refusedFields, rememberNotOverridable, wasReused,
+  letterFactFields, letterOverridableFields, newIdempotencyKey, onlyRequiredMissing, overrideProblems,
+  overridesFromSaved, overridesPayload, refusedFields, rememberNotOverridable, wasReused,
 } from "./letterIssueMeta";
+import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
+import LetterFixLink from "./LetterFixLink";
 
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
@@ -207,7 +209,20 @@ export default function IssueLetterDialog({
   // `fields` is recomputed from the refusal memory, so a box the server has
   // already rejected for this letter never comes back.
   const fields = useMemo(() => (template ? letterOverridableFields(template, code, refused) : []), [template, code, refused]);
-  const factFields = useMemo(() => (template ? letterFactFields(template) : []), [template]);
+  const factFields = useMemo(() => (template ? letterFactFields(template, code) : []), [template, code]);
+  // This organisation's saved wording for the letter (#137). It prefills the
+  // matching boxes and, where a required box has one, satisfies it (§2.1).
+  const saved = detail.data?.config?.saved_fields || null;
+  // A required box left empty turns red only once Issue has been pressed.
+  const [attempted, setAttempted] = useState(false);
+
+  // A newly loaded letter starts from the saved wording — once per letter, so a
+  // refusal that removes a box later doesn't reset what was typed.
+  useEffect(() => {
+    if (!template) return;
+    setValues(overridesFromSaved(letterOverridableFields(template, code, refusedFields(code)), saved));
+    setAttempted(false);
+  }, [template, saved, code]);
 
   // Values for boxes that no longer exist are dropped, so a removed field can't
   // be sent from stale state.
@@ -221,13 +236,13 @@ export default function IssueLetterDialog({
   }, [fields]);
 
   const problems = useMemo(() => {
-    const out = overrideProblems(fields, values);
+    const out = overrideProblems(fields, values, saved);
     const dateProblem = issueDateProblem(issuedOn);
     // Prefixed so it can never collide with a template field key, which the
     // server's own pattern requires to start with a lowercase letter.
     if (dateProblem) out._date = dateProblem;
     return out;
-  }, [fields, values, issuedOn]);
+  }, [fields, values, issuedOn, saved]);
 
   const chosenRow = useMemo(() => issuable.find((row) => row.code === code) || null, [issuable, code]);
   const person = useMemo(
@@ -236,9 +251,13 @@ export default function IssueLetterDialog({
   );
 
   const ready = !!code && !!subject && !detail.loading && !detail.error && Object.keys(problems).length === 0;
+  // Pressing Issue with only required boxes empty is allowed — it is what turns
+  // those boxes red — so the button isn't dead while they are.
+  const onlyMissingRequired = !!code && !!subject && !detail.loading && !detail.error && onlyRequiredMissing(problems);
 
   // ── Issue ──────────────────────────────────────────────────────────────────
   const issue = async ({ confirmed = false } = {}) => {
+    setAttempted(true);
     if (!ready || busy) return;
 
     if (!confirmed) {
@@ -311,6 +330,7 @@ export default function IssueLetterDialog({
         retryable: !isRetryLimitExceeded(err),
         waiting: isRenderInProgress(err),
         unknown,
+        err,
       });
     } finally {
       setBusy(false);
@@ -341,7 +361,8 @@ export default function IssueLetterDialog({
     setResult(null);
     setFailure(null);
     setSubject("");
-    setValues({});
+    setValues(overridesFromSaved(fields, saved));
+    setAttempted(false);
     setTouched(false);
     setDownloadError("");
     keyRef.current = newIdempotencyKey("issue");
@@ -502,40 +523,23 @@ export default function IssueLetterDialog({
                       <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
                     ) : (
                       <>
+                        <LetterIssueReminder code={code} className="mb-4" />
                         {fields.length > 0 ? (
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
-                            {fields.map((field) => (
-                              <div key={field.key} className={field.long ? "lg:col-span-2" : ""}>
-                                <label htmlFor={`il-${field.key}`} className={LABEL}>{field.label}</label>
-                                {field.long ? (
-                                  <textarea
-                                    id={`il-${field.key}`} rows={2} value={values[field.key] ?? ""} disabled={busy}
-                                    maxLength={field.max}
-                                    onChange={(e) => { setValues((v) => ({ ...v, [field.key]: e.target.value })); setTouched(true); }}
-                                    className={`${FIELD} resize-y`}
-                                  />
-                                ) : (
-                                  <input
-                                    id={`il-${field.key}`} type="text" value={values[field.key] ?? ""} disabled={busy}
-                                    maxLength={field.max}
-                                    onChange={(e) => { setValues((v) => ({ ...v, [field.key]: e.target.value })); setTouched(true); }}
-                                    className={FIELD}
-                                  />
-                                )}
-                                {/* An empty box is never blocked here — the saved
-                                    wording may already fill it, and only the
-                                    server knows. So the hint says what happens
-                                    rather than demanding a value. */}
-                                <p className={`text-[10px] mt-1 leading-relaxed ${problems[field.key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
-                                  {problems[field.key]
-                                    || field.help
-                                    || (field.required
-                                      ? "This normally appears on the letter. Leave it empty only if your saved wording covers it."
-                                      : "Leave it empty to use the standard wording.")}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
+                          <LetterOverrideFields
+                            idPrefix="il"
+                            fields={fields}
+                            values={values}
+                            saved={saved}
+                            problems={problems}
+                            revealRequired={attempted}
+                            disabled={busy}
+                            onChange={(key, value) => { setValues((v) => ({ ...v, [key]: value })); setTouched(true); }}
+                            defaultHint={(field) => (field.known
+                              ? "Optional — leave it empty to leave it out."
+                              : field.required
+                                ? "This normally appears on the letter. Leave it empty only if your saved wording covers it."
+                                : "Leave it empty to use the standard wording.")}
+                          />
                         ) : (
                           <p className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 leading-relaxed">
                             <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
@@ -597,6 +601,7 @@ export default function IssueLetterDialog({
                       {failure.waiting ? "Still being drawn" : failure.unknown ? "We don’t know whether it went out" : "Nothing was issued"}
                     </p>
                     <p className={`text-sm mt-0.5 leading-relaxed ${failure.waiting ? "text-indigo-800" : "text-rose-700"}`}>{failure.message}</p>
+                    <LetterFixLink err={failure.err} onNavigate={() => onCloseRef.current?.()} />
                   </div>
                 </div>
               </div>
@@ -632,7 +637,7 @@ export default function IssueLetterDialog({
                     : !subject
                       ? "Choose who it is for."
                       : Object.keys(problems).length
-                        ? "Fix what is highlighted above."
+                        ? (onlyRequiredMissing(problems) ? "Fill in the details marked * above." : "Fix what is highlighted above.")
                         : touched
                           ? "Check it over — a letter can’t be edited once it is issued."
                           : "It is published the moment you confirm."}
@@ -641,7 +646,7 @@ export default function IssueLetterDialog({
                 <button
                   type="button"
                   onClick={() => issue({ confirmed: !!failure })}
-                  disabled={!ready || busy || failure?.retryable === false}
+                  disabled={(!ready && !onlyMissingRequired) || busy || failure?.retryable === false}
                   className={PRIMARY_BTN}
                 >
                   <HiPaperAirplane className="w-4 h-4" />

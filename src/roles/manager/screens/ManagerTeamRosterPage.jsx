@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { organizationAPI } from "../../../shared/api";
+import { useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 import { HiOfficeBuilding, HiSearch, HiUserGroup } from "react-icons/hi";
 import { departmentName, employeeCode, personName } from "../../../shared/attendance/normalize";
 import { ErrorState, FilterTabs } from "../../../shared/attendance/ui";
@@ -22,28 +22,14 @@ const titleCaseRole = (r) => (r === "hr" ? "HR" : r ? r.charAt(0).toUpperCase() 
 
 export default function ManagerTeamRosterPage() {
   const navigate = useNavigate();
-  const [team, setTeam] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
-  const fetchTeam = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // The server scopes a manager's roster to their direct reports.
-      const res = await organizationAPI.getEmployees({ purpose: "shift_assignment" });
-      const list = Array.isArray(res.data) ? res.data : (res.data?.employees || []);
-      setTeam([...list].sort((a, b) => personName(a).localeCompare(personName(b))));
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchTeam(); }, [fetchTeam]);
+  // The server scopes a manager's roster to their direct reports, and the app
+  // reads it once — the same people, with the same photos, as every picker.
+  const { activeRows: rows, status, error, reload } = useEmployeeDirectory();
+  const loading = status === "loading" || status === "idle";
+  const team = useMemo(() => [...rows].sort((a, b) => personName(a).localeCompare(personName(b))), [rows]);
 
   const q = searchQuery.trim().toLowerCase();
   // Only the roles this manager's own reports hold — usually just Employee, but
@@ -102,8 +88,8 @@ export default function ManagerTeamRosterPage() {
             </div>
           </div>
 
-          {error ? (
-            <ErrorState error={error} onRetry={fetchTeam} fallback="Couldn't load your team." />
+          {status === "error" ? (
+            <ErrorState error={error} onRetry={reload} fallback="Couldn't load your team." />
           ) : loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(8)].map((_, i) => <div key={i} className="bg-white rounded-[20px] h-56 border border-slate-100 animate-pulse" />)}

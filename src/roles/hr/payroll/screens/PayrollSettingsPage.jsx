@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCog, HiChevronDown, HiInformationCircle } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiCog, HiChevronDown } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { isPdfRendererNotConfigured, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import {
-  ENGINE_SWITCH_CONFIRM, PDF_ENGINE_CLASSIC, PDF_ENGINE_NUMBERS, PDF_ENGINE_OPTIONS,
-  hasPdfEngineSettings, isSwitchingToHtml, pdfEngineOf, pdfNumberProblem, usesHtmlEngine,
-} from "../pdfRenderMeta";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { PDF_CACHE_NUMBERS, hasPdfCacheSettings, pdfNumberProblem, withoutInertPdfSettings } from "../pdfRenderMeta";
+import { useBulkGenerationPaused } from "../../../../shared/pdf/bulkGeneration";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
@@ -113,11 +111,6 @@ export default function PayrollSettingsPage() {
   // The last saved value of benefit charging, so a confirm only fires when it
   // is switched from off to on.
   const benefitsWereOn = useRef(false);
-  // The engine as the server last confirmed it. Two things need it: knowing
-  // whether this save is a SWITCH (which is worth warning about) rather than an
-  // unrelated save, and putting the field back when the server refuses the
-  // switch because it has no renderer.
-  const savedEngine = useRef(PDF_ENGINE_CLASSIC);
   // Deduction components, for the "recover short notice through" picker.
   // A settlement cannot be prepared until one is chosen (#201).
   const [deductionComponents, setDeductionComponents] = useState([]);
@@ -126,9 +119,14 @@ export default function PayrollSettingsPage() {
   // `upd` merges one key without repeating the spread at every call site.
   const set7 = settings || {};
   const upd = (patch) => setSettings((prev) => ({ ...prev, ...patch }));
-  // PDF Generation Phase 3. Shown only once the server returns these keys — a
-  // server without them would reject them on the way back in.
-  const showPdfEngine = hasPdfEngineSettings(settings);
+  // The payslip-cache settings (#88–#90). Shown only once the server returns
+  // them — a server without them would reject them on the way back in. The
+  // render-engine switch (#87) is gone: since 30 Sep 2026 there is one engine,
+  // the setting is inert, and it is no longer shown or sent.
+  const showPdfCache = hasPdfCacheSettings(settings);
+  // Whole-run PDF work paused on this server (learned from a 503 elsewhere this
+  // session). While it is, "prepare on release" is accepted but does nothing.
+  const bulkPaused = useBulkGenerationPaused();
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -189,10 +187,9 @@ export default function PayrollSettingsPage() {
         if (loaded[k] === undefined || loaded[k] === null) loaded[k] = v;
       });
       benefitsWereOn.current = !!loaded.benefit_deductions_enabled;
-      // PDF Generation Phase 3 (#87–#90). NOT defaulted into the form: a key the
+      // Payslip-cache settings (#88–#90): NOT defaulted into the form. A key the
       // server never sent must not be sent back, because this page PUTs the
       // whole settings object and an unknown field would fail the entire save.
-      savedEngine.current = pdfEngineOf(loaded);
       setSettings(loaded);
     } catch (err) {
       showToast(err.message || "Failed to load settings", "error");
@@ -219,9 +216,9 @@ export default function PayrollSettingsPage() {
   // The two Phase 3 numbers, checked before the save so an out-of-range value is
   // caught in the box it was typed into rather than coming back as a Joi message
   // about the whole form.
-  const pdfProblems = showPdfEngine
+  const pdfProblems = showPdfCache
     ? Object.fromEntries(
-      Object.keys(PDF_ENGINE_NUMBERS)
+      Object.keys(PDF_CACHE_NUMBERS)
         .filter((key) => key in (settings || {}))
         .map((key) => [key, pdfNumberProblem(key, settings[key])])
         .filter(([, problem]) => problem),
@@ -234,7 +231,7 @@ export default function PayrollSettingsPage() {
 
     const firstPdfProblem = Object.keys(pdfProblems)[0];
     if (firstPdfProblem) {
-      showToast(`${PDF_ENGINE_NUMBERS[firstPdfProblem].label}: ${pdfProblems[firstPdfProblem]}`, "error");
+      showToast(`${PDF_CACHE_NUMBERS[firstPdfProblem].label}: ${pdfProblems[firstPdfProblem]}`, "error");
       return;
     }
 
@@ -243,27 +240,16 @@ export default function PayrollSettingsPage() {
       const ok = await window.confirm("Every active benefit enrollment will be charged from the next payroll calculation. Check the benefit totals on the Payroll Runs readiness panel first.");
       if (!ok) return;
     }
-    // Switching the render engine ON changes how every payroll PDF looks from
-    // the next download. Switching back is the documented rollback and is asked
-    // about deliberately NOT at all — friction on an escape hatch is a bug.
-    if (isSwitchingToHtml(settings, { pdf_render_engine: savedEngine.current })) {
-      if (!(await window.confirm(ENGINE_SWITCH_CONFIRM))) return;
-    }
-
     setSaving(true);
     try {
-      const res = await payrollAPI.updateSettings(settings);
+      // `pdf_render_engine` is still returned by the read but is inert and will
+      // be dropped server-side; it is stripped here so this save keeps working
+      // the day the column goes.
+      const res = await payrollAPI.updateSettings(withoutInertPdfSettings(settings));
       const saved = res?.data ?? settings;
       benefitsWereOn.current = !!saved.benefit_deductions_enabled;
-      savedEngine.current = pdfEngineOf(saved);
       showToast("Payroll settings updated successfully");
     } catch (err) {
-      // The server refuses to switch an organisation onto an engine it cannot
-      // run. Nothing was saved, so the field is put back — leaving it showing
-      // "New" would be a switch that looks done and isn't.
-      if (isPdfRendererNotConfigured(err)) {
-        setSettings((prev) => ({ ...prev, pdf_render_engine: savedEngine.current }));
-      }
       showToast(payrollErrorMessage(err, "Failed to update settings"), "error");
     } finally {
       setSaving(false);
@@ -408,81 +394,53 @@ export default function PayrollSettingsPage() {
                   </div>
                 </Section>
 
-                {/* ── PDF Generation Phase 3 · how payroll PDFs are made (#87–#90) ── */}
-                {showPdfEngine && (
+                {/* ── Payslip PDFs (#88–#90). One engine since 30 Sep 2026; the
+                    old Classic / New switch (#87) is inert and not shown. ── */}
+                {showPdfCache && (
                   <Section
-                    title="How payroll PDFs are made"
-                    blurb="Payslips, annual salary statements and Form 16. The figures are identical either way — this is about how the page is drawn, and how quickly a whole run downloads."
+                    title="Payslip PDFs"
+                    blurb="Payslips, annual salary statements and Form 16 are all made the same way. Released payslips are kept ready after the first download, so the next one is instant."
                     defaultOpen={false}
                   >
                     <div className="space-y-5">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {PDF_ENGINE_OPTIONS.map((option) => {
-                          const picked = pdfEngineOf(settings) === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => upd({ pdf_render_engine: option.value })}
-                              aria-pressed={picked}
-                              className={`text-left rounded-xl border px-4 py-3 transition ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
-                            >
-                              <span className="block text-sm font-bold text-slate-800">{option.label}</span>
-                              <span className="block text-xs text-slate-500 mt-1 leading-relaxed">{option.blurb}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Said before the save, not after: "why does my payslip
-                          look different?" is the one question this change
-                          generates, and it is far cheaper to answer in advance. */}
-                      {usesHtmlEngine(settings) ? (
-                        <p className="flex items-start gap-2 text-xs text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3.5 py-3 leading-relaxed">
-                          <HiInformationCircle className="w-4 h-4 shrink-0 text-indigo-500 mt-px" />
-                          <span>
-                            Every figure, name and date stays exactly the same, but the layout and typefaces change — so anyone
-                            comparing an old download with a new one will see the difference. A payslip you are still holding back
-                            from an employee is always made the classic way, so a run mid-review can show you one look and them the
-                            other. You can switch back to Classic at any time; it takes effect on the very next download.
-                          </span>
-                        </p>
-                      ) : (
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Nothing changes while this is set to Classic. Try the new way on a recent run first — prepare it from the
-                          run&apos;s Payslips panel, download a payslip, and compare it with the old one side by side.
-                        </p>
-                      )}
-
-                      {usesHtmlEngine(settings) && (
-                        <>
-                          {"payslip_prerender_on_publish" in settings && (
-                            <Check
+                      {"payslip_prerender_on_publish" in settings && (
+                        <div className={bulkPaused ? "opacity-60" : ""}>
+                          <label className={`flex items-start gap-3 group ${bulkPaused ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                            <input
+                              type="checkbox"
                               checked={settings.payslip_prerender_on_publish !== false}
-                              onChange={(v) => upd({ payslip_prerender_on_publish: v })}
-                              title="Get payslips ready as soon as a run is released"
-                              hint="On by default. Releasing a run quietly prepares its payslips in the background, so downloading them later is instant. Off, each one is prepared the first time somebody asks for it."
+                              onChange={(e) => upd({ payslip_prerender_on_publish: e.target.checked })}
+                              disabled={bulkPaused}
+                              className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500"
                             />
-                          )}
-                          <div className="grid sm:grid-cols-2 gap-6">
-                            {Object.entries(PDF_ENGINE_NUMBERS).map(([key, rule]) => (
-                              key in settings ? (
-                                <Num
-                                  key={key}
-                                  label={rule.label}
-                                  value={settings[key]}
-                                  min={rule.min}
-                                  max={rule.max}
-                                  suffix={rule.unit}
-                                  hint={rule.hint}
-                                  problem={pdfProblems[key]}
-                                  onChange={(v) => upd({ [key]: v })}
-                                />
-                              ) : null
-                            ))}
-                          </div>
-                        </>
+                            <div>
+                              <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Get payslips ready as soon as a run is released</span>
+                              <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">
+                                {bulkPaused
+                                  ? "Paused on this server for now, along with every other whole-run PDF job — each payslip is prepared the first time somebody downloads it. Your choice is kept and takes effect once it’s switched back on."
+                                  : "Releasing a run prepares its payslips in the background, so downloading them later is instant. Only works while whole-run PDF jobs are switched on for this server; otherwise each one is prepared the first time somebody asks for it."}
+                              </span>
+                            </div>
+                          </label>
+                        </div>
                       )}
+                      <div className="grid sm:grid-cols-2 gap-6">
+                        {Object.entries(PDF_CACHE_NUMBERS).map(([key, rule]) => (
+                          key in settings ? (
+                            <Num
+                              key={key}
+                              label={rule.label}
+                              value={settings[key]}
+                              min={rule.min}
+                              max={rule.max}
+                              suffix={rule.unit}
+                              hint={rule.hint}
+                              problem={pdfProblems[key]}
+                              onChange={(v) => upd({ [key]: v })}
+                            />
+                          ) : null
+                        ))}
+                      </div>
                     </div>
                   </Section>
                 )}

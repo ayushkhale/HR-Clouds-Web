@@ -1227,6 +1227,13 @@
           "askMaya": {
             "enabled": false
           }
+        },
+        "statutory_summary": {
+          "hint": "What was deducted for PF, ESI, professional tax and TDS each month, to prepare the payments. It isn’t a return you can upload for filing.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a statutory challan, and how is it different from a PF ECR, an ESI return and a 24Q TDS return?"
+          }
         }
       }
     },
@@ -1477,6 +1484,72 @@
       "fields": {
         "letter_template": {
           "hint": "Types HR Clouds can write for you as a branded PDF. Activate the type here, then switch its letter on under Letter Templates.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "organization.company_profile_edit": {
+      "kind": "form",
+      "description": "Edit company details (EditCompanyProfileDialog, HR only) — keys are PATCH /organizations/profile body keys. Ordinary fields (industry, address, phone, description) carry no hint.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "org_name": {
+          "hint": "Renames the organisation everywhere, not just on this page — sign-in, invitation emails and documents all use it.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "size": {
+          "hint": "A band, not an exact count — the headcount on this page is counted from the people who have joined.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "gst_number": {
+          "hint": "The company’s GST registration number. Only HR can see or change it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a GSTIN, what does each part of the 15-character number mean, and where does a company need to use it?"
+          }
+        },
+        "company_pan_number": {
+          "hint": "The company’s own income-tax number — not any employee’s PAN. It appears on the Form 16 given to employees.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a company PAN, how is it different from a TAN, and where does it appear in salary tax documents like Form 16?"
+          }
+        }
+      }
+    },
+    "payroll.settlement": {
+      "kind": "data",
+      "description": "Final settlement record inspector (PayrollExitsPage › SettlementPanel) — the #224 statement download. Keys name the concept, as the statement has no response key of its own.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "settlement_statement": {
+          "hint": "Provisional until the final pay goes out in a payroll run: payouts and recoveries only. The final one adds the last month’s pay and what was paid.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What goes into a full and final settlement, and why can a provisional statement differ from the final one?"
+          }
+        }
+      }
+    },
+    "payroll.run_payslips": {
+      "kind": "data",
+      "description": "Payslips & delivery panel on a payroll run (RunPayslipsPanel) — the two bank advice files (#181 CSV, #223 PDF).",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "bank_advice": {
+          "hint": "Upload the CSV to your bank to pay everyone. The PDF is a printable copy to sign and keep on file — account numbers are hidden, so a bank can’t use it.",
           "askMaya": {
             "enabled": false
           }

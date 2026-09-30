@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { formatPeriod } from "../../../shared/utils/formatUtils";
-import { personName, employeeCode, departmentName } from "../../../shared/attendance/normalize";
+import { departmentName } from "../../../shared/attendance/normalize";
 import { prettifyCode, toCount } from "./runMeta";
 
 // ── Periods ─────────────────────────────────────────────────────────────────
@@ -50,32 +50,13 @@ export function sameMoney(a, b) {
 
 // ── Employees ───────────────────────────────────────────────────────────────
 
-/**
- * Normalise the organisation employee list (see shared/utils/orgEmployees).
- * Every payroll `user_id` — run items, adjustments, awards, `proposed_by`,
- * `approved_by` — is a users.id and matches the row's `user_id`. The row's
- * `employee_id` is a role-profile id, so it is never used as a key.
- * `options` is everyone (for lookups); `activeOptions` is for pickers.
- */
-export function employeeDirectory(list) {
-  const options = [];
-  const byId = new Map();
-  for (const e of Array.isArray(list) ? list : []) {
-    const id = e?.user_id ?? e?.id;
-    if (!id || byId.has(id)) continue;
-    const entry = {
-      id,
-      name: personName(e, "") || employeeCode(e) || "Unnamed employee",
-      code: employeeCode(e),
-      department: departmentName(e),
-      active: e.is_active !== false && e.status !== "inactive",
-    };
-    options.push(entry);
-    byId.set(id, entry);
-  }
-  options.sort((a, b) => a.name.localeCompare(b.name));
-  return { options, activeOptions: options.filter((o) => o.active), byId };
-}
+// The employee list itself is built once, app-wide, by
+// shared/contexts/employeeDirectoryStore.js — reached through
+// `useEmployeeDirectory`, which returns the same `{ options, activeOptions,
+// byId }` this file used to build. Every payroll `user_id` — run items,
+// adjustments, awards, `proposed_by`, `approved_by` — is a users.id and
+// matches a row's `user_id`; the row's `employee_id` is a role-profile id, so
+// it is never used as a key.
 
 /**
  * The employee the backend embedded in a payroll row (gap G-2, `?include=employee`):

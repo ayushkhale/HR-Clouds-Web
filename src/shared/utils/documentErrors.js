@@ -196,6 +196,12 @@ export const DOCUMENT_ERROR_MESSAGES = {
   PDF_RENDER_IN_PROGRESS: "This letter is still being drawn. Give it a few seconds and try again — doing so won't create a second copy.",
   PDF_RETRY_LIMIT_EXCEEDED: "This letter has failed to draw several times, so it won't be tried again automatically. Nothing was issued — start it again from the beginning, and tell your administrator if it keeps failing.",
   PDF_TOO_LARGE: "The finished letter came out larger than 6 MB, which is too big to file. Shorten the wording you typed in, or ask your administrator to check the letterhead images.",
+  // Renderer refusals added with the HTML-only migration (30 Sep 2026). A
+  // manual retry after either of the first two is safe and never makes a
+  // second letter — but only with a fresh idempotency key (see keyForRetry).
+  PDF_RENDER_FAILED: "The letter couldn’t be drawn. Nothing was changed — try again.",
+  PDF_PAYLOAD_TOO_LARGE: "There’s too much wording for the letter to be drawn. Shorten the longer details and try again.",
+  PDF_BULK_GENERATION_DISABLED: "Issuing a letter to many people at once is paused on this server for now, so nothing was queued. Issue them one at a time instead — batches already started will still finish.",
   DB_COMMIT_FAILED: "The letter was drawn but couldn’t be filed, so nothing was issued and no number was used up. Try again.",
 
   // ── Bulk, proposals and auto-issue (PDF Generation Phase 4, #143–#150) ─────
@@ -551,9 +557,19 @@ export function letterIssueErrorMessage(err, fallback = "Couldn’t issue this l
   }
   if (code === "LETTER_FACTS_MISSING") {
     const missing = missingLetterFacts(err);
+    const places = missingLetterFactPlaces(err);
     return missing.length
-      ? `This person’s record is missing ${listPhrase(missing)}, and the letter has to print ${missing.length === 1 ? "it" : "them"}. Nothing was issued — fill ${missing.length === 1 ? "it" : "them"} in on their profile, then issue the letter.`
+      ? `This person’s record is missing ${listPhrase(missing)}, and the letter has to print ${missing.length === 1 ? "it" : "them"}. Nothing was issued — add ${missing.length === 1 ? "it" : "them"} in ${listPhrase(places)}, then issue the letter.`
       : DOCUMENT_ERROR_MESSAGES.LETTER_FACTS_MISSING;
+  }
+  if (code === "PDF_RENDER_FAILED") {
+    return "The letter couldn’t be drawn, so nothing was issued and no number was used up. Try again.";
+  }
+  if (code === "PDF_PAYLOAD_TOO_LARGE") {
+    return "What was typed in is too long to fit on the letter, so nothing was issued. Shorten the longer details and try again.";
+  }
+  if (code === "DOCUMENT_TYPE_INACTIVE") {
+    return "The kind of document this letter is filed under has been switched off, so the letter can’t be issued. Switch it back on in Document Types, then issue the letter.";
   }
   if (code === "LETTER_FIELD_NOT_OVERRIDABLE") {
     const field = letterErrorField(err);
@@ -599,17 +615,47 @@ export function letterErrorFieldKey(err) {
   return quoted ? quoted[1] : "";
 }
 
-/** The facts a 422 LETTER_FACTS_MISSING named, in words. `details.missing_facts`, else the sentence. */
-export function missingLetterFacts(err) {
+/**
+ * What each `missing_facts` value is, and where it is fixed.
+ *
+ * The server names the underlying RECORD field, not the letter's placeholder
+ * (2026-09-30 letter change record §8.7), so "last working day" has to say
+ * "Payroll → Exits" — nothing on the profile supplies it — and "department"
+ * has to say it means the department the person is assigned to, not a typed
+ * department name.
+ */
+const LETTER_FACT_WORDS = {
+  full_name: { label: "their name", where: "their profile" },
+  employee_code: { label: "their employee code", where: "their profile" },
+  designation: { label: "their job title", where: "their profile" },
+  joining_date: { label: "their joining date", where: "their profile" },
+  department_name: { label: "their department", where: "their profile (choose a department, not a typed name)" },
+  last_working_day: { label: "their last working day", where: "Payroll → Exits (record their exit)" },
+  annual_ctc: { label: "an approved salary", where: "Payroll → Employee Salaries (assign a salary structure)" },
+};
+
+/** The raw fact keys a 422 LETTER_FACTS_MISSING named. `details.missing_facts`, else the sentence. */
+function missingFactKeys(err) {
   if (documentErrorCode(err) !== "LETTER_FACTS_MISSING") return [];
   const listed = err?.data?.details?.missing_facts;
   if (Array.isArray(listed) && listed.length) {
-    return listed.filter((f) => typeof f === "string" && f.trim()).map((f) => f.trim().replace(/_/g, " "));
+    return listed.filter((f) => typeof f === "string" && f.trim()).map((f) => f.trim());
   }
   // "Required letter facts are missing: employee_code, joining_date"
   const tail = /missing:\s*(.+)$/i.exec(String(err?.data?.message || ""));
   if (!tail) return [];
-  return tail[1].split(/[,;]+/).map((f) => f.trim().replace(/[."']+$/, "").replace(/_/g, " ")).filter(Boolean);
+  return tail[1].split(/[,;]+/).map((f) => f.trim().replace(/[."']+$/, "")).filter(Boolean);
+}
+
+/** The facts a 422 LETTER_FACTS_MISSING named, in words. */
+export function missingLetterFacts(err) {
+  return missingFactKeys(err).map((key) => LETTER_FACT_WORDS[key]?.label || key.replace(/_/g, " "));
+}
+
+/** Where each missing fact is fixed, de-duplicated, in words. */
+export function missingLetterFactPlaces(err) {
+  const places = missingFactKeys(err).map((key) => LETTER_FACT_WORDS[key]?.where || "their profile");
+  return [...new Set(places)];
 }
 
 /** The fields a 422 PDF_DATA_INCOMPLETE named, in words. `details.missing_fields`, else the sentence. */
@@ -651,7 +697,7 @@ export const isGeneratedOrigin = (err) => documentErrorCode(err) === "DOCUMENT_O
  * also worth retrying, but only with the same key, which is a different rule.
  */
 export const isLetterIssueRetryable = (err) =>
-  ["PDF_RENDERER_UNAVAILABLE", "PDF_RENDER_TIMEOUT", "STORAGE_UNAVAILABLE", "LETTER_REFERENCE_CONFLICT", "DB_COMMIT_FAILED"]
+  ["PDF_RENDERER_UNAVAILABLE", "PDF_RENDER_TIMEOUT", "PDF_RENDER_FAILED", "STORAGE_UNAVAILABLE", "LETTER_REFERENCE_CONFLICT", "DB_COMMIT_FAILED"]
     .includes(documentErrorCode(err));
 
 /**

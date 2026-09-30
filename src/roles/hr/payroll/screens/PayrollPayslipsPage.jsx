@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
-import { downloadFile } from "../../../../shared/utils/download";
+import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate, formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
@@ -126,7 +126,7 @@ function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadFile(payrollFiles.hrPayslipPdf(userId, runId), {
+      await downloadRenderedPdf(payrollFiles.hrPayslipPdf(userId, runId), {
         params: row.version ? { version: row.version } : undefined,
         filename: `payslip-${row.period_month || runId}.pdf`,
       });
@@ -250,7 +250,7 @@ function AnnualStatementTab({ userId, employeeName, showToast }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadFile(payrollFiles.hrAnnualStatementPdf(userId), {
+      await downloadRenderedPdf(payrollFiles.hrAnnualStatementPdf(userId), {
         params: { financial_year: fy },
         filename: `annual-statement-${fy}.pdf`,
       });
@@ -344,7 +344,7 @@ function Form16Tab({ userId, showToast }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadFile(payrollFiles.hrForm16Pdf(userId, fy), { filename: `form16-${fy}.pdf` });
+      await downloadRenderedPdf(payrollFiles.hrForm16Pdf(userId, fy), { filename: `form16-${fy}.pdf` });
       showToast("Form 16 downloaded.");
     } catch (err) {
       showToast(payrollErrorMessage(err, "Couldn't download Form 16"), "error");

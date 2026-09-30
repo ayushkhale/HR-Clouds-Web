@@ -19,6 +19,7 @@ import {
   HiTrash, HiBan, HiCheckCircle, HiX
 } from "react-icons/hi";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
+import { useEmployeeDirectory, refreshEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 import ProfileTabStrip from "../../../shared/components/ProfileTabStrip";
 
 const TABS = [
@@ -36,7 +37,9 @@ const TABS = [
 
 function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   const [departments, setDepartments] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // Candidates come from the app-wide roster, so this dialog offers the same
+  // people as every other picker.
+  const { activeRows: employees } = useEmployeeDirectory();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -52,16 +55,9 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   });
 
   useEffect(() => {
-    Promise.all([
-      organizationAPI.getDepartments(),
-      organizationAPI.getEmployees({ purpose: "shift_assignment" })
-    ])
-      .then(([deptRes, empRes]) => {
-        setDepartments(deptRes.data || []);
-        const members = empRes.data || [];
-        setEmployees(Array.isArray(members) ? members : (members.employees || members.members || []));
-      })
-      .catch(() => setError("Failed to load departments or employees."))
+    organizationAPI.getDepartments()
+      .then((deptRes) => setDepartments(deptRes.data || []))
+      .catch(() => setError("Failed to load departments."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -293,6 +289,8 @@ export default function EmployeeProfilePage() {
   const initialTab = TABS.some((t) => t.key === requestedTab) ? requestedTab : "overview";
   
   const [activeTab, setActiveTab] = useState(initialTab);
+  // The roster the app already holds, for the fallback below.
+  const { byId: rosterById } = useEmployeeDirectory();
   const [employee, setEmployee] = useState(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [managerName, setManagerName] = useState("");
@@ -334,15 +332,11 @@ export default function EmployeeProfilePage() {
           );
           setEmployee(null);
         } else {
-          // Transient/backend error — best-effort fallback to the roster list.
-          try {
-            const orgRes = await organizationAPI.getEmployees({ purpose: "emp_report" });
-            if (orgRes?.success && orgRes?.data) {
-              const found = orgRes.data.find(e => String(e.user_id || e.id) === String(userId));
-              setEmployee(found || null);
-              if (!found) setLoadError("Could not load this employee's profile.");
-            }
-          } catch {
+          // Transient/backend error — best-effort fallback to the roster the
+          // app already holds, rather than a second read of the whole org.
+          const found = rosterById.get(String(userId)) || null;
+          if (found) setEmployee(found.raw || found);
+          else {
             setEmployee(null);
             setLoadError(err?.message || "Could not load this employee's profile.");
           }
@@ -353,6 +347,9 @@ export default function EmployeeProfilePage() {
     };
 
     fetchEmployee();
+    // rosterById is only read inside the catch; re-running on a roster refresh
+    // would re-fetch the profile for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleToggleStatus = async () => {
@@ -367,6 +364,9 @@ export default function EmployeeProfilePage() {
     try {
       await organizationAPI.updateEmployeeStatus(userId, { is_active: newStatus });
       setEmployee(prev => ({ ...prev, is_active: newStatus, status: newStatus ? "active" : "inactive" }));
+      // Who is in the organisation just changed: every list and picker reads
+      // the shared roster, so re-read it rather than leave them stale.
+      refreshEmployeeDirectory();
     } catch (err) {
       setActionError(err.message || `Failed to ${actionText} employee`);
     } finally {
@@ -380,6 +380,7 @@ export default function EmployeeProfilePage() {
     setActionError("");
     try {
       await organizationAPI.deleteEmployee(userId);
+      refreshEmployeeDirectory();
       navigate("/dashboard/hr/employees");
     } catch (err) {
       setActionError(err.message || "Failed to delete employee");

@@ -389,10 +389,13 @@ export const payrollAPI = {
 
   // ── HR — Payslip PDF render queue (PDF Generation Phase 3, #219 / #220) ─────
   //
-  // Both are HR-only and exist ONLY for the HTML render engine
-  // (`pdf_render_engine = 'html'`, payroll setting #87). Every organisation
-  // starts on the classic engine, where the queue is empty by definition — so a
-  // screen must gate these on the engine rather than offering them to everyone.
+  // Both are HR-only. Since the HTML-only migration (30 Sep 2026) there is one
+  // engine for every organisation, so they are offered to everyone;
+  // `pdf_render_engine` (setting #87) is inert and `engine` always reads "html".
+  //
+  // #219 WITH a `run_id` is a whole-run call and answers `503
+  // PDF_BULK_GENERATION_DISABLED` while ops has bulk generation switched off;
+  // without one it still drains the queue (shared/pdf/bulkGeneration.js).
   //
   // Neither endpoint renders anything itself: #219 asks the server to work
   // through its queue now instead of waiting for the quarter-hourly cron, and
@@ -402,9 +405,9 @@ export const payrollAPI = {
    * run's released payslips are queued first and then the queue is worked
    * through; without it, whatever is already queued is worked through.
    *
-   * Answers `200` with `{ engine, enqueued, claimed, done, failed, remaining }`.
-   * On the classic engine that is all zeros with `engine: "pdfkit"` — an
-   * informative success, NOT an error, and a screen must not present it as one.
+   * Answers `200` with `{ engine, enqueued, claimed, done, failed, remaining }`;
+   * `engine` is always "html" now and `engine_html_orgs` counts every org
+   * drained. All zeros is a success ("nothing waiting"), NOT an error.
    *
    * Fully idempotent: two HR users pressing it at once divide the work rather
    * than rendering anything twice.
@@ -440,9 +443,7 @@ export const payrollAPI = {
    * documents can never see this one. It carries counts and timestamps only —
    * no employee, no run, no storage key, no error text.
    *
-   * Like #219/#220 this is only meaningful on the HTML engine; a classic-engine
-   * organisation has an empty queue by definition, so the readout is gated on
-   * `usesHtmlEngine(settings)` rather than offered to everyone. A server from
+   * Offered to every organisation now that there is one engine. A server from
    * before Phase 5 answers 404 — hide it, don't report it as a failure.
    */
   getPayslipQueueHealth: (params) =>
@@ -464,7 +465,18 @@ export const payrollFiles = {
   hrPayslipPdf: (userId, runId) => `/payroll/hr/employees/${userId}/payslips/${runId}/pdf`,          // #170
   hrRunPayslipsZip: (runId) => `/payroll/hr/runs/${runId}/payslips/download`,                        // #174
   hrReport: (reportKey) => `/payroll/hr/reports/${reportKey}`,                                       // #177–#180
-  hrBankAdvice: (runId) => `/payroll/hr/runs/${runId}/bank-advice`,                                  // #181
+  hrBankAdvice: (runId) => `/payroll/hr/runs/${runId}/bank-advice`,                                  // #181 — THE bank upload file
+  // #223 — a printable, signed covering copy of #181: same rows, account numbers
+  // masked. Never a replacement for the CSV. 409 RUN_NOT_PAID / MISSING_BANK_ACCOUNTS
+  // like the CSV, plus 422 EXPORT_TOO_LARGE above 2,000 people (the CSV has no cap).
+  hrBankAdvicePdf: (runId) => `/payroll/hr/runs/${runId}/bank-advice/pdf`,
+  // #224 — Full & Final settlement statement for one exit. PROVISIONAL while the
+  // exit is `prepared`, FINAL once `settled`; 409 SETTLEMENT_NOT_PREPARED before
+  // that, 409 EXIT_CANCELLED for a cancelled exit. Not stored — drawn per download.
+  hrFnfStatementPdf: (exitId) => `/payroll/hr/exits/${exitId}/settlement-statement/pdf`,
+  // #222 — the #118 statutory summary as a landscape PDF. A challan-preparation
+  // worksheet, NOT an ECR / ESI return / 24Q filing file. `financialYear` like "2025-26".
+  hrStatutorySummaryPdf: (financialYear) => `/payroll/hr/tax/financial-years/${encodeURIComponent(financialYear)}/statutory-summary/pdf`,
   hrAnnualStatementPdf: (userId) => `/payroll/hr/employees/${userId}/annual-statement/pdf`,          // #184
   hrForm16Pdf: (userId, financialYear) => `/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}/pdf`, // #185
 

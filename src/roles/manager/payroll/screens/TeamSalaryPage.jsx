@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiLockClosed, HiCurrencyRupee } from "react-icons/hi";
@@ -9,7 +9,7 @@ import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
-import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
@@ -118,14 +118,13 @@ export default function TeamSalaryPage() {
   // only costs the column its text, never the page).
   // null while the directory loads, so the column reads "Loading…" rather than
   // claiming nobody has a department.
-  const [deptByUser, setDeptByUser] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    fetchAllOrgEmployees({ includeInactive: false })
-      .then((rows) => alive && setDeptByUser(new Map(rows.map((r) => [r.user_id || r.id, typeof r.department === "string" ? r.department : r.department?.name || ""]))))
-      .catch(() => alive && setDeptByUser(new Map()));
-    return () => { alive = false; };
-  }, []);
+  const { byId: directoryById, status: directoryStatus } = useEmployeeDirectory();
+  const deptByUser = useMemo(
+    () => (directoryStatus === "loading" || directoryStatus === "idle"
+      ? null
+      : new Map([...directoryById].map(([id, e]) => [id, e.department]))),
+    [directoryById, directoryStatus]
+  );
   useEffect(() => { if (tab === "proposals") loadProposals(); }, [tab, loadProposals]);
 
   const members = teamData?.members;

@@ -39,11 +39,12 @@ import {
 } from "react-icons/hi";
 import { letterErrorMessage } from "../utils/documentErrors";
 import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "./ui";
+import { hrFieldMeta, letterMatrix } from "./letterFieldMatrix";
 import { humanizeCode } from "./documentMeta";
 import LetterPreviewDialog from "./LetterPreviewDialog";
 import {
   fieldLabel, letterAudience, letterPurpose, letterTemplateOf, letterTitle,
-  sampleText, savedFieldProblems, savedFieldsPayload, savedFieldsToForm,
+  sampleText, savedFieldInputProps, savedFieldProblems, savedFieldsPayload, savedFieldsToForm,
 } from "./letterMeta";
 
 /**
@@ -118,6 +119,7 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
   // Sample wording the letter fills in for itself, so it is clear which parts of
   // the page are not HR's to set here. Shown with the sample values, because
   // "employee_name" on its own explains nothing.
+  const typedKeys = useMemo(() => new Set((letterMatrix(code)?.hr || []).map((f) => f.key)), [code]);
   const bodyFields = useMemo(() => {
     if (!template) return [];
     return [
@@ -125,13 +127,17 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
       ...template.optional_fields.map((key) => ({ key, required: false })),
     ].map((item) => ({
       ...item,
-      label: humanizeCode(item.key),
+      // The published field table (letterFieldMatrix.js) says which of these
+      // are typed in at issue time rather than read from the person's record —
+      // a Show Cause Notice's allegation is not "taken from the person".
+      typed: typedKeys.has(item.key),
+      label: hrFieldMeta(item.key)?.label || humanizeCode(item.key),
       // Not every sample is a string — `appointment_letter` sends its pay
       // breakdown as a list of objects, which `String()` would print as
       // "[object Object]". See sampleText().
       sample: sampleText(template.sample_data?.[item.key]),
     }));
-  }, [template]);
+  }, [template, typedKeys]);
 
   const title = letterTitle(row);
   const purpose = letterPurpose(code);
@@ -197,6 +203,7 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
                       {fields.map((field) => {
                         const key = field.key;
                         const max = Number(field.max_length);
+                        const isNumber = field.type === "number";
                         const value = form.values[key] ?? "";
                         return (
                           <div key={key}>
@@ -205,13 +212,16 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
                               {!field.required && <span className="normal-case font-semibold text-slate-400"> (optional)</span>}
                             </label>
                             <input
-                              id={`ltc-${key}`} type="text" value={value} disabled={busy}
-                              maxLength={Number.isFinite(max) && max > 0 ? max : undefined}
+                              id={`ltc-${key}`} value={value} disabled={busy}
+                              {...savedFieldInputProps(field)}
                               onChange={(e) => { setValue(key, e.target.value); setTouched(true); }}
-                              className={FIELD}
+                              className={isNumber ? `${FIELD} sm:max-w-[10rem]` : FIELD}
                             />
+                            {/* For a number, `max_length` is the largest value (§8.2 quirk), not a length. */}
                             <p className={`text-[10px] mt-1 ${problems[key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
-                              {problems[key] || (Number.isFinite(max) && max > 0 ? `Up to ${max} characters.` : "")}
+                              {problems[key] || (Number.isFinite(max) && max > 0
+                                ? (isNumber ? `A whole number from 1 to ${max}.` : `Up to ${max} characters.`)
+                                : "")}
                             </p>
                           </div>
                         );
@@ -229,7 +239,7 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
                   <div>
                     <p className={LABEL}>What the letter fills in by itself</p>
                     <p className="text-xs text-slate-500 leading-relaxed -mt-1 mb-2">
-                      Taken from the person the letter is about. In a preview these are made-up examples, shown here so you can see where each part of the page comes from.
+                      Mostly taken from the person the letter is about; anything marked “Typed in” is written by HR when the letter is issued. In a preview these are made-up examples, shown here so you can see where each part of the page comes from.
                     </p>
                     <div className="rounded-2xl border border-slate-100 overflow-hidden">
                       <table className="w-full text-left text-xs">
@@ -239,9 +249,11 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
                               <td className="px-3.5 py-2 font-semibold text-slate-600 w-1/3">{item.label}</td>
                               <td className="px-3.5 py-2 text-slate-500">{item.sample || "N/A"}</td>
                               <td className="px-3.5 py-2 text-right w-24">
-                                {item.required
-                                  ? <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Always</span>
-                                  : <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">If known</span>}
+                                {item.typed
+                                  ? <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wide whitespace-nowrap">Typed in</span>
+                                  : item.required
+                                    ? <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Always</span>
+                                    : <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">If known</span>}
                               </td>
                             </tr>
                           ))}

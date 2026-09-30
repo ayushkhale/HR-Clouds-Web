@@ -13,15 +13,24 @@
 // the payroll run that carries it is approved, so Undo sits next to it rather
 // than hidden away — the reason people fear irreversible buttons is not knowing
 // where the exit is.
+//
+// The settlement STATEMENT (#224, 30 Sep 2026) is a computed PDF, drawn on each
+// download and never stored: PROVISIONAL while the exit is `prepared` (credits,
+// recoveries and their net; no final-period pay yet), FINAL once `settled`
+// (plus the final-period pay and the net actually paid). It is offered only in
+// those two states — before preparing, the server answers 409
+// SETTLEMENT_NOT_PREPARED. It is NOT the "Full and Final Settlement Statement"
+// letter in Documents, whose amount HR types; the two are kept apart on purpose.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI } from "../../../../shared/api";
+import { payrollAPI, payrollFiles } from "../../../../shared/api";
+import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
   HiPlus, HiX, HiLogout, HiPencil, HiBan, HiRefresh,
-  HiInformationCircle, HiExclamationCircle, HiCheckCircle, HiCalendar, HiCash,
+  HiInformationCircle, HiExclamationCircle, HiCheckCircle, HiCalendar, HiCash, HiDocumentDownload,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import PayrollToast from "../PayrollToast";
@@ -30,11 +39,12 @@ import PeriodPicker from "../PeriodPicker";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
 import DetailDialog, { DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import SettlementFlow from "../SettlementFlow";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { FNF_STATEMENT_PDF_OVERRIDES, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate, formatPeriod } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import { EXIT_TYPES, EXIT_STATUS, exitTypeLabel, exitStatusMeta, exitActions, toneClass } from "../phase7Meta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -237,6 +247,25 @@ function SettlementPanel({ exit, onClose, onChanged, showToast, nameOf }) {
 
   const acts = exitActions(exit);
   const prepared = exit.status === "prepared";
+  const settled = exit.status === "settled";
+  const [downloading, setDownloading] = useState(false);
+
+  /** #224. Provisional while prepared, final once settled; the server names the file. */
+  const downloadStatement = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const kind = settled ? "final" : "provisional";
+      await downloadRenderedPdf(payrollFiles.hrFnfStatementPdf(exit.id), {
+        filename: `fnf_statement_${String(exit.id).slice(0, 8)}_${kind}.pdf`,
+      });
+      showToast(settled ? "Final statement downloaded" : "Provisional statement downloaded");
+    } catch (err) {
+      showToast(payrollErrorMessage(err, "Couldn't download the settlement statement.", FNF_STATEMENT_PDF_OVERRIDES), "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -305,6 +334,24 @@ function SettlementPanel({ exit, onClose, onChanged, showToast, nameOf }) {
               </p>
             )}
             <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition">Close</button>
+            {(prepared || settled) && (
+              <button
+                type="button"
+                onClick={downloadStatement}
+                disabled={downloading || busy}
+                title={settled
+                  ? "What was settled, including the final pay that reached the bank. Made fresh on each download."
+                  : "What is locked in so far — payouts and recoveries. The final pay is added once the payroll run is paid."}
+                className="px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 transition disabled:opacity-50 flex items-center gap-2"
+              >
+                <HiDocumentDownload className="w-4 h-4" />
+                {downloading ? "Preparing…" : settled ? "Final statement" : "Provisional statement"}
+              </button>
+            )}
+            {/* Beside the button, never inside it (FieldHelp placement rules). */}
+            {(prepared || settled) && (
+              <FieldHelp surface="payroll.settlement" field="settlement_statement" label="the settlement statement" />
+            )}
             {acts.canReset && (
               <button type="button" onClick={() => setResetting(true)} disabled={busy}
                 className="px-4 py-2.5 rounded-xl font-bold text-sm bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 transition disabled:opacity-50 flex items-center gap-2">

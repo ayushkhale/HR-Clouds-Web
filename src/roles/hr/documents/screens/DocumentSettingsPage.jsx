@@ -42,6 +42,7 @@
 // first support question this feature generates.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { autoIssueBlocker, canAutoIssue } from "../../../../shared/documents/letterFieldMatrix";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HiArchive, HiBadgeCheck, HiBell, HiClipboardList, HiCog, HiEye, HiLockClosed, HiLogout, HiMail, HiPaperAirplane, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
 import { Link } from "react-router-dom";
@@ -788,8 +789,14 @@ export default function DocumentSettingsPage() {
                     ) : (
                       <>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {catalog.filter((row) => row.is_enabled && !row.is_orphaned).map((row) => {
+                          {/* Only letters the server accepts here (letter change record §4/§9):
+                              one that states pay, or needs HR to type something, is refused
+                              with a 422 on save. A code already saved that is no longer
+                              allowed is still shown, flagged, so it can be taken out. */}
+                          {catalog.filter((row) => row.is_enabled && !row.is_orphaned
+                            && (canAutoIssue(row.code) || form.letter_auto_issue_on_exit.includes(row.code))).map((row) => {
                             const picked = form.letter_auto_issue_on_exit.includes(row.code);
+                            const refused = !canAutoIssue(row.code);
                             const full = !picked && form.letter_auto_issue_on_exit.length >= AUTO_ISSUE_MAX_TEMPLATES;
                             return (
                               <button
@@ -797,13 +804,14 @@ export default function DocumentSettingsPage() {
                                 type="button"
                                 disabled={full}
                                 aria-pressed={picked}
+                                title={refused ? `Can’t be issued automatically — this letter ${autoIssueBlocker(row.code)}. Click to take it out.` : undefined}
                                 onClick={() => set(
                                   "letter_auto_issue_on_exit",
                                   picked
                                     ? form.letter_auto_issue_on_exit.filter((code) => code !== row.code)
                                     : [...form.letter_auto_issue_on_exit, row.code],
                                 )}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 ${picked ? "border-purple-300 bg-purple-50 text-purple-700" : "border-slate-200 bg-white text-slate-600 hover:border-purple-200"}`}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 ${refused ? "border-rose-200 bg-rose-50 text-rose-700" : picked ? "border-purple-300 bg-purple-50 text-purple-700" : "border-slate-200 bg-white text-slate-600 hover:border-purple-200"}`}
                               >
                                 {picked && <HiBadgeCheck className="w-3.5 h-3.5" />}
                                 {letterTitle(row)}
@@ -815,7 +823,7 @@ export default function DocumentSettingsPage() {
                           {form.letter_auto_issue_on_exit.length === 0
                             ? "Nothing is issued automatically. A leaver’s letters are issued by hand, as now."
                             : `Issued to each leaver on their last working day, without anybody pressing anything. Up to ${AUTO_ISSUE_MAX_TEMPLATES} letters.`}
-                          {" "}A letter that states somebody’s pay can’t be issued this way — an unreviewed letter must never quote a salary.
+                          {" "}A letter that states somebody’s pay, or needs you to type something in (a show cause notice, an improvement plan, a full and final settlement letter), can’t be issued this way — nobody is there to check it.
                         </p>
                       </>
                     )}

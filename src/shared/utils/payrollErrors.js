@@ -12,6 +12,8 @@
 // fall back to the server's own `message`, then to a generic line.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { PDF_RENDER_MESSAGES } from "../pdf/pdfRenderErrors";
+
 const PAYROLL_ERROR_MESSAGES = {
   // Feature gating
   FEATURE_NOT_AVAILABLE: "Payroll isn't enabled for this organisation. Contact your administrator to turn it on.",
@@ -165,13 +167,12 @@ const PAYROLL_ERROR_MESSAGES = {
   UNSUPPORTED_FORMAT: "That file format isn't available for this report.",
   COMPENSATION_VIEW_DISABLED: "Your organisation doesn't let managers see individual pay. Team totals are still available.",
 
-  // How payroll PDFs are produced (PDF Generation Phase 3, settings #87-#90).
-  // The guard exists so an organisation can never switch itself into a state
-  // where no payslip can be downloaded, which is why the wording says the switch
-  // did not happen rather than that something broke.
-  PDF_RENDERER_NOT_CONFIGURED: "The new way of making payroll PDFs isn't switched on for this server yet, so the setting was left as it was. Ask your administrator to turn on PDF rendering, then try again — nothing else on this page was affected.",
-  PDF_RENDER_TIMEOUT: "Preparing that payslip took too long and was stopped. Nothing was lost — try the download again.",
-  PDF_RENDERER_UNAVAILABLE: "The service that draws payroll PDFs can't be reached right now. Try again in a moment.",
+  // Every payroll PDF is drawn by the external renderer since 30 Sep 2026
+  // (PDFKit removed). The shared wording lives in shared/pdf/pdfRenderErrors.js
+  // so a payslip, a report and a letter fail in the same words; it is spread in
+  // below. PDF_RENDERER_NOT_CONFIGURED no longer comes from the settings save
+  // (the engine switch is inert) — it now means no PDF can be downloaded.
+  ...PDF_RENDER_MESSAGES,
 
   // Generic
   VALIDATION_ERROR: "Some details are missing or invalid. Check the form and try again.",
@@ -265,16 +266,6 @@ export function payrollErrorMessage(err, fallback = "Something went wrong. Pleas
 /** The typed backend error code, or "" when there is none. */
 export const payrollErrorCode = (err) => err?.data?.errorCode || "";
 
-/**
- * The server has no PDF renderer configured, so it refused to switch this
- * organisation onto the new engine (#23, PDF Phase 3).
- *
- * Worth telling apart from every other save failure: nothing the person typed is
- * wrong, no other setting on the page was rejected, and the fix is an
- * administrator's, not theirs. The settings form uses this to put the engine
- * field back where it was instead of leaving a switch that looks saved.
- */
-export const isPdfRendererNotConfigured = (err) => payrollErrorCode(err) === "PDF_RENDERER_NOT_CONFIGURED";
 
 /**
  * A payroll endpoint this server doesn't have yet.
@@ -294,6 +285,31 @@ export const isPayrollRouteMissing = (err) => err?.status === 404 && !err?.data;
 // them to the wrong place, so this route gets its own wording. HR's and the
 // manager's payslip routes keep the shared text — a 403 there really is a
 // permission problem.
+/**
+ * #224 `GET /payroll/hr/exits/:id/settlement-statement/pdf`. Two codes mean
+ * something different here than on the settlement actions that share them:
+ * SETTLEMENT_NOT_PREPARED is "prepare it first" (not "nothing to undo"), and
+ * EXIT_CANCELLED is "no statement for a cancelled exit".
+ */
+export const FNF_STATEMENT_PDF_OVERRIDES = {
+  SETTLEMENT_NOT_PREPARED: "The statement is available once the final pay is locked in. Lock it in first, then download it.",
+  EXIT_CANCELLED: "This exit was cancelled, so there is no settlement statement for it.",
+};
+
+/**
+ * #223 `GET /payroll/hr/runs/:id/bank-advice/pdf`. The PDF is capped at 2,000
+ * people where the CSV is not, so "too large" points at the CSV.
+ */
+export const BANK_ADVICE_PDF_OVERRIDES = {
+  EXPORT_TOO_LARGE: "This run pays too many people for a printable copy (the limit is 2,000). The bank file (CSV) has no limit — use that.",
+  RUN_NOT_PAID: "The bank advice is available once the run is marked as paid.",
+};
+
+/** A report PDF above 2,000 rows (422 EXPORT_TOO_LARGE): the CSV has no such cap. */
+export const REPORT_PDF_OVERRIDES = {
+  EXPORT_TOO_LARGE: "This report has too many rows for a PDF (the limit is 2,000). Download it as CSV instead, or narrow the period or filters.",
+};
+
 const SELF_PAYSLIP_PDF_OVERRIDES = {
   FORBIDDEN: "This payslip hasn't been released by HR yet. You'll be able to download it once they publish it.",
   PAYSLIP_NOT_ACCESSIBLE: "This payslip hasn't been released by HR yet. You'll be able to download it once they publish it.",

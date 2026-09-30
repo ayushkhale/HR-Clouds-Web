@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { downloadFile } from "../../../shared/utils/download";
-import { payrollErrorMessage } from "../../../shared/utils/payrollErrors";
+import { downloadRenderedPdf } from "../../../shared/pdf/renderedPdf";
+import { payrollErrorMessage, REPORT_PDF_OVERRIDES } from "../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDayCount } from "../../../shared/utils/formatUtils";
 import Skeleton from "../../../shared/components/Skeleton";
 import MultiSelectDropdown from "../../../shared/components/MultiSelectDropdown";
@@ -222,13 +223,17 @@ export default function PayrollReportsView({
     setError("");
     try {
       const period = params.run_id ? "run" : `${params.period_from}_${params.period_to}`;
-      await downloadFile(filePath(report.key), {
+      // A PDF is drawn by the renderer (landscape; columns that don't fit are
+      // dropped, with a note pointing to the CSV) and can be "still being
+      // drawn" — retried once. CSV is plain data and never waits.
+      const fetchFile = format === "pdf" ? downloadRenderedPdf : downloadFile;
+      await fetchFile(filePath(report.key), {
         params: { ...params, format },
         filename: exportFileName({ kind: report.key, period, extension: format }),
       });
       showToast?.(`${report.label} downloaded as ${format.toUpperCase()}.`);
     } catch (err) {
-      const message = payrollErrorMessage(err, `Couldn't export this report as ${format.toUpperCase()}`);
+      const message = payrollErrorMessage(err, `Couldn't export this report as ${format.toUpperCase()}`, format === "pdf" ? REPORT_PDF_OVERRIDES : null);
       setError(message);
       showToast?.(message, "error");
     } finally {

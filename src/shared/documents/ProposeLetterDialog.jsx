@@ -25,7 +25,8 @@ import { PersonSelect } from "../components/PersonPicker";
 import { documentErrorMessage, isProposalDuplicate, isProposalsDisabled } from "../utils/documentErrors";
 import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { letterTemplateOf, letterTitle } from "./letterMeta";
-import { letterOverridableFields, overrideProblems, overridesPayload, refusedFields } from "./letterIssueMeta";
+import { letterOverridableFields, onlyRequiredMissing, overrideProblems, overridesFromSaved, overridesPayload, refusedFields } from "./letterIssueMeta";
+import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
 import { PROPOSAL_REASON_MAX } from "./letterProposalMeta";
 
 /**
@@ -97,12 +98,26 @@ export default function ProposeLetterDialog({
     });
   }, [fields]);
 
-  const problems = useMemo(() => overrideProblems(fields, values), [fields, values]);
+  // The organisation's saved wording, where the manager's own read returns it.
+  // It prefills the boxes and satisfies a required one — HR's approval issues
+  // the letter with exactly these values, so an empty required box with no
+  // saved wording would only fail later, at HR's desk.
+  const saved = detail.data?.config?.saved_fields || null;
+  const [attempted, setAttempted] = useState(false);
+  useEffect(() => {
+    if (!template) return;
+    setValues(overridesFromSaved(letterOverridableFields(template, code, refusedFields(code)), saved));
+    setAttempted(false);
+  }, [template, saved, code]);
+
+  const problems = useMemo(() => overrideProblems(fields, values, saved), [fields, values, saved]);
   const chosen = useMemo(() => templates.find((row) => row.code === code) || null, [templates, code]);
   const person = useMemo(() => people.find((p) => (p.user_id ?? p.id) === subject) || null, [people, subject]);
   const ready = !!code && !!subject && Object.keys(problems).length === 0;
+  const onlyMissingRequired = !!code && !!subject && onlyRequiredMissing(problems);
 
   const submit = async () => {
+    setAttempted(true);
     if (!ready || busy) return;
     setBusy(true);
     setFailure("");
@@ -220,31 +235,24 @@ export default function ProposeLetterDialog({
                 {detail.loading ? (
                   <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                    {fields.map((field) => (
-                      <div key={field.key} className={field.long ? "sm:col-span-2" : ""}>
-                        <label htmlFor={`pl-${field.key}`} className={LABEL}>{field.label}</label>
-                        {field.long ? (
-                          <textarea
-                            id={`pl-${field.key}`} rows={2} value={values[field.key] ?? ""} disabled={busy}
-                            maxLength={field.max}
-                            onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                            className={`${FIELD} resize-y`}
-                          />
-                        ) : (
-                          <input
-                            id={`pl-${field.key}`} type="text" value={values[field.key] ?? ""} disabled={busy}
-                            maxLength={field.max}
-                            onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                            className={FIELD}
-                          />
-                        )}
-                        <p className={`text-[10px] mt-1 leading-relaxed ${problems[field.key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
-                          {problems[field.key] || field.help || "Leave it empty and HR will use your organisation’s standard wording."}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <LetterIssueReminder code={code} className="mb-3" />
+                    <LetterOverrideFields
+                      idPrefix="pl"
+                      fields={fields}
+                      values={values}
+                      saved={saved}
+                      problems={problems}
+                      revealRequired={attempted}
+                      disabled={busy}
+                      gridClass="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4"
+                      wideClass="sm:col-span-2"
+                      onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
+                      defaultHint={(field) => (field.known
+                        ? "Optional — leave it empty to leave it out."
+                        : "Leave it empty and HR will use your organisation’s standard wording.")}
+                    />
+                  </>
                 )}
               </div>
             )}
@@ -279,7 +287,7 @@ export default function ProposeLetterDialog({
             This doesn’t issue anything. HR decides, and you’ll see what they decided here.
           </p>
           <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
-          <button type="button" onClick={submit} disabled={!ready || busy} className={PRIMARY_BTN}>
+          <button type="button" onClick={submit} disabled={(!ready && !onlyMissingRequired) || busy} className={PRIMARY_BTN}>
             <HiPaperAirplane className="w-4 h-4" /> {busy ? "Sending…" : "Send to HR"}
           </button>
         </div>

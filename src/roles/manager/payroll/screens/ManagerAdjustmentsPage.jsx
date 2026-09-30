@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
+import { payrollAPI } from "../../../../shared/api";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash,
   HiCalendar, HiTrendingUp, HiDocumentText,
@@ -9,6 +9,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { PersonMultiSelect, PersonSelect } from "../../../../shared/components/PersonPicker";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import { personName } from "../../../../shared/attendance/normalize";
 import { formatDate } from "../../../../shared/utils/formatUtils";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
@@ -195,7 +196,9 @@ const TABS = [
 export default function ManagerAdjustmentsPage() {
   const [tab, setTab] = useState("adjustments");
   const { user } = useAuth();
-  const [team, setTeam] = useState([]);
+  // The reports come from the app-wide roster (read once, photos included), not
+  // from a fetch of this screen's own.
+  const { activeRows: team } = useEmployeeDirectory();
   const [adjustments, setAdjustments] = useState([]);
   const [bonuses, setBonuses] = useState([]);
   const [loans, setLoans] = useState([]);
@@ -220,14 +223,11 @@ export default function ManagerAdjustmentsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [teamRes, adjRes, bonusRes, loanRes] = await Promise.all([
-        organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ data: [] })),
+      const [adjRes, bonusRes, loanRes] = await Promise.all([
         payrollAPI.getTeamAdjustments().catch(() => ({ data: [] })),
         payrollAPI.getTeamBonusRules().catch(() => ({ data: [] })),
         payrollAPI.getTeamLoans().catch(() => ({ data: [] })),
       ]);
-      const rawTeam = Array.isArray(teamRes.data) ? teamRes.data : (teamRes.data?.employees ?? teamRes.data?.records ?? teamRes.data?.data ?? []);
-      setTeam(Array.isArray(rawTeam) ? rawTeam : []);
       setAdjustments(adjRes.data?.records || adjRes.data || []);
       setBonuses(bonusRes.data?.records || bonusRes.data || []);
       setLoans(loanRes.data?.records || loanRes.data || []);

@@ -40,6 +40,13 @@
 //    reaches zero, and NOTHING here retries on a timer — the person presses.
 //    Everything typed in survives, because re-entering it all would be the
 //    one thing guaranteed to make somebody start clicking.
+//
+//  · AND THERE IS A SWITCH ABOVE BOTH (30 Sep 2026). Ops can pause every
+//    "whole set of PDFs" call with one flag; #143 then answers `503
+//    PDF_BULK_GENERATION_DISABLED` before reading anything. Nothing advertises
+//    it, so the first refusal is remembered for the session
+//    (shared/pdf/bulkGeneration.js): the form says it's paused, Send is off,
+//    and it is never retried on its own. Batches accepted earlier still finish.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -59,9 +66,12 @@ import {
 import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { letterTemplateOf, letterTemplatesOf, letterTitle } from "./letterMeta";
 import {
-  issueDateMax, issueDateMin, issueDateNote, issueDateProblem, letterOverridableFields, overrideProblems,
-  overridesPayload, refusedFields,
+  issueDateMax, issueDateMin, issueDateNote, issueDateProblem, letterOverridableFields, onlyRequiredMissing,
+  overrideProblems, overridesFromSaved, overridesPayload, refusedFields,
 } from "./letterIssueMeta";
+import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
+import LetterFixLink from "./LetterFixLink";
+import { BULK_PAUSED_NOTE, markBulkGenerationAvailable, noteBulkRefusal, useBulkGenerationPaused } from "../pdf/bulkGeneration";
 import { BULK_MAX_SUBJECTS_FALLBACK, bulkBatchOf, cooldownLabel } from "./letterProposalMeta";
 
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
@@ -242,21 +252,35 @@ export default function BulkIssueLettersDialog({
     setRejected([]);
   };
 
+  // The organisation's saved wording: prefills the boxes, satisfies a required one.
+  const saved = detail.data?.config?.saved_fields || null;
+  const [attempted, setAttempted] = useState(false);
+  useEffect(() => {
+    if (!template) return;
+    setValues(overridesFromSaved(letterOverridableFields(template, code, refusedFields(code)), saved));
+    setAttempted(false);
+  }, [template, saved, code]);
+
+  const bulkPaused = useBulkGenerationPaused();
+
   const problems = useMemo(() => {
-    const out = overrideProblems(fields, values);
+    const out = overrideProblems(fields, values, saved);
     const dateProblem = issueDateProblem(issuedOn);
     if (dateProblem) out._date = dateProblem;
     return out;
-  }, [fields, values, issuedOn]);
+  }, [fields, values, issuedOn, saved]);
 
   const chosenRow = useMemo(() => issuable.find((row) => row.code === code) || null, [issuable, code]);
   const atCeiling = subjects.length >= ceiling;
   const waiting = secondsLeft > 0;
   const ready = !!code && subjects.length > 0 && !detail.loading && !detail.error
-    && Object.keys(problems).length === 0 && !waiting;
+    && Object.keys(problems).length === 0 && !waiting && !bulkPaused;
+  const onlyMissingRequired = !!code && subjects.length > 0 && !detail.loading && !detail.error
+    && onlyRequiredMissing(problems) && !waiting && !bulkPaused;
 
   // ── Queue it ───────────────────────────────────────────────────────────────
   const queue = async () => {
+    setAttempted(true);
     if (!ready || busy) return;
 
     const ok = await window.confirm(
@@ -281,8 +305,11 @@ export default function BulkIssueLettersDialog({
       // make two identical batches possible again.
 
       const batch = bulkBatchOf(await api.bulkIssueLetters(body));
+      markBulkGenerationAvailable();
       onQueued?.(batch, { templateCode: code, templateTitle: letterTitle(chosenRow) });
     } catch (err) {
+      // The platform switch: remembered, shown as a notice, never retried.
+      if (noteBulkRefusal(err)) return;
       if (isRendererNotConfigured(err)) onRendererOff?.();
       if (isBulkValidationFailed(err)) setRejected(bulkValidationFailures(err));
       // The hourly allowance is its own notice, not a red box: nothing is
@@ -298,6 +325,7 @@ export default function BulkIssueLettersDialog({
         message: limit
           ? `This batch has ${subjects.length} people in it and your organisation allows ${limit} at a time. Nothing was queued — send it in smaller batches, or raise the limit in Document Settings.`
           : letterIssueErrorMessage(err, "Couldn’t queue these letters."),
+        err,
       });
     } finally {
       setBusy(false);
@@ -496,31 +524,20 @@ export default function BulkIssueLettersDialog({
                   ) : detail.loading ? (
                     <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
                   ) : fields.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
-                      {fields.map((field) => (
-                        <div key={field.key} className={field.long ? "lg:col-span-2" : ""}>
-                          <label htmlFor={`bl-${field.key}`} className={LABEL}>{field.label}</label>
-                          {field.long ? (
-                            <textarea
-                              id={`bl-${field.key}`} rows={2} value={values[field.key] ?? ""} disabled={busy}
-                              maxLength={field.max}
-                              onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                              className={`${FIELD} resize-y`}
-                            />
-                          ) : (
-                            <input
-                              id={`bl-${field.key}`} type="text" value={values[field.key] ?? ""} disabled={busy}
-                              maxLength={field.max}
-                              onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                              className={FIELD}
-                            />
-                          )}
-                          <p className={`text-[10px] mt-1 leading-relaxed ${problems[field.key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
-                            {problems[field.key] || field.help || "The same on every letter in this batch."}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                    <>
+                      <LetterIssueReminder code={code} className="mb-4" />
+                      <LetterOverrideFields
+                        idPrefix="bl"
+                        fields={fields}
+                        values={values}
+                        saved={saved}
+                        problems={problems}
+                        revealRequired={attempted}
+                        disabled={busy}
+                        onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
+                        defaultHint={() => "The same on every letter in this batch."}
+                      />
+                    </>
                   ) : (
                     <p className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 leading-relaxed">
                       <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
@@ -563,6 +580,20 @@ export default function BulkIssueLettersDialog({
             </div>
           )}
 
+          {bulkPaused && (
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5" role="status">
+              <div className="flex items-start gap-3">
+                <HiInformationCircle className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-indigo-900">Sending to many people at once is paused</p>
+                  <p className="text-sm text-indigo-800 mt-0.5 leading-relaxed">
+                    {BULK_PAUSED_NOTE} Nothing was queued. Issue these letters one at a time for now — what you chose here is kept until you close this form.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {failure && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5" role="alert">
               <div className="flex items-start gap-3">
@@ -570,6 +601,7 @@ export default function BulkIssueLettersDialog({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-rose-800">Nothing was queued</p>
                   <p className="text-sm text-rose-700 mt-0.5 leading-relaxed">{failure.message}</p>
+                  <LetterFixLink err={failure.err} onNavigate={() => onCloseRef.current?.()} />
 
                   {rejected.length > 0 && (
                     <>
@@ -595,18 +627,20 @@ export default function BulkIssueLettersDialog({
 
         <div className="shrink-0 flex flex-wrap items-center gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
           <p className="mr-auto text-[11px] text-slate-500 max-w-sm leading-relaxed">
-            {waiting
+            {bulkPaused
+              ? "Paused on this server for now — issue letters one at a time."
+              : waiting
               ? `Waiting ${cooldownLabel(secondsLeft)} for your organisation’s hourly allowance to refresh.`
               : !code
                 ? "Choose which letter you are sending."
                 : subjects.length === 0
                   ? "Choose who it goes to."
                   : Object.keys(problems).length
-                    ? "Fix what is highlighted above."
+                    ? (onlyRequiredMissing(problems) ? "Fill in the details marked * above." : "Fix what is highlighted above.")
                     : <>Each one is numbered as it is drawn. The limit is set in <Link to={SETTINGS_PATH} className="font-bold text-purple-600 hover:underline">Document Settings</Link>.</>}
           </p>
           <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
-          <button type="button" onClick={queue} disabled={!ready || busy} className={PRIMARY_BTN}>
+          <button type="button" onClick={queue} disabled={(!ready && !onlyMissingRequired) || busy} className={PRIMARY_BTN}>
             <HiPaperAirplane className="w-4 h-4" />
             {busy
               ? "Queueing…"

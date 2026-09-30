@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
+import { refreshEmployeeDirectory, useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 import { FilterTabs } from "../../../shared/attendance/ui";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import {
@@ -29,20 +30,10 @@ function EmployeesPage() {
   const [roleFilter, setRoleFilter] = useState("");
 
 
-  const [employees, setEmployees] = useState([]);
-
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await organizationAPI.getEmployees({ purpose: "shift_assignment" });
-      if (res.success && res.data) setEmployees(res.data);
-    } catch (error) {
-      console.error("Failed to fetch form data", error);
-    }
-  };
+  // One roster for the whole app: the same people, photos included, that every
+  // picker and profile shows. Nothing is fetched here. Leavers stay out — this
+  // page is the current team.
+  const { activeRows: employees } = useEmployeeDirectory();
 
   // Pending-invite actions run from the cards, outside the invite modal, so
   // they report through the page toast. One action per address at a time.
@@ -68,9 +59,10 @@ function EmployeesPage() {
     setInviteBusy(email);
     try {
       await organizationAPI.revokeInvitation({ email });
-      // The employee list can carry the invitee too (status "Pending"); drop only
-      // that pending row, never an active person who shares the address.
-      setEmployees((prev) => prev.filter((emp) => !(emp.email === email && String(emp.status || "").toLowerCase() === "pending")));
+      // The roster can carry the invitee too (status "Pending"). It is shared
+      // with every other screen, so re-read it rather than editing a local copy
+      // that only this page would see.
+      refreshEmployeeDirectory();
       showToast(`Invitation revoked for ${email}`);
     } catch (err) {
       showToast(err?.data?.message || err.message || "Couldn't revoke the invitation.", "error");

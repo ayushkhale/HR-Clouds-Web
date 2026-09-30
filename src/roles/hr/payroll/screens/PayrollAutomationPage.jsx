@@ -40,7 +40,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
 import { isPayrollRouteMissing, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { drainMessage, drainResultOf, usesHtmlEngine } from "../pdfRenderMeta";
+import { drainMessage, drainResultOf } from "../pdfRenderMeta";
 import RenderQueueHealthPanel from "../../../../shared/pdf/RenderQueueHealthPanel";
 
 /**
@@ -103,11 +103,11 @@ const JOBS = [
     jobId: "payslip-render",
     icon: HiLightningBolt,
     title: "Get payslip PDFs ready",
-    what: "Prepares the PDF for every released payslip that hasn’t been prepared yet, so downloading one — or a whole run — is instant. Useful straight after switching to the new way of making PDFs.",
+    what: "Works through the payslips already waiting to be turned into PDFs, so downloading them is instant. Payslips are otherwise prepared the first time somebody downloads them.",
     action: "Prepare payslips now",
-    // Only for an organisation on the new engine. There is no queue on the
-    // classic one, so the card is hidden rather than offered and shrugged at.
-    showWhen: (settings) => usesHtmlEngine(settings),
+    // For every organisation since the HTML-only migration (one engine). Sent
+    // WITHOUT a run id on purpose: that form keeps working while whole-run PDF
+    // jobs are paused, where `{ run_id }` would be refused with a 503.
     run: () => payrollAPI.runPayslipRender({}),
     done: (d) => drainMessage(drainResultOf({ data: d })),
   },
@@ -219,10 +219,9 @@ export default function PayrollAutomationPage() {
           </p>
         </div>
 
-        {/* Only for an organisation on the new engine — on the classic one the
-            queue is empty by definition, so a readout of it would be six zeros
-            and a puzzle. Hidden again if this server has no such endpoint. */}
-        {!loading && !queueHealthOff && usesHtmlEngine(settings) && (
+        {/* Every organisation has a payslip queue now (one engine). Hidden only
+            if this server has no such endpoint. */}
+        {!loading && !queueHealthOff && (
           <div className="mb-6">
             <RenderQueueHealthPanel
               scope="payslip"

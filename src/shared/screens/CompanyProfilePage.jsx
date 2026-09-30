@@ -19,6 +19,20 @@
 //   HR comparing it with the Team page's count will otherwise see a mismatch.
 // • HR contact avatars are presigned for ~5 minutes; a page left open longer
 //   falls back to the illustration (GenderAvatar), which is fine here.
+//
+// HR can also EDIT from here (`public/ref docs/6_org_profile_management_api.md`):
+// the details (PATCH /organizations/profile) and the logo (its own two-step
+// upload). Both are HR-only endpoints, so for everyone else the controls are
+// absent rather than present-and-403 (CLAUDE.md §2), and both replies ARE the
+// refreshed details payload — they replace `data` directly, so the page never
+// re-reads and can never show a stale card after a save.
+//
+// • An uploaded logo is served as a presigned link that dies in ~5 minutes, so
+//   `logoFailed` falls back to the initials and a save resets it. It is never
+//   stored anywhere; the next read presigns a fresh one.
+// • A payslip or letter PDF snapshots `logo_url` when it is generated. An
+//   uploaded (key-only) logo does not reach those documents until payroll
+//   adopts key resolution, so the dialog never promises it will.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -42,8 +56,13 @@ import {
   HiExclamationCircle,
   HiIdentification,
   HiInformationCircle,
+  HiPencil,
+  HiPhotograph,
 } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
+import EditCompanyProfileDialog from "../organization/EditCompanyProfileDialog";
+import CompanyLogoDialog from "../organization/CompanyLogoDialog";
+import { useAuth } from "../contexts/AuthContext";
 import GenderAvatar from "../components/GenderAvatar";
 import FieldHelp, { HelpLabel } from "../fieldHelp/FieldHelp";
 import { displayValue } from "../components/DetailDialog";
@@ -244,10 +263,16 @@ function PageSkeleton() {
 
 export default function CompanyProfilePage() {
   const orgPaths = useOrgPaths();
+  const { role } = useAuth();
+  // Editing is an HR endpoint. For anyone else the buttons simply aren't there.
+  const canEdit = String(role || "").toLowerCase() === "hr";
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [logoFailed, setLogoFailed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [changingLogo, setChangingLogo] = useState(false);
+  const [saved, setSaved] = useState("");
   const requestRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -267,6 +292,30 @@ export default function CompanyProfilePage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Both writes answer with the whole refreshed details payload, so the page
+  // takes it as the new truth instead of reading again. A fresh payload also
+  // carries a fresh presigned logo link, hence the reset.
+  const applySaved = useCallback((details, message) => {
+    if (details) {
+      // This payload is newer than anything a read still in flight can bring
+      // back, so retire that read's token — and its loading state with it.
+      requestRef.current += 1;
+      setData(details);
+      setLogoFailed(false);
+      setError(null);
+      setLoading(false);
+    }
+    setSaved(message);
+  }, []);
+
+  // The confirmation clears itself; it says what changed, so it isn't a toast
+  // that has to be dismissed.
+  useEffect(() => {
+    if (!saved) return undefined;
+    const timer = setTimeout(() => setSaved(""), 6000);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   const org = data?.organization || {};
   const profile = data?.profile || null;
@@ -298,13 +347,31 @@ export default function CompanyProfilePage() {
             <h1 className="text-2xl font-bold text-slate-900">Company Profile</h1>
             <p className="text-sm text-slate-500 mt-1">Who we are, where we are and who to talk to in HR.</p>
           </div>
-          <Link
-            to={orgPaths.chart}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-sm transition-colors self-start sm:self-auto"
-          >
-            <HiShare className="w-4 h-4 rotate-90" /> Open the Org Chart
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+            {canEdit && !loading && !error && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 text-sm font-bold shadow-2xs transition-colors"
+              >
+                <HiPencil className="w-4 h-4" /> Edit details
+              </button>
+            )}
+            <Link
+              to={orgPaths.chart}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-sm transition-colors"
+            >
+              <HiShare className="w-4 h-4 rotate-90" /> Open the Org Chart
+            </Link>
+          </div>
         </div>
+
+        {saved && (
+          <div role="status" className="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm text-violet-900">
+            <HiCheck className="w-5 h-5 text-violet-600 shrink-0 mt-0.5" />
+            <p>{saved}</p>
+          </div>
+        )}
 
         {loading ? (
           <PageSkeleton />
@@ -334,11 +401,24 @@ export default function CompanyProfilePage() {
               {/* Its own layer, or the cover band above paints over the overlapping logo. */}
               <div className="relative z-10 px-5 sm:px-8 pb-6">
                 <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
-                  <div className="-mt-12 w-24 h-24 rounded-3xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden shrink-0">
-                    {logo ? (
-                      <img src={logo} alt={`${name} logo`} className="w-full h-full object-contain p-2" onError={() => setLogoFailed(true)} />
-                    ) : (
-                      <span className="w-full h-full rounded-[1.1rem] bg-gradient-to-br from-purple-100 to-purple-300 text-purple-800 text-2xl font-bold flex items-center justify-center">{initials || <HiOfficeBuilding className="w-9 h-9" />}</span>
+                  <div className="relative -mt-12 shrink-0">
+                    <div className="w-24 h-24 rounded-3xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
+                      {logo ? (
+                        <img src={logo} alt={`${name} logo`} className="w-full h-full object-contain p-2" onError={() => setLogoFailed(true)} />
+                      ) : (
+                        <span className="w-full h-full rounded-[1.1rem] bg-gradient-to-br from-purple-100 to-purple-300 text-purple-800 text-2xl font-bold flex items-center justify-center">{initials || <HiOfficeBuilding className="w-9 h-9" />}</span>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setChangingLogo(true)}
+                        aria-label={logo ? "Change the company logo" : "Add a company logo"}
+                        title={logo ? "Change the company logo" : "Add a company logo"}
+                        className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-purple-600 hover:bg-purple-700 text-white border-2 border-white shadow-md flex items-center justify-center transition-colors"
+                      >
+                        <HiPhotograph className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                   <div className="min-w-0 flex-1 md:pt-4">
@@ -388,7 +468,14 @@ export default function CompanyProfilePage() {
             {!profile && (
               <div className="flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900">
                 <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
-                <p>The company’s details — what it does, its address and website — aren’t on file yet. The people counts and HR contacts below are still up to date.</p>
+                <div className="min-w-0">
+                  <p>The company’s details — what it does, its address and website — aren’t on file yet. The people counts and HR contacts below are still up to date.</p>
+                  {canEdit && (
+                    <button type="button" onClick={() => setEditing(true)} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 underline underline-offset-2">
+                      <HiPencil className="w-3.5 h-3.5" /> Add the company details
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -468,6 +555,29 @@ export default function CompanyProfilePage() {
           </>
         )}
       </main>
+
+      {/* Siblings of the page, not of a card, so nothing clips them. */}
+      {editing && (
+        <EditCompanyProfileDialog
+          details={data}
+          onClose={() => setEditing(false)}
+          onSaved={(details, renamed) => {
+            setEditing(false);
+            applySaved(details, renamed ? "Company details saved. The new name is used across the app." : "Company details saved.");
+          }}
+        />
+      )}
+      {changingLogo && (
+        <CompanyLogoDialog
+          currentLogo={logo}
+          companyName={name}
+          onClose={() => setChangingLogo(false)}
+          onSaved={(details) => {
+            setChangingLogo(false);
+            applySaved(details, "The company logo has been updated.");
+          }}
+        />
+      )}
     </>
   );
 }

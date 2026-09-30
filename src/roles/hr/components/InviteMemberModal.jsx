@@ -19,6 +19,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { organizationAPI } from "../../../shared/api";
 import { HiX, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiUserGroup, HiTrash, HiClock } from "react-icons/hi";
 import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
+import { useEmployeeDirectory, refreshEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const GENDER_OPTIONS = [
@@ -123,9 +124,12 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
 
-  const [roster, setRoster] = useState([]);
-  const [managers, setManagers] = useState([]);
-  const [hrList, setHrList] = useState([]);
+  // Everyone in the organisation, from the app-wide roster — one read, shared
+  // with every other picker, so the reporting-person list can never disagree
+  // with the Team page behind this form.
+  const { activeRows: roster } = useEmployeeDirectory();
+  const managers = roster.filter((e) => e.role === "manager" || e.role === "hr");
+  const hrList = roster.filter((e) => e.role === "hr");
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [departmentLoading, setDepartmentLoading] = useState(false);
@@ -213,32 +217,20 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [inviteLoading, closeWithDraft]);
 
-  // Pickers: the roster feeds the reporting-person list, plus locations and
-  // departments. Loaded once, when the form opens.
+  // Locations and departments exist only to fill this form's pickers, so they
+  // load here. The people don't: they come from the shared roster above.
   useEffect(() => {
     let alive = true;
     Promise.all([
-      organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ success: false, data: [] })),
       organizationAPI.getLocations().catch(() => ({ success: false, data: [] })),
       organizationAPI.getDepartments().catch(() => ({ success: false, data: [] })),
-    ]).then(([res, locRes, depRes]) => {
+    ]).then(([locRes, depRes]) => {
       if (!alive) return;
-      if (res.success && res.data) {
-        setRoster(res.data);
-        setManagers(res.data.filter((e) => e.role === "manager" || e.role === "hr"));
-      }
       if (locRes.success && locRes.data) setLocations(locRes.data);
       if (depRes.success && depRes.data) setDepartments(depRes.data);
     });
     return () => { alive = false; };
   }, []);
-
-  useEffect(() => {
-    if (hrList.length > 0) return;
-    organizationAPI.getEmployees({ purpose: "all_hr_list" })
-      .then((res) => { if (res.success && res.data) setHrList(res.data); })
-      .catch(() => { /* the picker falls back to HR rows from the employee list */ });
-  }, [hrList.length]);
 
   // Pincode → city and state.
   useEffect(() => {
@@ -354,6 +346,9 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
       skipSave.current = true;
 
       setInviteResult({ type: "success", message: `Invitation sent to ${name || email}!` });
+      // The organisation has someone new in it: re-read the roster so the Team
+      // page, every picker and every avatar include them without a reload.
+      refreshEmployeeDirectory();
       onInvited?.({
         ...(res?.data || {}),
         email,
@@ -574,7 +569,7 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                         </label>
                         <PersonSelect
                           people={((role === "manager" || role === "hr")
-                            ? (hrList.length > 0 ? hrList : roster.filter((e) => e.role === "hr"))
+                            ? hrList
                             : managers
                           ).map((m) => ({ ...toPersonOption(m), sub: [String(m.role || "").toUpperCase(), toPersonOption(m).sub].filter(Boolean).join(" · ") }))}
                           value={reportingManager}

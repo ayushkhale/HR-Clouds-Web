@@ -7,9 +7,16 @@
 //      a broken image.
 //   2. The generic male / female illustration, picked from the person's gender.
 //   3. Purple initials when the gender is unknown — but only after asking the
-//      organisation directory (directoryIndex.js), because most list rows name
-//      a person without saying their gender. Without that, the same person was
-//      an illustration on Team and "PP" on Live Attendance.
+//      organisation directory (EmployeeDirectoryContext), because most list
+//      rows name a person without saying their gender. Without that, the same
+//      person was an illustration on Team and "PP" on Live Attendance.
+//
+// The directory is asked whenever the row has NO PHOTO, even when it does carry
+// a gender. It used to be asked only when BOTH were missing, so once the
+// backend added `gender` to list rows (R-5) every one of those rows dropped
+// straight to the illustration and real photos showed only on the few screens
+// whose rows happened to carry `avatar_url` — the "photo here, no photo there"
+// bug.
 //
 // Pass `person` and let the component find name, gender and photo, or pass
 // `name` / `gender` / `src` explicitly (they win over `person`). The size and
@@ -26,50 +33,13 @@
 
 import React, { useEffect, useState } from "react";
 import { FEMALE_AVATAR_SRC, MALE_AVATAR_SRC } from "./avatarImages";
-import { markDirectoryPhotosStale, useDirectoryEntry } from "../utils/directoryIndex";
+import { markDirectoryPhotosStale, useDirectoryEntry } from "../contexts/EmployeeDirectoryContext";
+import { avatarUrlOf, genderOf, nestedPeople as nested, normalizeGender, personKeys } from "../utils/personFields";
 
-/** "Male" / "M" / "man" → "male"; "Female" / "F" / "woman" → "female"; else null. */
-export function normalizeGender(value) {
-  const g = String(value || "").trim().toLowerCase();
-  if (["male", "m", "man"].includes(g)) return "male";
-  if (["female", "f", "woman"].includes(g)) return "female";
-  return null;
-}
-
-// Where a row may keep the person. Since 29 Sep 2026 (R-5) the backend puts
-// `gender` on the embedded role profiles, which list rows nest under `user`
-// (`user.employee_profile`, …) — so those are looked at too. When gender is
-// found here, the directory lookup below is never made.
-const nested = (person) => [
-  person, person?.profile, person?.user, person?.user?.profile,
-  person?.user?.employee_profile, person?.user?.manager_profile, person?.user?.hr_profile,
-  person?.applicant, person?.applicant?.profile, person?.employee,
-  person?.employee_profile, person?.manager_profile, person?.hr_profile,
-].filter((x) => x && typeof x === "object");
-
-/** Gender from flat or nested profile shapes. */
-export function genderOf(person) {
-  if (!person || typeof person !== "object") return null;
-  for (const obj of nested(person)) {
-    const g = normalizeGender(obj.gender);
-    if (g) return g;
-  }
-  return null;
-}
-
-const URL_KEYS = ["avatar_url", "avatar", "photo_url", "profile_picture", "profile_image", "image_url"];
-
-/** The person's real photo URL (e.g. an S3 link) from flat or nested shapes, or "". */
-export function avatarUrlOf(person) {
-  if (!person || typeof person !== "object") return "";
-  for (const obj of nested(person)) {
-    for (const key of URL_KEYS) {
-      const v = obj[key];
-      if (typeof v === "string" && /^(https?:|data:image\/|blob:|\/)/i.test(v.trim())) return v.trim();
-    }
-  }
-  return "";
-}
+// Re-exported: these read a person off a row and a dozen screens import them
+// from here. They live in utils/personFields.js so the directory store can use
+// them without importing a component.
+export { avatarUrlOf, genderOf, normalizeGender };
 
 function nameOf(person) {
   for (const obj of nested(person)) {
@@ -87,17 +57,6 @@ function nameOf(person) {
   return "";
 }
 
-/** Every user id and email the row carries, for the directory lookup. */
-function lookupKeys(person) {
-  const keys = [];
-  for (const obj of nested(person)) {
-    for (const key of ["user_id", "id", "email", "identifier"]) {
-      if (typeof obj[key] === "string" && obj[key]) keys.push(obj[key]);
-    }
-  }
-  return keys;
-}
-
 const initialsOf = (name) => {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -107,7 +66,9 @@ const initialsOf = (name) => {
 export default function GenderAvatar({ person, gender, name, src, className = "w-full h-full", onPhotoError }) {
   const ownPhoto = src || avatarUrlOf(person);
   const ownGender = normalizeGender(gender) || genderOf(person);
-  const keys = ownPhoto || ownGender ? [] : lookupKeys(person);
+  // Ask the directory whenever the row has no photo of its own — a row that
+  // says a person's gender still doesn't say what they look like.
+  const keys = ownPhoto ? [] : personKeys(person);
   const known = useDirectoryEntry(keys, keys.length > 0);
   const photo = ownPhoto || known?.photo || "";
   const displayName = name || nameOf(person);
@@ -118,8 +79,12 @@ export default function GenderAvatar({ person, gender, name, src, className = "w
   if (photo && !photoFailed) {
     return <img src={photo} alt={displayName || ""} onError={() => {
       setPhotoFailed(true);
-      // A photo looked up in the directory: its link expired, so re-read it.
-      if (!ownPhoto) markDirectoryPhotosStale();
+      // A presigned S3 link that has expired. It may have come from the
+      // directory OR from a roster row the directory handed the screen (a
+      // picker option carries its whole row), so ask for fresh links either
+      // way; the store rate-limits and ignores what it can't refresh. A blob
+      // or data URL is a local preview and means nothing to the directory.
+      if (/^https?:/i.test(photo)) markDirectoryPhotosStale();
       onPhotoError?.(photo);
     }} draggable={false} className={`${className} object-cover`} />;
   }

@@ -52,6 +52,14 @@
 //     drops that box. A wrong guess therefore costs one click, never a wrong
 //     letter — and a template the platform adds later works without a release.
 //
+//     SINCE 30 SEP 2026 the backend publishes the answer as a table instead
+//     (letter change record §9), and it lives in letterFieldMatrix.js. Every
+//     template listed there is built from it — HR-entered fields only, real
+//     required checks, the one number sent as a number — and the key-name
+//     guessing below is now only the fallback for a code the table doesn't
+//     know. #136's `fields` descriptor is NOT used here any more: it describes
+//     the saved-default keys (#137/#138), which #139 refuses as overrides.
+//
 //  5. A REISSUE IS ALWAYS DATED TODAY. #142 takes no `effective_date` at all,
 //     so a reissue's number and financial year belong to the reissue. Anything
 //     on screen implying otherwise would be a lie about a legal document.
@@ -59,6 +67,7 @@
 
 import { humanizeCode } from "./documentMeta";
 import { todayYMD } from "../attendance/dates";
+import { hrFieldMeta, letterMatrix } from "./letterFieldMatrix";
 
 // ── Reading the replies ──────────────────────────────────────────────────────
 const payload = (res) => res?.data ?? res ?? {};
@@ -316,72 +325,96 @@ export const OVERRIDE_MAX_LENGTH = 500;
 export const OVERRIDE_MAX_KEYS = 20;
 
 /**
- * The boxes the issue, reissue and proposal forms show, built from #136.
+ * The boxes the issue, reissue, proposal and bulk forms show.
  *
- * #136 describes a letter's placeholders two ways, and both are read:
+ * A template in letterFieldMatrix.js is built from that table: exactly the
+ * HR-entered fields #139 accepts, with a real `required` flag, our wording, and
+ * `kind: "number"` for `response_deadline_days`. `known: true` marks these —
+ * only for them does an empty required box count as a problem (see
+ * `overrideProblem`).
  *
- *  · `fields` — a form DESCRIPTOR, `[{ key, label, type, max_length, required }]`.
- *    Preferred when present: the server names each box and gives its own length
- *    limit, so a template added later needs no change here.
- *  · `required_fields` / `optional_fields` — plain key lists, which is what the
- *    endpoint answered before the descriptor existed and is still the fallback.
+ * A code the table doesn't know falls back to #136's `required_fields` /
+ * `optional_fields`, minus anything that looks like a record fact (fact 4 in
+ * the header). The `fields` descriptor is deliberately NOT read: it lists the
+ * saved-default keys, which #139 refuses as overrides.
  *
- * Either way the same three filters apply: a fact read from the person's record
- * is dropped (#139 refuses an override of one — see fact 4), so is anything the
- * server has already refused this session, and the cap keeps a long placeholder
- * list from building a body #139 rejects outright.
- *
- * Our own wording wins over the server's label where we have curated one
- * (CLAUDE.md §6): "Closing note" reads better than whatever the template calls
- * it, and the hint and single-line/paragraph choice only exist here.
+ * Either way, anything the server has refused this session is dropped, and the
+ * list is capped at #139's 20 keys.
  *
  * @param {object} template     the #136 `template` object
- * @param {string} [code]       template code, for the session's refusal memory
+ * @param {string} [code]       template code, for the matrix and the refusal memory
  * @param {string[]} [refused]  fields the caller knows are refused (see `refusedFields`)
- * @returns {{ key: string, label: string, help: string, required: boolean, long: boolean, max: number }[]}
+ * @returns {{ key: string, label: string, help: string, required: boolean, long: boolean, max: number, kind: "text"|"number", min?: number, maxValue?: number, known: boolean }[]}
  */
 export function letterOverridableFields(template, code, refused = []) {
   const templateCode = code || template?.code || "";
   const rejected = new Set(refused);
+  const dropped = (key) => rejected.has(key) || isKnownNotOverridable(templateCode, key);
 
-  const descriptor = Array.isArray(template?.fields) ? template.fields : null;
-  const entries = descriptor
-    ? descriptor.map((field) => ({
-      key: String(field?.key ?? "").trim(),
-      required: field?.required === true,
-      label: typeof field?.label === "string" ? field.label.trim() : "",
-      // The server's own limit, never above #139's flat 500-character cap.
-      max: Math.min(Number(field?.max_length) > 0 ? Number(field.max_length) : OVERRIDE_MAX_LENGTH, OVERRIDE_MAX_LENGTH),
-    }))
-    : [
-      ...(Array.isArray(template?.required_fields) ? template.required_fields : []).map((key) => ({ key: String(key ?? "").trim(), required: true, label: "", max: OVERRIDE_MAX_LENGTH })),
-      ...(Array.isArray(template?.optional_fields) ? template.optional_fields : []).map((key) => ({ key: String(key ?? "").trim(), required: false, label: "", max: OVERRIDE_MAX_LENGTH })),
-    ];
+  const matrix = letterMatrix(templateCode);
+  if (matrix) {
+    return matrix.hr
+      .filter(({ key }) => !dropped(key))
+      .map(({ key, required }) => {
+        const meta = hrFieldMeta(key) || {};
+        const number = meta.kind === "number";
+        return {
+          key,
+          label: meta.label || humanizeCode(key) || "Detail",
+          help: meta.help || "",
+          required,
+          long: meta.long === true,
+          max: OVERRIDE_MAX_LENGTH,
+          kind: number ? "number" : "text",
+          ...(number ? { min: meta.min, maxValue: meta.max } : {}),
+          known: true,
+        };
+      })
+      .slice(0, OVERRIDE_MAX_KEYS);
+  }
+
+  const entries = [
+    ...(Array.isArray(template?.required_fields) ? template.required_fields : []).map((key) => ({ key: String(key ?? "").trim(), required: true })),
+    ...(Array.isArray(template?.optional_fields) ? template.optional_fields : []).map((key) => ({ key: String(key ?? "").trim(), required: false })),
+  ];
 
   const seen = new Set();
   const out = [];
-  entries.forEach(({ key, required, label, max }) => {
+  entries.forEach(({ key, required }) => {
     if (!key || seen.has(key)) return;
     seen.add(key);
-    if (isDerivedFactKey(key)) return;
-    if (rejected.has(key) || isKnownNotOverridable(templateCode, key)) return;
-    const known = NARRATIVE_LABELS[key];
+    if (isDerivedFactKey(key) || dropped(key)) return;
+    const known = NARRATIVE_LABELS[key] || hrFieldMeta(key);
     out.push({
       key,
-      label: known?.label || label || humanizeCode(key) || "Detail",
+      label: known?.label || humanizeCode(key) || "Detail",
       help: known?.help || "",
-      // `required` here means "the template normally prints this", not "the form
-      // must have it" — see `overrideProblem()`. It only changes the hint.
+      // For an unknown template `required` only means "the template normally
+      // prints this" — the form can't tell whether saved wording covers it.
       required,
-      // Whether the box is a line or a paragraph. The length cap can't decide
-      // this, so only the field's own nature can; a key we don't recognise gets
-      // the quieter single line.
       long: known?.long === true,
-      max,
+      max: OVERRIDE_MAX_LENGTH,
+      kind: "text",
+      known: false,
     });
   });
   return out.slice(0, OVERRIDE_MAX_KEYS);
 }
+
+/** Record facts in words — "Joining date", not "Joining Date Text". */
+const FACT_LABELS = {
+  employee_name: "Name",
+  employee_code: "Employee code",
+  designation: "Job title",
+  department_name: "Department",
+  joining_date_text: "Joining date",
+  relieving_date_text: "Last working day",
+  annual_ctc_text: "Yearly pay",
+  revised_annual_ctc_text: "New yearly pay",
+  compensation_lines: "Pay breakdown",
+  reporting_manager: "Reports to",
+};
+const factLabel = (key) => FACT_LABELS[key] || humanizeCode(key) || key;
 
 /**
  * The placeholders the letter fills in from the person's record, for the
@@ -392,7 +425,14 @@ export function letterOverridableFields(template, code, refused = []) {
  * their profile, correct it there — only works if the person can see which
  * parts of the letter those are.
  */
-export function letterFactFields(template) {
+export function letterFactFields(template, code) {
+  const matrix = letterMatrix(code || template?.code);
+  if (matrix) {
+    return [
+      ...matrix.derived.map((key) => ({ key, label: factLabel(key), required: true })),
+      ...matrix.derivedOptional.map((key) => ({ key, label: factLabel(key), required: false })),
+    ];
+  }
   const required = Array.isArray(template?.required_fields) ? template.required_fields : [];
   const optional = Array.isArray(template?.optional_fields) ? template.optional_fields : [];
   const seen = new Set();
@@ -401,38 +441,87 @@ export function letterFactFields(template) {
     const name = String(key || "").trim();
     if (!name || seen.has(name) || !isDerivedFactKey(name)) return;
     seen.add(name);
-    out.push({ key: name, label: humanizeCode(name) || name, required: isRequired });
+    out.push({ key: name, label: factLabel(name), required: isRequired });
   });
   return out;
 }
 
 /**
+ * The problem an empty required box reports. Exported so a form can show it
+ * quietly (as a plain hint) until the person has tried to send, rather than
+ * greeting them with red on a form they haven't touched yet.
+ */
+export const REQUIRED_PROBLEM = "Needed on this letter.";
+
+/** Is every problem on this form just "fill in a required box"? */
+export const onlyRequiredMissing = (problems) =>
+  Object.keys(problems || {}).length > 0 && Object.values(problems).every((p) => p === REQUIRED_PROBLEM);
+
+/**
  * Why this override value can't be sent, or "".
  *
- * Length ONLY. An empty box is never an error here, even for a field the template
- * marks required, and that is deliberate: the letter's own default or this
- * organisation's saved wording (#137) may already fill it, and the form has no
- * way to know — #136 doesn't say which placeholders the saved defaults resolve.
- * So blocking on a blank box would stop HR issuing a letter the server would have
- * completed perfectly. The server decides completeness, and `422
- * PDF_DATA_INCOMPLETE` names the field that actually came out empty.
+ * Length for every box, and a whole number in range for a number box.
+ *
+ * An EMPTY box is a problem only when all three hold: the template is one
+ * letterFieldMatrix.js knows (`field.known`), the field is genuinely required
+ * there, and this organisation has no saved wording for it — because a saved
+ * field fills a required one when the issue sends nothing (§2.1). For a code
+ * the matrix doesn't know, an empty box is never blocked: the form can't tell
+ * what the saved wording covers, and `422 PDF_DATA_INCOMPLETE` names the field
+ * that really came out empty.
+ *
+ * @param {object} field     from `letterOverridableFields`
+ * @param {unknown} value
+ * @param {object} [saved]   the template's `config.saved_fields`
  */
-export function overrideProblem(field, value) {
-  const text = String(value ?? "");
-  // The field's own limit where #136 gave one, and never above #139's flat cap.
+export function overrideProblem(field, value, saved = null) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    const hasSaved = saved && String(saved[field?.key] ?? "").trim() !== "";
+    return field?.known && field?.required && !hasSaved ? REQUIRED_PROBLEM : "";
+  }
+  if (field?.kind === "number") {
+    if (!/^\d+$/.test(text)) return "Enter a whole number.";
+    const n = Number(text);
+    if (Number.isFinite(field.min) && n < field.min) return `At least ${field.min}.`;
+    if (Number.isFinite(field.maxValue) && n > field.maxValue) return `No more than ${field.maxValue}.`;
+    return "";
+  }
+  // The field's own limit where one is known, and never above #139's flat cap.
   const max = Number(field?.max) > 0 ? Math.min(Number(field.max), OVERRIDE_MAX_LENGTH) : OVERRIDE_MAX_LENGTH;
-  if (text.length > max) return `Keep this under ${max} characters.`;
+  if (String(value ?? "").length > max) return `Keep this under ${max} characters.`;
   return "";
 }
 
-export function overrideProblems(fields, values) {
+export function overrideProblems(fields, values, saved = null) {
   const out = {};
   (fields || []).forEach((field) => {
-    const problem = overrideProblem(field, values?.[field.key]);
+    const problem = overrideProblem(field, values?.[field.key], saved);
     if (problem) out[field.key] = problem;
   });
   return out;
 }
+
+/**
+ * The boxes' starting values: this organisation's saved wording where a box has
+ * one (the doc's "prefill from `config.saved_fields`"), empty otherwise.
+ *
+ * Showing it is the point. Sending it unchanged is harmless — it is exactly
+ * what the server would have filled in — and the person can see and change the
+ * wording on THIS letter without touching the saved default.
+ */
+export function overridesFromSaved(fields, saved) {
+  const out = {};
+  (fields || []).forEach((field) => {
+    const value = saved?.[field.key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") out[field.key] = String(value);
+  });
+  return out;
+}
+
+/** Does this box start from the organisation's saved wording? */
+export const isPrefilledFromSaved = (field, saved) =>
+  !!saved && saved[field?.key] !== undefined && saved[field?.key] !== null && String(saved[field.key]).trim() !== "";
 
 /** Every override box as text, with saved wording nowhere in sight (that is the server's job). */
 export const overridesToForm = (fields) => Object.fromEntries((fields || []).map((f) => [f.key, ""]));
@@ -450,7 +539,10 @@ export function overridesPayload(fields, values) {
   const out = {};
   (fields || []).forEach((field) => {
     const text = String(values?.[field.key] ?? "").trim();
-    if (text) out[field.key] = text;
+    if (!text) return;
+    // The one numeric field (`response_deadline_days`) goes as a number: it is
+    // printed as "Within N days" and validated as an integer 1–90.
+    out[field.key] = field.kind === "number" ? Number(text) : text;
   });
   return out;
 }
@@ -648,7 +740,9 @@ export const ackDefaultFromChoice = (choice) => (choice === "yes" ? true : choic
  * @returns {{ letter: string, person: string }} person is "" when unknown
  */
 // What useEmployeeDirectory's nameOf returns when it has no answer.
-const DIRECTORY_PLACEHOLDERS = new Set(["Loading…", "Name unavailable", "Employee not found", "N/A"]);
+const DIRECTORY_PLACEHOLDERS = new Set([
+  "Loading…", "Name unavailable", "Employee not found", "Unknown user", "A colleague", "N/A",
+]);
 
 export function letterRowParts(row, nameOf) {
   const title = String(row?.title || "").trim();

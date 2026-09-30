@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI } from "../../../../shared/api";
+import { payrollAPI, payrollFiles } from "../../../../shared/api";
+import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import useEmployeeDirectory from "../useEmployeeDirectory";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiEye, HiLink, HiReceiptTax, HiScale, HiOfficeBuilding, HiDocumentText, HiCalculator } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiLockClosed, HiEye, HiLink, HiReceiptTax, HiScale, HiOfficeBuilding, HiDocumentText, HiCalculator, HiDocumentDownload } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailPill, DetailSection, DetailStats } from "../../../../shared/components/DetailDialog";
 import { currentFY, fyOptions } from "../fyUtils";
@@ -11,6 +13,7 @@ import AttachmentUploadButton from "../../../../shared/components/AttachmentUplo
 import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
 import { PART_A_UPLOAD_ENABLED, PART_A_TYPES, PART_A_ACCEPT_ATTR } from "../../../../shared/utils/payrollAttachments";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -67,6 +70,23 @@ export default function YearEndClosurePage() {
   }, [fy]);
 
   useEffect(() => { load(); }, [load]);
+
+  // #222 — the same summary as a landscape PDF, for preparing challans. It is a
+  // worksheet, NOT an ECR / ESI return / 24Q e-filing file, and the button says
+  // so; drawn by the PDF renderer, so it can fail for renderer reasons.
+  const [downloadingSummary, setDownloadingSummary] = useState(false);
+  const downloadSummary = async () => {
+    if (downloadingSummary) return;
+    setDownloadingSummary(true);
+    try {
+      await downloadRenderedPdf(payrollFiles.hrStatutorySummaryPdf(fy), { filename: `statutory_summary_${fy}.pdf` });
+      showToast(`Worksheet for FY ${fy} downloaded`);
+    } catch (err) {
+      showToast(payrollErrorMessage(err, "Couldn't download the worksheet."), "error");
+    } finally {
+      setDownloadingSummary(false);
+    }
+  };
 
   const months = summary?.months || [];
   const totals = months.reduce((acc, m) => {
@@ -139,9 +159,23 @@ export default function YearEndClosurePage() {
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/50">
-                  <h2 className="font-bold text-slate-800">Monthly Statutory Challan Summary</h2>
-                  <p className="text-[11px] text-slate-400">Approved / paid runs only</p>
+                <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/50 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-bold text-slate-800">
+                      <HelpLabel text="Monthly Statutory Challan Summary" help={{ surface: "payroll.year_end", field: "statutory_summary", label: "the statutory challan summary" }} />
+                    </h2>
+                    <p className="text-[11px] text-slate-400">Approved / paid runs only</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={downloadSummary}
+                    disabled={downloadingSummary}
+                    title="A printable worksheet for preparing PF, ESI, professional tax and TDS payments. Not a file you can upload for e-filing."
+                    className="px-3 py-2 text-xs font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <HiDocumentDownload className="w-4 h-4" />
+                    {downloadingSummary ? "Preparing…" : "Download worksheet (PDF)"}
+                  </button>
                 </div>
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>

@@ -19,8 +19,7 @@ import { createPortal } from "react-dom";
 import { HiCheck, HiChevronDown, HiSearch, HiX } from "react-icons/hi";
 import GenderAvatar from "./GenderAvatar";
 import usePopoverPosition from "../hooks/usePopoverPosition";
-import { toEmployeeOption } from "../attendance/EmployeePicker";
-import { departmentName } from "../attendance/normalize";
+import { departmentName, toEmployeeOption } from "../attendance/normalize";
 
 const PANEL_MAX_H = 320;
 

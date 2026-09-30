@@ -38,6 +38,7 @@
 //      has no place for.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { NUMBER_FIELD_MIN } from "./letterFieldMatrix";
 import { formatBytes, humanizeCode } from "./documentMeta";
 
 // ── Reading the replies ──────────────────────────────────────────────────────
@@ -360,8 +361,9 @@ export const brandingIsConfigured = (branding) =>
  * Letter" means nothing to most people until you say "for a bank or a visa".
  *
  * An unknown code is not a problem: the title carries, and the purpose line is
- * simply left out rather than guessed at. A later release adding a fourth letter
- * must not need a frontend change to be usable.
+ * simply left out rather than guessed at. A later release adding a letter must
+ * not need a frontend change to be usable. The fifteen of registry version 1
+ * are all described (see letterFieldMatrix.js for their fields).
  */
 export const LETTER_PURPOSE = {
   experience_letter: {
@@ -375,6 +377,55 @@ export const LETTER_PURPOSE = {
   bonafide_letter: {
     purpose: "Confirms that somebody works here right now — what a bank, a landlord or an embassy asks for.",
     audience: "Issued on request, usually for a loan, a visa or a passport.",
+  },
+  relieving_letter: {
+    purpose: "Confirms somebody has been released from their job and owes nothing more to the company.",
+    audience: "Issued on their last working day.",
+  },
+  confirmation_letter: {
+    purpose: "Confirms somebody’s job is permanent now that their wait after joining is over.",
+    audience: "Issued when the wait after joining ends.",
+  },
+  warning_letter: {
+    purpose: "Records a formal warning: what happened and what has to change.",
+    audience: "Issued after an incident, usually after a conversation.",
+  },
+  internship_certificate: {
+    purpose: "Confirms an internship: what they did here and for how long.",
+    audience: "Issued when the internship ends.",
+  },
+  noc: {
+    purpose: "Says the company has no objection to what somebody is applying for — further study, a visa, a second job.",
+    audience: "Issued on request.",
+  },
+  salary_certificate: {
+    purpose: "States what somebody is paid, for a loan, a rental or a visa application.",
+    audience: "Issued on request.",
+  },
+  // Added 30 Sep 2026 (letter change record §2).
+  show_cause_notice: {
+    purpose: "Asks somebody to explain, in writing and by a deadline, why action shouldn’t be taken over something that happened.",
+    audience: "Issued before any disciplinary decision.",
+  },
+  performance_improvement_plan: {
+    purpose: "Sets out what has to improve, by when, and how progress will be checked.",
+    audience: "Issued when performance needs a formal plan.",
+  },
+  full_and_final_statement: {
+    purpose: "States the final amount settled with somebody who is leaving, in a formal letter.",
+    audience: "Issued once their final pay is worked out. The calculated statement is on their exit in Payroll.",
+  },
+  offer_letter: {
+    purpose: "Offers the job: the title, the start date and the pay, with a date the offer is open until.",
+    audience: "Issued before somebody starts. They must already be in your organisation here.",
+  },
+  promotion_letter: {
+    purpose: "Confirms a promotion: the old title, the new one and when it takes effect.",
+    audience: "Issued after their profile shows the new title.",
+  },
+  salary_revision_letter: {
+    purpose: "Confirms a change in pay and when it takes effect.",
+    audience: "Issued after the new salary has been applied.",
   },
 };
 
@@ -419,14 +470,36 @@ export const previewUsesSavedFields = (row) => !!row?.is_enabled;
 /** A descriptor entry's label. The server humanises the key; this is the fallback. */
 export const fieldLabel = (field) => String(field?.label || "").trim() || humanizeCode(field?.key) || "Value";
 
-/** Why this default can't be saved, or "". `max_length` is the server's own limit. */
+/**
+ * Why this default can't be saved, or "".
+ *
+ * `max_length` means two things in #136's descriptor (letter change record
+ * §8.2): a character limit for text, but the LARGEST ALLOWED VALUE for
+ * `type: "number"` — `response_deadline_days` with `max_length: 90` is 1–90,
+ * not "90 characters". The minimum (1) is not in the descriptor at all.
+ */
 export function savedFieldProblem(field, value) {
-  const text = String(value ?? "");
+  const text = String(value ?? "").trim();
   if (!text) return field?.required ? `${fieldLabel(field)} is needed.` : "";
   const max = Number(field?.max_length);
+  if (field?.type === "number") {
+    if (!/^\d+$/.test(text)) return "Enter a whole number.";
+    const n = Number(text);
+    if (n < NUMBER_FIELD_MIN) return `At least ${NUMBER_FIELD_MIN}.`;
+    if (Number.isFinite(max) && max > 0 && n > max) return `No more than ${max}.`;
+    return "";
+  }
   if (Number.isFinite(max) && max > 0 && text.length > max) return `Keep this under ${max} characters.`;
-  if (field?.type === "number" && !/^-?\d+(\.\d+)?$/.test(text)) return "Enter a number.";
   return "";
+}
+
+/** The input bounds for a descriptor entry: a value range for numbers, a length for text. */
+export function savedFieldInputProps(field) {
+  const max = Number(field?.max_length);
+  if (field?.type === "number") {
+    return { type: "number", inputMode: "numeric", step: 1, min: NUMBER_FIELD_MIN, ...(max > 0 ? { max } : {}) };
+  }
+  return { type: "text", ...(max > 0 ? { maxLength: max } : {}) };
 }
 
 export function savedFieldProblems(fields, values) {

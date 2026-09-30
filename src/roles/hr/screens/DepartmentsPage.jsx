@@ -7,13 +7,16 @@ import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
 } from "react-icons/hi";
 import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
+import { useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 
 function DepartmentsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [departments, setDepartments] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // The app-wide roster: the head-of-department picker lists exactly the
+  // people every other picker lists.
+  const { activeRows: employees } = useEmployeeDirectory();
   const [searchQuery, setSearchQuery] = useState("");
 
   const [showModal, setShowModal] = useState(false);
@@ -51,15 +54,13 @@ function DepartmentsPage() {
     setPageLoading(true);
     setFetchError("");
     try {
-      const [depRes, locRes, empRes] = await Promise.all([
+      const [depRes, locRes] = await Promise.all([
         organizationAPI.getDepartments(),
         organizationAPI.getLocations().catch(() => ({ success: false, data: [] })),
-        organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ success: false, data: [] }))
       ]);
 
       setDepartments(Array.isArray(depRes?.data) ? depRes.data : []);
       if (Array.isArray(locRes?.data)) setLocations(locRes.data);
-      if (Array.isArray(empRes?.data)) setEmployees(empRes.data);
     } catch (error) {
       console.error("Failed to fetch departments", error);
       setFetchError(error?.data?.message || error?.message || "Could not load departments.");

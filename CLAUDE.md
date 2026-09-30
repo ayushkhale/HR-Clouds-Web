@@ -206,7 +206,18 @@ Use `’` (U+2019) in JSX text — `react/no-unescaped-entities` is on.
   API before the user clicked OK.
 - Guard stale responses with a `cancelled` flag or a request token ref.
 - No request per row — use the bulk endpoint, refresh one row after a write.
-  `fetchAllOrgEmployees()` caches 5 min per token and shares in-flight calls.
+- **People come from one place: `useEmployeeDirectory()`**
+  (`shared/contexts/EmployeeDirectoryContext`). Never call
+  `organizationAPI.getEmployees()` from a screen and never add a second roster
+  fetch — a `purpose` narrower than `emp_report` drops `avatar_url`, and an
+  unpaginated call stops at 100 people, which is how the same colleague ended up
+  with a photo on one screen and initials on the next. It gives `rows` /
+  `activeRows` (leavers are a filter, never another read), `options` /
+  `activeOptions` for pickers, `byId`, `nameOf` and `entryOf`. After anything
+  that changes who is in the organisation — an invite, a deactivation, a delete
+  — call `refreshEmployeeDirectory()`. Photos are presigned links that die in
+  ~5 minutes; the store re-reads them, so never cache a roster row's
+  `avatar_url` anywhere else.
 - Distinguish **"nothing on file"** from **"couldn't load"**: a failed read shows
   "Couldn't load", never "Not set" (which invites a duplicate assignment). Use a
   sentinel, not `null`, for a failed lookup.

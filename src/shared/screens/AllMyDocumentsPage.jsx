@@ -34,7 +34,8 @@ import DashboardTopBar from "../components/DashboardTopBar";
 import { Toast, useToast } from "../attendance/ui";
 import { useMyDocumentPaths, useMyPayPaths } from "../attendance/paths";
 import { request } from "../api/client";
-import { downloadFile } from "../utils/download";
+import { downloadRenderedPdf } from "../pdf/renderedPdf";
+import { pdfRenderMessage } from "../pdf/pdfRenderErrors";
 import { documentErrorMessage } from "../utils/documentErrors";
 import { documentsAPI } from "../api";
 import { fmtDate } from "../attendance/dates";
@@ -186,14 +187,17 @@ export default function AllMyDocumentsPage() {
     setBusyId(`${item.source}-${item.id}`);
     try {
       if (call.mode === "file") {
-        await downloadFile(call.path, { filename: call.fileName });
+        // Payslips and Form 16 are drawn on request since 30 Sep 2026, so they
+        // can come back "still being drawn" (retried once) or a renderer error.
+        await downloadRenderedPdf(call.path, { filename: call.fileName });
       } else {
         const url = signedUrlOf(await request(call.path));
         if (!url) throw new Error("No link came back.");
         triggerDownload(url);
       }
     } catch (err) {
-      showToast(documentErrorMessage(err, "Couldn't open that. Refresh and try again."), "error");
+      // A payslip's renderer failure must not read as a letter's.
+      showToast(pdfRenderMessage(err) || documentErrorMessage(err, "Couldn't open that. Refresh and try again."), "error");
       // A 404 usually means it moved on while the page sat open — a policy
       // replaced, a form retired. Re-read rather than leave a dead row.
       if (err?.status === 404) load();

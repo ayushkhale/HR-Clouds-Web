@@ -56,9 +56,11 @@ import { triggerDownload } from "./documentUpload";
 import { letterTemplateOf } from "./letterMeta";
 import {
   generationOf, issuedLetterOf, keyForRetry, letterOverridableFields, newIdempotencyKey,
-  overrideProblems, overridesPayload, refusedFields, reissueBlocker, rememberNotOverridable,
+  onlyRequiredMissing, overrideProblems, overridesFromSaved, overridesPayload, refusedFields, reissueBlocker, rememberNotOverridable,
   supersededOf, wasReused,
 } from "./letterIssueMeta";
+import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
+import LetterFixLink from "./LetterFixLink";
 
 const REASON_MAX = 500;
 const REASON_MIN = 5;
@@ -91,6 +93,10 @@ export default function ReissueLetterDialog({
 
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);   // { message, waiting, terminal }
+  // The organisation's saved wording for this letter (#136 `config.saved_fields`).
+  const [saved, setSaved] = useState(null);
+  // An empty required box turns red only after Reissue has been pressed.
+  const [attempted, setAttempted] = useState(false);
   const [result, setResult] = useState(null);     // { letter, reused, supersedes }
   const [viewing, setViewing] = useState(null);
   const [downloading, setDownloading] = useState(false);
@@ -155,7 +161,10 @@ export default function ReissueLetterDialog({
     setTemplateError(null);
     try {
       const data = letterTemplateOf(await api.getLetterTemplate(which));
-      if (token === tplReq.current) setTemplate(data.template);
+      if (token === tplReq.current) {
+        setTemplate(data.template);
+        setSaved(data.config?.saved_fields || null);
+      }
     } catch (err) {
       // Not fatal: a reissue with no overrides at all is perfectly valid, and it
       // is the common case. The boxes are simply left out, with a line saying so.
@@ -168,6 +177,13 @@ export default function ReissueLetterDialog({
 
   const fields = useMemo(() => (template ? letterOverridableFields(template, code, refused) : []), [template, code, refused]);
 
+  // The new version starts from the organisation's saved wording, like a fresh
+  // issue does — once per loaded template, never over what was typed.
+  useEffect(() => {
+    if (!template) return;
+    setValues(overridesFromSaved(letterOverridableFields(template, code, refusedFields(code)), saved));
+  }, [template, saved, code]);
+
   useEffect(() => {
     setValues((prev) => {
       const allowed = new Set(fields.map((f) => f.key));
@@ -179,18 +195,20 @@ export default function ReissueLetterDialog({
 
   const trimmedReason = reason.trim();
   const problems = useMemo(() => {
-    const out = overrideProblems(fields, values);
+    const out = overrideProblems(fields, values, saved);
     if (!trimmedReason) out._reason = "Say why this letter is being replaced — it is the only lasting record of it.";
     else if (trimmedReason.length < REASON_MIN) out._reason = "A few more words, so this reads sensibly to whoever checks it later.";
     else if (trimmedReason.length > REASON_MAX) out._reason = `Keep this under ${REASON_MAX} characters.`;
     return out;
-  }, [fields, values, trimmedReason]);
+  }, [fields, values, trimmedReason, saved]);
 
   const blocker = doc ? reissueBlocker(doc) : "";
   const ready = !!doc && !loading && !loadError && !blocker && Object.keys(problems).length === 0;
+  const onlyMissingRequired = !!doc && !loading && !loadError && !blocker && onlyRequiredMissing(problems);
 
   // ── Reissue ────────────────────────────────────────────────────────────────
   const reissue = async ({ confirmed = false } = {}) => {
+    setAttempted(true);
     if (!ready || busy) return;
 
     if (!confirmed) {
@@ -257,6 +275,7 @@ export default function ReissueLetterDialog({
         waiting: isRenderInProgress(err),
         terminal: isRetryLimitExceeded(err) || isLetterNotReissuable(err),
         unknown,
+        err,
       });
     } finally {
       setBusy(false);
@@ -371,33 +390,21 @@ export default function ReissueLetterDialog({
                       <div>
                         <p className={LABEL}>Change any of the wording</p>
                         <p className="text-[11px] text-slate-500 leading-relaxed -mt-1 mb-3">
-                          Leave a box empty and the new version uses the standard wording, not whatever the old one said.
+                          Boxes start from your saved wording. Leave one empty and the new version uses the standard wording, not whatever the old one said.
                         </p>
-                        <div className="grid grid-cols-1 gap-4">
-                          {fields.map((field) => (
-                            <div key={field.key}>
-                              <label htmlFor={`rl-${field.key}`} className={LABEL}>{field.label}</label>
-                              {field.long ? (
-                                <textarea
-                                  id={`rl-${field.key}`} rows={2} value={values[field.key] ?? ""} disabled={busy}
-                                  maxLength={field.max}
-                                  onChange={(e) => { setValues((v) => ({ ...v, [field.key]: e.target.value })); setTouched(true); }}
-                                  className={`${FIELD} resize-y`}
-                                />
-                              ) : (
-                                <input
-                                  id={`rl-${field.key}`} type="text" value={values[field.key] ?? ""} disabled={busy}
-                                  maxLength={field.max}
-                                  onChange={(e) => { setValues((v) => ({ ...v, [field.key]: e.target.value })); setTouched(true); }}
-                                  className={FIELD}
-                                />
-                              )}
-                              <p className={`text-[10px] mt-1 leading-relaxed ${problems[field.key] ? "font-semibold text-rose-600" : "text-slate-400"}`}>
-                                {problems[field.key] || field.help || ""}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
+                        <LetterIssueReminder code={code} className="mb-3" />
+                        <LetterOverrideFields
+                          idPrefix="rl"
+                          fields={fields}
+                          values={values}
+                          saved={saved}
+                          problems={problems}
+                          revealRequired={attempted}
+                          disabled={busy}
+                          gridClass="grid grid-cols-1 gap-4"
+                          wideClass=""
+                          onChange={(key, value) => { setValues((v) => ({ ...v, [key]: value })); setTouched(true); }}
+                        />
                       </div>
                     ) : templateError ? (
                       <p className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 leading-relaxed">
@@ -431,6 +438,7 @@ export default function ReissueLetterDialog({
                       {failure.waiting ? "Still being drawn" : failure.unknown ? "We don’t know whether it went out" : "Nothing was replaced"}
                     </p>
                     <p className={`text-sm mt-0.5 leading-relaxed ${failure.waiting ? "text-indigo-800" : "text-rose-700"}`}>{failure.message}</p>
+                    <LetterFixLink err={failure.err} onNavigate={() => onCloseRef.current?.()} />
                   </div>
                 </div>
               </div>
@@ -469,7 +477,7 @@ export default function ReissueLetterDialog({
                   <button
                     type="button"
                     onClick={() => reissue({ confirmed: !!failure })}
-                    disabled={!ready || busy || failure?.terminal === true}
+                    disabled={(!ready && !onlyMissingRequired) || busy || failure?.terminal === true}
                     className={PRIMARY_BTN}
                   >
                     <HiCollection className="w-4 h-4" />

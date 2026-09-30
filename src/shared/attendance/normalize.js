@@ -174,6 +174,21 @@ export function initials(name) {
 /** Stable id across `id` / `_id` / `request_id` variants. */
 export const entityId = (entity) => entity?.id ?? entity?._id ?? entity?.request_id ?? entity?.uuid ?? null;
 
+/**
+ * Normalise one org-roster row into `{ id, name, code, email, sub, raw }` — the
+ * option shape every people picker takes. `raw` is the whole row, so the picker
+ * can still read its photo and gender off it.
+ *
+ * It lives here, not in a picker, because the employee-directory store builds
+ * every option with it and a component import would be a cycle.
+ */
+export function toEmployeeOption(e) {
+  const id = e?.user_id || e?.user?.id || e?.employee_id || e?.id;
+  const email = personEmail(e);
+  const name = personName(e, "") || email || "Unnamed employee";
+  return { id, name, code: employeeCode(e), email, sub: "", raw: e };
+}
+
 /** Department label from flat or nested shapes. */
 export function departmentName(entity) {
   if (!entity || typeof entity !== "object") return "";

@@ -60,6 +60,7 @@ import { orgDisplayStatus } from "../../../../shared/documents/orgDocumentMeta";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
 import IssueLetterDialog from "../../../../shared/documents/IssueLetterDialog";
 import BulkIssueLettersDialog from "../../../../shared/documents/BulkIssueLettersDialog";
+import { BULK_PAUSED_NOTE, useBulkGenerationPaused } from "../../../../shared/pdf/bulkGeneration";
 import LetterBatchDialog from "../../../../shared/documents/LetterBatchDialog";
 import LetterDetailDialog from "../../../../shared/documents/LetterDetailDialog";
 import ReissueLetterDialog from "../../../../shared/documents/ReissueLetterDialog";
@@ -118,6 +119,10 @@ export default function IssuedLettersPage() {
   const [issueCode, setIssueCode] = useState("");
   const [reissuing, setReissuing] = useState(null);
   const [bulking, setBulking] = useState(false);
+  // Learned from a 503 PDF_BULK_GENERATION_DISABLED (no endpoint advertises
+  // it). The button stays, disabled with the reason, rather than vanishing —
+  // "where did Send to many go?" is a worse question than "why is it off?".
+  const bulkPaused = useBulkGenerationPaused();
   // The batch handles this browser has been given. There is no endpoint that
   // lists an organisation's batches (#144 answers about one id), so without
   // these a batch still being drawn would be unreachable after a reload.
@@ -323,7 +328,13 @@ export default function IssuedLettersPage() {
             </Link>
             {!rendererOff && issuable.length > 0 && (
               <>
-                <button type="button" onClick={() => setBulking(true)} className={SECONDARY_BTN}>
+                <button
+                  type="button"
+                  onClick={() => setBulking(true)}
+                  disabled={bulkPaused}
+                  title={bulkPaused ? BULK_PAUSED_NOTE : undefined}
+                  className={SECONDARY_BTN}
+                >
                   <HiUserGroup className="w-4 h-4" /> Send to many
                 </button>
                 <button type="button" onClick={() => { setIssueCode(""); setIssuing(true); }} className={PRIMARY_BTN}>
@@ -333,6 +344,13 @@ export default function IssuedLettersPage() {
             )}
           </div>
         </div>
+
+        {bulkPaused && (
+          <p className="flex items-start gap-2 text-xs text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3.5 py-3 leading-relaxed" role="status">
+            <HiInformationCircle className="w-4 h-4 shrink-0 text-indigo-500 mt-px" />
+            <span>Sending a letter to many people at once is paused on this server for now. Issue letters one at a time — batches already started will still finish.</span>
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-3 max-w-md">
           <Tile

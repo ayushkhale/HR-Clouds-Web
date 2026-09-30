@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { leaveAPI, organizationAPI } from "../../../../shared/api";
+import { leaveAPI } from "../../../../shared/api";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { formatDate, formatDayCount } from "../../../../shared/utils/formatUtils";
@@ -369,8 +370,10 @@ export default function HRLeaveRequestsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [userFilter, setUserFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [employees, setEmployees] = useState([]);
-  const [employeesLoading, setEmployeesLoading] = useState(true);
+  // The roster, for the history filter and for choosing who to assign a policy
+  // to — the app-wide one, so it matches every other people list.
+  const { activeRows: employees, status: employeesStatus } = useEmployeeDirectory();
+  const employeesLoading = employeesStatus === "loading" || employeesStatus === "idle";
 
   // Assigning a leave policy from here (rather than from the employee's
   // profile) — `null`, or `{ userId, name }` when the person is already known.
@@ -413,18 +416,6 @@ export default function HRLeaveRequestsPage() {
 
   useEffect(() => { loadPending(); }, [loadPending]);
   useEffect(() => { if (activeTab === "history") loadHistory(); }, [activeTab, loadHistory]);
-
-  // The roster, for the history filter and for choosing who to assign a policy
-  // to. Best-effort and non-blocking: neither use is on the critical path.
-  useEffect(() => {
-    organizationAPI.getEmployees({ purpose: "all_hr_list" })
-      .then(res => {
-        const list = res.data || [];
-        setEmployees(Array.isArray(list) ? list : (list.employees || list.members || []));
-      })
-      .catch(() => {})
-      .finally(() => setEmployeesLoading(false));
-  }, []);
 
   // Changing a filter resets to page 1 in the same update so loadHistory fires once.
   function changeStatus(v) { setStatusFilter(v); setPage(1); }

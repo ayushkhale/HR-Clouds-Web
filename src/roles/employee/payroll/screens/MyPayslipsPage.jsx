@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
-import { downloadFile } from "../../../../shared/utils/download";
+import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
 import { payrollErrorMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
@@ -49,7 +49,7 @@ function PayslipDialog({ runId, period, onClose, showToast }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadFile(payrollFiles.myPayslipPdf(runId), { filename: `payslip-${period || runId}.pdf` });
+      await downloadRenderedPdf(payrollFiles.myPayslipPdf(runId), { filename: `payslip-${period || runId}.pdf` });
       showToast("Payslip downloaded.");
     } catch (err) {
       showToast(payslipDownloadMessage(err, "Couldn't download the PDF"), "error");
@@ -150,7 +150,7 @@ function AnnualStatementTab({ showToast }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadFile(payrollFiles.myAnnualStatementPdf(), {
+      await downloadRenderedPdf(payrollFiles.myAnnualStatementPdf(), {
         params: { financial_year: fy },
         filename: `annual-statement-${fy}.pdf`,
       });
@@ -241,7 +241,7 @@ function Form16Tab({ showToast }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadFile(payrollFiles.myForm16Pdf(fy), { filename: `form16-${fy}.pdf` });
+      await downloadRenderedPdf(payrollFiles.myForm16Pdf(fy), { filename: `form16-${fy}.pdf` });
       showToast("Form 16 downloaded.");
     } catch (err) {
       showToast(payrollErrorMessage(err, "Form 16 for this financial year hasn't been published yet."), "error");
@@ -304,7 +304,7 @@ export default function MyPayslipsPage() {
   const downloadPdf = async (runId, period) => {
     setDownloading(runId);
     try {
-      await downloadFile(payrollFiles.myPayslipPdf(runId), { filename: `payslip-${period || runId}.pdf` });
+      await downloadRenderedPdf(payrollFiles.myPayslipPdf(runId), { filename: `payslip-${period || runId}.pdf` });
     } catch (err) {
       showToast(payslipDownloadMessage(err), "error");
     } finally {

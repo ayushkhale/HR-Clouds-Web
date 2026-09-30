@@ -37,14 +37,14 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
 import { FilterTabs, Toast, useToast } from "../../../../shared/attendance/ui";
 import { TONE_CLASSES, TONE_DOT } from "../../../../shared/attendance/enums";
-import { isRendererNotConfigured } from "../../../../shared/utils/documentErrors";
+import { isRendererNotConfigured, letterErrorMessage } from "../../../../shared/utils/documentErrors";
 import { DocEmptyState, DocErrorState, SECONDARY_BTN } from "../../../../shared/documents/ui";
 import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import LetterPreviewDialog from "../../../../shared/documents/LetterPreviewDialog";
 import LetterTemplateConfigDialog from "../../../../shared/documents/LetterTemplateConfigDialog";
 import {
   brandingOf, canConfigureLetter, letterAudience, letterPurpose, letterStateMeta,
-  letterTemplatesOf, letterTitle, letterheadGaps, previewUsesSavedFields,
+  letterConfigOf, letterTemplateOf, letterTemplatesOf, letterTitle, letterheadGaps, previewUsesSavedFields,
 } from "../../../../shared/documents/letterMeta";
 
 const BRANDING_PATH = "/dashboard/hr/documents/letterhead";
@@ -146,6 +146,35 @@ export default function LetterTemplatesPage() {
       } : row)),
     }));
     if (note) showToast(note);
+  };
+
+  /**
+   * Switch a letter on in one click (#137 `is_enabled: true`) — the second of
+   * the two steps a new letter needs (the other is activating its document
+   * type; letter change record §5).
+   *
+   * #137 REPLACES the stored config, so the current one is read first (#136)
+   * and echoed back: sending `is_enabled` alone could wipe saved wording or
+   * unpin a version.
+   */
+  const [enabling, setEnabling] = useState("");
+  const switchOn = async (row) => {
+    if (enabling) return;
+    setEnabling(row.code);
+    try {
+      const { config } = letterTemplateOf(await documentsAPI.getLetterTemplate(row.code));
+      const res = await documentsAPI.updateLetterTemplateConfig(row.code, {
+        is_enabled: true,
+        saved_fields: config?.saved_fields || {},
+        pinned_version: config?.pinned_version ?? null,
+      });
+      applySaved(row.code, letterConfigOf(res) || { ...config, is_enabled: true },
+        `${letterTitle(row)} is switched on. If its kind of document isn’t switched on in Document Types yet, do that too before issuing it.`);
+    } catch (err) {
+      showToast(letterErrorMessage(err, "Couldn’t switch this letter on."), "error");
+    } finally {
+      setEnabling("");
+    }
   };
 
   const onPreviewError = (err) => {
@@ -302,6 +331,14 @@ export default function LetterTemplatesPage() {
                                 >
                                   <HiPaperAirplane className="w-3.5 h-3.5" /> Issue
                                 </Link>
+                              )}
+                              {openable && !row.is_enabled && (
+                                <button
+                                  type="button" onClick={() => switchOn(row)} disabled={!!enabling}
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-50 px-2 py-1.5 rounded-lg disabled:opacity-50"
+                                >
+                                  <HiBadgeCheck className="w-3.5 h-3.5" /> {enabling === row.code ? "Switching on…" : "Switch on"}
+                                </button>
                               )}
                               {openable && !rendererOff && (
                                 <button

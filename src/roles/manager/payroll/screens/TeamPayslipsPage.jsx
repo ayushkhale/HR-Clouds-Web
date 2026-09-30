@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, payrollFiles, organizationAPI } from "../../../../shared/api";
-import { downloadFile } from "../../../../shared/utils/download";
+import { payrollAPI, payrollFiles } from "../../../../shared/api";
+import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiUserGroup, HiDocumentDownload, HiCurrencyRupee, HiCalendar, HiReceiptTax, HiGift } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
@@ -204,10 +205,10 @@ function TeamRunModal({ runId, period, onClose, showToast }) {
 }
 
 export default function TeamPayslipsPage() {
-  const [teamMembers, setTeamMembers] = useState([]);
+  const { activeRows: teamMembers, status: teamStatus } = useEmployeeDirectory();
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [payslips, setPayslips] = useState([]);
-  const [loadingTeam, setLoadingTeam] = useState(true);
+  const loadingTeam = teamStatus === "loading" || teamStatus === "idle";
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -229,7 +230,7 @@ export default function TeamPayslipsPage() {
   const downloadPayslip = useCallback(async (userId, runId, period) => {
     setDownloading(runId);
     try {
-      await downloadFile(payrollFiles.managerPayslipPdf(userId, runId), {
+      await downloadRenderedPdf(payrollFiles.managerPayslipPdf(userId, runId), {
         filename: `payslip-${period || runId}.pdf`,
       });
     } catch (err) {
@@ -239,16 +240,11 @@ export default function TeamPayslipsPage() {
     }
   }, [showToast]);
 
+  // The first report is selected as soon as the shared roster is ready; the
+  // roster itself is read once for the whole app.
   useEffect(() => {
-    organizationAPI.getEmployees({ purpose: "shift_assignment" })
-      .then((res) => {
-        const members = res.data?.records || (Array.isArray(res.data) ? res.data : res.data?.employees) || [];
-        setTeamMembers(members);
-        if (members.length > 0) setSelectedUserId(memberId(members[0]));
-      })
-      .catch((err) => showToast(payrollErrorMessage(err, "Failed to load your team"), "error"))
-      .finally(() => setLoadingTeam(false));
-  }, [showToast]);
+    if (!selectedUserId && teamMembers.length > 0) setSelectedUserId(memberId(teamMembers[0]));
+  }, [teamMembers, selectedUserId]);
 
   useEffect(() => {
     if (!selectedUserId) return;
