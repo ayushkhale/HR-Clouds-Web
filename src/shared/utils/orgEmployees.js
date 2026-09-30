@@ -55,13 +55,16 @@ async function loadAllPages(includeInactive) {
 }
 
 /**
- * @param {{ includeInactive?: boolean }} [options]
+ * @param {{ includeInactive?: boolean, maxAgeMs?: number }} [options]
+ *   `maxAgeMs` — accept a cached copy only this fresh. The rows' `avatar_url`s
+ *   are presigned links that expire ~5 minutes after the read (30 Sep 2026), so
+ *   a caller that keeps photos asks for a younger copy than the default.
  * @returns {Promise<object[]>} every employee row, unique by `user_id`
  */
-export function fetchAllOrgEmployees({ includeInactive = true } = {}) {
+export function fetchAllOrgEmployees({ includeInactive = true, maxAgeMs = CACHE_MS } = {}) {
   const { token, key } = entryFor(includeInactive);
   const hit = cache.entries.get(key);
-  if (hit?.rows && Date.now() - hit.at < CACHE_MS) return Promise.resolve(hit.rows);
+  if (hit?.rows && Date.now() - hit.at < Math.min(maxAgeMs, CACHE_MS)) return Promise.resolve(hit.rows);
   // A second screen mounting while the first is still loading shares the request.
   if (hit?.promise) return hit.promise;
 

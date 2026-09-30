@@ -11,6 +11,7 @@ import { formatDate } from "../../../../shared/utils/formatUtils";
 import { personName } from "../../../../shared/attendance/normalize";
 import { currentFY, fyOptions } from "../fyUtils";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -275,7 +276,7 @@ export default function TaxDeclarationsPage() {
                       <tr>
                         <th className="px-4 py-3">Section</th>
                         <th className="px-4 py-3 text-right">Declared</th>
-                        <th className="px-4 py-3 text-right">Verify amount</th>
+                        <th className="px-4 py-3 text-right"><HelpLabel text="Verify amount" help={{ surface: "payroll.tax_verification", field: "verified_amount", label: "the amount you accept" }} /></th>
                         <th className="px-4 py-3">Proof</th>
                         <th className="px-4 py-3">Remarks</th>
                       </tr>

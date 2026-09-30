@@ -21,6 +21,12 @@
 // zeros, so the card is not shown rather than offering work that cannot exist.
 // An environment that doesn't have the route answers a bodyless 404; that hides
 // the card too, and leaves the other four alone.
+//
+// PDF Generation Phase 5 adds the readout that card was always missing: #221,
+// how the payslip queue is actually doing. It is the same panel Documents uses
+// for letters, so an operator reads both the same way, and it is gated twice —
+// on the HTML engine like the card above it, and on the server having the
+// endpoint at all.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from "react";
@@ -35,6 +41,7 @@ import PayrollToast from "../PayrollToast";
 import useToast from "../useToast";
 import { isPayrollRouteMissing, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { drainMessage, drainResultOf, usesHtmlEngine } from "../pdfRenderMeta";
+import RenderQueueHealthPanel from "../../../../shared/pdf/RenderQueueHealthPanel";
 
 /**
  * `settingKey` is the switch that decides whether this job runs on its own.
@@ -144,6 +151,8 @@ export default function PayrollAutomationPage() {
   const [results, setResults] = useState({});
   // Jobs this environment answered a bodyless 404 for — no such route here.
   const [hidden, setHidden] = useState({});
+  // #221 likewise: until one read succeeds, the readout isn't drawn.
+  const [queueHealthOff, setQueueHealthOff] = useState(false);
 
   // Both reads only describe the jobs; the Run buttons work without either.
   const load = useCallback(() => {
@@ -209,6 +218,27 @@ export default function PayrollAutomationPage() {
             </span>
           </p>
         </div>
+
+        {/* Only for an organisation on the new engine — on the classic one the
+            queue is empty by definition, so a readout of it would be six zeros
+            and a puzzle. Hidden again if this server has no such endpoint. */}
+        {!loading && !queueHealthOff && usesHtmlEngine(settings) && (
+          <div className="mb-6">
+            <RenderQueueHealthPanel
+              scope="payslip"
+              noun="payslips"
+              title="Payslip preparation"
+              blurb="How the payslips waiting to be turned into PDFs are getting on. Nobody’s pay, name or run appears here — only counts."
+              load={payrollAPI.getPayslipQueueHealth}
+              onDrain={async () => drainMessage(drainResultOf(await payrollAPI.runPayslipRender({})))}
+              drainLabel="Prepare the waiting payslips now"
+              helpSurface="payroll.payslip_queue_health"
+              showToast={showToast}
+              onUnavailable={() => setQueueHealthOff(true)}
+              errorMessage={payrollErrorMessage}
+            />
+          </div>
+        )}
 
         {loading ? <Skeleton type="card" /> : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">

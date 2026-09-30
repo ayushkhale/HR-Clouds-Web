@@ -29,6 +29,7 @@ import { payrollErrorMessage, payrollErrorCode } from "../../../../shared/utils/
 import { formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import { arrearStatusMeta, toneClass, amount } from "../phase7Meta";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const lastMonth = () => {
@@ -171,7 +172,7 @@ function DriftPanel({ showToast, onCommitted, nameOf }) {
                 <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
                   <tr>
                     <th className="px-4 py-3">Employee</th>
-                    <th className="px-4 py-3 text-right">Difference</th>
+                    <th className="px-4 py-3 text-right"><HelpLabel text="Difference" help={{ surface: "payroll.arrears", field: "net_delta" }} /></th>
                     <th className="px-4 py-3">Why</th>
                   </tr>
                 </thead>

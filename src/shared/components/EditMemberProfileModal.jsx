@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HiExclamationCircle, HiPencil, HiX } from "react-icons/hi";
 import { organizationAPI } from "../api";
+import { isUploadedPhotoUrl } from "../organization/avatarUpload";
 
 const FIELD = "w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition";
 const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
@@ -35,6 +36,13 @@ const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wid
 // when they were invited, so an account can read `name: "mealex517"` while its
 // `first_name` is "Diamond". Changing it leaves both untouched, and the new
 // value shows up in the roster and the org directory.
+//
+// PHOTO URL (30 Sep 2026): people can now upload their own photo, and the
+// reads then return it as a presigned storage link that expires in minutes. An
+// uploaded photo always wins over `avatar_url`, so for those people the field
+// is hidden (with a line saying why) and never seeded with that link — typing
+// a URL there would change nothing, and saving the link would store garbage.
+// For everyone else it still sets an external photo link, as before.
 //
 // Work location genuinely cannot be set here: it comes from the invitation and
 // from the location on someone's department, so it moves with a department
@@ -77,7 +85,7 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
       display_name: d?.display_name || d?.name || name || "",
       first_name: d?.first_name || first || "",
       last_name: d?.last_name || rest.join(" ") || "",
-      avatar_url: d?.avatar_url || d?.avatar || "",
+      avatar_url: isUploadedPhotoUrl(d?.avatar_url || d?.avatar) ? "" : (d?.avatar_url || d?.avatar || ""),
       dob: String(d?.dob || "").slice(0, 10),
       ...Object.fromEntries(LOCKED_FIELDS.map((f) => {
         const value = d?.[f.key];
@@ -89,6 +97,7 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
   const [form, setForm] = useState(profile ? seed(profile) : blank);
   const [initial, setInitial] = useState(profile ? seed(profile) : blank);
   const [loading, setLoading] = useState(!profile);
+  const [photoUploaded, setPhotoUploaded] = useState(isUploadedPhotoUrl(profile?.avatar_url || profile?.avatar));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -104,6 +113,7 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
       .then((res) => {
         if (cancelled) return;
         const seeded = seed(res?.data);
+        setPhotoUploaded(isUploadedPhotoUrl(res?.data?.avatar_url || res?.data?.avatar));
         setForm(seeded);
         setInitial(seeded);
       })
@@ -186,7 +196,11 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {FIELDS.map((f) => (
+            {FIELDS.map((f) => (f.key === "avatar_url" && photoUploaded ? (
+              <p key={f.key} className="sm:col-span-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                They’ve uploaded their own profile photo, so it can’t be replaced with a link here. Only they can change it, from My Profile.
+              </p>
+            ) : (
               <div key={f.key} className={f.full ? "sm:col-span-2" : ""}>
                 <label className={LABEL} htmlFor={`member-${f.key}`}>
                   {f.label}{f.required && <span className="text-rose-400"> *</span>}
@@ -205,7 +219,7 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
                 )}
                 {f.hint && <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{f.hint}</p>}
               </div>
-            ))}
+            )))}
           </div>
           <div>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Set elsewhere</p>

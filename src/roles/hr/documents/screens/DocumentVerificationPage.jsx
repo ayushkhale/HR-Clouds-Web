@@ -25,6 +25,7 @@ import { REQUEST_PLANES } from "../../../../shared/documents/requestPlanes";
 import { listPayload } from "../../../../shared/documents/documentMeta";
 import { DocEmptyState, DocErrorState, SELECT } from "../../../../shared/documents/ui";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE = 25;
 const plane = DOCUMENT_PLANES.hr;
@@ -91,11 +92,11 @@ export default function DocumentVerificationPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { label: filtered ? "Waiting (filtered)" : "Waiting for a decision", value: state.total, icon: HiClipboardCheck, tone: "text-purple-500" },
-            { label: "Manager says verify (this page)", value: recCounts.verify, icon: HiThumbUp, tone: "text-violet-500" },
+            { label: "Manager says verify (this page)", value: recCounts.verify, icon: HiThumbUp, tone: "text-violet-500", help: { surface: "documents.verification", field: "recommendation", label: "the manager’s recommendation" } },
             { label: "Manager says reject (this page)", value: recCounts.reject, icon: HiThumbDown, tone: "text-rose-500" },
-          ].map(({ label, value, icon: Icon, tone }) => (
+          ].map(({ label, value, icon: Icon, tone, help }) => (
             <div key={label} className="rounded-2xl bg-white border border-slate-100 shadow-xs px-4 py-3.5">
-              <div className="flex items-center gap-2 text-slate-400"><Icon className={`w-4 h-4 ${tone}`} /><span className="text-[11px] font-semibold truncate">{label}</span></div>
+              <div className="flex items-center gap-2 text-slate-400"><Icon className={`w-4 h-4 ${tone}`} /><span className="text-[11px] font-semibold truncate"><HelpLabel text={label} help={help} /></span></div>
               <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none mt-2 tabular-nums">{state.loading && !state.rows.length ? "…" : value}</p>
             </div>
           ))}

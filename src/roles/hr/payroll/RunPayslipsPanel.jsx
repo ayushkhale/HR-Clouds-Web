@@ -529,19 +529,19 @@ export default function RunPayslipsPanel({ run, showToast }) {
       <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-60">
           <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search name or code…" className="w-full h-[38px] pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-lg focus:border-purple-400 outline-none" />
+          <input type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search name or code…" className="w-full h-[38px] pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-xl focus:border-purple-400 outline-none" />
         </div>
         {[["status", PAYSLIP_STATUS_FILTERS], ["visible_to_employee", PAYSLIP_VISIBILITY_FILTERS], ["email_status", EMAIL_STATUS_FILTERS]].map(([key, options]) => (
           <select
             key={key}
             value={filters[key]}
             onChange={(e) => setFilters((f) => ({ ...f, [key]: e.target.value }))}
-            className="h-[38px] px-3 text-sm bg-white border border-slate-200 rounded-lg focus:border-purple-400 outline-none"
+            className="h-[38px] px-3 text-sm bg-white border border-slate-200 rounded-xl focus:border-purple-400 outline-none"
           >
             {options.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}
           </select>
         ))}
-        <button type="button" onClick={() => { load(); loadDispatch(); }} disabled={loading} className="ml-auto h-[38px] px-3 text-xs font-bold text-slate-500 hover:text-purple-700 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
+        <button type="button" onClick={() => { load(); loadDispatch(); }} disabled={loading} className="ml-auto h-[38px] px-3 text-xs font-bold text-slate-500 hover:text-purple-700 rounded-xl transition flex items-center gap-1.5 disabled:opacity-50">
           <HiRefresh className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>

@@ -16,6 +16,13 @@
 // addresses, dates of birth) and nothing here needs it. Only HR and managers
 // can read the directory; for anyone else, and after any failure, avatars keep
 // their initials and nothing is retried.
+//
+// PHOTOS EXPIRE (30 Sep 2026). Uploaded photos come back as presigned links
+// that die ~5 minutes after the read, so the index can't be kept for the whole
+// session any more. It is re-read once it is PHOTO_TTL_MS old — the old copy
+// keeps serving meanwhile, and genders never go stale — and at once when a
+// photo it handed out fails to load (`markDirectoryPhotosStale`, called by
+// GenderAvatar), at most once per RETRY_GAP_MS.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
@@ -23,8 +30,10 @@ import { decodeJWT, tokenHelper } from "../api/client";
 import { fetchAllOrgEmployees } from "./orgEmployees";
 
 const ROLES_WITH_DIRECTORY = new Set(["hr", "manager"]);
+const PHOTO_TTL_MS = 4 * 60_000;
+const RETRY_GAP_MS = 60_000;
 
-let state = { token: null, index: null, promise: null, failed: false };
+let state = { token: null, index: null, promise: null, failed: false, loadedAt: 0, lastForced: 0 };
 const listeners = new Set();
 
 function build(rows) {
@@ -42,18 +51,32 @@ function build(rows) {
   return index;
 }
 
-function ensureLoaded() {
+function ensureLoaded({ force = false } = {}) {
   const token = tokenHelper.get();
-  if (state.token !== token) state = { token, index: null, promise: null, failed: false };
-  if (!token || state.index || state.promise || state.failed) return;
+  if (state.token !== token) state = { token, index: null, promise: null, failed: false, loadedAt: 0, lastForced: 0 };
+  const stale = force || (state.index && Date.now() - state.loadedAt > PHOTO_TTL_MS);
+  if (!token || state.promise || state.failed || (state.index && !stale)) return;
   if (!ROLES_WITH_DIRECTORY.has(decodeJWT(token)?.role)) { state.failed = true; return; }
-  state.promise = fetchAllOrgEmployees()
-    .then((rows) => { if (state.token === token) state.index = build(rows); })
-    .catch(() => { if (state.token === token) state.failed = true; })
+  // A refresh must not be answered from the shared roster cache's older copy.
+  state.promise = fetchAllOrgEmployees(stale ? { maxAgeMs: 0 } : undefined)
+    .then((rows) => { if (state.token === token) { state.index = build(rows); state.loadedAt = Date.now(); } })
+    // A failed refresh keeps the old index (genders are still right); only a
+    // failed first load gives up for the session.
+    .catch(() => { if (state.token === token && !state.index) state.failed = true; })
     .finally(() => {
       if (state.token === token) state.promise = null;
       listeners.forEach((notify) => notify());
     });
+}
+
+/**
+ * A photo from the index failed to load — its presigned link has expired.
+ * Re-read the directory now rather than waiting for the timer.
+ */
+export function markDirectoryPhotosStale() {
+  if (!state.index || Date.now() - state.lastForced < RETRY_GAP_MS) return;
+  state.lastForced = Date.now();
+  ensureLoaded({ force: true });
 }
 
 /**

@@ -9,6 +9,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import { currentFY, fyOptions } from "../fyUtils";
 import { findIndianState, searchIndianStates } from "../../../../shared/data/indianStates";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 // State-code field for PT slabs: type a code or a state name, pick a
 // suggestion, and both the code and the state name are filled in.
@@ -262,13 +263,21 @@ function ConfigTab({ showToast }) {
                   {g.fields.map((f) => (
                     <div key={f.key} className={f.type === "bool" ? "col-span-2" : ""}>
                       {f.type === "bool" ? (
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={!!draft[f.key]} onChange={(e) => set(f.key, e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                          <span className="text-sm font-medium text-slate-700">{f.label}</span>
-                        </label>
+                        <div className="flex items-center">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={!!draft[f.key]} onChange={(e) => set(f.key, e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                            <span className="text-sm font-medium text-slate-700">{f.label}</span>
+                          </label>
+                          <FieldHelp surface="payroll.statutory_config" field={f.key} label={f.label} />
+                        </div>
                       ) : (
                         <>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">{f.label}</label>
+                          <div className="flex items-center">
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">{f.label}</label>
+                            {/* overlay: these sit in a half-width column, where a
+                                26px icon would wrap the label and grow the row. */}
+                            <FieldHelp surface="payroll.statutory_config" field={f.key} label={f.label} className="mb-1.5" overlay />
+                          </div>
                           <input
                             type="number" step={f.type === "pct" ? "0.01" : "1"} min="0"
                             value={draft[f.key] ?? ""}
@@ -427,7 +436,9 @@ function PtSlabsTab({ showToast }) {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="text-[10px] uppercase font-bold text-slate-400">
-                  <th className="px-5 py-2.5">From</th><th className="px-5 py-2.5">To</th><th className="px-5 py-2.5">Monthly PT</th><th className="px-5 py-2.5">Gender</th>
+                  <th className="px-5 py-2.5">From</th><th className="px-5 py-2.5">To</th>
+                  <th className="px-5 py-2.5"><HelpLabel text="Monthly PT" help={{ surface: "payroll.pt_slabs", field: "amount", label: "professional tax" }} /></th>
+                  <th className="px-5 py-2.5">Gender</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -640,11 +651,11 @@ function RegimesTab({ showToast }) {
                 <span className={`${STATUS_CHIP} border-transparent ${r.is_active === false ? "bg-slate-100 text-slate-500" : "bg-violet-100 text-violet-700"}`}>{r.is_active === false ? "Inactive" : "Active"}</span>
               </div>
               <div className="p-5 space-y-2 text-sm">
-                <Row k="Standard Deduction" v={money(r.standard_deduction)} />
-                <Row k="87A income limit" v={money(r.rebate_87a_income_limit)} />
+                <Row k="Standard Deduction" v={money(r.standard_deduction)} help={{ surface: "payroll.tax_regime_config", field: "standard_deduction" }} />
+                <Row k="87A income limit" v={money(r.rebate_87a_income_limit)} help={{ surface: "payroll.tax_regime_config", field: "rebate_87a_income_limit", label: "the 87A income limit" }} />
                 <Row k="87A max rebate" v={money(r.rebate_87a_max_amount)} />
                 <Row k="HRA exemption" v={r.allows_hra_exemption ? "Allowed" : "N/A"} />
-                <Row k="Chapter VI-A" v={r.allows_chapter_via ? "Allowed" : "N/A"} />
+                <Row k="Chapter VI-A" v={r.allows_chapter_via ? "Allowed" : "N/A"} help={{ surface: "payroll.tax_regime_config", field: "allows_chapter_via", label: "Chapter VI-A deductions" }} />
               </div>
               <div className="p-4 border-t border-slate-50 flex gap-2">
                 <button onClick={() => setEditing({ ...r })} className="flex-1 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition">Edit Params</button>
@@ -733,8 +744,11 @@ function RegimesTab({ showToast }) {
   );
 }
 
-const Row = ({ k, v }) => (
-  <div className="flex justify-between"><span className="text-slate-500">{k}</span><span className="font-semibold text-slate-800">{v}</span></div>
+const Row = ({ k, v, help }) => (
+  <div className="flex justify-between gap-2">
+    <span className="text-slate-500 min-w-0"><HelpLabel text={k} help={help} /></span>
+    <span className="font-semibold text-slate-800 shrink-0">{v}</span>
+  </div>
 );
 const Field = ({ label, children }) => (
   <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">{label}</label>{children}</div>

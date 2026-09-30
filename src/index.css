@@ -60,6 +60,30 @@
     -moz-appearance: textfield;
     appearance: textfield;
   }
+
+  /* Every dropdown draws the same way in every browser. A native <select>
+     keeps the OS control's own shape: Safari ignores `rounded-xl` entirely
+     (square-ish corners next to rounded inputs and buttons), and Chrome jams
+     its arrow against the edge at a different spot per screen. Dropping the
+     native appearance makes the corner radius the one the class asks for and
+     puts one chevron, with room around it, on all of them. The selector
+     outranks `px-*` on purpose — the text must never run under the arrow.
+     List boxes (`multiple`, `size`) have no arrow and are left alone. */
+  select:not([multiple]):not([size]) {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1rem 1rem;
+    padding-right: 2.25rem;
+    cursor: pointer;
+  }
+  select:not([multiple]):not([size]):disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
 }
 
 
@@ -76,5 +100,30 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;                    /* Chrome, Safari */
+  }
+
+  /* Org Chart (shared/organization/OrgChartCanvas.jsx). `oc-flow` runs a light
+     dash along the highlighted reporting line so the eye can follow it from the
+     top of the chart to the selected person; `oc-pop` fades a team in when it
+     is unfolded — opacity only, because the connector layer is measured at the
+     final positions and a transform would pull the cards off their lines for
+     the length of the animation. Both are off for anyone who asks the OS for
+     less motion. */
+  @keyframes oc-flow {
+    to { stroke-dashoffset: -24; }
+  }
+  .oc-flow {
+    stroke-dasharray: 4 8;
+    animation: oc-flow 1.1s linear infinite;
+  }
+  @keyframes oc-pop {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .oc-pop {
+    animation: oc-pop 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .oc-flow, .oc-pop { animation: none; }
   }
 }

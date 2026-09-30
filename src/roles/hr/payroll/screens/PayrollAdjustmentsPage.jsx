@@ -27,6 +27,7 @@ import {
 } from "../variablePayMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const CUSTOM_COMPONENT = "__custom__";
@@ -186,7 +187,10 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
               {show("user_id") && <p className={errorTextCls}>{show("user_id")}</p>}
             </div>
             <div>
-              <label htmlFor="adj-period-month" className={labelCls}>Pay month <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="adj-period-month" className={labelCls}>Pay month <span className="text-rose-500">*</span></label>
+                <FieldHelp surface="payroll.adjustment_proposal" field="period_month" label="the pay month" className="mb-1.5" />
+              </div>
               <PeriodPicker value={form.period_month} onChange={(v) => set({ period_month: v })} idPrefix="adj-period" selectClassName={fieldCls} yearsBack={1} yearsAhead={2} />
               <p className="text-[11px] text-slate-400 mt-1.5">The payroll run for this month will include it.</p>
             </div>
@@ -194,7 +198,10 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
             <div>
-              <span className={labelCls}>Type <span className="text-rose-500">*</span></span>
+              <div className="flex items-center">
+                <span className={labelCls}>Type <span className="text-rose-500">*</span></span>
+                <FieldHelp surface="payroll.adjustment_proposal" field="adjustment_type" label="an addition or a deduction" className="mb-1.5" />
+              </div>
               <div className="grid grid-cols-2 gap-1 bg-slate-100 rounded-xl p-1" role="radiogroup" aria-label="Adjustment type">
                 {["earning", "deduction"].map((type) => (
                   <button key={type} type="button" role="radio" aria-checked={form.adjustment_type === type} onClick={() => changeType(type)} className={`py-2 rounded-lg text-sm font-bold transition ${form.adjustment_type === type ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
@@ -204,14 +211,20 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
               </div>
             </div>
             <div>
-              <label htmlFor="adj-category" className={labelCls}>Category <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="adj-category" className={labelCls}>Category <span className="text-rose-500">*</span></label>
+                <FieldHelp surface="payroll.adjustment_admin" field="category" label="the category" className="mb-1.5" overlay />
+              </div>
               <select id="adj-category" value={form.category} onChange={(e) => set({ category: e.target.value })} className={fieldCls}>
                 {CATEGORIES_BY_TYPE[form.adjustment_type].map((c) => <option key={c} value={c}>{ADJUSTMENT_CATEGORY_LABEL[c]}</option>)}
               </select>
               {show("category") && <p className={errorTextCls}>{show("category")}</p>}
             </div>
             <div>
-              <label htmlFor="adj-component" className={labelCls}>Salary component <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="adj-component" className={labelCls}>Salary component <span className="text-rose-500">*</span></label>
+                <FieldHelp surface="payroll.adjustment_proposal" field="component_name" label="the payslip line" className="mb-1.5" overlay />
+              </div>
               <select id="adj-component" value={form.component_id} onChange={(e) => changeComponent(e.target.value)} className={fieldCls} aria-invalid={!!show("component")}>
                 <option value="">Choose a component</option>
                 {catalog.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

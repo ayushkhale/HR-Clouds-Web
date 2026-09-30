@@ -19,6 +19,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { organizationAPI } from "../../../shared/api";
 import { HiX, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiUserGroup, HiTrash, HiClock } from "react-icons/hi";
 import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -441,7 +442,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-rose-400">*</span></label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Role <span className="text-rose-400">*</span></label>
+                          <FieldHelp surface="organization.invite" field="role" label="the role" className="mb-1.5" overlay />
+                        </div>
                         <select value={role} onChange={(e) => handleRoleChange(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="employee">Employee</option>
                           <option value="manager">Manager</option>

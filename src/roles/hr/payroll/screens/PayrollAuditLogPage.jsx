@@ -140,13 +140,13 @@ export default function PayrollAuditLogPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Entity</label>
-              <select value={draft.entity_type} onChange={(e) => setDraft({ ...draft, entity_type: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+              <select value={draft.entity_type} onChange={(e) => setDraft({ ...draft, entity_type: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                 {ENTITY_TYPES.map(([v, l]) => <option key={v || "all"} value={v}>{l}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Action</label>
-              <input value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} placeholder="e.g. approve" className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+              <input value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} placeholder="e.g. approve" className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Employee</label>
@@ -154,18 +154,18 @@ export default function PayrollAuditLogPage() {
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">From</label>
-              <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+              <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">To</label>
-              <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" />
+              <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
             <div className="flex items-end gap-2 h-full pb-0">
-              <button type="submit" className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200">
+              <button type="submit" className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200">
                 <HiFilter className="w-4 h-4" /> Apply
               </button>
               {hasFilters && (
-                <button type="button" onClick={resetFilters} className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 border border-transparent rounded-lg transition" title="Clear filters">
+                <button type="button" onClick={resetFilters} className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 border border-transparent rounded-xl transition" title="Clear filters">
                   <HiX className="w-4 h-4" />
                 </button>
               )}

@@ -128,28 +128,28 @@ export default function PayrollExportsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">What was exported</label>
-              <select value={draft.report_type} onChange={(e) => setDraft({ ...draft, report_type: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+              <select value={draft.report_type} onChange={(e) => setDraft({ ...draft, report_type: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                 {TYPE_FILTERS.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Format</label>
-              <select value={draft.format} onChange={(e) => setDraft({ ...draft, format: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+              <select value={draft.format} onChange={(e) => setDraft({ ...draft, format: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                 {FORMAT_FILTERS.map(([value, label]) => <option key={value || "any"} value={value}>{label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Outcome</label>
-              <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+              <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                 {STATUS_FILTERS.map(([value, label]) => <option key={value || "any"} value={value}>{label}</option>)}
               </select>
             </div>
             <div className="flex items-end gap-2">
-              <button type="submit" className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200">
+              <button type="submit" className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200">
                 <HiFilter className="w-4 h-4" /> Apply
               </button>
               {hasFilters && (
-                <button type="button" onClick={resetFilters} title="Clear filters" className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition">
+                <button type="button" onClick={resetFilters} title="Clear filters" className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition">
                   <HiX className="w-4 h-4" />
                 </button>
               )}

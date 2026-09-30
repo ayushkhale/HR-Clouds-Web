@@ -19,17 +19,19 @@
 //    "Couldn't load" on a screen for a feature the server has never had would
 //    send somebody hunting a fault that doesn't exist.
 //
-//  · WHETHER A MANAGER MAY ASK AT ALL CANNOT BE KNOWN WITHOUT ASKING. The
-//    setting that opens the path (#93) and the catalogue of letters (#135) are
-//    both HR-only reads, so the button is offered only once the catalogue has
-//    actually come back — never rendered hopefully and then 403'd (§2).
+//  · WHETHER A MANAGER MAY ASK AT ALL IS ASKED, NOT ASSUMED. Two facts have to
+//    be true — the organisation has opened the path (#93, default off) and at
+//    least one letter is switched on — and both are read from the manager's own
+//    plane before the button is offered, so it is never rendered hopefully and
+//    then 403'd (§2). A read that FAILS leaves it unknown rather than refused:
+//    the button stays hidden and the screen claims nothing, because "we
+//    couldn't ask" and "you aren't allowed" are different sentences.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { HiDocumentText, HiInbox, HiInformationCircle, HiMail, HiRefresh } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
-import { documentsAPI } from "../api";
 import { rowPreviewProps } from "../components/DetailDialog";
 import { FilterTabs, Pagination, Toast, useToast } from "../attendance/ui";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "../attendance/events";
@@ -65,10 +67,13 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
   const [page, setPage] = useState(1);
   const [state, setState] = useState({ rows: [], total: 0, loading: true, error: null });
   const [catalog, setCatalog] = useState({ rows: [], allowed: false, loaded: false });
+  // #93, read from whichever plane the viewer is on. `null` = not answered yet,
+  // which is deliberately NOT the same as `false`.
+  const [settingOn, setSettingOn] = useState(null);
   const [detail, setDetail] = useState(null);
   const [proposing, setProposing] = useState(false);
-  // Set when the server says the organisation hasn't opened the path (#93).
-  // Remembered for the session so the button isn't offered a second time.
+  // Set when a write comes back saying the organisation has closed the path
+  // since this screen loaded. Remembered so the button isn't offered again.
   const [pathClosed, setPathClosed] = useState(false);
 
   // ── The list ───────────────────────────────────────────────────────────────
@@ -96,9 +101,9 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
   useAttendanceChanged([ATTENDANCE_EVENTS.LETTER_PROPOSAL], load);
 
   /**
-   * The catalogue, for two different jobs: turning a template code into the
-   * letter's real title, and deciding whether "Ask for a letter" may be offered
-   * at all. A refusal is not an error here — see the header.
+   * The catalogue, for two jobs: turning a template code into the letter's real
+   * title, and knowing there is something to propose. A refusal is context, not
+   * a failure — the list of proposals is still worth showing without it.
    */
   const catalogRef = useRef(0);
   useEffect(() => {
@@ -113,6 +118,26 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
       });
   }, [plane]);
 
+  /**
+   * Whether the organisation has opened letter drafting to managers (#93).
+   *
+   * Only asked on the plane that can propose: HR never needs it here, and a
+   * request whose answer nothing reads is a request not worth making. A failed
+   * read leaves this `null` — the button stays hidden and the screen claims
+   * nothing, because "we couldn't ask" is not "you aren't allowed".
+   */
+  const settingRef = useRef(0);
+  useEffect(() => {
+    if (!plane.propose || !plane.settings) return;
+    const token = ++settingRef.current;
+    plane.settings()
+      .then((res) => {
+        const value = (res?.data ?? res ?? {}).manager_can_propose_letters;
+        if (token === settingRef.current) setSettingOn(value === true);
+      })
+      .catch(() => { /* leave it unknown; see above */ });
+  }, [plane]);
+
   const issuable = useMemo(
     () => catalog.rows.filter((row) => row.is_enabled && !row.is_orphaned),
     [catalog.rows],
@@ -124,7 +149,10 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
     return hit ? letterTitle(hit) : humanizeCode(code) || "Letter";
   }, [catalog.rows]);
 
-  const mayPropose = !pathClosed && canRaiseProposal(plane, { ...catalog, rows: issuable });
+  const mayPropose = !pathClosed && canRaiseProposal(plane, { settingOn, templates: issuable });
+  // Only said when the organisation has actually answered "no" — never because
+  // a read failed, and never while one is still in flight.
+  const draftingClosed = !!plane.propose && settingOn === false;
   const notDeployed = !!state.error && isProposalQueueMissing(state.error);
 
   const afterDecision = useCallback(() => {
@@ -182,12 +210,26 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
         </p>
       ) : (
         <>
-          {!isHr && catalog.loaded && !mayPropose && !pathClosed && (
+          {draftingClosed && !pathClosed && (
             <p className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 leading-relaxed">
               <HiInformationCircle className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
               <span>
                 <span className="font-bold">Your organisation hasn’t opened letter drafting to managers.</span>{" "}
                 Ask HR to switch it on if you need to draft letters for your team — anything you’ve already asked for stays on this page.
+              </span>
+            </p>
+          )}
+
+          {/* `catalog.allowed` matters: without it, a catalogue read that FAILED
+              would leave the list empty and this would claim the organisation
+              has switched nothing on — the same mistake as reading a failed
+              settings read as a refusal. */}
+          {!isHr && settingOn === true && catalog.loaded && catalog.allowed && issuable.length === 0 && (
+            <p className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 leading-relaxed">
+              <HiInformationCircle className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+              <span>
+                <span className="font-bold">No letter is switched on to ask for yet.</span>{" "}
+                You may draft letters, but your organisation hasn’t switched any on. Ask HR which ones they’d like to offer.
               </span>
             </p>
           )}
@@ -337,7 +379,6 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
 
       {proposing && (
         <ProposeLetterDialog
-          api={documentsAPI}
           plane={plane}
           templates={issuable}
           people={people}

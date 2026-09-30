@@ -16,7 +16,7 @@ import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar, HiOutlineFolder,
   HiOutlineCalendar, HiOutlineOfficeBuilding, HiOutlineCurrencyRupee,
-  HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
+  HiTrash, HiBan, HiCheckCircle, HiX
 } from "react-icons/hi";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
 import ProfileTabStrip from "../../../shared/components/ProfileTabStrip";
@@ -91,7 +91,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
       return;
     }
     if (!isManagerial && form.new_department_id === "none" && !form.new_manager_id) {
-      setError("A New Manager is required when removing an employee from their department.");
+      setError("A New Reporting Person is required when removing an employee from their department.");
       return;
     }
     // For an employee moving into a department, the backend requires a manager
@@ -99,7 +99,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
     if (!isManagerial && form.new_department_id !== "none" && !form.new_manager_id) {
       const targetDept = departments.find(d => String(d.id || d._id) === String(form.new_department_id));
       if (targetDept && !targetDept.head_of_department_id) {
-        setError(`“${targetDept.name}” has no Head of Department — select a New Manager for this employee.`);
+        setError(`“${targetDept.name}” has no Head of Department — select a New Reporting Person for this employee.`);
         return;
       }
     }
@@ -187,12 +187,12 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">New Manager (Optional)</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">New Reporting Person</label>
                 <PersonSelect
                     people={hodCandidates}
                     value={form.new_manager_id}
                     onChange={(id) => handleChange({ target: { name: "new_manager_id", value: id } })}
-                    placeholder="Select a manager…"
+                    placeholder="Select a reporting person…"
                     emptyText="No managers or HR found."
                   />
                 <p className="text-[10px] text-slate-400 mt-1">Required if the user&apos;s new department has no HOD, or if moving them to &ldquo;No Department&rdquo;. Ignored for HR/Manager roles.</p>
@@ -298,20 +298,12 @@ export default function EmployeeProfilePage() {
   const [managerName, setManagerName] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [successToast, setSuccessToast] = useState("");
   const [actionError, setActionError] = useState("");
-
-  // Close settings dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = () => setShowSettings(false);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -379,7 +371,6 @@ export default function EmployeeProfilePage() {
       setActionError(err.message || `Failed to ${actionText} employee`);
     } finally {
       setIsActionLoading(false);
-      setShowSettings(false);
     }
   };
 
@@ -430,48 +421,6 @@ export default function EmployeeProfilePage() {
                   <span className={`w-1.5 h-1.5 rounded-full ${employee.is_active === false ? "bg-rose-500" : "bg-violet-500"}`}></span>
                   {employee.is_active === false ? "Inactive" : "Active"}
                 </span>
-              )}
-            </div>
-
-            {/* Settings Actions */}
-            <div className="relative">
-              <button 
-                onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
-                disabled={isActionLoading}
-              >
-                <HiDotsHorizontal className="w-5 h-5" />
-              </button>
-              {showSettings && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 py-1.5 z-20" onClick={e => e.stopPropagation()}>
-                  <button 
-                    onClick={handleToggleStatus}
-                    disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
-                  >
-                    {employee?.is_active === false ? (
-                      <><HiCheckCircle className="w-4 h-4 text-violet-500" /> Activate Employee</>
-                    ) : (
-                      <><HiBan className="w-4 h-4 text-fuchsia-500" /> Deactivate Employee</>
-                    )}
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button 
-                    onClick={() => { setShowSettings(false); setShowTransferModal(true); }}
-                    disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-bold text-purple-600 hover:bg-purple-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
-                  >
-                    <HiSwitchHorizontal className="w-4 h-4" /> Transfer Department
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button 
-                    onClick={() => { setShowSettings(false); setShowDeleteModal(true); }}
-                    disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
-                  >
-                    <HiTrash className="w-4 h-4" /> Delete Employee
-                  </button>
-                </div>
               )}
             </div>
           </div>
@@ -590,10 +539,10 @@ export default function EmployeeProfilePage() {
                 <AttendanceTab key={userId} userId={userId} employeeRole={employeeRole} />
               )}
               {activeTab === "department" && !loading && employee && (
-                <DepartmentTab key={userId} employee={employee} userId={userId} employeeRole={employeeRole} />
+                <DepartmentTab key={userId} employee={employee} userId={userId} employeeRole={employeeRole} onTransfer={() => setShowTransferModal(true)} />
               )}
               {activeTab === "leave" && (
-                <LeaveTab userId={userId} />
+                <LeaveTab userId={userId} employeeName={displayName} />
               )}
               {activeTab === "salary" && (
                 <SalaryTab key={userId} userId={userId} />
@@ -602,7 +551,11 @@ export default function EmployeeProfilePage() {
                 <DocumentsTab key={userId} userId={userId} employeeName={displayName} />
               )}
               {activeTab === "profile" && (
-                <ProfileTab employee={employee} onEdit={() => setEditingProfile(true)} />
+                <ProfileTab
+                  employee={employee}
+                  onEdit={() => setEditingProfile(true)}
+                  danger={{ onToggleStatus: handleToggleStatus, onDelete: () => setShowDeleteModal(true), busy: isActionLoading }}
+                />
               )}
               {activeTab === "reports" && (
                 <ReportsTab userId={userId} employeeName={displayName} />

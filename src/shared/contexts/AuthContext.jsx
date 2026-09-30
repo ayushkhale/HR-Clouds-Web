@@ -261,6 +261,9 @@ export function AuthContextProvider({ children }) {
         clearSelectionState,
         updateTokens,
         getDashboardPath,
+        // Re-read GET /organizations/me into `user` — after a change the top
+        // bar shows (a new profile photo), so it updates without a reload.
+        refreshProfile: hydrateProfile,
       }}
     >
       {children}

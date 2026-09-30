@@ -1,5 +1,14 @@
 # Task: ⓘ help + "Ask Maya" — phase 4, HR workspace (every HR screen)
 
+> **Status (2026-09-29): all five sub-phases worked through — 28 entries,
+> 15 surfaces, 18 files.** 4d and most of 4e yielded almost nothing: those
+> screens already explain themselves.
+> What was built, what was deliberately left with none, and what is blocked on
+> facts is recorded in §11 of the audit report
+> (`public/ref docs/md_updates/2026-09-29_field_help_ask_maya_audit_report.md`).
+> Read §11.3 and §11.4 before adding more: the per-screen estimates below
+> are high, because this codebase is already written to §6.
+
 > Goal: an HR admin never meets a field, figure or status on an HR-only screen
 > that only a payroll specialist could read. Phases 1–3 covered the employee,
 > the manager, and the components those two share with HR. Phase 4 covers what

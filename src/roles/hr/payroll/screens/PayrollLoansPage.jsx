@@ -13,6 +13,7 @@ import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { interestMethodLabel } from "../runMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -338,7 +339,10 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Type</label>
+                    <div className="flex items-center">
+                      <label className={labelClass}>Type</label>
+                      <FieldHelp surface="payroll.loan_recommendation" field="loan_type" label="a loan or a salary advance" className="mb-1.5" overlay />
+                    </div>
                     <select value={form.loan_type} onChange={(e) => setForm({ ...form, loan_type: e.target.value })} className={fieldClass}>
                       <option value="loan">Company Loan</option>
                       <option value="salary_advance">Salary Advance</option>
@@ -352,7 +356,10 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                   <div>
-                    <label className={labelClass}>Tenure (mo) <span className="text-rose-500">*</span></label>
+                    <div className="flex items-center">
+                      <label className={labelClass}>Tenure (mo) <span className="text-rose-500">*</span></label>
+                      <FieldHelp surface="payroll.loan_recommendation" field="tenure_months" label="the tenure" className="mb-1.5" overlay />
+                    </div>
                     <input type="number" required min="1" value={form.tenure_months} onChange={(e) => setForm({ ...form, tenure_months: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
@@ -367,7 +374,10 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>First repayment month</label>
+                    <div className="flex items-center">
+                      <label className={labelClass}>First repayment month</label>
+                      <FieldHelp surface="payroll.loan_recommendation" field="start_period_month" label="the first repayment month" className="mb-1.5" overlay />
+                    </div>
                     <select value={form.start_month} onChange={(e) => setForm({ ...form, start_month: parseInt(e.target.value) })} className={fieldClass}>
                       {MONTHS.map((mo, i) => <option key={i} value={i + 1}>{mo}</option>)}
                     </select>

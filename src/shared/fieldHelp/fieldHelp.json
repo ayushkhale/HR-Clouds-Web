@@ -485,9 +485,10 @@
     },
     "payroll.adjustment_proposal": {
       "kind": "form",
-      "description": "Manager proposes a one-off earning or deduction for a report — Salary Adjustments › Propose Adjustment. HR approves it.",
+      "description": "Salary Adjustments — the manager proposes, HR creates directly. Same fields, same dialog shape (ManagerAdjustmentsPage / PayrollAdjustmentsPage).",
       "workspaces": [
-        "manager"
+        "manager",
+        "hr"
       ],
       "fields": {
         "adjustment_type": {
@@ -513,9 +514,10 @@
     },
     "payroll.bonus_proposal": {
       "kind": "form",
-      "description": "Manager proposes a bonus for chosen reports — Salary Adjustments › Propose Bonus. HR approves it.",
+      "description": "A one-off bonus — the manager proposes, HR creates directly (ManagerAdjustmentsPage / PayrollAdjustmentsPage).",
       "workspaces": [
-        "manager"
+        "manager",
+        "hr"
       ],
       "fields": {
         "bonus_type": {
@@ -529,9 +531,10 @@
     },
     "payroll.loan_recommendation": {
       "kind": "form",
-      "description": "Manager recommends a loan or salary advance for a report — Salary Adjustments › Recommend Loan. HR approves it and sets the schedule.",
+      "description": "A loan or salary advance — the manager recommends, HR creates it and sets the schedule (ManagerAdjustmentsPage / PayrollLoansPage).",
       "workspaces": [
-        "manager"
+        "manager",
+        "hr"
       ],
       "fields": {
         "loan_type": {
@@ -557,9 +560,10 @@
     },
     "payroll.salary_revision": {
       "kind": "form",
-      "description": "Manager proposes a new salary for a report — Employee Salaries › Propose revision. HR approves it.",
+      "description": "A new salary — the manager proposes, HR assigns it directly (TeamSalaryPage / EmployeeSalaryStructuresPage).",
       "workspaces": [
-        "manager"
+        "manager",
+        "hr"
       ],
       "fields": {
         "annual_ctc": {
@@ -739,9 +743,10 @@
     },
     "leaves.approval": {
       "kind": "data",
-      "description": "Manager leave approvals — LeaveRequestCard on Leave Requests and the manager Inbox. paid_split is the card’s Pay tile (paid_days / unpaid_days); balance_after is the Balance impact strip.",
+      "description": "Leave approvals — the manager's LeaveRequestCard (Leave Requests, Inbox) and HR's own leave request dialog. paid_split is the Paid/Unpaid split; balance_after is the balance once the request is approved, so it is wired only on the approval case, never on a cancellation where the same tile means the opposite.",
       "workspaces": [
-        "manager"
+        "manager",
+        "hr"
       ],
       "fields": {
         "paid_split": {
@@ -883,7 +888,7 @@
     },
     "documents.letter_settings": {
       "kind": "form",
-      "description": "HR — Document Settings, the letters-to-many card (#91–#94). Auto-issue on exit is the one setting that acts with nobody watching.",
+      "description": "HR — Document Settings, the letters-to-many card (#91–#94) and the Phase 5 limits (#95 retention, #96 the hourly batch allowance). Auto-issue on exit and retention both act with nobody watching.",
       "workspaces": [
         "hr"
       ],
@@ -893,6 +898,587 @@
           "askMaya": {
             "enabled": true,
             "question": "What does issuing letters automatically when someone leaves actually do, and which kinds of letter can never be issued that way?"
+          }
+        },
+        "letter_bulk_rate_per_hour": {
+          "hint": "Past this many batches in an hour, the next person to send one is asked to wait. It guards against the same batch being sent over and over."
+        },
+        "letter_record_retention_days": {
+          "hint": "How long a deleted letter is kept before it is destroyed for good. Lowering it destroys older ones on the next overnight run, and nothing undoes that.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How long do we have to keep employment letters after deleting them, and which ones can never be destroyed even when the retention period has passed?"
+          }
+        }
+      }
+    },
+    "payroll.component_setup": {
+      "kind": "form",
+      "description": "HR — Setup › Salary Components, the create/edit component dialog. The behavioural flags decide how every structure built from this component behaves; none of them is explained on screen.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "calculation_type": {
+          "hint": "How the amount is worked out: a fixed sum, a share of basic, gross or CTC, or the balancing line that absorbs whatever the others leave over.",
+          "askMaya": {
+            "enabled": true,
+            "question": "In a salary structure, what do flat amount, percentage of basic, percentage of gross, percentage of CTC and a balancing component mean, and when is each one used?"
+          }
+        },
+        "is_basic": {
+          "hint": "Marks this as the basic pay the rest builds on — PF and every percentage-of-basic component are worked out from it. Only one component can be it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does basic salary matter in an Indian salary structure, and which deductions and allowances are calculated as a percentage of basic?"
+          }
+        },
+        "is_part_of_ctc": {
+          "hint": "Counts this inside the CTC on the employee’s offer. Switch it off and it is paid on top, so the yearly cost runs above the figure they were given.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does CTC include, and how is it different from gross salary and from what reaches the bank?"
+          }
+        },
+        "pf_applicable": {
+          "hint": "Adds this component to the wages PF is worked out on, so switching it on raises both the employee’s deduction and the employer’s share.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which salary components count towards PF wages, and how are the employee and employer PF contributions worked out?"
+          }
+        }
+      }
+    },
+    "payroll.statutory_config": {
+      "kind": "form",
+      "description": "HR — Setup › Tax & Legal Deductions (TaxConfigurationsPage), the PF / ESI / PT / TDS rate cards. Rendered from the FIELD_GROUPS descriptors, so each help is attached to the descriptor, not the markup. Hints carry no rates or limits — those change with the law.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "pf_wage_ceiling": {
+          "hint": "The most of a month’s wages PF is worked out on. It only bites when the setting below is on; otherwise PF follows the full PF wage.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the PF wage ceiling, and what changes for an employee when the employer restricts PF to the ceiling instead of actual wages?"
+          }
+        },
+        "pf_restrict_to_ceiling": {
+          "hint": "On, PF stops at the ceiling for everyone earning above it. Off, it follows their full PF wage — more saved for them, more cost for the company.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "esi_wage_threshold": {
+          "hint": "Earn up to this in a month and ESI is deducted. Cross it and cover runs to the end of the contribution period before it stops, not straight away.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who is covered by ESI, and what happens when an employee’s salary rises above the ESI limit part-way through the year?"
+          }
+        },
+        "tds_no_pan_rate": {
+          "hint": "The higher rate income tax is cut at while someone has no PAN on file. Adding their PAN puts them back on the normal slab from the next payroll.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is income tax deducted at a higher rate when an employee has not given their PAN, and what happens once the PAN is provided?"
+          }
+        }
+      }
+    },
+    "payroll.settings": {
+      "kind": "form",
+      "description": "HR — Setup › Payroll Settings. Almost every switch on this screen already carries its own explanation line, so only the unpaid-day divisor is helped here.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "lop_basis": {
+          "hint": "Sets what one unpaid day costs: the month’s pay split over 30 days, over that month’s days, or over its working days. Working days make a day dearest.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is one day’s pay worked out when an employee has unpaid days in a month, and why do companies divide the monthly salary differently?"
+          }
+        }
+      }
+    },
+    "leaves.policy_setup": {
+      "kind": "form",
+      "description": "HR — Setup › Leave Policies, the leave-quota dialog inside a policy. The quota, accrual and probation fields already carry their own lines on screen; these three do not say what happens afterwards.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "max_carry_forward": {
+          "hint": "The most unused days that move into next year. Anything above it is lost when the year closes, unless the leave is paid out instead.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does carrying leave forward to the next year mean, and what usually happens to unused days above the limit?"
+          }
+        },
+        "max_negative_balance": {
+          "hint": "How far past zero someone may go on this leave. Days taken below zero come back out of a later quota, or off their final pay if they leave first.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "notice_period_max_days": {
+          "hint": "What happens to this leave once somebody has resigned — no limit, none allowed at all, or a set number of days across the whole notice period.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "attendance.policy_setup": {
+      "kind": "form",
+      "description": "HR — Setup › Attendance Policies, the policy dialog. Nearly every field there carries its own range line, so only the two that decide whether a day is paid are helped.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "half_day_min_hours": {
+          "hint": "Work less than this on a working day and it counts as absent rather than a half day, so the day is unpaid unless leave or a correction covers it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do effective working hours decide whether a day counts as a full day, a half day or absent, and what happens to pay for a half day?"
+          }
+        },
+        "missing_punch_action": {
+          "hint": "What happens to a day somebody never clocked out of: hold it for review, treat it as a half day, or mark it absent — which makes it unpaid.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "attendance.comp_off_policy": {
+      "kind": "form",
+      "description": "HR — Setup › Comp-off Policies. The hours, multiplier, priority and cap fields all carry their own lines; expiry is the one rule that quietly takes earned time off away.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "validity_days": {
+          "hint": "How long a credited day stays usable. Once it passes, the day is gone — it is not paid out — so a short window can waste time people have already worked.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.structure_template": {
+      "kind": "form",
+      "description": "HR — Setup › Structure Templates: the template dialog and its Add Component row. Both fields are named after the engine, not after what they do.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "definition_mode": {
+          "hint": "Start from a yearly CTC and split it into components, or add components up to whatever total they reach. CTC-driven needs a balancing component.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between building a salary structure from a total CTC downwards and building it up from individual components?"
+          }
+        },
+        "calculation_type": {
+          "hint": "How this line is worked out inside the template: a fixed sum, a share of basic, gross or CTC, or the balancing line that takes up whatever is left.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.bonus_rule": {
+      "kind": "form",
+      "description": "HR — Setup › Bonus Rules, the rule dialog. The percentage note already explains the base it uses; this covers the choice above it.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "bonus_type": {
+          "hint": "Whether everyone who qualifies gets the same amount, or a share of their own salary. It decides what the field beside it means.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.benefit_plan": {
+      "kind": "form",
+      "description": "HR — Setup › Benefit Plans, the Advanced block of the plan dialog. Which component the money is taken through decides how it shows on the payslip.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "employee_component_id": {
+          "hint": "The deduction line the employee’s share is charged through, so it is what they see on their payslip. Left empty, payroll picks a component itself.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.run_item": {
+      "kind": "data",
+      "description": "HR — Payroll Runs › a run › one employee's record inspector (PayrollRunDetailPage). Derived figures the engine produced; the run's own status already carries a hint line, so it gets none.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "ctc_cost": {
+          "hint": "What this person costs the company this month — their pay plus the employer’s share of PF, ESI and benefits. It is not what they receive.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between cost to company, gross pay and what reaches an employee’s bank account?"
+          }
+        },
+        "lop_divisor": {
+          "hint": "The number of days this month’s pay was split over to price one unpaid day. It follows the unpaid-day rule set in Payroll Settings.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "carry_forward_out": {
+          "hint": "A deduction there wasn’t enough pay left to take this month. It is carried over and taken from a later payroll instead of being written off.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "pf_wage": {
+          "hint": "The part of this month’s pay PF was worked out on — only the components marked PF-applicable, capped at the ceiling if that setting is on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which parts of a salary count as PF wages, and why is PF often worked out on less than the gross salary?"
+          }
+        }
+      }
+    },
+    "payroll.arrears": {
+      "kind": "data",
+      "description": "HR — Payroll › Pay Differences (PayrollArrearsPage, API #203–#205). The difference column is the whole screen; its mechanism is in the file header and nowhere on screen.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "net_delta": {
+          "hint": "What the month would work out to now, less what was already paid. Paying it adds the difference to the next open month; the old payslip is never rewritten.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is backdated pay in payroll, and why is it paid in a later month instead of correcting the original payslip?"
+          }
+        }
+      }
+    },
+    "payroll.bank_verification": {
+      "kind": "data",
+      "description": "HR — Payroll › Bank Verification. What verifying an account actually certifies. The self-verify guard in verifyAction() already explains itself when it bites; this covers the column for everyone else.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "is_verified": {
+          "hint": "Verified means a second person checked the details against a passbook or cheque. It is not a check with the bank, and nobody may clear their own account.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.tax_verification": {
+      "kind": "form",
+      "description": "HR — Tax › Tax Declarations, the verification dialog. The employee-facing payroll.tax_declaration entries are written to the employee about their own proof, so they must not be reused here (§2 voice rule).",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "verified_amount": {
+          "hint": "The amount you accept is what lowers their tax for the rest of the year. Accept less than they declared and more income tax comes out of their next payslips.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does verifying an investment declaration change the income tax deducted from an employee’s salary for the rest of the financial year?"
+          }
+        }
+      }
+    },
+    "organization.invite": {
+      "kind": "form",
+      "description": "HR — People › Invites, the invite dialog (InviteMemberModal). The role decides what the person can see of everyone else, and nothing on the form says so.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "role": {
+          "hint": "What they will see: an employee only their own records, a manager their team’s as well, and an HR admin the whole organisation — pay included.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.year_end": {
+      "kind": "data",
+      "description": "HR — Tax › Year-End & Form 16, the employee dialog. payroll.form16 is written to the employee about their own certificate, so it is not reused here (§2 voice rule). The hint asserts only what the same screen shows: provisional goes with a year that is still open.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "is_provisional": {
+          "hint": "Provisional means this was worked out from a year that is still open, so the figures can change until the year is closed for that employee.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.adjustment_admin": {
+      "kind": "form",
+      "description": "HR — Payroll › Salary Adjustments, the fields the manager's proposal form does not have. The type, component and pay month come from payroll.adjustment_proposal, which HR now shares (§2).",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "category": {
+          "hint": "Groups this line for reports and payslips. It does not change the amount or the tax — pick the one that describes why the money is moving.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.encashment_admin": {
+      "kind": "form",
+      "description": "HR — Payroll › Leave Payouts, the pay-out dialog. payroll.encashment_proposal says “once HR approves it”, which is wrong when HR is the one filling the form, so the month gets its own entry here (§2 voice rule).",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "period_month": {
+          "hint": "The pay month the payout lands in. It has to be a month whose payroll is not approved or paid yet, or there is nothing left to add it to.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "payroll.structure_assign": {
+      "kind": "form",
+      "description": "HR — Payroll › Employee Salaries, the assign/revise dialog. The CTC, effective date and revision type come from payroll.salary_revision, which HR now shares; the template picker is HR-only.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "template_id": {
+          "hint": "The template decides how the yearly CTC is split into basic, allowances and deductions. Changing it later rebuilds the whole structure.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a salary structure template, and how does it decide the split between basic pay, allowances and deductions?"
+          }
+        }
+      }
+    },
+    "payroll.tax_regime_config": {
+      "kind": "data",
+      "description": "HR — Setup › Tax & Legal Deductions › Income-Tax Regimes, the regime cards. Pure tax vocabulary with nothing on screen to explain it. No figures in the hints — every one of these changes with the finance act.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "standard_deduction": {
+          "hint": "A flat amount taken off salary before tax is worked out. Everyone on this regime gets it — nobody has to declare anything to earn it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the standard deduction on salary income, and does an employee have to declare anything to claim it?"
+          }
+        },
+        "rebate_87a_income_limit": {
+          "hint": "Total income up to this figure pays no income tax at all, because the rebate cancels what would otherwise be due.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the section 87A rebate, and how does it mean some salaried employees pay no income tax at all?"
+          }
+        },
+        "allows_chapter_via": {
+          "hint": "Whether savings an employee declares — 80C, 80D and the rest — can lower their tax on this regime. Switched off, declaring changes nothing.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which tax deductions can be claimed under the old regime but not the new one, and what does Chapter VI-A cover?"
+          }
+        }
+      }
+    },
+    "payroll.pt_slabs": {
+      "kind": "data",
+      "description": "HR — Setup › Tax & Legal Deductions › Professional Tax Slabs, the per-state slab tables. PT is the one deduction the organisation does not set the rate for.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "amount": {
+          "hint": "Professional tax is charged by the state, not by this organisation. What comes off depends on where the employee works and what they earn.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is professional tax, which states charge it, and how is the monthly amount decided for a salaried employee?"
+          }
+        }
+      }
+    },
+    "documents.verification": {
+      "kind": "data",
+      "description": "HR — Documents We Collect › Verification Queue. The manager's recommendation is advice; only HR's decision moves the document out of the queue.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "recommendation": {
+          "hint": "What the employee’s manager advised. It is only advice — the document stays in this queue until you verify or reject it yourself.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "documents.letter_queue_health": {
+      "kind": "data",
+      "description": "HR — Document Automation, the letter render queue readout (#151). Every figure is derived, and the failure rate has a real null.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "queued": {
+          "hint": "Letters asked for but not yet produced. They are made in the background, so a few waiting is normal right after a busy moment."
+        },
+        "oldest_queued_age_seconds": {
+          "hint": "How long the letter at the front of the queue has been waiting. A long wait here, not a big number, is what means something is stuck."
+        },
+        "failure_rate": {
+          "hint": "The share of letters that finished but didn’t come out. It reads N/A when nothing finished — that is no news, not a clean result."
+        }
+      }
+    },
+    "payroll.payslip_queue_health": {
+      "kind": "data",
+      "description": "HR — Payroll Automation, the payslip render queue readout (#221). The payroll twin of documents.letter_queue_health; same figures, same wording.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "queued": {
+          "hint": "Payslips asked for but not yet produced. They are made in the background, so a few waiting is normal right after a busy moment."
+        },
+        "oldest_queued_age_seconds": {
+          "hint": "How long the payslip at the front of the queue has been waiting. A long wait here, not a big number, is what means something is stuck."
+        },
+        "failure_rate": {
+          "hint": "The share of payslips that finished but didn’t come out. It reads N/A when nothing finished — that is no news, not a clean result."
+        }
+      }
+    },
+    "leaves.assign_policy": {
+      "kind": "form",
+      "description": "HR — Assign a leave policy (AssignLeavePolicyDialog), from the employee profile's Leave tab and from the org-wide Leave Requests page. The one destructive action in Leave: it replaces every rule the person has.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "template_id": {
+          "hint": "Sets how many days of each kind of leave this person gets. It replaces any rules they already have, and their days are worked out from the day they joined.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When someone is given a leave policy part-way through the year, how are their leave days worked out, and what happens to days they had already been given?"
+          }
+        }
+      }
+    },
+    "organization.org_chart": {
+      "kind": "data",
+      "description": "Org Chart (OrgChartPage) — stat tiles, and the person dialog (OrgPersonDialog). depth, biggest_team, team_size and level are derived in orgChartMeta.js; reporting_to_id is the hierarchy node key.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "depth": {
+          "hint": "How many layers there are from the top of the organisation down to the people furthest from it.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "biggest_team": {
+          "hint": "The most people who report directly to one person. People further down their line aren’t counted here.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "reporting_to_id": {
+          "hint": "Who this person reports to, all the way up. The manager directly above them is the one who reviews their leave and attendance requests.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a reporting line in a company, and how does the person I report to affect who reviews my leave and attendance requests?"
+          }
+        },
+        "team_size": {
+          "hint": "Everyone below this person on the chart: the people who report to them, the people who report to those people, and so on.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "level": {
+          "hint": "How far down the chart this person sits. Level 1 is the top of the organisation; each step down adds one.",
+          "askMaya": {
+            "enabled": false
+          }
+        }
+      }
+    },
+    "organization.company_profile": {
+      "kind": "data",
+      "description": "Company Profile (CompanyProfilePage) — the People headline and the HR-only Tax & legal registration card. Keys are GET /organizations/details response keys.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "total_active_members": {
+          "hint": "People who have joined and can sign in today. Invitations not yet accepted and people who have left aren’t counted.",
+          "askMaya": {
+            "enabled": false
+          }
+        },
+        "gst_number": {
+          "workspaces": [
+            "hr"
+          ],
+          "hint": "The company’s GST registration number. Suppliers, customers and tax filings use it to identify the business.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a GSTIN, what does each part of the 15-character number mean, and where does a company need to use it?"
+          }
+        },
+        "company_pan_number": {
+          "workspaces": [
+            "hr"
+          ],
+          "hint": "The company’s own income-tax number — not any employee’s PAN. It appears on the Form 16 given to employees.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a company PAN, how is it different from a TAN, and where does it appear in salary tax documents like Form 16?"
+          }
+        }
+      }
+    },
+    "documents.catalog": {
+      "kind": "data",
+      "description": "Document Types › Catalog (DocumentTypesPage › CatalogTab) — the ready-made PDF letter filter. letter_template is a concept key: a catalog row paired with a #135 letter template (catalogLetterMeta.js).",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "letter_template": {
+          "hint": "Types HR Clouds can write for you as a branded PDF. Activate the type here, then switch its letter on under Letter Templates.",
+          "askMaya": {
+            "enabled": false
           }
         }
       }

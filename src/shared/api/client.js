@@ -115,6 +115,13 @@ export async function request(endpoint, options = {}) {
     const error = new Error(data?.message || `Request failed: ${response.status}`);
     error.status = response.status;
     error.data = data;
+    // `Retry-After` is the one response HEADER a caller acts on: a 429 from a
+    // rate-limited write says here how long to wait. Read once, centrally, so
+    // no api module has to reach for the raw Response. The body normally
+    // carries the same number (`details.retry_after_seconds`) and is preferred
+    // by readers, because a proxy can strip a header but not a payload.
+    const retryAfter = Number(response.headers.get("Retry-After"));
+    if (Number.isFinite(retryAfter) && retryAfter >= 0) error.retryAfter = retryAfter;
     throw error;
   }
 

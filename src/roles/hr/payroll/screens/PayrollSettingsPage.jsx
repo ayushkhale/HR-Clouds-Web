@@ -8,6 +8,7 @@ import {
   ENGINE_SWITCH_CONFIRM, PDF_ENGINE_CLASSIC, PDF_ENGINE_NUMBERS, PDF_ENGINE_OPTIONS,
   hasPdfEngineSettings, isSwitchingToHtml, pdfEngineOf, pdfNumberProblem, usesHtmlEngine,
 } from "../pdfRenderMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -288,7 +289,10 @@ export default function PayrollSettingsPage() {
                 <Section title="Calculation Policies">
                   <div className="grid sm:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Unpaid days: month divided by</label>
+                      <div className="flex items-center">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Unpaid days: month divided by</label>
+                        <FieldHelp surface="payroll.settings" field="lop_basis" label="what an unpaid day costs" className="mb-2" />
+                      </div>
                       <select value={settings.lop_basis} onChange={e => setSettings({...settings, lop_basis: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                         <option value="calendar_days">Calendar Days in Month</option>
                         <option value="standard_working_days">Standard Working Days in Month</option>

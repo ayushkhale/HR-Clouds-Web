@@ -12,6 +12,12 @@
 // share these components. The config decides which workspaces see an ⓘ. A
 // section's ⓘ sits in the header's right-hand area, never inside the fold
 // toggle <button>: nested controls are invalid and the click would fold it.
+//
+// `width` is opt-in and defaults to the full `wide`, so every existing preview
+// is unchanged. Narrow it only for a dialog that opens on a short form and
+// fills up later (the template preview waits for a CTC before it has anything
+// to show) — at full width those sit stretched around a couple of fields. The
+// max-width transitions, so growing when the content arrives isn't a jump.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -40,7 +46,9 @@ const FIELD = "min-h-10 flex items-center bg-slate-50/70 border border-slate-200
 const layerStack = [];
 let bodyOverflowBeforeLock = "";
 
-export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, badge, onClose, footer, loading = false, children }) {
+const DIALOG_WIDTH = { compact: "max-w-2xl", medium: "max-w-4xl", wide: "max-w-6xl" };
+
+export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, badge, onClose, footer, loading = false, width = "wide", children }) {
   const panelRef = useRef(null);
   // Callers pass inline arrows; a ref keeps the listeners registered once.
   const onCloseRef = useRef(onClose);
@@ -87,7 +95,7 @@ export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, bad
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col outline-none animate-in fade-in zoom-in-95 duration-200"
+        className={`bg-white rounded-2xl border border-slate-100 shadow-2xl ${DIALOG_WIDTH[width] || DIALOG_WIDTH.wide} w-full max-h-[90vh] flex flex-col outline-none animate-in fade-in zoom-in-95 duration-200 transition-[max-width]`}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Details"}

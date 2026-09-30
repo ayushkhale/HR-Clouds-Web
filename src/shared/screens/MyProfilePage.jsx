@@ -5,6 +5,7 @@ import { organizationAPI, tokenHelper } from "../api";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { useMayaVisibility } from "../hooks/useMayaVisibility";
 import GenderAvatar from "../components/GenderAvatar";
+import AvatarUploadDialog from "../organization/AvatarUploadDialog";
 import { fmtDate, ymdOnly } from "../attendance/dates";
 import { humanize } from "../attendance/enums";
 
@@ -23,6 +24,7 @@ import {
     HiShieldCheck,
     HiLogout,
     HiUserCircle,
+    HiCamera,
 } from "react-icons/hi";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -53,9 +55,14 @@ import {
 // Phone is absent for the same reason: neither `phone_number` nor `contact`
 // is accepted, so there is currently no way to change a phone number at all.
 // It stays visible and locked rather than pretending to be editable.
+//
+// `avatar_url` is NOT here (30 Sep 2026). The endpoint still accepts it, but
+// since uploaded photos arrived every read returns a presigned link that dies in
+// about five minutes, and a save could send that stale link back as the
+// person's "photo URL". Photos change only through Change profile photo.
 const EDITABLE_KEYS = [
     "display_name",
-    "first_name", "last_name", "avatar_url",
+    "first_name", "last_name",
     "dob", "blood_group", "personal_email",
     "current_address", "permanent_address", "city", "state", "pincode",
 ];
@@ -96,7 +103,7 @@ const ADDRESS_FIELDS = [
 /* ──────────────────────────────────────────────────────────────────────────── */
 
 function MyProfilePage() {
-    const { logout } = useAuth();
+    const { logout, refreshProfile } = useAuth();
     const navigate = useNavigate();
     const { hidden: mayaHidden, setHidden: setMayaHidden } = useMayaVisibility();
 
@@ -107,6 +114,7 @@ function MyProfilePage() {
     const [editData, setEditData] = useState({});
     const [saving, setSaving] = useState(false);
     const [notice, setNotice] = useState(null); // { type: "success"|"error", message }
+    const [photoOpen, setPhotoOpen] = useState(false);
 
     useEffect(() => {
         fetchProfile();
@@ -208,6 +216,18 @@ function MyProfilePage() {
         } finally {
             setSaving(false);
         }
+    }
+
+    // The photo is saved by its own three-step upload (organization/avatarUpload.js),
+    // not by Save Changes: `avatar_url` in the PATCH whitelist only takes an
+    // external link, and an uploaded photo always wins over it. Confirm returns
+    // the whole profile, with a fresh short-lived link to the new photo.
+    function handlePhotoSaved(updated) {
+        setPhotoOpen(false);
+        if (updated && typeof updated === "object") setProfile((prev) => ({ ...prev, ...updated }));
+        setNotice({ type: "success", message: "Your new profile photo is saved." });
+        refreshProfile?.();
+        fetchProfile({ silent: true });
     }
 
     function handleLogout() {
@@ -348,9 +368,23 @@ function MyProfilePage() {
                         <div className="xl:sticky xl:top-24 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                             <div className="p-6 sm:p-8 flex flex-col items-center text-center">
                                 <div className="mb-4">
-                                    <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-purple-50 shrink-0 text-3xl">
-                                        <GenderAvatar person={profile} name={profile.name || profile.email} />
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPhotoOpen(true)}
+                                        aria-label="Change profile photo"
+                                        className="group relative block w-24 h-24 rounded-full outline-none focus-visible:ring-4 focus-visible:ring-purple-300"
+                                    >
+                                        <span className="block w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-purple-50 text-3xl">
+                                            <GenderAvatar person={profile} name={profile.name || profile.email} />
+                                        </span>
+                                        <span className="absolute inset-1 rounded-full bg-purple-900/55 text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5" aria-hidden="true">
+                                            <HiCamera className="w-5 h-5" />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider">Change</span>
+                                        </span>
+                                        <span className="absolute bottom-0.5 right-0.5 w-8 h-8 rounded-full bg-purple-600 text-white ring-4 ring-white shadow flex items-center justify-center" aria-hidden="true">
+                                            <HiCamera className="w-4 h-4" />
+                                        </span>
+                                    </button>
                                 </div>
                                 <div className="w-full">
                                     <h2 className="text-xl font-bold text-slate-900 truncate w-full max-w-[260px] mx-auto">
@@ -491,6 +525,10 @@ function MyProfilePage() {
                     </div>
                 )}
             </main>
+
+            {photoOpen && profile && (
+                <AvatarUploadDialog profile={profile} onClose={() => setPhotoOpen(false)} onSaved={handlePhotoSaved} />
+            )}
         </>
     );
 }

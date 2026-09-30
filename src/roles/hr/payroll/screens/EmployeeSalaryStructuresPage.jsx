@@ -17,6 +17,7 @@ import CtcMoneyFlow from "../CtcMoneyFlow";
 import { prettifyCode } from "../runMeta";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -489,7 +490,10 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
           )}
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Template <span className="text-rose-500">*</span></label>
+            <div className="flex items-center">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Template <span className="text-rose-500">*</span></label>
+              <FieldHelp surface="payroll.structure_assign" field="template_id" label="the template" className="mb-2" />
+            </div>
             <select required value={form.template_id} onChange={(e) => { setForm({ ...form, template_id: e.target.value }); resetPreview(); }}
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
               <option value="">-- Select template --</option>
@@ -500,7 +504,10 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Annual CTC <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Annual CTC <span className="text-rose-500">*</span></label>
+                <FieldHelp surface="payroll.salary_revision" field="annual_ctc" label="annual CTC" className="mb-2" overlay />
+              </div>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                 <input type="number" required min="1" value={form.annual_ctc} onChange={(e) => { setForm({ ...form, annual_ctc: e.target.value }); resetPreview(); }}
@@ -508,7 +515,10 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Effective from <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Effective from <span className="text-rose-500">*</span></label>
+                <FieldHelp surface="payroll.salary_revision" field="effective_from" label="the date the new pay starts" className="mb-2" overlay />
+              </div>
               <input type="date" required value={form.effective_from} onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
@@ -516,7 +526,10 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Revision type</label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Revision type</label>
+                <FieldHelp surface="payroll.salary_revision" field="revision_type" label="the revision type" className="mb-2" overlay />
+              </div>
               <select value={form.revision_type} onChange={(e) => setForm({ ...form, revision_type: e.target.value })}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                 {!hasCurrent && <option value="initial">Initial</option>}

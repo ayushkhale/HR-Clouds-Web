@@ -7,7 +7,7 @@ import { useSidebar } from "../contexts/SidebarContext";
 import { tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
-import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, SELF_SERVICE_BASE } from "../attendance/paths";
+import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
 import {
@@ -53,6 +53,8 @@ import {
   HiDocumentSearch,
   HiCollection,
   HiPaperAirplane,
+  HiShare,
+  HiLibrary,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -169,11 +171,24 @@ function DashboardSidebar({ role = "guest" }) {
     };
   };
 
+  // The organisation itself — who reports to whom, and the company's own
+  // details. Every role reads the same two pages (the endpoints return the
+  // whole org to all of them), so the section is identical in each workspace
+  // and sits in the same place: last before Me, after the work sections.
+  const companySection = (workspace) => ({
+    title: "COMPANY",
+    icon: HiLibrary,
+    items: [
+      link("Org Chart", ORG_PATHS[workspace].chart, HiShare),
+      link("Company Profile", ORG_PATHS[workspace].company, HiLibrary),
+    ],
+  });
+
   // ── The three menus ──────────────────────────────────────────────────────
   // One shape for every role, so a manager promoted to HR gains menu items
   // rather than learning a new menu. Sections run in the same order in every
   // workspace (Setup, People, Time & Leave, Payroll, the two document groups,
-  // Tax, Insights, Me) and a role simply has fewer of them. Inside a section,
+  // Tax, Insights, Company, Me) and a role simply has fewer of them. Inside a section,
   // items run in the order the work is done, not alphabetically: the first
   // item is the thing you have to do first.
   const getNavSections = () => {
@@ -346,6 +361,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Audit Log", `${H}/payroll/audit-log`, HiDatabase),
           ],
         },
+        companySection("hr"),
         meSection("hr"),
       ];
     }
@@ -428,6 +444,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Payroll Reports", `${M}/payroll/reports`, HiDocumentReport),
           ],
         },
+        companySection("manager"),
         meSection("manager"),
       ];
     }
@@ -442,6 +459,7 @@ function DashboardSidebar({ role = "guest" }) {
       { title: "MY TIME", icon: HiClock, items: me.time },
       { title: "MY PAY", icon: HiCurrencyRupee, items: me.pay },
       { title: "MY DOCUMENTS", icon: HiFolderOpen, items: me.documents },
+      companySection("employee"),
     ];
   };
 

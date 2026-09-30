@@ -8,6 +8,7 @@ import {
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
   HiExclamation,
 } from "react-icons/hi";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -26,7 +27,10 @@ function Toast({ toast, onClose }) {
 function NoticePeriodField({ mode, days, onModeChange, onDaysChange }) {
   return (
     <div>
-      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Leave During Notice Period</label>
+      <div className="flex items-center">
+        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Leave During Notice Period</label>
+        <FieldHelp surface="leaves.policy_setup" field="notice_period_max_days" label="leave during notice period" className="mb-1.5" />
+      </div>
       <div className="flex gap-2">
         {[
           { v: "unrestricted", l: "No limit" },
@@ -280,7 +284,10 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           {/* Carry Forward + Probation */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Unused Days Kept For Next Year</label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Unused Days Kept For Next Year</label>
+                <FieldHelp surface="leaves.policy_setup" field="max_carry_forward" label="days kept for next year" className="mb-1.5" overlay />
+              </div>
               <input
                 type="number"
                 step="0.5"
@@ -307,7 +314,10 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
 
           {/* Max Negative Balance */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Extra Days Allowed Below Zero</label>
+            <div className="flex items-center">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Extra Days Allowed Below Zero</label>
+              <FieldHelp surface="leaves.policy_setup" field="max_negative_balance" label="extra days below zero" className="mb-1.5" />
+            </div>
             <input
               type="number"
               step="0.5"

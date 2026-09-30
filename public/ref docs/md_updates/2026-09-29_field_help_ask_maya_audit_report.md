@@ -397,3 +397,193 @@ The first "after" run found 8 host height changes. All are fixed:
 - **`CLAUDE.md`:**
   - §3 gains a stacking line;
   - a new §10 makes the ⓘ pass part of every new form and screen.
+
+---
+
+## 11. Phase 4: HR workspace (HR-only screens)
+
+Brief: `.agents/prompts/hr-help-ask-maya.md`. Phase 3 gave HR everything it shares
+with the manager; phase 4 covers the screens only HR sees.
+
+### 11.1 Summary
+
+**46 new entries in 18 new surfaces, across 24 files.** HR now resolves **96**
+entries in total (24 shared self-service + the manager-shared set + these).
+
+The brief's premise was that HR was "mostly uncovered". The measurement was more
+specific: HR already saw 34 entries through shared components, and **the whole
+SETUP section — the 21 screens that configure leave, pay, attendance and
+documents for everybody — had none.** That inversion (widest blast radius, least
+help) is what this phase fixed first.
+
+### 11.2 What was added
+
+| Surface | Kind | Entries |
+|---|---|---|
+| `payroll.component_setup` | form | `calculation_type`, `is_basic`, `is_part_of_ctc`, `pf_applicable` |
+| `payroll.statutory_config` | form | `pf_wage_ceiling`, `pf_restrict_to_ceiling`, `esi_wage_threshold`, `tds_no_pan_rate` |
+| `payroll.structure_template` | form | `definition_mode`, `calculation_type` |
+| `payroll.settings` | form | `lop_basis` |
+| `payroll.bonus_rule` | form | `bonus_type` |
+| `payroll.benefit_plan` | form | `employee_component_id` |
+| `leaves.policy_setup` | form | `max_carry_forward`, `max_negative_balance`, `notice_period_max_days` |
+| `attendance.policy_setup` | form | `half_day_min_hours`, `missing_punch_action` |
+| `attendance.comp_off_policy` | form | `validity_days` |
+| `payroll.run_item` | data | `ctc_cost`, `lop_divisor`, `carry_forward_out`, `pf_wage` |
+| `payroll.arrears` | data | `net_delta` |
+| `payroll.bank_verification` | data | `is_verified` |
+| `payroll.tax_verification` | form | `verified_amount` |
+| `organization.invite` | form | `role` |
+| `payroll.year_end` | data | `is_provisional` |
+
+15 of the 28 carry an Ask Maya question. The rest are hint-only on purpose: they
+describe *our* settings, which Maya's corpus does not cover.
+
+**Parity fixes (no new config).** Three HR screens rendered concepts the config
+already allowed but were never wired: the HR dashboard's "Absent today" tile and
+Live Attendance's "Hours" column (`attendance.team`), and `leaves.approval`,
+which was manager-only although its hints are written to whoever is deciding.
+It is now `["manager", "hr"]` and wired into HR's leave dialog.
+
+### 11.3 Considered and deliberately left with none
+
+This codebase is already written to §6, so most screens explain themselves and a
+second explanation would be noise. Checked and skipped, with the reason:
+
+- **Payroll Settings** — every switch but one already carries its own prose line.
+  The brief guessed five entries here; only `lop_basis` survived.
+- **Attendance Policies** — every `NumberField` has a range/consequence hint and
+  every toggle a description. 2 of ~20 fields qualified.
+- **Comp-off Policies, Leave Types, Exits & Final Pay, Settlement flow, Lock
+  Attendance, Document Types, Shifts, Leave Automation, Loans** — all carry their
+  own explanations. The loan `interest_method` labels ("Flat — on the full amount
+  throughout" / "On what's still owed") already *are* the explanation.
+- **Run status** — `RUN_STATUS_META` already renders a hint per status.
+- **Departments, Office Locations, Weekly Offs, Holidays (names/dates)** — ordinary
+  fields; §10 says these never get one.
+
+### 11.4 Blocked on facts, not skipped by choice
+
+Two candidates were real but could not be written truthfully (§10: settle facts
+from code or `public/ref docs/`, or leave them out):
+
+1. **Holiday type** (`public` / `optional` / `restricted`, AttendanceHolidaysPage).
+   Nothing on screen or in code says what the system does differently, and
+   `ATTENDANCE_MODULE_AUDIT.md` flags the enum ↔ `is_optional` mismatch as
+   *Backend Clarification Required*. An admin outside India cannot guess what a
+   restricted holiday is — this is worth an ⓘ the moment the behaviour is settled.
+2. **Leave-payout amount** (PayrollEncashmentsPage). Whether a standalone payout
+   uses the `fnf_encashment_*` rate basis and divisor from Payroll Settings is not
+   evidenced anywhere; the hint would have to assert it.
+
+### 11.5 Layout decisions
+
+`overlay` (zero width, drawn in room the host already has) was used wherever a
+26px icon would wrap a label and grow the row — the same rule as §10.5:
+
+- the statutory rate fields (half-width columns in a 2-col grid);
+- attendance-policy number fields (five to a row on a laptop);
+- comp-off "Valid for (days)", bonus "How it's worked out", the benefit
+  component select, the template "Calculation" row, the invite "Role";
+- the HR dashboard's "Absent today" tile, which wrapped at 390 exactly as the
+  manager's did.
+
+Right-aligned headers (`Difference`, `Verify amount`, `Hours`) take the plain
+icon: overlay would hang the icon past the cell edge. That is the accepted
+icon-only width growth from §10.5.
+
+### 11.6 Traps hit while building (worth keeping)
+
+- **The ⓘ must sit outside a `<label>` that wraps its own input.** Salary
+  Components, Tax Configurations and the invite form all use
+  `<label><input …/>Text</label>`; the icon goes in a `flex items-center`
+  wrapper *beside* the label, or it joins the control's accessible name.
+- **Descriptor-driven forms wire once, by key.** Tax Configurations and
+  Attendance Policies render from field arrays, so `field={f.key}` / `field={name}`
+  covers every field and the config alone decides which show an ⓘ — the pattern
+  `fieldHelpMeta.js` was designed for.
+- **`DetailGrid` tuples cannot carry `help`.** `["label", value]` had to become
+  `{ label, value, help }` for the four run-item entries.
+- **A file that uses only `help` props must not import `FieldHelp`** — it becomes
+  an unused-variable lint error. `PayrollRunDetailPage` and `HRLeaveRequestsPage`
+  were corrected.
+- **A shared label whose meaning flips must not reuse a hint.** HR's leave dialog
+  shows "Balance after approval" *or* "Balance if denied" in the same slot; the
+  `balance_after` help is wired only on the approval case.
+
+### 11.7 Verification
+
+- **Config validator** (the checks in `fieldHelpMeta.js`, replicated in the merge
+  script): every entry has `kind`, valid `workspaces`, a hint ≤ 160 characters,
+  a curly apostrophe and an explicit `askMaya.enabled`. No warnings.
+- **Wiring cross-check:** 87 static surface/field pairs across 46 files all
+  resolve to a config entry; no entry is wired to a surface that does not exist;
+  no new surface is left unwired. (Four older surfaces are wired through helper
+  indirection — `PayrollReportsView`, `StatutoryBreakdown`, `DocumentUploadDialog`
+  — and are not orphans.)
+- **Lint:** 34 pre-existing errors across the 17 touched files before, 34 after.
+  No new errors.
+- **Build:** `npm run build` clean; `dist/` reset and `git status --short dist/`
+  empty.
+- **Not done:** no live-browser pass. Layout calls here are from the audit's own
+  measured rules (§10.5), not from a fresh measurement at 1366/390.
+
+### 11.8 Open items for a human
+
+1. **Test the 15 new Ask Maya questions against live Maya.** The statutory ones
+   (PF wages, PF ceiling, ESI limit, no-PAN TDS, CTC, unpaid-day pricing,
+   backdated pay) are general Indian-payroll concepts and should retrieve; switch
+   off any that do not with `"enabled": false` — no code change.
+2. **Fact-check three hints** that state behaviour rather than definition:
+   `payroll.run_item.carry_forward_out` ("carried over and taken from a later
+   payroll"), `payroll.arrears.net_delta` (from the file header's contract note),
+   and `payroll.bank_verification.is_verified` ("nobody may clear their own
+   account" — a UI guard today, per `verifyAction`'s own comment).
+3. **Settle the two blocked candidates in 11.4.**
+4. **Wording bug, flagged not changed** (as in §10.8): HR's leave dialog still says
+   "the overdraft limit"; §6's term is "extra days below zero".
+5. **Raw JSON on screen.** `YearEndClosurePage` renders the whole Form 16 Part B
+   response as `JSON.stringify` in a `<pre>` — raw API keys, and ids among them.
+   That is a §4/§6 problem found during this pass; it is out of this phase's scope
+   and is not fixed here.
+
+### 11.9 Parity sweep and second pass (same day, after review)
+
+The first pass was judged too thin: 30 HR-only entries, and several screens the
+manager already had help on had none in HR. Two rounds followed.
+
+**Round 1 — role parity (§2).** Four manager surfaces were extended to
+`["manager", "hr"]` after checking each hint reads correctly to both, and the
+matching HR screens were wired:
+
+| Surface | HR screen now wired | Entries |
+|---|---|---|
+| `payroll.adjustment_proposal` | Salary Adjustments (pay month, type, payslip line) | 3 |
+| `payroll.bonus_proposal` | Salary Adjustments | 1 |
+| `payroll.loan_recommendation` | Loans & Advances (type, tenure, first repayment) | 3 |
+| `payroll.salary_revision` | Employee Salaries (CTC, effective from, revision type) | 3 |
+
+Three needed an HR-specific entry instead, because the manager wording is wrong
+when HR is the one acting: `payroll.encashment_admin.period_month` (the manager's
+says "once HR approves it"), `payroll.adjustment_admin.category` and
+`payroll.structure_assign.template_id` (HR-only fields with no manager twin).
+
+**Five surfaces stay manager-only, each because HR has no host for them:**
+`documents.recommendation` (HR decides, it never recommends), `payroll.team_salary`
+("everyone who reports to you" — HR's screen has no team-total tile),
+`documents.team_compliance` (HR's compliance screen is a document-level roll-up,
+not a per-person state column), `documents.proposals` (the "(this page)" tiles
+exist only on the manager's Org Proposals screen) and
+`payroll.encashment_proposal` (superseded by `payroll.encashment_admin`).
+
+**Round 2 — screens with no help at all.** The Income-Tax Regimes cards are pure
+tax vocabulary with nothing on screen to explain it, so `payroll.tax_regime_config`
+covers standard deduction, the 87A income limit and Chapter VI-A; `payroll.pt_slabs`
+explains that professional tax is set by the state, not by the organisation; and
+`documents.verification.recommendation` says the manager's advice is not a decision.
+The regime cards wire through the `Row` helper by key, so the config decides which
+lines carry an ⓘ.
+
+**Totals now:** 65 surfaces, HR resolves 59 of them and 96 entries, 66 of which
+offer an Ask Maya question. Hints still carry no figure that changes with the
+finance act.

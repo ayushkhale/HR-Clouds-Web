@@ -14,6 +14,7 @@ import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, 
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -345,7 +346,7 @@ export default function BankVerificationPage() {
                     <th className="px-6 py-4">Employee</th>
                     <th className="px-6 py-4">Bank</th>
                     <th className="px-6 py-4">Account</th>
-                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4"><HelpLabel text="Status" help={{ surface: "payroll.bank_verification", field: "is_verified", label: "a verified bank account" }} /></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">

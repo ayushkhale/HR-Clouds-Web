@@ -245,6 +245,60 @@ export const organizationAPI = {
     });
   },
 
+  // ── Employee › Profile Photo (presigned handshake) ─────────────────────────
+  //    Contract: `public/ref docs/md_updates/5_org_details_and_hierarchy_api.md` §3.
+  //    Step 2 (the PUT of the bytes) goes straight to storage, not through
+  //    `request()` — see `shared/organization/avatarUpload.js`.
+  /**
+   * Step 1 — mint a presigned PUT for the caller's own photo.
+   * POST /organizations/me/avatar/upload-url
+   * @param {{ content_type: "image/png"|"image/jpeg"|"image/webp", size_bytes: number, file_name?: string }} payload
+   * @returns `{ upload_url, storage_key_token, expires_in, required_headers }`
+   */
+  requestAvatarUploadUrl(payload) {
+    return request("/organizations/me/avatar/upload-url", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Step 3 — verify the uploaded object and make it the caller's photo.
+   * POST /organizations/me/avatar/confirm
+   * Idempotent: replaying the same token returns the current profile.
+   * @param {{ storage_key_token: string }} payload
+   * @returns the caller's full profile (same shape as GET /organizations/me)
+   */
+  confirmAvatarUpload(payload) {
+    return request("/organizations/me/avatar/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // ── Everyone › Company Profile & Org Chart ─────────────────────────────────
+  //    Both are whole-org reads open to every tenant role.
+  /**
+   * The company detail sheet: org core, company profile, HR contacts, stats.
+   * GET /organizations/details
+   *
+   * `profile.gst_number` / `profile.company_pan_number` are returned to HR only;
+   * for everyone else the keys are ABSENT (not null). `profile` itself may be null.
+   */
+  getOrganizationDetails() {
+    return request("/organizations/details");
+  },
+
+  /**
+   * The live reporting tree of every active member.
+   * GET /organizations/hierarchy → `{ total_members, roots: Node[] }`, each Node
+   * carrying `children` recursively. `roots` is a forest (several top nodes).
+   * No pagination. Avatar URLs are presigned and last ~5 minutes.
+   */
+  getOrganizationHierarchy() {
+    return request("/organizations/hierarchy");
+  },
+
   // ── Employee › Organization Directory ──────────────────────────────────────
   //    Browse colleagues across the organization (public-safe data)
   /**

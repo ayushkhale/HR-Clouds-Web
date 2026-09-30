@@ -14,6 +14,7 @@ import {
 } from "../ctcBudget";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { calculationLabel } from "../runMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 // Org employee rows carry `user_id`; payroll rows carry `id`. Accept either.
 const orgUserId = (u) => u?.user_id ?? u?.id ?? u?._id;
@@ -554,7 +555,10 @@ export default function PayrollTemplatesPage() {
                 <input type="text" required value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Definition Mode</label>
+                <div className="flex items-center">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Definition Mode</label>
+                  <FieldHelp surface="payroll.structure_template" field="definition_mode" label="how the template is built" className="mb-2" />
+                </div>
                 <select value={formData.definition_mode} onChange={e => setFormData({...formData, definition_mode: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                   <option value="ctc_driven">CTC Driven (Top-down)</option>
                   <option value="component_driven">Component Driven (Bottom-up)</option>
@@ -681,7 +685,10 @@ export default function PayrollTemplatesPage() {
                     </select>
                   </div>
                   <div className="col-span-6 md:col-span-4">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Calculation</label>
+                    <div className="flex items-center">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Calculation</label>
+                      <FieldHelp surface="payroll.structure_template" field="calculation_type" label="how this line is worked out" className="mb-1.5" size="sm" overlay />
+                    </div>
                     <select value={componentFormData.calculation_type} onChange={e => setComponentFormData({...componentFormData, calculation_type: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-purple-400 outline-none">
                       <option value="flat">Flat Amount</option>
                       <option value="percent_of_basic">Percentage of Basic</option>
@@ -724,6 +731,10 @@ export default function PayrollTemplatesPage() {
           subtitle={previewTpl.code || undefined}
           badge={previewData ? <DetailPill tone="onDark">{formatINR(previewData.annual_ctc)} / year</DetailPill> : undefined}
           onClose={closePreview}
+          // Until a CTC is entered this holds one person picker and one amount
+          // field; at full width it read as an empty dialog. It widens itself
+          // when the split arrives and there is something to lay out.
+          width={previewData ? "wide" : "compact"}
         >
           <DetailSection title="Work it out for" icon={HiEye} collapsible={false}>
             <form onSubmit={runPreview}>

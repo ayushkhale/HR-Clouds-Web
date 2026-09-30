@@ -6,6 +6,7 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import { formatComponentValue } from "../../../../shared/utils/formatUtils";
 import { calculationLabel } from "../runMeta";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -307,7 +308,10 @@ export default function PayrollComponentsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Calculation</label>
+                    <div className="flex items-center">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Calculation</label>
+                      <FieldHelp surface="payroll.component_setup" field="calculation_type" label="how this component is worked out" className="mb-2" />
+                    </div>
                     <select disabled={editingComp?.is_system} value={formData.calculation_type} onChange={e => setFormData({...formData, calculation_type: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-50">
                       <option value="flat">Flat Amount</option>
                       <option value="percent_of_basic">Percentage of Basic</option>
@@ -328,14 +332,20 @@ export default function PayrollComponentsPage() {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <h4 className="text-xs font-bold text-slate-800 mb-3">Behavioural Flags</h4>
                   <div className="grid grid-cols-2 gap-y-3">
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_basic} onChange={e => setFormData({...formData, is_basic: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Is Basic Component
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_part_of_ctc} onChange={e => setFormData({...formData, is_part_of_ctc: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Part of CTC
-                    </label>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_basic} onChange={e => setFormData({...formData, is_basic: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Is Basic Component
+                      </label>
+                      <FieldHelp surface="payroll.component_setup" field="is_basic" label="the basic component" />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_part_of_ctc} onChange={e => setFormData({...formData, is_part_of_ctc: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Part of CTC
+                      </label>
+                      <FieldHelp surface="payroll.component_setup" field="is_part_of_ctc" label="part of CTC" />
+                    </div>
                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                       <input type="checkbox" checked={formData.is_taxable} onChange={e => setFormData({...formData, is_taxable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                       Taxable (TDS)
@@ -344,10 +354,13 @@ export default function PayrollComponentsPage() {
                       <input type="checkbox" checked={formData.is_lop_applicable} onChange={e => setFormData({...formData, is_lop_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                       Cut for unpaid days
                     </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.pf_applicable} onChange={e => setFormData({...formData, pf_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      PF Applicable
-                    </label>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.pf_applicable} onChange={e => setFormData({...formData, pf_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        PF Applicable
+                      </label>
+                      <FieldHelp surface="payroll.component_setup" field="pf_applicable" label="PF applicable" />
+                    </div>
                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                       <input type="checkbox" checked={formData.esi_applicable} onChange={e => setFormData({...formData, esi_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                       ESI Applicable

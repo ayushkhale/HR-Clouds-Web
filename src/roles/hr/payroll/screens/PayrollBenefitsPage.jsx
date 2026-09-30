@@ -25,6 +25,7 @@ import {
 } from "../../../../shared/utils/benefitMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -212,7 +213,10 @@ function PlanFormDialog({ plan, components, activeCount, onClose, onSaved }) {
             <summary className="text-sm font-bold text-slate-600 cursor-pointer">Advanced</summary>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="plan-emp-comp" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Deduction component (employee)</label>
+                <div className="flex items-center">
+                  <label htmlFor="plan-emp-comp" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Deduction component (employee)</label>
+                  <FieldHelp surface="payroll.benefit_plan" field="employee_component_id" label="the deduction component" className="mb-1" size="sm" overlay />
+                </div>
                 <select id="plan-emp-comp" value={form.employee_component_id} onChange={(e) => set({ employee_component_id: e.target.value })} className={fieldCls}>
                   <option value="">Payroll picks one</option>
                   {catalog.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -432,7 +436,7 @@ function PlanMembersTable({ planId, nameOf, onEndCover }) {
 
   return (
     <DetailSection title="Members" icon={HiHeart} action={(
-      <select aria-label="Member status" value={status} onChange={(e) => setStatus(e.target.value)} className="h-8 px-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-purple-400">
+      <select aria-label="Member status" value={status} onChange={(e) => setStatus(e.target.value)} className="h-8 px-3 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
         {ENROLLMENT_STATUS_FILTERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
     )}>

@@ -30,7 +30,7 @@ import {
 } from "react-icons/hi";
 
 const labelCls = "block text-[10px] font-bold text-slate-400 uppercase mb-1.5";
-const fieldCls = "w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none";
+const fieldCls = "w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
 
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
 const count = (v) => (v === null || v === undefined || v === "" ? "N/A" : v);

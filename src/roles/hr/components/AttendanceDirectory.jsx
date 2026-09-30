@@ -18,6 +18,7 @@ import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, todayYMD } from "../../../sha
 import { RECORD_STATUS_FILTERS } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 const TABS = [
   { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance },
@@ -139,7 +140,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Status</th>
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Clock In</th>
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Clock Out</th>
-                    <th className="px-6 py-3.5 text-right text-[11px] uppercase tracking-wide">Hours</th>
+                    <th className="px-6 py-3.5 text-right text-[11px] uppercase tracking-wide"><HelpLabel text="Hours" help={{ surface: "attendance.team", field: "effective_hours", label: "effective hours" }} /></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">

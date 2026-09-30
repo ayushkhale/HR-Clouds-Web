@@ -4,20 +4,25 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
-import { HiUserGroup, HiClock, HiSparkles, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh } from "react-icons/hi";
+import { HiUserGroup, HiClock, HiSparkles, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh, HiCalendar } from "react-icons/hi";
 import { attendanceAPI } from "../../../shared/api";
 import AttendanceDirectory from "../components/AttendanceDirectory";
+import AttendanceCard from "../../employee/components/AttendanceCard";
+import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
+import { SELF_SERVICE_BASE } from "../../../shared/attendance/paths";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
-import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
+import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
+import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { employeeCode, initials, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthLabelShort, shiftMonth, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, monthLabel, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
-import DetailDialog from "../../../shared/components/DetailDialog";
 import { greetingFor } from "../../../shared/utils/greeting";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
 
 const LIVE_REFRESH_MS = 60_000;
 const MODE_COLORS = { office: "#7C3AED", remote: "#818CF8", field: "#D946EF", hybrid: "#C4B5FD" };
@@ -39,17 +44,6 @@ function useWidget(fetcher, deps) {
   }, deps);
   useEffect(() => { load(); }, [load]);
   return [state, load];
-}
-
-function MonthStepper({ period, onChange }) {
-  const next = shiftMonth(period.year, period.month, 1);
-  return (
-    <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
-      <button type="button" onClick={() => onChange(shiftMonth(period.year, period.month, -1))} className="p-1 hover:bg-slate-100 rounded text-slate-400" aria-label="Previous month"><HiChevronLeft className="w-4 h-4" /></button>
-      <span className="w-20 text-center select-none">{monthLabelShort(period.year, period.month)}</span>
-      <button type="button" onClick={() => onChange(next)} disabled={isFutureMonth(next.year, next.month)} className="p-1 hover:bg-slate-100 rounded text-slate-400 disabled:opacity-30" aria-label="Next month"><HiChevronRight className="w-4 h-4" /></button>
-    </div>
-  );
 }
 
 /* ─── Department summary (H61) ─────────────────────────────────── */
@@ -102,31 +96,46 @@ export function DepartmentCard({ dept }) {
 const deptNameOf = (dept) => dept.department || dept.department_name || "Unassigned";
 const deptKey = (dept, i) => dept.department_id || `${deptNameOf(dept)}-${i}`;
 
-// The dashboard shows one row of departments; the rest open in a popup.
-const DEPT_PREVIEW = 3;
-const DEPT_ROW_COLS = { 1: "md:grid-cols-1", 2: "md:grid-cols-2", 3: "md:grid-cols-3" };
+const DEPTS_PER_PAGE = 2;
 
-function DepartmentSummaryCard() {
+// Key for a department row — the id when the server sends one, else its name.
+
+function DepartmentSummaryCard({ className = "" }) {
   const [date, setDate] = useState(todayYMD());
-  const [showAll, setShowAll] = useState(false);
+  // Two departments a page, paged like the manager's card. Showing every
+  // department stacked made this column grow past the trends chart beside it,
+  // so the card height moved with the number of departments; a fixed page
+  // keeps it still, and two fit the room this column has.
+  const [deptPage, setDeptPage] = useState(0);
   const [state, reload] = useWidget(() => attendanceAPI.getDepartmentSummary(date), [date]);
   const depts = listFrom(state.data, ["departments"]);
-  const preview = depts.slice(0, DEPT_PREVIEW);
   const dateLabel = fmtDate(date, { day: "numeric", month: "short" });
+  const deptPages = Math.max(1, Math.ceil(depts.length / DEPTS_PER_PAGE));
+  // Clamped rather than reset: a shorter list on a new date must not leave the
+  // page pointing past the end for the render that happens before an effect.
+  const safeDeptPage = Math.min(deptPage, deptPages - 1);
+  const shownDepts = depts.slice(safeDeptPage * DEPTS_PER_PAGE, safeDeptPage * DEPTS_PER_PAGE + DEPTS_PER_PAGE);
+
+  useEffect(() => { setDeptPage(0); }, [date]);
 
   return (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-100">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h3 className="text-lg font-bold text-slate-800">Department overview · {dateLabel}</h3>
-        <div className="flex items-center gap-2">
-          <input type="date" value={date} max={todayYMD()} onChange={(e) => e.target.value && setDate(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600" aria-label="Department summary date" />
-          {!state.loading && !state.error && depts.length > DEPT_PREVIEW && (
-            <button type="button" onClick={() => setShowAll(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors">
-              View all ({depts.length}) <HiChevronRight className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+    <div className={`${CARD} flex flex-col min-h-0 ${className}`}>
+      <CardHeader
+        title="Department overview"
+        subtitle={`${depts.length || "No"} ${depts.length === 1 ? "department" : "departments"} · ${dateLabel}`}
+        action={(
+          <div className="flex items-center gap-2">
+            <input type="date" value={date} max={todayYMD()} onChange={(e) => e.target.value && setDate(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600" aria-label="Department summary date" />
+            {deptPages > 1 && (
+              <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-600">
+                <button type="button" onClick={() => setDeptPage((i) => Math.max(0, i - 1))} disabled={safeDeptPage === 0} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Previous departments"><HiChevronLeft className="w-4 h-4" /></button>
+                <span className="w-10 text-center select-none tabular-nums">{safeDeptPage + 1}/{deptPages}</span>
+                <button type="button" onClick={() => setDeptPage((i) => Math.min(deptPages - 1, i + 1))} disabled={safeDeptPage >= deptPages - 1} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Next departments"><HiChevronRight className="w-4 h-4" /></button>
+              </div>
+            )}
+          </div>
+        )}
+      />
       {state.error ? (
         <ErrorState error={state.error} onRetry={reload} fallback="Couldn't load department data." />
       ) : state.loading ? (
@@ -134,18 +143,28 @@ function DepartmentSummaryCard() {
       ) : depts.length === 0 ? (
         <EmptyState icon={HiUserGroup} title="No department data" message="Assign employees to departments to see this breakdown." />
       ) : (
-        <div className={`grid gap-6 grid-cols-1 ${DEPT_ROW_COLS[preview.length]}`}>
-          {preview.map((dept, i) => <DepartmentCard key={deptKey(dept, i)} dept={dept} />)}
+        <div className="flex flex-col gap-4">
+          <div key={safeDeptPage} className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-2 duration-200">
+            {shownDepts.map((dept, i) => <DepartmentCard key={deptKey(dept, i)} dept={dept} />)}
+          </div>
+          {deptPages > 1 && (
+            <div className="flex flex-wrap justify-center gap-1.5" role="tablist" aria-label="Department pages">
+              {Array.from({ length: deptPages }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === safeDeptPage}
+                  aria-label={`Departments ${i * DEPTS_PER_PAGE + 1}–${Math.min((i + 1) * DEPTS_PER_PAGE, depts.length)}`}
+                  onClick={() => setDeptPage(i)}
+                  className={`h-1.5 rounded-full transition-all ${i === safeDeptPage ? "w-5 bg-purple-600" : "w-1.5 bg-purple-200 hover:bg-purple-300"}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {showAll && (
-        <DetailDialog title="All departments" subtitle={`${depts.length} departments · ${dateLabel}`} icon={HiUserGroup} onClose={() => setShowAll(false)}>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {depts.map((dept, i) => <DepartmentCard key={deptKey(dept, i)} dept={dept} />)}
-          </div>
-        </DetailDialog>
-      )}
     </div>
   );
 }
@@ -185,6 +204,9 @@ function HRDashboard() {
   const totalChartPages = chartPageCount(daily);
   const safePage = Math.min(chartPage ?? defaultChartPage(daily, period), totalChartPages - 1);
   const chartData = chartPageRows(daily, safePage);
+  // Headroom above the tallest bar, so a day when everyone turned up doesn’t
+  // draw a bar flush with the top gridline.
+  const yAxis = trendYAxis(chartData);
 
   const handleChartWheel = (e) => {
     const t = Date.now();
@@ -193,11 +215,15 @@ function HRDashboard() {
     else if ((e.deltaX < -15 || e.deltaY < -15) && safePage > 0) { setChartPage(safePage - 1); chartScrollTimeout.current = t; }
   };
 
+  const { today, shift, loading: todayLoading, error: todayError, refresh: refreshToday } = useTodayAttendance();
+
   const l = live.data || {};
   const stats = [
     { label: "Total org personnel", value: num(l.total_employees), icon: HiUserGroup },
     { label: "Present today", value: num(l.final_present_count), icon: HiCheckCircle, tag: DICTIONARY.STATUS.PRESENT },
-    { label: "Absent today", value: num(l.final_absent_count), icon: HiExclamationCircle, tag: DICTIONARY.STATUS.ABSENT },
+    // overlay: at 390 the ⓘ pushed "Absent today" onto a second line and made
+    // every tile in the row taller — the same fix the manager dashboard needed.
+    { label: "Absent today", value: num(l.final_absent_count), icon: HiExclamationCircle, tag: DICTIONARY.STATUS.ABSENT, help: { surface: "attendance.team", field: "final_absent_count", overlay: true } },
     { label: "Late arrivals", value: num(l.counts?.late), icon: HiClock, tag: DICTIONARY.STATUS.LATE },
   ];
 
@@ -213,88 +239,119 @@ function HRDashboard() {
           image="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312"
         />
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100 order-2">
-            <div className="flex items-center justify-between mb-5">
-              <p className="text-[11px] font-semibold text-slate-400">{liveAt ? `Live · updated ${fmtTime(liveAt)}` : "Live"}</p>
-              <button type="button" onClick={reloadLive} disabled={live.loading} className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh live counts">
-                <HiRefresh className={`w-4 h-4 ${live.loading ? "animate-spin" : ""}`} />
-              </button>
-            </div>
-            {live.error ? (
-              <ErrorState error={live.error} onRetry={reloadLive} fallback="Couldn't load live counts." />
-            ) : (
-              <div className={`grid grid-cols-2 gap-6 ${live.loading && !live.data ? "opacity-50" : ""}`}>
-                {stats.map(({ label, value, icon: Icon, tag }) => (
-                  <div key={label}>
-                    <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 mb-3 bg-slate-50"><Icon className="w-4 h-4" /></div>
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-1 sm:gap-3 mb-1">
-                      <span className="text-3xl font-bold tracking-tight text-slate-800 leading-none">{value}</span>
-                      {tag && <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full w-max">{tag}</span>}
-                    </div>
-                    <div className="text-[11px] sm:text-sm font-semibold text-slate-500 mt-1">{label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* Left half: my punch card over the month's trend. Right half: today's
+            live numbers, stretched to the height of both. This mirrors the
+            manager dashboard exactly — same shell, same header, same stacked
+            card — so a manager promoted to HR keeps the screen they know (§2). */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          <div className="flex flex-col gap-6 min-w-0">
+            <section className={CARD}>
+              <CardHeader
+                icon={HiCalendar}
+                divider
+                title="My attendance"
+                subtitle="Clock in, take breaks and clock out"
+                action={<Link to={SELF_SERVICE_BASE.hr} className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 whitespace-nowrap">My history <HiChevronRight className="w-3.5 h-3.5" /></Link>}
+              />
+              <AttendanceCard className="flex flex-col" currentState={today} fetchStatus={refreshToday} shiftData={shift} loading={todayLoading} error={todayError} />
+            </section>
 
-          <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-xs border border-slate-100 flex flex-col justify-between order-1">
-            {/* Controls sit under the title until the card is wide enough for both:
-                side by side, "Team Performance" ran into the day pager on a 14" screen. */}
-            <div className="flex flex-col 2xl:flex-row justify-between 2xl:items-start gap-3 mb-6">
-              <div className="min-w-0">
-                <h3 className="text-lg font-bold text-slate-800 whitespace-nowrap">{DICTIONARY.HEADERS.TEAM_PERFORMANCE}</h3>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: TREND_COLORS.present }} /> {DICTIONARY.STATUS.PRESENT}</span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: TREND_COLORS.on_leave }} /> On leave</span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: TREND_COLORS.absent }} /> {DICTIONARY.STATUS.ABSENT}</span>
+            {/* The manager dashboard's trends card, to the pixel: same header, legend
+                row, pager, plot height and margins, and the same name out of the
+                dictionary. A manager promoted to HR must not have to relearn it
+                (§2), so change the two together or not at all. */}
+            <section className={`${CARD} flex-1 flex flex-col`}>
+              <CardHeader
+                title={DICTIONARY.HEADERS.TEAM_ATTENDANCE_TRENDS}
+                subtitle={DICTIONARY.DESCRIPTIONS.TEAM_ATTENDANCE_TRENDS}
+                action={<MonthStepper period={period} onChange={setPeriod} />}
+              />
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-4">
+                  {[[DICTIONARY.STATUS.PRESENT, TREND_COLORS.present], ["On leave", TREND_COLORS.on_leave], [DICTIONARY.STATUS.ABSENT, TREND_COLORS.absent]].map(([label, dot]) => (
+                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: dot }} /> {label}</span>
+                  ))}
                 </div>
-              </div>
-              <div className="flex gap-2 shrink-0">
                 {totalChartPages > 1 && (
-                  <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600">
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
                     <button type="button" onClick={() => setChartPage(Math.max(0, safePage - 1))} disabled={safePage === 0} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Earlier days"><HiChevronLeft className="w-4 h-4" /></button>
-                    <span className="text-center select-none w-12">{safePage + 1}/{totalChartPages}</span>
+                    <span className="text-center select-none w-10 tabular-nums">{safePage + 1}/{totalChartPages}</span>
                     <button type="button" onClick={() => setChartPage(Math.min(totalChartPages - 1, safePage + 1))} disabled={safePage >= totalChartPages - 1} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Later days"><HiChevronRight className="w-4 h-4" /></button>
                   </div>
                 )}
-                <MonthStepper period={period} onChange={setPeriod} />
               </div>
-            </div>
-            <div className="relative w-full h-72 mt-auto pt-4 pb-3" onWheel={handleChartWheel}>
-              {graph.loading ? (
-                <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
-              ) : graph.error ? (
-                <ErrorState error={graph.error} onRetry={reloadGraph} fallback="Couldn't load trends." />
-              ) : chartData.length === 0 ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                  <HiChartBar className="w-8 h-8 mb-2 opacity-50" />
-                  <p className="text-sm font-semibold">No attendance recorded for {monthLabel(period.year, period.month)}</p>
+              {/* mt-4: breathing room between the legend row and the top gridline.
+                  The plot is absolutely positioned, so it would paint straight over
+                  padding on this wrapper — the gap has to be margin. */}
+              <div className="relative w-full flex-1 min-h-[16rem] mt-4" onWheel={handleChartWheel}>
+                <div className="absolute inset-0">
+                    {graph.loading ? (
+                      <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
+                    ) : graph.error ? (
+                      <ErrorState error={graph.error} onRetry={reloadGraph} fallback="Couldn't load team trends." />
+                    ) : chartData.length === 0 ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                        <HiChartBar className="w-8 h-8 mb-2 opacity-50" />
+                        <p className="text-sm font-semibold">No attendance recorded for {monthLabel(period.year, period.month)}</p>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval="preserveStartEnd" />
+                          {sundayMarkers(chartData)}
+                          <YAxis allowDecimals={false} domain={yAxis.domain} ticks={yAxis.ticks} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
+                          <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
+                          <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          {/* Approved leave is its own count — the server keeps it out of
+                              final_absent_count, so the three bars never double-count a day. */}
+                          <Bar dataKey="on_leave_count" name="On leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                 </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="flex flex-col gap-6 min-w-0">
+            <section className={CARD}>
+              <CardHeader
+                title="Live attendance"
+                subtitle={liveAt ? `Live · updated ${fmtTime(liveAt)}` : "Live"}
+                action={(
+                  <button type="button" onClick={reloadLive} disabled={live.loading} className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh live counts">
+                    <HiRefresh className={`w-4 h-4 ${live.loading ? "animate-spin" : ""}`} />
+                  </button>
+                )}
+              />
+              {live.error ? (
+                <ErrorState error={live.error} onRetry={reloadLive} fallback="Couldn't load live counts." />
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 8, left: -20, bottom: 12 }} barGap={2} barCategoryGap="25%">
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval="preserveStartEnd" />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
-                    {sundayMarkers(chartData)}
-                    <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
-                    <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
-                    {/* Approved leave is its own count — the server keeps it out of
-                        final_absent_count, so the three bars never double-count a day. */}
-                    <Bar dataKey="on_leave_count" name="On leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className={`grid grid-cols-2 gap-3 ${live.loading && !live.data ? "opacity-50" : ""}`}>
+                  {stats.map(({ label, value, icon: Icon, tag, help }) => (
+                    <div key={label} className="rounded-2xl bg-slate-50/70 border border-slate-100 px-4 py-3.5">
+                      {/* Wraps rather than truncates, as on the manager's tiles:
+                          "Total org personnel" is cut to an ellipsis otherwise. */}
+                      <div className="flex items-start gap-2 text-slate-400">
+                        <Icon className="w-4 h-4 text-purple-500 shrink-0" />
+                        <span className="text-[11px] font-semibold leading-tight"><HelpLabel text={label} help={help} /></span>
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none tabular-nums">{value}</p>
+                        {tag && <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">{tag}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
+            </section>
+
+            <DepartmentSummaryCard className="flex-1" />
           </div>
         </div>
 
-
-
-        <DepartmentSummaryCard />
 
         <div className="mt-8">
           <AttendanceDirectory />

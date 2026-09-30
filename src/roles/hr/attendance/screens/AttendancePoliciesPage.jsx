@@ -11,6 +11,7 @@ import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from ".
 import { fmtHours } from "../../../../shared/attendance/dates";
 import { HiClipboardList, HiPlus, HiX, HiPencil, HiBadgeCheck, HiInformationCircle, HiClock, HiPause, HiExclamationCircle, HiLightningBolt, HiRefresh } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const days = (n) => `${n} ${Number(n) === 1 ? "day" : "days"}`;
 // "7.00" → "7h": nine columns have to fit a 14" laptop, and "7.00 hrs / 4.00 hrs"
@@ -57,7 +58,12 @@ const inputClass = (invalid) =>
 function NumberField({ label, hint, name, value, onChange, error, step = 1, min = 0, max, suffix, placeholder }) {
   return (
     <div>
-      <label htmlFor={`policy-${name}`} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
+      <div className="flex items-center">
+        <label htmlFor={`policy-${name}`} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
+        {/* overlay: these sit five to a row on a laptop, where a 26px icon
+            would wrap the label and make every field in the row taller. */}
+        <FieldHelp surface="attendance.policy_setup" field={name} label={label} className="mb-2" overlay />
+      </div>
       <div className="relative">
         <input
           id={`policy-${name}`}
@@ -223,7 +229,10 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
           <Section title="Missing punches">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="bg-slate-50 rounded-xl p-5">
-                <label htmlFor="policy-missing" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">When a punch is missing</label>
+                <div className="flex items-center">
+                  <label htmlFor="policy-missing" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">When a punch is missing</label>
+                  <FieldHelp surface="attendance.policy_setup" field="missing_punch_action" label="what happens to a missing punch" className="mb-2" />
+                </div>
                 <select id="policy-missing" value={form.missing_punch_action} onChange={(e) => set("missing_punch_action", e.target.value)} className={inputClass(!!errors.missing_punch_action)}>
                   {MISSING_PUNCH_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
                 </select>

@@ -316,13 +316,24 @@ export const OVERRIDE_MAX_LENGTH = 500;
 export const OVERRIDE_MAX_KEYS = 20;
 
 /**
- * The boxes the issue and reissue forms show, built from #136's own field lists.
+ * The boxes the issue, reissue and proposal forms show, built from #136.
  *
- * `required_fields` and `optional_fields` are the letter's placeholders, which is
- * exactly the set #139 validates an override key against. Facts are dropped (see
- * fact 4), as is anything the server has already refused, and the cap is applied
- * so a template with a long placeholder list can't build a body #139 rejects
- * outright.
+ * #136 describes a letter's placeholders two ways, and both are read:
+ *
+ *  · `fields` — a form DESCRIPTOR, `[{ key, label, type, max_length, required }]`.
+ *    Preferred when present: the server names each box and gives its own length
+ *    limit, so a template added later needs no change here.
+ *  · `required_fields` / `optional_fields` — plain key lists, which is what the
+ *    endpoint answered before the descriptor existed and is still the fallback.
+ *
+ * Either way the same three filters apply: a fact read from the person's record
+ * is dropped (#139 refuses an override of one — see fact 4), so is anything the
+ * server has already refused this session, and the cap keeps a long placeholder
+ * list from building a body #139 rejects outright.
+ *
+ * Our own wording wins over the server's label where we have curated one
+ * (CLAUDE.md §6): "Closing note" reads better than whatever the template calls
+ * it, and the hint and single-line/paragraph choice only exist here.
  *
  * @param {object} template     the #136 `template` object
  * @param {string} [code]       template code, for the session's refusal memory
@@ -332,30 +343,41 @@ export const OVERRIDE_MAX_KEYS = 20;
 export function letterOverridableFields(template, code, refused = []) {
   const templateCode = code || template?.code || "";
   const rejected = new Set(refused);
-  const required = Array.isArray(template?.required_fields) ? template.required_fields : [];
-  const optional = Array.isArray(template?.optional_fields) ? template.optional_fields : [];
+
+  const descriptor = Array.isArray(template?.fields) ? template.fields : null;
+  const entries = descriptor
+    ? descriptor.map((field) => ({
+      key: String(field?.key ?? "").trim(),
+      required: field?.required === true,
+      label: typeof field?.label === "string" ? field.label.trim() : "",
+      // The server's own limit, never above #139's flat 500-character cap.
+      max: Math.min(Number(field?.max_length) > 0 ? Number(field.max_length) : OVERRIDE_MAX_LENGTH, OVERRIDE_MAX_LENGTH),
+    }))
+    : [
+      ...(Array.isArray(template?.required_fields) ? template.required_fields : []).map((key) => ({ key: String(key ?? "").trim(), required: true, label: "", max: OVERRIDE_MAX_LENGTH })),
+      ...(Array.isArray(template?.optional_fields) ? template.optional_fields : []).map((key) => ({ key: String(key ?? "").trim(), required: false, label: "", max: OVERRIDE_MAX_LENGTH })),
+    ];
 
   const seen = new Set();
   const out = [];
-  [...required.map((key) => [key, true]), ...optional.map((key) => [key, false])].forEach(([key, isRequired]) => {
-    const name = String(key || "").trim();
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    if (isDerivedFactKey(name)) return;
-    if (rejected.has(name) || isKnownNotOverridable(templateCode, name)) return;
-    const known = NARRATIVE_LABELS[name];
+  entries.forEach(({ key, required, label, max }) => {
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    if (isDerivedFactKey(key)) return;
+    if (rejected.has(key) || isKnownNotOverridable(templateCode, key)) return;
+    const known = NARRATIVE_LABELS[key];
     out.push({
-      key: name,
-      label: known?.label || humanizeCode(name) || "Detail",
+      key,
+      label: known?.label || label || humanizeCode(key) || "Detail",
       help: known?.help || "",
       // `required` here means "the template normally prints this", not "the form
       // must have it" — see `overrideProblem()`. It only changes the hint.
-      required: isRequired,
-      // Whether the box is a line or a paragraph. Every override shares the same
-      // 500-character cap, so the cap can't decide this; only the field's own
-      // nature can, and a key we don't recognise gets the quieter single line.
+      required,
+      // Whether the box is a line or a paragraph. The length cap can't decide
+      // this, so only the field's own nature can; a key we don't recognise gets
+      // the quieter single line.
       long: known?.long === true,
-      max: OVERRIDE_MAX_LENGTH,
+      max,
     });
   });
   return out.slice(0, OVERRIDE_MAX_KEYS);
@@ -397,7 +419,9 @@ export function letterFactFields(template) {
  */
 export function overrideProblem(field, value) {
   const text = String(value ?? "");
-  if (text.length > OVERRIDE_MAX_LENGTH) return `Keep this under ${OVERRIDE_MAX_LENGTH} characters.`;
+  // The field's own limit where #136 gave one, and never above #139's flat cap.
+  const max = Number(field?.max) > 0 ? Math.min(Number(field.max), OVERRIDE_MAX_LENGTH) : OVERRIDE_MAX_LENGTH;
+  if (text.length > max) return `Keep this under ${max} characters.`;
   return "";
 }
 

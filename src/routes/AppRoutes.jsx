@@ -147,6 +147,8 @@ const MyReimbursementsPage = lazy(() => import("../roles/employee/payroll/screen
 const DocumentsPage = lazy(() => import("../shared/screens/DocumentsPage"));
 const MyProfilePage = lazy(() => import("../shared/screens/MyProfilePage"));
 const DirectoryPage = lazy(() => import("../shared/screens/DirectoryPage"));
+const OrgChartPage = lazy(() => import("../shared/screens/OrgChartPage"));
+const CompanyProfilePage = lazy(() => import("../shared/screens/CompanyProfilePage"));
 const MyDocumentsPage = lazy(() => import("../shared/screens/MyDocumentsPage"));
 const IssuedDocumentsPage = lazy(() => import("../shared/screens/IssuedDocumentsPage"));
 const MyRequestsPage = lazy(() => import("../shared/screens/MyRequestsPage"));
@@ -293,6 +295,9 @@ function AppRoutes() {
         <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
         <Route path="/dashboard/hr/departments" element={<DepartmentsPage />} />
         <Route path="/dashboard/hr/departments/:departmentId" element={<DepartmentDetailPage />} />
+        {/* Org-wide reads open to every role (ORG_PATHS) */}
+        <Route path="/dashboard/hr/org-chart" element={<OrgChartPage />} />
+        <Route path="/dashboard/hr/company" element={<CompanyProfilePage />} />
         <Route path="/dashboard/hr/attendance/directory" element={<HRAttendancePage />} />
         <Route path="/dashboard/hr/attendance/policies" element={<AttendancePoliciesPage />} />
         <Route path="/dashboard/hr/attendance/shifts" element={<AttendanceShiftsPage />} />
@@ -407,6 +412,8 @@ function AppRoutes() {
         <Route path="/dashboard/manager/team/history" element={<ManagerTeamHistoryPage />} />
         <Route path="/dashboard/manager/team" element={<ManagerTeamRosterPage />} />
         <Route path="/dashboard/manager/team/member/:userId" element={<ManagerMemberProfilePage />} />
+        <Route path="/dashboard/manager/org-chart" element={<OrgChartPage />} />
+        <Route path="/dashboard/manager/company" element={<CompanyProfilePage />} />
         {/* The page was called "Team Roster"; it is "Team" now, like HR's. */}
         <Route path="/dashboard/manager/team/roster" element={<Navigate to="/dashboard/manager/team" replace />} />
         <Route path="/dashboard/manager/team/anomalies" element={<ManagerAnomaliesPage />} />
@@ -442,6 +449,8 @@ function AppRoutes() {
       {/* ─── EMPLOYEE WORKSPACE ─── */}
       <Route element={<ProtectedRoute workspace="employee"><DashboardLayout role="employee" /></ProtectedRoute>}>
         <Route path="/dashboard/employee" element={<EmployeeDashboard />} />
+        <Route path="/dashboard/employee/org-chart" element={<OrgChartPage />} />
+        <Route path="/dashboard/employee/company" element={<CompanyProfilePage />} />
         <Route path="/dashboard/employee/attendance" element={<EmployeeAttendancePage />} />
         <Route path="/dashboard/employee/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
         <Route path="/dashboard/employee/attendance/anomalies" element={<AttendanceAnomaliesPage />} />

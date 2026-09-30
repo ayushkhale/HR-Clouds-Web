@@ -205,6 +205,11 @@ export const DOCUMENT_ERROR_MESSAGES = {
   LETTER_BULK_DUPLICATE_SUBJECT: "Somebody appears twice in this list, so nothing was queued. Remove the repeat and send it again — one person can only be sent one copy per batch.",
   LETTER_BULK_TOO_MANY_SUBJECTS: "This batch has more people in it than your organisation allows at once, so nothing was queued. Send it in smaller batches, or raise the limit in Document Settings.",
   LETTER_BULK_VALIDATION_FAILED: "Some of these people can’t be sent this letter, so none of them were — a batch goes out whole or not at all. Take the ones listed below out and send the rest.",
+  // PDF Phase 5. The one refusal here that is about the ORGANISATION rather
+  // than about this batch, and the only one where trying again straight away
+  // makes things worse: a retry spends another allowance even when it is the
+  // very same batch. So the copy says wait, and the screen shows how long.
+  LETTER_BULK_RATE_EXCEEDED: "Your organisation has started as many batches this hour as it allows, so nothing was queued. Nobody was sent anything twice — wait until the allowance refreshes, then send this batch again. HR can raise the hourly limit in Document Settings.",
   LETTER_PROPOSALS_DISABLED: "Your organisation hasn’t opened letter drafting to managers, so this can’t be sent to HR. Ask HR to switch it on in Document Settings.",
   LETTER_PROPOSAL_EXISTS: "You’ve already asked for this letter for this person and HR hasn’t decided yet. Wait for that one rather than raising a second.",
   LETTER_PROPOSAL_NOT_PENDING: "Somebody has already decided this one, so nothing changed. Refresh to see what was decided.",
@@ -692,6 +697,26 @@ export function bulkSubjectLimit(err) {
 
 export const isBulkValidationFailed = (err) => documentErrorCode(err) === "LETTER_BULK_VALIDATION_FAILED";
 export const isBulkTooMany = (err) => documentErrorCode(err) === "LETTER_BULK_TOO_MANY_SUBJECTS";
+/** #143's hourly ceiling on BATCHES (#96), distinct from #91's ceiling on people. */
+export const isBulkRateLimited = (err) => documentErrorCode(err) === "LETTER_BULK_RATE_EXCEEDED";
+
+/**
+ * How long to wait after a 429, in seconds.
+ *
+ * The body is read first and the `Retry-After` header second: a proxy can drop
+ * a header but never the payload, and both carry the same number. It counts
+ * down to the top of the next clock hour, which is when the allowance refreshes
+ * — it is a fixed window, not a rolling sixty minutes, so the wait is usually
+ * well under an hour.
+ *
+ * Null when neither is present, which a screen shows as "shortly" rather than
+ * inventing a number to count down from.
+ */
+export function retryAfterSeconds(err) {
+  const raw = err?.data?.details?.retry_after_seconds ?? err?.data?.retry_after_seconds ?? err?.retryAfter;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.ceil(n) : null;
+}
 export const isProposalsDisabled = (err) => documentErrorCode(err) === "LETTER_PROPOSALS_DISABLED";
 export const isProposalDuplicate = (err) => documentErrorCode(err) === "LETTER_PROPOSAL_EXISTS";
 export const isProposalDecided = (err) => documentErrorCode(err) === "LETTER_PROPOSAL_NOT_PENDING";

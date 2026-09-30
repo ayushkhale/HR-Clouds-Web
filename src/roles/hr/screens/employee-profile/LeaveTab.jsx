@@ -5,8 +5,9 @@ import { noticeValue } from "../../../../shared/utils/leaveConfig";
 import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil,
-  HiCalendar, HiInformationCircle, HiRefresh,
+  HiCalendar, HiInformationCircle, HiRefresh, HiClipboardCheck,
 } from "react-icons/hi";
+import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -233,15 +234,15 @@ function CustomiseRulesModal({ userId, balance, onClose, onSaved }) {
 const LT_CURRENT_YEAR = new Date().getFullYear();
 const LT_YEAR_OPTIONS = [LT_CURRENT_YEAR, LT_CURRENT_YEAR - 1, LT_CURRENT_YEAR - 2];
 
-export default function LeaveTab({ userId }) {
+export default function LeaveTab({ userId, employeeName = "" }) {
   const [balances, setBalances] = useState([]);
-  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(false);
   const [year, setYear] = useState(LT_CURRENT_YEAR);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [assigning, setAssigning] = useState(false);
-  const [confirmAssign, setConfirmAssign] = useState(false);
+  // The assign form is the shared one (shared/leaves/AssignLeavePolicyDialog),
+  // the same dialog HR gets from the org-wide Leave Requests page — here with
+  // the person already decided, so it skips its picker.
+  const [assignOpen, setAssignOpen] = useState(false);
   const [customiseTarget, setCustomiseTarget] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -259,49 +260,16 @@ export default function LeaveTab({ userId }) {
       showToast("Failed to load leave balances.", "error");
     } finally {
       setBalancesLoading(false);
+      // The tab used to wait on the policy-template list, which the shared
+      // dialog now fetches for itself. The balances are the only thing left
+      // worth a skeleton, so they end it.
+      setLoading(false);
     }
   }, [userId, year]);
 
-  const loadTemplates = useCallback(async () => {
-    try {
-      const res = await leaveAPI.getTemplates();
-      setTemplates(res.data || []);
-    } catch {
-      // Non-critical — don't block the UI
-    }
-  }, []);
-
-  // Balances reload independently when the year changes (no full-tab skeleton).
+  // Balances reload independently when the year changes (no full-tab skeleton
+  // after the first one — `loading` is only ever true until the first read).
   useEffect(() => { loadBalances(); }, [loadBalances]);
-
-  useEffect(() => {
-    setLoading(true);
-    loadTemplates().finally(() => setLoading(false));
-  }, [loadTemplates]);
-
-  function handleAssignClick() {
-    if (!selectedTemplateId) {
-      showToast("Please select a policy template first.", "error");
-      return;
-    }
-    // Show confirmation before destructive replace of existing configs
-    setConfirmAssign(true);
-  }
-
-  async function executeAssign() {
-    setConfirmAssign(false);
-    setAssigning(true);
-    try {
-      await leaveAPI.assignPolicy(userId, { template_id: selectedTemplateId });
-      showToast("Policy assigned! Leave balances have been added.");
-      setSelectedTemplateId("");
-      await loadBalances();
-    } catch (err) {
-      showToast(err.message || "Failed to assign policy.", "error");
-    } finally {
-      setAssigning(false);
-    }
-  }
 
   function onCustomiseSaved(msg) {
     setCustomiseTarget(null);
@@ -331,7 +299,7 @@ export default function LeaveTab({ userId }) {
           </div>
           <div className="flex items-center gap-2">
             <select value={year} onChange={e => setYear(Number(e.target.value))}
-              className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white" title="Balance year">
+              className="h-8 px-3 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white" title="Balance year">
               {LT_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
             <button onClick={loadBalances} disabled={balancesLoading} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Refresh">
@@ -359,47 +327,25 @@ export default function LeaveTab({ userId }) {
         )}
       </div>
 
-      {/* ── Section 2: Assign Policy ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-bold text-slate-800">Assign Policy</h3>
+      {/* ── Section 2: Assign Policy ──
+          One row, not a header-plus-body card. The form that used to fill the
+          body now lives in the dialog, and keeping the old two-part shell left
+          ~140px of border and padding wrapped around a single button. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-slate-800">Assign a leave policy</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Gives this employee the leave days from a policy template, adjusted for how much of the year is left. Any existing leave rules are replaced.
+            Gives this employee the leave days from a policy, adjusted for how much of the year is left. Any existing leave rules are replaced.
           </p>
         </div>
-        <div className="p-6 flex flex-col sm:flex-row items-start sm:items-end gap-4">
-          <div className="flex-1 w-full">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Select Policy Template</label>
-            <select
-              value={selectedTemplateId}
-              onChange={e => setSelectedTemplateId(e.target.value)}
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-            >
-              <option value="">Choose a template...</option>
-              {templates.map(t => {
-                const entCount = t.entitlements?.length ?? 0;
-                return (
-                  <option key={t.id} value={t.id}>
-                    {t.name}{entCount === 0 ? " ⚠ (empty)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            {selectedTemplateId && templates.find(t => t.id === selectedTemplateId)?.entitlements?.length === 0 && (
-              <p className="text-xs text-fuchsia-600 mt-1.5 flex items-center gap-1">
-                <HiInformationCircle className="w-3.5 h-3.5" />
-                This template has no leave types — the employee will get 0 leave days.
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleAssignClick}
-            disabled={assigning || !selectedTemplateId}
-            className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
-          >
-            {assigning ? "Assigning…" : "Assign Policy"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAssignOpen(true)}
+          className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition whitespace-nowrap"
+        >
+          <HiClipboardCheck className="w-4 h-4" />
+          {balances.length > 0 ? "Change policy" : "Assign a policy"}
+        </button>
       </div>
 
       {/* ── Section 3: Customise rules for this employee ── */}
@@ -461,35 +407,13 @@ export default function LeaveTab({ userId }) {
         />
       )}
 
-      {/* Assign Policy Confirmation */}
-      {confirmAssign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-800">Confirm Policy Assignment</h2>
-              <p className="text-xs text-slate-400 mt-1.5">
-                Assigning a new policy will{" "}
-                <strong className="text-fuchsia-600">replace all of this employee's current leave rules</strong>{" "}
-                and recalculate their leave days based on how much of the year is left. This cannot be undone.
-              </p>
-            </div>
-            <div className="p-6 flex gap-3">
-              <button
-                onClick={executeAssign}
-                disabled={assigning}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition"
-              >
-                {assigning ? "Assigning…" : "Yes, Assign Policy"}
-              </button>
-              <button
-                onClick={() => setConfirmAssign(false)}
-                className="px-5 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+      {assignOpen && (
+        <AssignLeavePolicyDialog
+          userId={userId}
+          subjectName={employeeName}
+          onAssigned={(message) => { showToast(message); loadBalances(); }}
+          onClose={() => setAssignOpen(false)}
+        />
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />

@@ -8,9 +8,19 @@ import { HiSearch, HiBell, HiDocumentText, HiMenuAlt2, HiChevronDown } from "rea
 import GenderAvatar from "./GenderAvatar";
 import { useEmbeddedPage } from "../contexts/EmbeddedPageContext";
 
+// An uploaded photo is a presigned link that dies ~5 minutes after /me was
+// read, and the top bar re-mounts on every page. When it fails, re-read the
+// profile for a fresh link — once a minute at most, shared by every top bar.
+let lastPhotoRefresh = 0;
+const refreshOwnPhoto = (refreshProfile) => () => {
+  if (!refreshProfile || Date.now() - lastPhotoRefresh < 60_000) return;
+  lastPhotoRefresh = Date.now();
+  refreshProfile();
+};
+
 function DashboardTopBar({ title = "HR Dashboard" }) {
   const embedded = useEmbeddedPage();
-  const { user, role, orgId, updateTokens, getDashboardPath } = useAuth();
+  const { user, role, orgId, updateTokens, getDashboardPath, refreshProfile } = useAuth();
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const { toggleSidebar, nav } = useSidebar();
@@ -263,7 +273,7 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
             className="w-9 h-9 rounded-full bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center shadow-sm overflow-hidden border-2 border-transparent hover:border-purple-200 hover:shadow transition-all focus:outline-none"
             title="My Profile"
           >
-            <GenderAvatar person={user} name={user?.name || user?.email || user?.identifier} />
+            <GenderAvatar person={user} name={user?.name || user?.email || user?.identifier} onPhotoError={refreshOwnPhoto(refreshProfile)} />
           </button>
         </div>
       </div>

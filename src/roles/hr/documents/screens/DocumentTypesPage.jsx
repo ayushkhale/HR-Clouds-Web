@@ -22,11 +22,21 @@
 // is small and unpaginated (54 rows today), the tabs get honest counts, search
 // is instant, and there is no code path left that can send a default filter.
 // Don't "optimise" this back into a request per filter change.
+//
+// PDF letter filter (30 Sep 2026). The country filter was dropped — every
+// catalog row but a few Indian IDs is country-neutral, so it narrowed nothing
+// HR was looking for. In its place: "Ready-made PDF letter", the types HR
+// Clouds can generate from an HTML template. Those have to be ACTIVATED before
+// their letter can be issued, and they were buried among 50-odd upload types.
+// The template list (#135) is read alongside #1; if it fails (no documents
+// access, older server) the filter and the chips simply don't appear. The
+// type ↔ template pairing is inferred — see shared/documents/catalogLetterMeta.js.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { HiCheck, HiCog, HiCollection, HiLockClosed, HiPlus, HiRefresh, HiSearch, HiShieldCheck, HiSparkles, HiTemplate, HiX } from "react-icons/hi";
+import { Link } from "react-router-dom";
+import { HiCheck, HiCog, HiCollection, HiDocumentText, HiLockClosed, HiPlus, HiRefresh, HiSearch, HiShieldCheck, HiSparkles, HiTemplate, HiX } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { documentsAPI } from "../../../../shared/api";
@@ -37,6 +47,10 @@ import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from
 import { invalidateDocumentTypes } from "../../../../shared/documents/useDocumentTypes";
 import DocumentTypeFormDialog from "../DocumentTypeFormDialog";
 import { isRequiredOfEveryone, mandatoryCriteria } from "../../../../shared/documents/requestMeta";
+import { letterTemplateMatcher } from "../../../../shared/documents/catalogLetterMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+
+const LETTER_TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 
 const TYPE_API = {
   create: documentsAPI.createType,
@@ -53,6 +67,7 @@ function Chip({ children, tone = "slate" }) {
     purple: "bg-purple-50 text-purple-700 border-purple-200",
     violet: "bg-violet-50 text-violet-700 border-violet-200",
     fuchsia: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+    indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
   };
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${tones[tone]}`}>{children}</span>;
 }
@@ -90,7 +105,7 @@ const planeBlurb = (plane) => PLANES.find((p) => p.value === plane)?.blurb || ""
 // #2 answers the platform's defaults only — it carries no `is_activated` /
 // `org_type_id` — so every piece of activation state here comes from the list
 // row we were opened from, never from `entry`.
-function CatalogPreview({ row, selected, onToggle, onConfigure, onClose }) {
+function CatalogPreview({ row, template, selected, onToggle, onConfigure, onClose }) {
   const [entry, setEntry] = useState(null);
   const [error, setError] = useState(null);
   const { code } = row;
@@ -137,6 +152,17 @@ function CatalogPreview({ row, selected, onToggle, onConfigure, onClose }) {
             </p>
           )}
           {entry.description && <p className="text-sm text-slate-600 leading-relaxed">{entry.description}</p>}
+          {template && (
+            <div className="flex items-start gap-3 text-sm text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+              <HiDocumentText className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                HR Clouds can write this for you as a branded PDF, from the <span className="font-semibold">{template.title || "matching"}</span> letter template.
+                {" "}{active ? "It is activated, so" : "Activate it first, then"} set the letter up under{" "}
+                <Link to={LETTER_TEMPLATES_PATH} className="font-semibold underline underline-offset-2 hover:text-indigo-700">Letter Templates</Link>
+                {template.is_enabled ? " — it is already switched on there." : "."}
+              </p>
+            </div>
+          )}
           <DetailSection title={active ? "What it started from" : "Defaults copied when you activate it"} icon={HiTemplate}>
             <DetailGrid
               cols={3}
@@ -176,16 +202,22 @@ function CatalogTab({ plane, onPlaneChange, onActivated, onConfigure, showToast 
   // one action on this tab, and leaving somebody on the catalog afterwards
   // makes them hunt for what they just did.
   const [group, setGroup] = useState("");
-  const [country, setCountry] = useState("");
+  const [letters, setLetters] = useState(""); // "" | "yes" | "no" — ready-made PDF letter
   const [status, setStatus] = useState(""); // "" | "active" | "inactive"
   const [query, setQuery] = useState("");
   const [state, setState] = useState({ rows: [], loading: true, error: null });
+  // #135's templates, or null when they couldn't be read — then the PDF
+  // letter filter and chips stay hidden rather than claiming "none".
+  const [templates, setTemplates] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const [preview, setPreview] = useState(null);
   const [activating, setActivating] = useState(false);
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
+    documentsAPI.getLetterTemplates()
+      .then((res) => { const list = (res?.data ?? res)?.templates; setTemplates(Array.isArray(list) ? list : null); })
+      .catch(() => setTemplates(null));
     try {
       const rows = arrayPayload(await documentsAPI.getCatalog());
       rows.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || String(a.name).localeCompare(String(b.name)));
@@ -207,21 +239,25 @@ function CatalogTab({ plane, onPlaneChange, onActivated, onConfigure, showToast 
   // add up to what the tab promises.
   const inPlane = useMemo(() => state.rows.filter((r) => !plane || r.plane === plane), [state.rows, plane]);
   const activeCount = useMemo(() => inPlane.filter((r) => r.is_activated).length, [inPlane]);
-  const countries = useMemo(() => [...new Set(inPlane.map((r) => r.country_code).filter(Boolean))].sort(), [inPlane]);
+  const templateOf = useMemo(() => letterTemplateMatcher(templates), [templates]);
+  const letterCount = useMemo(() => (templates ? inPlane.filter((r) => templateOf(r)).length : 0), [inPlane, templates, templateOf]);
+  // Shown only when the template list loaded and something matches.
+  const showLetterFilter = !!templates && state.rows.some((r) => templateOf(r));
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase().slice(0, 200);
     return inPlane.filter((r) => {
       if (group && r.group !== group) return false;
-      if (country && r.country_code !== country) return false;
+      if (letters === "yes" && !templateOf(r)) return false;
+      if (letters === "no" && templateOf(r)) return false;
       if (status === "active" && !r.is_activated) return false;
       if (status === "inactive" && r.is_activated) return false;
       if (q && !`${r.name} ${r.code} ${r.description || ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [inPlane, group, country, status, query]);
+  }, [inPlane, group, letters, status, query, templateOf]);
 
-  const filtered = !!(group || country || status || query.trim());
+  const filtered = !!(group || letters || status || query.trim());
   const selectable = visible.filter((r) => !r.is_activated && r.is_active !== false);
 
   // The two planes are separate universes, so a selection doesn't survive a tab
@@ -283,11 +319,15 @@ function CatalogTab({ plane, onPlaneChange, onActivated, onConfigure, showToast 
           <option value="">All categories</option>
           {DOC_GROUPS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
         </select>
-        {countries.length > 0 && (
-          <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={SELECT}>
-            <option value="">All countries</option>
-            {countries.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+        {showLetterFilter && (
+          <div className="flex items-center">
+            <select aria-label="Ready-made PDF letter" value={letters} onChange={(e) => setLetters(e.target.value)} className={SELECT}>
+              <option value="">All documents</option>
+              <option value="yes">Ready-made PDF letter ({letterCount})</option>
+              <option value="no">Upload only ({inPlane.length - letterCount})</option>
+            </select>
+            <FieldHelp surface="documents.catalog" field="letter_template" label="a ready-made PDF letter" />
+          </div>
         )}
         <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT}>
           <option value="">All statuses ({inPlane.length})</option>
@@ -307,7 +347,7 @@ function CatalogTab({ plane, onPlaneChange, onActivated, onConfigure, showToast 
             icon={HiCollection}
             title={filtered ? "Nothing matches" : "Nothing in this part of the catalog"}
             message={filtered ? "Try another search, category or status." : "The platform hasn’t published any documents here yet."}
-            action={filtered ? <button type="button" onClick={() => { setGroup(""); setCountry(""); setStatus(""); setQuery(""); }} className={SECONDARY_BTN}><HiX className="w-4 h-4" /> Clear filters</button> : null}
+            action={filtered ? <button type="button" onClick={() => { setGroup(""); setLetters(""); setStatus(""); setQuery(""); }} className={SECONDARY_BTN}><HiX className="w-4 h-4" /> Clear filters</button> : null}
           />
         </div>
       ) : (
@@ -342,6 +382,7 @@ function CatalogTab({ plane, onPlaneChange, onActivated, onConfigure, showToast 
                         : active ? <Chip tone={switchedOff ? "slate" : "violet"}>{switchedOff ? "Active · switched off" : "Active"}</Chip>
                         : <Chip>Not activated</Chip>}
                       {!plane && <Chip>{c.plane === "org" ? "We issue it" : "We collect it"}</Chip>}
+                      {templateOf(c) && <Chip tone="indigo"><HiDocumentText className="w-3 h-3" /> PDF letter</Chip>}
                       {c.default_has_expiry && <Chip tone="fuchsia">Tracks expiry</Chip>}
                       {c.default_is_confidential && <Chip tone="purple"><HiLockClosed className="w-3 h-3" /> Confidential</Chip>}
                     </div>
@@ -369,7 +410,7 @@ function CatalogTab({ plane, onPlaneChange, onActivated, onConfigure, showToast 
         </div>
       )}
 
-      {preview && <CatalogPreview row={preview} selected={selected.has(preview.code)} onToggle={toggle} onConfigure={onConfigure} onClose={() => setPreview(null)} />}
+      {preview && <CatalogPreview row={preview} template={templateOf(preview)} selected={selected.has(preview.code)} onToggle={toggle} onConfigure={onConfigure} onClose={() => setPreview(null)} />}
     </div>
   );
 }

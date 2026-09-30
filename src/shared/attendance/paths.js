@@ -97,6 +97,25 @@ export const MY_PAY_PATHS = {
   },
 };
 
+/**
+ * The whole-organisation pages every role can read: the Org Chart and the
+ * Company Profile (added 30 Sep 2026). Both endpoints are open to every tenant
+ * role and return the same org for all of them, so each workspace mounts the
+ * same screen under its own prefix — an HR user browsing the chart from the
+ * manager workspace keeps the manager sidebar.
+ */
+export const ORG_PATHS = {
+  employee: { chart: "/dashboard/employee/org-chart", company: "/dashboard/employee/company" },
+  manager: { chart: "/dashboard/manager/org-chart", company: "/dashboard/manager/company" },
+  hr: { chart: "/dashboard/hr/org-chart", company: "/dashboard/hr/company" },
+};
+
+/** The Org Chart / Company Profile links for whichever workspace is rendered. */
+export function useOrgPaths() {
+  const { pathname } = useLocation();
+  return ORG_PATHS[workspaceFromPath(pathname)] || ORG_PATHS.employee;
+}
+
 /** The self-service leave and pay links for whichever workspace is rendered. */
 export function useMyPayPaths() {
   const { pathname } = useLocation();

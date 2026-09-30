@@ -170,7 +170,7 @@ function AnnualStatementTab({ showToast }) {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="my-annual-fy" className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Financial year</label>
-          <select id="my-annual-fy" value={fy} onChange={(e) => setFy(e.target.value)} className="h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+          <select id="my-annual-fy" value={fy} onChange={(e) => setFy(e.target.value)} className="h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
             {fyOptions().map((option) => {
               const value = fyValue(option);
               return <option key={value} value={value}>FY {value}</option>;
@@ -257,7 +257,7 @@ function Form16Tab({ showToast }) {
       <div className="flex flex-wrap items-end gap-3 mt-5">
         <div>
           <label htmlFor="my-form16-fy" className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Financial year</label>
-          <select id="my-form16-fy" value={fy} onChange={(e) => setFy(e.target.value)} className="h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none">
+          <select id="my-form16-fy" value={fy} onChange={(e) => setFy(e.target.value)} className="h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
             {fyOptions().map((option) => {
               const value = fyValue(option);
               return <option key={value} value={value}>FY {value}</option>;

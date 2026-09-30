@@ -55,3 +55,56 @@ export function defaultChartPage(rows, period, key = "date") {
   rows.forEach((row, i) => { const day = String(row[key] || "").slice(0, 10); if (day && day <= today) last = i; });
   return last < CHART_PAGE_SIZE ? 0 : chartPageCount(rows) - 1;
 }
+
+/* ─── Y axis ───────────────────────────────────────────────────────────── */
+
+/** The three bars every daily attendance chart draws, in drawing order. */
+export const TREND_BAR_KEYS = ["final_present_count", "on_leave_count", "final_absent_count"];
+
+// 1 / 2 / 5 × 10ⁿ — the only step sizes a reader can add up in their head.
+// Anything else (3, 7, 12…) turns reading a bar into arithmetic.
+const NICE_STEPS = [1, 2, 5];
+const MIN_INTERVALS = 3;
+const MAX_INTERVALS = 6;
+
+/**
+ * Domain and ticks for a daily attendance chart, with headroom above the tallest
+ * bar so a full-attendance day doesn't touch the roof — on a ten-person team the
+ * "present" bar hit the top border every single day and read as clipped.
+ *
+ * The top tick sits at least one whole person above the highest count, and every
+ * tick is a whole number: `allowDecimals={false}` on its own still let Recharts
+ * end the domain exactly on the maximum. Of the step sizes that give a sensible
+ * number of gridlines, the one that wastes the least space above the bars wins.
+ */
+export function trendYAxis(rows, keys = TREND_BAR_KEYS) {
+  let max = 0;
+  (rows || []).forEach((row) => keys.forEach((key) => {
+    const value = Number(row?.[key]);
+    if (Number.isFinite(value) && value > max) max = value;
+  }));
+  // An empty or all-zero month still needs a readable axis to hang the grid on.
+  if (max <= 0) return { domain: [0, 4], ticks: [0, 1, 2, 3, 4] };
+
+  // One whole person of headroom on a small team; 5% on a big one, so a
+  // 200-person org doesn't get a two-pixel gap above a full day.
+  const wanted = max + (max <= 10 ? 1 : Math.max(2, Math.ceil(max * 0.05)));
+  let step = 0;
+  let top = Infinity;
+  for (let pow = 0; pow < 9; pow += 1) {
+    NICE_STEPS.forEach((base) => {
+      const candidate = base * 10 ** pow;
+      const intervals = Math.ceil(wanted / candidate);
+      if (intervals < MIN_INTERVALS || intervals > MAX_INTERVALS) return;
+      const candidateTop = intervals * candidate;
+      if (candidateTop < top || (candidateTop === top && candidate > step)) { step = candidate; top = candidateTop; }
+    });
+  }
+  // Nothing fit the gridline budget (only happens for a one- or two-person
+  // team), so fall back to a tick per person.
+  if (!step) { step = 1; top = wanted; }
+
+  const ticks = [];
+  for (let t = 0; t <= top; t += step) ticks.push(t);
+  return { domain: [0, top], ticks };
+}

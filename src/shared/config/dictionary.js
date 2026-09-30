@@ -90,10 +90,14 @@ export const DICTIONARY = {
     TEAM_DIRECTORY: "Team Directory",
     TOP_DEFAULTERS: "Top Defaulters",
     WORK_MODE: "Work Mode",
-    TEAM_PERFORMANCE: "Team Performance"
+    // The daily attendance chart on the HR and manager dashboards. One name,
+    // one subtitle: the two cards are the same card (§2), so neither screen
+    // types its own heading.
+    TEAM_ATTENDANCE_TRENDS: "Team attendance trends"
   },
   DESCRIPTIONS: {
-    ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization."
+    ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization.",
+    TEAM_ATTENDANCE_TRENDS: "Present, on leave and absent, day by day"
   },
   TERMS: {
     // A day credited for working an off day. Reads as a mass noun — "Earned

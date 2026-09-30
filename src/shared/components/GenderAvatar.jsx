@@ -17,11 +17,16 @@
 //
 // The illustrations are DiceBear "avataaars" faces embedded in avatarImages.js.
 // They render as <img> so every copy on a page keeps its own SVG mask ids.
+//
+// `onPhotoError` (optional) is told when a real photo fails to load. Uploaded
+// photos are presigned links that expire after about five minutes, so a page
+// that stays open — the Org Chart — uses it to fetch fresh links rather than
+// leave people on the fallback illustration.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from "react";
 import { FEMALE_AVATAR_SRC, MALE_AVATAR_SRC } from "./avatarImages";
-import { useDirectoryEntry } from "../utils/directoryIndex";
+import { markDirectoryPhotosStale, useDirectoryEntry } from "../utils/directoryIndex";
 
 /** "Male" / "M" / "man" → "male"; "Female" / "F" / "woman" → "female"; else null. */
 export function normalizeGender(value) {
@@ -99,7 +104,7 @@ const initialsOf = (name) => {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 };
 
-export default function GenderAvatar({ person, gender, name, src, className = "w-full h-full" }) {
+export default function GenderAvatar({ person, gender, name, src, className = "w-full h-full", onPhotoError }) {
   const ownPhoto = src || avatarUrlOf(person);
   const ownGender = normalizeGender(gender) || genderOf(person);
   const keys = ownPhoto || ownGender ? [] : lookupKeys(person);
@@ -111,7 +116,12 @@ export default function GenderAvatar({ person, gender, name, src, className = "w
   useEffect(() => { setPhotoFailed(false); }, [photo]);
 
   if (photo && !photoFailed) {
-    return <img src={photo} alt={displayName || ""} onError={() => setPhotoFailed(true)} draggable={false} className={`${className} object-cover`} />;
+    return <img src={photo} alt={displayName || ""} onError={() => {
+      setPhotoFailed(true);
+      // A photo looked up in the directory: its link expired, so re-read it.
+      if (!ownPhoto) markDirectoryPhotosStale();
+      onPhotoError?.(photo);
+    }} draggable={false} className={`${className} object-cover`} />;
   }
   if (g) {
     return <img src={g === "female" ? FEMALE_AVATAR_SRC : MALE_AVATAR_SRC} alt={displayName || ""} draggable={false} className={`${className} object-cover`} />;

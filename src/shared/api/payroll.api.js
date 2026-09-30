@@ -428,6 +428,25 @@ export const payrollAPI = {
    */
   getPayslipRenderStatus: (runId, params) =>
     request(`/payroll/hr/runs/${runId}/payslips/render-status${buildQuery(params)}`),
+  /**
+   * #221 How the payslip render queue is doing — PDF Generation Phase 5. HR
+   * only. `?window_hours` is 1–168 and defaults to 24; anything else is a 400.
+   *
+   * The payroll twin of documents' #151, field for field, with
+   * `scope: "payslip"` — both are read through `queueHealthOf()` in
+   * shared/pdf/renderHealthMeta.js so the two readouts stay identical.
+   *
+   * Scoped to payslips server-side: payroll can never see the letter queue and
+   * documents can never see this one. It carries counts and timestamps only —
+   * no employee, no run, no storage key, no error text.
+   *
+   * Like #219/#220 this is only meaningful on the HTML engine; a classic-engine
+   * organisation has an empty queue by definition, so the readout is gated on
+   * `usesHtmlEngine(settings)` rather than offered to everyone. A server from
+   * before Phase 5 answers 404 — hide it, don't report it as a failure.
+   */
+  getPayslipQueueHealth: (params) =>
+    request(`/payroll/hr/jobs/payslip-render/health${buildQuery(params)}`),
 
   // Manager — Encashments (#216–#217). Amounts are masked unless the manager
   // has compensation visibility (EC-25).

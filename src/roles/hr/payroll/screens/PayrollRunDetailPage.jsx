@@ -196,7 +196,7 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
             { label: "Gross pay", value: formatMoney(item.gross_earnings), icon: HiCurrencyRupee },
             { label: "Deductions", value: formatMoney(item.total_deductions), icon: HiBan },
             { label: "Net pay", value: formatMoney(item.net_pay), icon: HiCheck },
-            { label: "Cost to company", value: formatMoney(item.ctc_cost), hint: hasValue(item.total_employer_contributions) ? `Employer contributions ${formatMoney(item.total_employer_contributions)}` : undefined, icon: HiUserGroup },
+            { label: "Cost to company", value: formatMoney(item.ctc_cost), hint: hasValue(item.total_employer_contributions) ? `Employer contributions ${formatMoney(item.total_employer_contributions)}` : undefined, icon: HiUserGroup, help: { surface: "payroll.run_item", field: "ctc_cost" } },
           ]}
         />
       ) : !state.loading && (
@@ -225,11 +225,11 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
               ["Unpaid days", dayCount(item.lop_days)],
               ["Paid holidays & week-offs", dayCount(item.paid_non_working_days)],
               ["Working days in month", dayCount(item.standard_working_days)],
-              ["Days used for a day's pay", dayCount(item.lop_divisor)],
+              { label: "Days used for a day's pay", value: dayCount(item.lop_divisor), help: { surface: "payroll.run_item", field: "lop_divisor" } },
               ["Unpaid leave deduction", formatMoney(item.lop_amount)],
               ["Overtime", `${minutesLabel(item.overtime_minutes)} · ${formatMoney(item.overtime_amount)}`],
               ["Shortfall recovered", formatMoney(item.carry_forward_in)],
-              ["Shortfall carried forward", formatMoney(item.carry_forward_out)],
+              { label: "Shortfall carried forward", value: formatMoney(item.carry_forward_out), help: { surface: "payroll.run_item", field: "carry_forward_out" } },
               ...(reimbursementAmount > 0 ? [["Reimbursements (paid on top)", formatMoney(item.reimbursement_amount)]] : []),
               ...(benefitEmployeeAmount > 0 ? [["Benefits (employee share)", formatMoney(item.benefit_employee_amount)]] : []),
               ...(benefitEmployerAmount > 0 ? [["Benefits (company share)", formatMoney(item.benefit_employer_amount)]] : []),
@@ -269,7 +269,7 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
         <DetailSection title="Deductions required by law" icon={HiShieldCheck}>
           <DetailGrid
             items={[
-              ["Pay counted for PF", formatMoney(item.pf_wage)],
+              { label: "Pay counted for PF", value: formatMoney(item.pf_wage), help: { surface: "payroll.run_item", field: "pf_wage" } },
               ["Pay counted for ESI", formatMoney(item.esi_wage)],
               ["Taxable earnings", formatMoney(item.taxable_earnings)],
               ["Covered by ESI", item.esi_covered ? "Yes" : "No"],

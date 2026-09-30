@@ -71,8 +71,18 @@
 // creates there is a PROPOSAL, not a letter; no letter exists until HR approves
 // it. A recipient still reads the finished letter through #70/#71 as an
 // ordinary org document, exactly as before.
-// Source of truth: md_pdfs/phase4_api_analysis-2.md, combined_api_analysis-8.md
-// and 2026-09-29's pdf_letters_phase4_2026_09_29.md.
+//
+// Phase 4 first shipped WITHOUT the reads that make that plane usable — a
+// manager could propose a letter but had no endpoint to list letters from, and
+// no way to see whether #93 was even on. The backend closed that on 2026-09-29
+// with three manager-plane reads (`/manager/letter-templates`,
+// `/manager/letter-templates/:code`, `/manager/settings`) and by widening #135,
+// #136 and #23 to `['hr','manager']`. Those three carry no registry number of
+// their own. Every WRITE stays HR-only: settings, template config and preview
+// still answer 403 to a manager.
+// Source of truth: md_pdfs/phase4_api_analysis-2.md, combined_api_analysis-8.md,
+// md_updates/pdf_letters_phase4_2026_09_29.md and
+// md_updates/2026-09-29_phase4_frontend_review_fixes_and_decisions.md.
 //
 // Uploads never pass through this API: an "issue" call returns a pre-signed
 // S3 PUT URL, the browser sends the bytes straight to S3, then "confirm" asks
@@ -226,7 +236,14 @@ export const documentsAPI = {
   hrDeleteDocument: (id) => del(`${HR}/documents/${seg(id)}`),
   /** #22 */
   getDocumentAuditLogs: (id) => request(`${HR}/documents/${seg(id)}/audit-logs`),
-  /** #23 Org settings (created on first read). */
+  /**
+   * #23 Org settings (created on first read).
+   *
+   * Since PDF Phase 4 this read also permits `manager`, so a manager can see
+   * whether letter drafting is open to them (#93) — but a manager should call
+   * `getManagerSettings()` instead, which is the same payload on their own
+   * plane. Writing settings is still HR only.
+   */
   getSettings: () => request(`${HR}/settings`),
   /** #24 Partial update with the cross-field guard rails. */
   updateSettings: (payload) => put(`${HR}/settings`, payload),
@@ -1005,6 +1022,19 @@ export const documentsAPI = {
    * them (`bulkValidationFailures()`).
    *
    * No letter exists when this returns. Poll #144.
+   *
+   * PHASE 5 added a SECOND refusal that isn't about the people in the list:
+   * `429 LETTER_BULK_RATE_EXCEEDED` when this organisation has already started
+   * `letter_bulk_rate_per_hour` batches (#96, default 10) inside the current
+   * clock hour. `details.retry_after_seconds` — and the `Retry-After` header —
+   * count down to the top of the next UTC hour, which is when the allowance
+   * resets; it is a fixed window, not a rolling sixty minutes.
+   *
+   * Never retry this on a timer. The check runs BEFORE the subject list is
+   * read, deliberately, so a refused call proves nothing about who is in it —
+   * and a re-submission of an ALREADY-QUEUED batch still spends an allowance,
+   * because recognising a replay means reading, which is the very thing the
+   * limit exists to bound. Show the wait; let the person press again.
    */
   bulkIssueLetters: (body) => post(`${HR}/letters/bulk`, body),
   /**
@@ -1014,11 +1044,13 @@ export const documentsAPI = {
    * `batch.status` is `queued | running | completed | completed_with_failures |
    * cancelled`; the last three are terminal and polling stops there.
    *
-   * The two Phase 4 specs disagree about this shape — the change record spells
-   * the tallies `batch.total_count` / `pending_count` / … and calls a job in
-   * flight `processing`, the API analysis spells them `counts.pending` / … and
-   * `queue.claimed`. Both are read (`batchProgressOf()`); neither is trusted
-   * alone. A cross-org or unknown id is 404 DOCUMENT_NOT_FOUND.
+   * The two Phase 4 documents used to disagree about this shape; the backend
+   * settled it on 2026-09-29. Item counts live in `counts` and nowhere else
+   * (there is no `batch.pending_count`); `batch.total` and `batch.total_count`
+   * are both sent and identical; the worker's lock state is `claimed`, not
+   * `processing`. `queue` counts render jobs rather than letters, so it is
+   * diagnostic — `counts` is what a person is shown. Read through
+   * `batchProgressOf()`. A cross-org or unknown id is 404 DOCUMENT_NOT_FOUND.
    */
   getLetterBatch: (batchId, params) => request(`${HR}/letters/bulk/${seg(batchId)}${qs(params)}`),
   /**
@@ -1033,6 +1065,33 @@ export const documentsAPI = {
    * preview and never touches the preview cap.
    */
   runLetterRenderQueue: (body) => post(`${HR}/jobs/pdf-render/run`, body),
+  /**
+   * #151 How the letter render queue is doing — PDF Generation Phase 5. HR
+   * only. `?window_hours` is 1–168 and defaults to 24; anything else is a 400.
+   *
+   * `{ scope: "letter", window_hours, renderer: { configured, authenticated },
+   * queue: { queued, claimed, done, failed, cancelled, oldest_queued_at,
+   * oldest_queued_age_seconds }, failure_rate: { terminal, failed, rate },
+   * counters, counters_note }`. Read through `queueHealthOf()`.
+   *
+   * Three things a screen must respect:
+   *  · `failure_rate.rate` is NULL when nothing has finished in the window. It
+   *    is "no data", never a healthy 0% — an idle queue would otherwise report
+   *    itself perfect.
+   *  · `renderer.authenticated` says this server HOLDS a renderer key, not that
+   *    the renderer accepted it. Nothing here calls the renderer.
+   *  · `counters` are per-process and reset on every deploy, so they are a
+   *    footnote. `queue` and `failure_rate` come from the database and are the
+   *    figures worth acting on.
+   *
+   * Scoped to letters server-side, so it can never leak payroll's queue. It
+   * carries no ids, no storage keys and no error text — only counts.
+   *
+   * A server from before Phase 5 has no such route, and "jobs" then falls
+   * through to nothing — treat a 404 as "not deployed yet" and hide the
+   * readout rather than showing a failure (`queueHealthUnavailable()`).
+   */
+  getLetterQueueHealth: (params) => request(`${HR}/jobs/pdf-render/health${qs(params)}`),
   /**
    * #148 The proposals waiting on HR, across the whole organisation. Defaults
    * to `status=pending` when none is given. Filters: `status`, `template_code`,
@@ -1083,4 +1142,33 @@ export const documentsAPI = {
    * another manager's queue. Same filters as #148 minus `proposed_by`.
    */
   getMyLetterProposals: (params) => request(`${MGR}/letters${qs(params)}`),
+  /**
+   * The letters a manager may propose — the manager-plane twin of #135, added
+   * after Phase 4 shipped without it.
+   *
+   * It exists because #145 wants a `template_code` and, at first, the only
+   * endpoint that listed codes was HR-only: a manager could be given the right
+   * to propose a letter and no way to name one. Same payload as #135
+   * (`{ templates: [{ code, title, current_version, is_enabled, pinned_version,
+   * has_saved_fields, is_orphaned }] }`), so `letterTemplatesOf()` reads both.
+   *
+   * `?enabled=true` narrows it to the letters this organisation has switched
+   * on, which is the only useful set on this plane.
+   */
+  getManagerLetterTemplates: (params) => request(`${MGR}/letter-templates${qs(params)}`),
+  /**
+   * One letter's field descriptor on the manager plane — the twin of #136,
+   * same `{ template: { fields: [{ key, label, type, max_length, required }],
+   * sample_data }, config }` shape, so the proposal form renders the same boxes
+   * HR would see.
+   */
+  getManagerLetterTemplate: (code) => request(`${MGR}/letter-templates/${seg(code)}`),
+  /**
+   * The organisation's document settings, readable by a manager.
+   *
+   * The only key a manager screen acts on is `manager_can_propose_letters`
+   * (#93): whether the proposal path is open at all. A manager cannot WRITE any
+   * of these — that stays HR-only through #24.
+   */
+  getManagerSettings: () => request(`${MGR}/settings`),
 };

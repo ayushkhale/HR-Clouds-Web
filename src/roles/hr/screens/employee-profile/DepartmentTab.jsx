@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { HiOfficeBuilding, HiUserGroup, HiLocationMarker, HiMail, HiSearch, HiChevronRight, HiStar } from "react-icons/hi";
+import { HiOfficeBuilding, HiUserGroup, HiLocationMarker, HiMail, HiSearch, HiChevronRight, HiStar, HiSwitchHorizontal } from "react-icons/hi";
 import { organizationAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 import { EmptyState, ErrorState, LoadingRows } from "../../../../shared/attendance/ui";
@@ -43,7 +43,7 @@ function PersonTile({ name, subtitle, person, badge }) {
   );
 }
 
-export default function DepartmentTab({ employee, userId, employeeRole }) {
+export default function DepartmentTab({ employee, userId, employeeRole, onTransfer = null }) {
   const navigate = useNavigate();
   const isManager = employeeRole === "manager";
   const [state, setState] = useState({ departments: [], roster: [], loading: true, error: null, teamError: null });
@@ -113,13 +113,30 @@ export default function DepartmentTab({ employee, userId, employeeRole }) {
 
   return (
     <div className="space-y-6">
-      <DetailSection title="Department" icon={HiOfficeBuilding}>
+      <DetailSection
+        title="Department"
+        icon={HiOfficeBuilding}
+        action={onTransfer && (
+          <button
+            type="button"
+            onClick={onTransfer}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition"
+          >
+            <HiSwitchHorizontal className="w-3.5 h-3.5" /> {deptName ? "Transfer department" : "Assign department"}
+          </button>
+        )}
+      >
         {state.loading && !deptName ? (
           <LoadingRows rows={2} />
         ) : state.error && !deptName ? (
           <ErrorState error={state.error} onRetry={load} fallback="Couldn't load the department." />
         ) : !deptName ? (
-          <EmptyState icon={HiOfficeBuilding} title="No department assigned" message="Use Transfer Department in the ··· menu to place this person in a department." className="py-8" />
+          <EmptyState
+            icon={HiOfficeBuilding}
+            title="No department assigned"
+            message={onTransfer ? "Assign a department to place this person in the organisation." : "Nobody has placed this person in a department yet."}
+            className="py-8"
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 flex items-center gap-3 min-w-0">

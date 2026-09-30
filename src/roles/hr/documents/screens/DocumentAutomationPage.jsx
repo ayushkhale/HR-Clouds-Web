@@ -11,6 +11,13 @@
 // one job that genuinely can't be undone (the file clean-out) is separated from
 // the other four and asks before it runs.
 //
+// PDF Generation Phase 5 adds a sixth routine to this page, and it is the only
+// one that is READ rather than run: the letter render queue's health (#151),
+// with Phase 4's drain (#147) attached to it because "it is backed up" and "draw
+// them now" belong in the same place. It hides itself entirely on a server that
+// hasn't got the endpoint — an organisation that never switched the letter
+// module on sees this page exactly as it was.
+//
 // Two things about the replies these endpoints give, which the UI has to respect:
 //   · They answer 200 even when part of the run failed, with the failures in
 //     `errors`. So success is `ok && errors.length === 0`, never the status code.
@@ -32,6 +39,8 @@ import { documentErrorMessage } from "../../../../shared/utils/documentErrors";
 import { DOCUMENT_JOBS, jobResultOf, jobResultSummary } from "../../../../shared/documents/requestMeta";
 import useDocumentSettings from "../../../../shared/documents/useDocumentSettings";
 import { DANGER_BTN, PRIMARY_BTN, SECONDARY_BTN } from "../../../../shared/documents/ui";
+import RenderQueueHealthPanel from "../../../../shared/pdf/RenderQueueHealthPanel";
+import { drainMessage, drainSummaryOf } from "../../../../shared/documents/letterProposalMeta";
 
 // One icon per job, keyed the same way the job list is.
 const JOB_ICON = {
@@ -115,6 +124,8 @@ export default function DocumentAutomationPage() {
   const { toast, showToast, clearToast } = useToast();
   const [busy, setBusy] = useState("");
   const [results, setResults] = useState({});
+  // #151 isn't on every server. Until one answers, the section isn't drawn.
+  const [queueHealthOff, setQueueHealthOff] = useState(false);
   // Reading the settings is what lets this screen say "this job will send
   // nothing, because those emails are switched off" before somebody runs it and
   // wonders why nothing happened. A failed read just means no warnings.
@@ -125,7 +136,7 @@ export default function DocumentAutomationPage() {
     // Two jobs ask first: the one that deletes files, and the one that closes
     // leavers' records down. Neither can be put back.
     const confirmMessage = job.destructive
-      ? `Clear out old files now?\n\nThis permanently deletes uploads that were abandoned more than a day ago, and documents that were deleted long enough ago to be past your retention period. Documents required by law are never touched.\n\nThis can't be undone.`
+      ? `Clear out old files now?\n\nThis permanently deletes uploads that were abandoned more than a day ago, and documents — including letters you issued — that were deleted long enough ago to be past their retention period. Documents required by law, anything still waiting to be acknowledged, and any version a newer letter replaced are never touched.\n\nThis can't be undone.`
       : job.confirmMessage;
     if (confirmMessage) {
       const ok = await window.confirm(confirmMessage);
@@ -180,6 +191,28 @@ export default function DocumentAutomationPage() {
           </div>
         </div>
 
+        {!queueHealthOff && (
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Letters waiting to be drawn</h2>
+            <p className="text-xs text-slate-500 mt-0.5 mb-3">
+              A letter sent to many people is prepared in the background rather than while you wait. This is how that is getting on.
+            </p>
+            <RenderQueueHealthPanel
+              scope="letter"
+              noun="letters"
+              title="Letter delivery"
+              blurb="Everything queued, everything drawn, and anything that didn’t come out. No names or figures from the letters themselves appear here."
+              load={documentsAPI.getLetterQueueHealth}
+              onDrain={async () => drainMessage(drainSummaryOf(await documentsAPI.runLetterRenderQueue({})))}
+              drainLabel="Draw the waiting letters now"
+              helpSurface="documents.letter_queue_health"
+              showToast={showToast}
+              onUnavailable={() => setQueueHealthOff(true)}
+              errorMessage={documentErrorMessage}
+            />
+          </div>
+        )}
+
         <div>
           <h2 className="text-base font-bold text-slate-800">Everyday routines</h2>
           <p className="text-xs text-slate-500 mt-0.5 mb-3">Safe to run at any time, as often as you like. Running one twice in a day does not send anybody two emails.</p>
@@ -216,8 +249,9 @@ export default function DocumentAutomationPage() {
             ))}
           </div>
           <p className="text-xs text-slate-400 mt-3">
-            A deleted document is removed for good only once its retention period has passed.{" "}
-            <Link to="/dashboard/hr/documents/settings" className="font-bold text-purple-600 hover:underline">See your retention period</Link>
+            A deleted document is removed for good only once its retention period has passed. Letters your organisation
+            issued can be given their own, longer or shorter, period.{" "}
+            <Link to="/dashboard/hr/documents/settings" className="font-bold text-purple-600 hover:underline">See your retention periods</Link>
           </p>
         </div>
 

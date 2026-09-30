@@ -37,6 +37,7 @@ import {
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { DICTIONARY } from "../../../../shared/config/dictionary";
 import CompOffPicker, { loadHrCompOffsFor } from "../../../../shared/components/CompOffPicker";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -156,7 +157,10 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
           )}
 
           <div>
-            <label className={labelCls}>Pay it in</label>
+            <div className="flex items-center">
+              <label className={labelCls}>Pay it in</label>
+              <FieldHelp surface="payroll.encashment_admin" field="period_month" label="the pay month" className="mb-1.5" />
+            </div>
             <PeriodPicker value={form.period_month} onChange={(v) => setForm({ ...form, period_month: v })} idPrefix="enc-period" selectClassName={fieldCls} yearsBack={1} yearsAhead={1} />
             <p className="text-[11px] text-slate-400 mt-1.5">The month whose payslip this is added to. It must still be open.</p>
           </div>

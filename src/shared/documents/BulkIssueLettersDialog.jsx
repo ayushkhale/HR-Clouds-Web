@@ -29,21 +29,32 @@
 //  · PICKING TWO HUNDRED PEOPLE ONE AT A TIME IS NOT A DESIGN. Whole departments
 //    can be added in one go from the roster already loaded for the picker; the
 //    picker itself is still there for the exceptions.
+//
+//  · THERE IS A SECOND CEILING, AND IT IS NOT ABOUT THIS BATCH. Phase 5 caps
+//    how many BATCHES the organisation may start in a clock hour (#96, default
+//    10) and answers 429 over it. It is the one refusal on this form where
+//    pressing Send again makes things worse: a repeat spends another allowance
+//    even when it is the identical batch, because recognising a replay means
+//    reading, which is what the limit exists to bound. So the refusal is shown
+//    as a wait with the clock running down, Send stays disabled until it
+//    reaches zero, and NOTHING here retries on a timer — the person presses.
+//    Everything typed in survives, because re-entering it all would be the
+//    one thing guaranteed to make somebody start clicking.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiBadgeCheck, HiCalendar, HiDocumentText, HiExclamationCircle, HiInformationCircle, HiMail,
-  HiPaperAirplane, HiRefresh, HiUserGroup, HiX,
+  HiBadgeCheck, HiCalendar, HiChartBar, HiClock, HiDocumentText, HiExclamationCircle,
+  HiInformationCircle, HiMail, HiPaperAirplane, HiRefresh, HiUserGroup, HiX,
 } from "react-icons/hi";
 import { PersonMultiSelect } from "../components/PersonPicker";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import { departmentName } from "../attendance/normalize";
 import { todayYMD } from "../attendance/dates";
 import {
-  bulkSubjectLimit, bulkValidationFailures, documentErrorMessage, isBulkValidationFailed,
-  isRendererNotConfigured, letterIssueErrorMessage,
+  bulkSubjectLimit, bulkValidationFailures, documentErrorMessage, isBulkRateLimited,
+  isBulkValidationFailed, isRendererNotConfigured, letterIssueErrorMessage, retryAfterSeconds,
 } from "../utils/documentErrors";
 import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { letterTemplateOf, letterTemplatesOf, letterTitle } from "./letterMeta";
@@ -51,10 +62,23 @@ import {
   issueDateMax, issueDateMin, issueDateNote, issueDateProblem, letterOverridableFields, overrideProblems,
   overridesPayload, refusedFields,
 } from "./letterIssueMeta";
-import { BULK_MAX_SUBJECTS_FALLBACK, bulkBatchOf } from "./letterProposalMeta";
+import { BULK_MAX_SUBJECTS_FALLBACK, bulkBatchOf, cooldownLabel } from "./letterProposalMeta";
 
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
+const AUTOMATION_PATH = "/dashboard/hr/documents/automation";
+
+/**
+ * The wait after a 429, when the server didn't say how long.
+ *
+ * The allowance refreshes at the top of the clock hour, so the honest upper
+ * bound is whatever is left of this one. Guessed only when both the body and
+ * the header are missing, which the spec says shouldn't happen.
+ */
+function minutesLeftThisHour() {
+  const now = new Date();
+  return (60 - now.getMinutes()) * 60 - now.getSeconds();
+}
 
 /** A titled block of the form, matching the single-issue dialog exactly. */
 function Step({ n, title, blurb, children }) {
@@ -97,6 +121,10 @@ export default function BulkIssueLettersDialog({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);           // { message }
   const [rejected, setRejected] = useState([]);           // per-person refusals from a 422
+  // The hourly batch allowance (#96). `cooldownUntil` is when Send may be
+  // pressed again; `secondsLeft` is only what the clock on screen shows.
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -115,6 +143,22 @@ export default function BulkIssueLettersDialog({
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
   }, []);
+
+  // The clock on the rate-limit notice. One interval, only while a wait is
+  // actually running, and it does NOT resend anything when it reaches zero —
+  // it re-enables the button and stops. An automatic retry here would spend
+  // the next allowance the instant it appeared.
+  useEffect(() => {
+    if (!cooldownUntil) { setSecondsLeft(0); return undefined; }
+    const tick = () => {
+      const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setSecondsLeft(Math.max(0, left));
+      if (left <= 0) setCooldownUntil(0);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [cooldownUntil]);
 
   // ── The catalog ────────────────────────────────────────────────────────────
   const catalogReq = useRef(0);
@@ -207,7 +251,9 @@ export default function BulkIssueLettersDialog({
 
   const chosenRow = useMemo(() => issuable.find((row) => row.code === code) || null, [issuable, code]);
   const atCeiling = subjects.length >= ceiling;
-  const ready = !!code && subjects.length > 0 && !detail.loading && !detail.error && Object.keys(problems).length === 0;
+  const waiting = secondsLeft > 0;
+  const ready = !!code && subjects.length > 0 && !detail.loading && !detail.error
+    && Object.keys(problems).length === 0 && !waiting;
 
   // ── Queue it ───────────────────────────────────────────────────────────────
   const queue = async () => {
@@ -223,6 +269,7 @@ export default function BulkIssueLettersDialog({
     setBusy(true);
     setFailure(null);
     setRejected([]);
+    setCooldownUntil(0);
     try {
       const body = { template_code: code, subject_user_ids: subjects };
       const overrides = overridesPayload(fields, values);
@@ -238,6 +285,14 @@ export default function BulkIssueLettersDialog({
     } catch (err) {
       if (isRendererNotConfigured(err)) onRendererOff?.();
       if (isBulkValidationFailed(err)) setRejected(bulkValidationFailures(err));
+      // The hourly allowance is its own notice, not a red box: nothing is
+      // wrong, everything typed in is still here, and the only thing to do is
+      // wait. `isBulkTooMany` is the OTHER ceiling and still reads as a refusal.
+      if (isBulkRateLimited(err)) {
+        const wait = retryAfterSeconds(err) ?? minutesLeftThisHour();
+        setCooldownUntil(Date.now() + Math.max(1, wait) * 1000);
+        return;
+      }
       const limit = bulkSubjectLimit(err);
       setFailure({
         message: limit
@@ -478,6 +533,36 @@ export default function BulkIssueLettersDialog({
             </>
           )}
 
+          {waiting && (
+            <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3.5" role="status" aria-live="polite">
+              <div className="flex items-start gap-3">
+                <HiClock className="w-5 h-5 text-fuchsia-500 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-fuchsia-800">Nothing was queued — your organisation has sent a lot this hour</p>
+                  <p className="text-sm text-fuchsia-800 mt-0.5 leading-relaxed">
+                    There is a limit on how many batches can be started in one hour, and it has been reached. Nobody was
+                    sent anything twice, and everything you’ve filled in here is still here.
+                  </p>
+                  <p className="text-sm font-bold text-fuchsia-900 mt-2.5 tabular-nums">
+                    You can send this batch in {cooldownLabel(secondsLeft)}.
+                  </p>
+                  <p className="text-[11px] text-fuchsia-700 mt-1 leading-relaxed">
+                    The allowance refreshes at the top of the hour, not an hour from now. Pressing Send before then uses
+                    up part of the next allowance without queueing anything, so the button waits with you.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <Link to={AUTOMATION_PATH} onClick={() => onCloseRef.current?.()} className={SECONDARY_BTN}>
+                      <HiChartBar className="w-4 h-4" /> See how the earlier batches are getting on
+                    </Link>
+                    <Link to={SETTINGS_PATH} onClick={() => onCloseRef.current?.()} className={SECONDARY_BTN}>
+                      Change the hourly limit
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {failure && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5" role="alert">
               <div className="flex items-start gap-3">
@@ -510,18 +595,24 @@ export default function BulkIssueLettersDialog({
 
         <div className="shrink-0 flex flex-wrap items-center gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
           <p className="mr-auto text-[11px] text-slate-500 max-w-sm leading-relaxed">
-            {!code
-              ? "Choose which letter you are sending."
-              : subjects.length === 0
-                ? "Choose who it goes to."
-                : Object.keys(problems).length
-                  ? "Fix what is highlighted above."
-                  : <>Each one is numbered as it is drawn. The limit is set in <Link to={SETTINGS_PATH} className="font-bold text-purple-600 hover:underline">Document Settings</Link>.</>}
+            {waiting
+              ? `Waiting ${cooldownLabel(secondsLeft)} for your organisation’s hourly allowance to refresh.`
+              : !code
+                ? "Choose which letter you are sending."
+                : subjects.length === 0
+                  ? "Choose who it goes to."
+                  : Object.keys(problems).length
+                    ? "Fix what is highlighted above."
+                    : <>Each one is numbered as it is drawn. The limit is set in <Link to={SETTINGS_PATH} className="font-bold text-purple-600 hover:underline">Document Settings</Link>.</>}
           </p>
           <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
           <button type="button" onClick={queue} disabled={!ready || busy} className={PRIMARY_BTN}>
             <HiPaperAirplane className="w-4 h-4" />
-            {busy ? "Queueing…" : `Send to ${subjects.length || 0} ${subjects.length === 1 ? "person" : "people"}`}
+            {busy
+              ? "Queueing…"
+              : waiting
+                ? `Try again in ${cooldownLabel(secondsLeft)}`
+                : `Send to ${subjects.length || 0} ${subjects.length === 1 ? "person" : "people"}`}
           </button>
         </div>
       </div>

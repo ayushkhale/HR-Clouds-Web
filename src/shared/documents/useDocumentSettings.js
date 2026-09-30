@@ -2,11 +2,16 @@
 // documents/useDocumentSettings.js — The organisation's document settings (#23),
 // read once per session window and shared by every screen that wants them.
 //
-// Only HR may read this endpoint, so a manager or an employee calling it gets a
-// 403. That is not a fault worth reporting anywhere: every screen that uses
-// these values has a sensible sentence for "we don't know yet" — the request
-// dialog says "your organisation's standard window" instead of naming a number
-// of days. So a failure is swallowed and the hook simply reports nothing.
+// HR reads them from its own plane; since PDF Phase 4 a MANAGER may read the
+// same settings from `/documents/manager/settings` (they need to know whether
+// letter drafting is open to them, #93). An employee has no such endpoint and
+// is not asked at all — firing a known 403 on every mount of every screen that
+// opens a request filled the console with failures that were never errors.
+//
+// A failure is swallowed and the hook simply reports nothing: every screen that
+// uses these values has a sensible sentence for "we don't know yet" — the
+// request dialog says "your organisation's standard window" instead of naming a
+// number of days.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
@@ -16,6 +21,14 @@ import { decodeJWT } from "../api/client";
 const CACHE_MS = 60_000;
 // Keyed by session token: settings must not survive a logout in the same tab.
 let cache = { token: null, at: 0, settings: null };
+
+// Which read this role is allowed, or null when it has none. The two answer the
+// same payload; only the mount differs.
+const readerFor = (role) => {
+  if (role === "hr") return () => documentsAPI.getSettings();
+  if (role === "manager") return () => documentsAPI.getManagerSettings();
+  return null;
+};
 
 const fresh = () => cache.token === (tokenHelper.get() || "") && Date.now() - cache.at < CACHE_MS;
 
@@ -38,12 +51,11 @@ export default function useDocumentSettings() {
       return undefined;
     }
     const token = tokenHelper.get() || "";
-    // Don't ask when the answer is a known 403: it was fired on every mount of
-    // every manager and employee screen that opens a request, filling the
-    // console with failures that were never errors.
-    if (decodeJWT(token)?.role !== "hr") return undefined;
+    const read = readerFor(decodeJWT(token)?.role);
+    // Don't ask when the answer is a known 403 (see the header).
+    if (!read) return undefined;
     let alive = true;
-    documentsAPI.getSettings()
+    read()
       .then((res) => {
         const data = res?.data ?? null;
         cache = { token, at: Date.now(), settings: data };

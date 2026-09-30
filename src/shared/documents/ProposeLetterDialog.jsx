@@ -10,12 +10,11 @@
 // on this screen protects that distinction, because a manager who believes a
 // letter has gone out will tell the employee so.
 //
-// The catalogue and the org's fields come from the HR endpoints (#135/#136),
-// which is a known gap on this plane: Phase 4 gave managers somewhere to
-// propose but nowhere to read the list of letters from. The dialog therefore
-// never assumes the list arrived — a refusal is a sentence about the
-// organisation's settings, not a stack trace, and the screen behind doesn't
-// offer the button at all until the read has succeeded once.
+// The letters and their fields are read from the caller's OWN plane, through
+// the adapter — a manager from `/manager/letter-templates/:code`, HR from #136.
+// Those manager reads did not exist when Phase 4 first shipped, which is why
+// the screen behind this dialog still proves the feature is open before
+// offering the button, rather than opening a form that cannot be submitted.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +30,6 @@ import { PROPOSAL_REASON_MAX } from "./letterProposalMeta";
 
 /**
  * @param {object} props
- * @param {object} props.api                     documentsAPI
  * @param {object} props.plane                   LETTER_PROPOSAL_PLANES.manager
  * @param {object[]} props.templates             the letters that can be proposed (already filtered)
  * @param {object[]} props.people                the caller's team
@@ -41,7 +39,7 @@ import { PROPOSAL_REASON_MAX } from "./letterProposalMeta";
  * @param {() => void} props.onClose
  */
 export default function ProposeLetterDialog({
-  api, plane, templates = [], people = [], peopleStatus = "ready", onProposed, onDisabled, onClose,
+  plane, templates = [], people = [], peopleStatus = "ready", onProposed, onDisabled, onClose,
 }) {
   const [code, setCode] = useState(templates.length === 1 ? templates[0].code : "");
   const [subject, setSubject] = useState("");
@@ -77,10 +75,12 @@ export default function ProposeLetterDialog({
     if (!code) { setDetail({ data: null, loading: false, error: null }); return; }
     const token = ++detailReq.current;
     setDetail({ data: null, loading: true, error: null });
-    api.getLetterTemplate(code)
+    // The viewer's OWN plane, never HR's: a manager reads the descriptor from
+    // `/manager/letter-templates/:code`, which is the same payload.
+    plane.templateDetail(code)
       .then((res) => { if (token === detailReq.current) setDetail({ data: letterTemplateOf(res), loading: false, error: null }); })
       .catch((error) => { if (token === detailReq.current) setDetail({ data: null, loading: false, error }); });
-  }, [api, code]);
+  }, [plane, code]);
 
   const template = detail.data?.template || null;
   const fields = useMemo(

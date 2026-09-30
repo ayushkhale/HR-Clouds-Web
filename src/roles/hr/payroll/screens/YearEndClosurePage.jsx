@@ -490,6 +490,7 @@ function EmployeeTaxPanel({ fy, employee, summary, onClose, onChanged, showToast
               <DetailSection
                 title="Form 16 Part B"
                 icon={HiDocumentText}
+                help={form16.is_provisional ? { surface: "payroll.year_end", field: "is_provisional", label: "a provisional Form 16" } : undefined}
                 action={form16.is_provisional ? <DetailPill tone="soft">Provisional</DetailPill> : undefined}
               >
                 <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-60 bg-slate-50 border border-slate-200 rounded-xl p-4">{JSON.stringify(form16, null, 2)}</pre>

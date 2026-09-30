@@ -12,6 +12,7 @@ import { useTargetingOptions, withSelected, describeTargeting } from "../../../.
 import { EmptyState, ErrorState, FieldError, InlineAlert, LoadingRows, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiPlus, HiX, HiOutlineTrash, HiDocumentText, HiPencil, HiScale, HiUserGroup } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 // Full field set per ATTENDANCE_API_CONTRACT.md §5.6.
@@ -135,7 +136,10 @@ function PolicyModal({ policy, onClose, onSaved }) {
               {errors.multiplier ? <FieldError message={errors.multiplier} /> : <p className="text-[11px] text-slate-400 mt-1">1 = one day credited per day earned.</p>}
             </div>
             <div>
-              <label htmlFor="cop-valid" className={labelClass}>Valid for (days)</label>
+              <div className="flex items-center">
+                <label htmlFor="cop-valid" className={labelClass}>Valid for (days)</label>
+                <FieldHelp surface="attendance.comp_off_policy" field="validity_days" label="how long a credited day lasts" className="mb-1.5" overlay />
+              </div>
               <input id="cop-valid" type="number" step="1" min="1" max="365" value={form.validity_days} onChange={(e) => set("validity_days", e.target.value)} placeholder="No expiry" className={inputClass(!!errors.validity_days)} />
               {errors.validity_days ? <FieldError message={errors.validity_days} /> : <p className="text-[11px] text-slate-400 mt-1">1–365. Empty = no expiry.</p>}
             </div>

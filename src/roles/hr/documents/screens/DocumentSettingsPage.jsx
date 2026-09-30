@@ -15,6 +15,10 @@
 //   · the numbering pattern for issued letters must hold exactly one
 //     {SEQ:0000} and only known tokens (LETTER_REFERENCE_PATTERN_INVALID), and
 //     the hourly preview cap is 1–1000 (PDF Phase 2, #82–#86)
+//   · the hourly bulk-batch allowance is 1–500, and letter retention is either
+//     null ("follow the company rule") or at least 365 days (PDF Phase 5,
+//     #95/#96) — the floor is statutory and the server refuses below it twice,
+//     in Joi and in a CHECK constraint
 // Only changed fields are sent. The Phase 3, 4, 5 and letter keys are only sent
 // when the server returned them, so an older server never sees a key it would
 // reject.
@@ -24,6 +28,13 @@
 // LETTER fail to issue, on a screen nobody would think to look at. So it is
 // validated in the box, shown as a worked example, and warned about on length.
 //
+// Letter retention is the only setting on this page that can destroy records,
+// and the only one whose default is deliberately "do nothing": #95 arrives
+// NULL, which means letters follow `document_retention_days` and nothing extra
+// is ever purged. So it is a choice between "follow the company rule" and "a
+// different number", never an empty number box — an empty box reads as
+// unfinished, and lowering this is irreversible on the next overnight run.
+//
 // Every one of the five Phase 4 email switches starts OFF, and that is a
 // deliberate default rather than an oversight: an organisation that turns the
 // module on should not begin mailing its whole workforce the next morning. The
@@ -32,7 +43,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HiBadgeCheck, HiBell, HiClipboardList, HiCog, HiEye, HiLockClosed, HiLogout, HiMail, HiPaperAirplane, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
+import { HiArchive, HiBadgeCheck, HiBell, HiClipboardList, HiCog, HiEye, HiLockClosed, HiLogout, HiMail, HiPaperAirplane, HiShieldCheck, HiUserGroup, HiInformationCircle } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -48,7 +59,9 @@ import {
   referencePatternProblem,
 } from "../../../../shared/documents/letterIssueMeta";
 import {
-  AUTO_ISSUE_MAX_TEMPLATES, BULK_MAX_SUBJECTS_CEILING, LETTER_PHASE4_SETTING_KEYS,
+  AUTO_ISSUE_MAX_TEMPLATES, BULK_MAX_SUBJECTS_CEILING, BULK_RATE_PER_HOUR_MAX,
+  BULK_RATE_PER_HOUR_MIN, LETTER_PHASE4_SETTING_KEYS, LETTER_PHASE5_SETTING_KEYS,
+  LETTER_RETENTION_MIN_DAYS,
 } from "../../../../shared/documents/letterProposalMeta";
 import { letterTemplatesOf, letterTitle } from "../../../../shared/documents/letterMeta";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
@@ -66,6 +79,9 @@ const NUMBERS = {
   document_publish_sync_threshold: { min: 1, max: 1_000_000, label: "Hand a publish to the background above", unit: "people" },
   letter_preview_rate_per_hour: { min: 1, max: 1000, label: "Letter previews allowed each hour", unit: "previews" },
   letter_bulk_max_subjects: { min: 1, max: BULK_MAX_SUBJECTS_CEILING, label: "Most people one batch may go to", unit: "people" },
+  letter_bulk_rate_per_hour: { min: BULK_RATE_PER_HOUR_MIN, max: BULK_RATE_PER_HOUR_MAX, label: "Batches anyone may start each hour", unit: "batches" },
+  // Only checked while "a different number of days" is chosen — see `problems`.
+  letter_record_retention_days: { min: LETTER_RETENTION_MIN_DAYS, max: 36500, label: "Keep deleted letters for", unit: "days" },
 };
 
 // Phase 3 settings. Present on the read only once the server has them.
@@ -133,6 +149,19 @@ const LETTER_KEYS = LETTER_SETTING_KEYS;
 // manager drafts until somebody here turns one on.
 const LETTER_BULK_KEYS = LETTER_PHASE4_SETTING_KEYS;
 
+// The two PDF Phase 5 settings (#95 retention, #96 the hourly batch allowance).
+// Confusingly numbered against the Documents phases above — `PHASE5_KEYS` is
+// Documents Phase 5 and has nothing to do with these. Both of these are safe on
+// arrival: the allowance only refuses a 10th batch in an hour, and retention
+// starts NULL, which means "follow the company rule" and purges nothing.
+const LETTER_LIMIT_KEYS = LETTER_PHASE5_SETTING_KEYS;
+
+// #95 is nullable and null is a real answer, so it round-trips through a choice
+// rather than an empty box — an empty number field reads as "I forgot to type",
+// which is exactly the wrong impression for a setting that deletes things.
+const RETENTION_INHERIT = "inherit";
+const RETENTION_CUSTOM = "custom";
+
 const REMINDER_DAYS_MAX_ENTRIES = 6;
 
 /**
@@ -195,6 +224,12 @@ const toForm = (s) => ({
   letter_auto_issue_on_exit: Array.isArray(s.letter_auto_issue_on_exit) ? s.letter_auto_issue_on_exit : [],
   manager_can_propose_letters: !!s.manager_can_propose_letters,
   document_notify_letter_issued: !!s.document_notify_letter_issued,
+  // #95. Null (the default) means letters follow `document_retention_days`.
+  // The box keeps a number to go back to, so flipping to "a different number"
+  // and back doesn't lose what was typed.
+  letter_retention_choice: s.letter_record_retention_days == null ? RETENTION_INHERIT : RETENTION_CUSTOM,
+  letter_record_retention_days: String(s.letter_record_retention_days ?? s.document_retention_days ?? 2555),
+  letter_bulk_rate_per_hour: String(s.letter_bulk_rate_per_hour ?? 10),
 });
 
 function Card({ title, icon: Icon, children, className = "" }) {
@@ -253,6 +288,7 @@ export default function DocumentSettingsPage() {
   const hasEnterprise = !!saved && PHASE5_KEYS.some((k) => k in saved);
   const hasLetters = !!saved && LETTER_KEYS.some((k) => k in saved);
   const hasLetterBulk = !!saved && LETTER_BULK_KEYS.some((k) => k in saved);
+  const hasLetterLimits = !!saved && LETTER_LIMIT_KEYS.some((k) => k in saved);
 
   const problems = useMemo(() => {
     if (!form) return {};
@@ -263,6 +299,10 @@ export default function DocumentSettingsPage() {
       if (PHASE5_KEYS.includes(key) && !hasEnterprise) return;
       if (LETTER_KEYS.includes(key) && !hasLetters) return;
       if (LETTER_BULK_KEYS.includes(key) && !hasLetterBulk) return;
+      if (LETTER_LIMIT_KEYS.includes(key) && !hasLetterLimits) return;
+      // Nothing to check while letters follow the company rule — the box is a
+      // remembered number, not a value that will be sent.
+      if (key === "letter_record_retention_days" && form.letter_retention_choice !== RETENTION_CUSTOM) return;
       const n = Number(form[key]);
       if (!Number.isFinite(n) || n < r.min || n > r.max) out[key] = `Between ${r.min} and ${r.max} ${r.unit}.`;
     });
@@ -277,7 +317,7 @@ export default function DocumentSettingsPage() {
       out.conflict = "Separate checker and manager direct authority can't both be on — turn one off.";
     }
     return out;
-  }, [form, hasCompliance, hasAutomation, hasEnterprise, hasLetters, hasLetterBulk]);
+  }, [form, hasCompliance, hasAutomation, hasEnterprise, hasLetters, hasLetterBulk, hasLetterLimits]);
 
   const changes = useMemo(() => {
     if (!form || !saved) return {};
@@ -319,12 +359,21 @@ export default function DocumentSettingsPage() {
         letter_bulk_max_subjects: Number(form.letter_bulk_max_subjects),
         letter_auto_issue_on_exit: form.letter_auto_issue_on_exit,
         manager_can_propose_letters: !!form.manager_can_propose_letters,
-        // #94 is deliberately never written from this screen — see the card.
+        document_notify_letter_issued: !!form.document_notify_letter_issued,
+      } : {}),
+      ...(hasLetterLimits ? {
+        // Null is what restores "follow the company rule", so it is sent as
+        // null rather than omitted — omitting it would leave a custom window
+        // in place and quietly do nothing.
+        letter_record_retention_days: form.letter_retention_choice === RETENTION_CUSTOM
+          ? Number(form.letter_record_retention_days)
+          : null,
+        letter_bulk_rate_per_hour: Number(form.letter_bulk_rate_per_hour),
       } : {}),
     };
     return Object.fromEntries(Object.entries(next).filter(([k, v]) => {
       // A key the server never sent is never sent back.
-      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k) || LETTER_KEYS.includes(k) || LETTER_BULK_KEYS.includes(k)) && !(k in saved)) return false;
+      if ((COMPLIANCE_KEYS.includes(k) || PHASE4_KEYS.includes(k) || PHASE5_KEYS.includes(k) || LETTER_KEYS.includes(k) || LETTER_BULK_KEYS.includes(k) || LETTER_LIMIT_KEYS.includes(k)) && !(k in saved)) return false;
       // The reminder schedule and the auto-issue list are arrays, so `!==`
       // would call them changed on every render and leave the Save bar
       // permanently up. The auto-issue list is of strings and its order carries
@@ -337,7 +386,7 @@ export default function DocumentSettingsPage() {
       if (v === null && (saved[k] === null || saved[k] === undefined)) return false;
       return v !== saved[k];
     }));
-  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise, hasLetters, hasLetterBulk]);
+  }, [form, saved, hasCompliance, hasAutomation, hasEnterprise, hasLetters, hasLetterBulk, hasLetterLimits]);
 
   const dirty = Object.keys(changes).length > 0;
   const blocked = Object.keys(problems).length > 0;
@@ -360,11 +409,23 @@ export default function DocumentSettingsPage() {
     }
   };
 
-  const numberField = (key) => {
+  /**
+   * `help` wires the ⓘ beside the label in its own flex row — never inside the
+   * `<label>`, which would make the icon part of the click target that focuses
+   * the input (CLAUDE.md §10).
+   */
+  const numberField = (key, help) => {
     const r = NUMBERS[key];
     return (
       <div key={key} className="min-w-0">
-        <label htmlFor={`ds-${key}`} className={LABEL}>{r.label}</label>
+        {help ? (
+          <div className="flex items-center gap-1.5 mb-2">
+            <label htmlFor={`ds-${key}`} className={`${LABEL} mb-0`}>{r.label}</label>
+            <FieldHelp surface={help.surface} field={help.field} label={help.label || r.label} ariaLabel={help.ariaLabel} size="sm" />
+          </div>
+        ) : (
+          <label htmlFor={`ds-${key}`} className={LABEL}>{r.label}</label>
+        )}
         <div className="flex items-center gap-2">
           <input id={`ds-${key}`} type="number" min={r.min} max={r.max} value={form[key]} onChange={(e) => set(key, e.target.value)} className={FIELD} />
           <span className="text-xs font-semibold text-slate-500 shrink-0">{r.unit}</span>
@@ -676,11 +737,27 @@ export default function DocumentSettingsPage() {
             <Card title="Sending letters to many, and letting managers draft them" icon={HiUserGroup}>
               {hasLetterBulk ? (
                 <>
-                  <div className="py-4">
-                    {numberField("letter_bulk_max_subjects")}
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                      A safety ceiling on “Send to many”, so one mistake can’t put a letter in front of the whole organisation. Everyone in a batch gets their own numbered letter.
-                    </p>
+                  {/* The two ceilings, together, because they are constantly
+                      confused: one caps the PEOPLE in a batch, the other the
+                      BATCHES in an hour. */}
+                  <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                    <div className="min-w-0">
+                      {numberField("letter_bulk_max_subjects")}
+                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                        A safety ceiling on “Send to many”, so one mistake can’t put a letter in front of the whole organisation. Everyone in a batch gets their own numbered letter.
+                      </p>
+                    </div>
+                    {hasLetterLimits && (
+                      <div className="min-w-0">
+                        {numberField("letter_bulk_rate_per_hour", {
+                          surface: "documents.letter_settings",
+                          field: "letter_bulk_rate_per_hour",
+                        })}
+                        <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                          Past this many batches in one hour, the next is turned away until the hour turns over. It is there to stop a stuck finger sending the same batch ten times — a person who hits it is told how long to wait.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <SwitchRow
@@ -744,17 +821,19 @@ export default function DocumentSettingsPage() {
                     )}
                   </div>
 
-                  {/* #94 is registered on the server and deliberately left off:
-                      its "view your letter" link points at a route this app
-                      doesn't have. A switch that must not be used would be worse
-                      than none, so it is stated instead. Letters are still
-                      issued and visible in the portal — only the email is off. */}
-                  <div className="py-4">
-                    <p className="text-sm font-bold text-slate-700">Emailing people when a letter is issued</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      Not available yet. Letters are still issued and appear in the person’s portal straight away — they just aren’t emailed about it. This is switched on once the link in that email has somewhere to point.
-                    </p>
-                  </div>
+                  {/* #94 was held back while its email linked to a route this
+                      app doesn't have; the backend repointed it at the employee
+                      company-documents page on 2026-09-29, so it is an ordinary
+                      switch now. It still starts OFF, like every other email. */}
+                  <SwitchRow
+                    title="Email people when you issue them a letter"
+                    description="A short email with a link straight to the letter in their portal."
+                    checked={form.document_notify_letter_issued}
+                    onChange={(v) => set("document_notify_letter_issued", v)}
+                    note={form.document_notify_letter_issued
+                      ? ""
+                      : "Off, the letter still appears in their portal straight away — they just aren’t told about it."}
+                  />
                 </>
               ) : (
                 <p className="flex items-start gap-2 text-xs text-slate-500 py-4">
@@ -763,6 +842,64 @@ export default function DocumentSettingsPage() {
                 </p>
               )}
             </Card>
+
+            {hasLetterLimits && (
+              <Card title="How long deleted letters are kept" icon={HiArchive}>
+                <div className="py-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className={`${LABEL} mb-0`}>Deleted letters</span>
+                    <FieldHelp
+                      surface="documents.letter_settings"
+                      field="letter_record_retention_days"
+                      label="how long deleted letters are kept"
+                      ariaLabel="How long are deleted letters kept?"
+                      size="sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                    {[
+                      {
+                        value: RETENTION_INHERIT,
+                        label: "Follow the company rule",
+                        blurb: `The same as every other document — ${form.document_retention_days || 2555} days. Nothing extra is ever deleted.`,
+                      },
+                      {
+                        value: RETENTION_CUSTOM,
+                        label: "A different number of days for letters",
+                        blurb: "Letters are removed for good sooner, or kept longer, than the rest.",
+                      },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => set("letter_retention_choice", option.value)}
+                        aria-pressed={form.letter_retention_choice === option.value}
+                        className={`text-left rounded-xl border px-4 py-3 transition ${form.letter_retention_choice === option.value ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
+                      >
+                        <span className="block text-sm font-bold text-slate-800">{option.label}</span>
+                        <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">{option.blurb}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {form.letter_retention_choice === RETENTION_CUSTOM && (
+                    <div className="mt-4 max-w-xs">
+                      {numberField("letter_record_retention_days")}
+                    </div>
+                  )}
+
+                  <p className="flex items-start gap-2 text-[11px] text-slate-500 mt-3 leading-relaxed">
+                    <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0" />
+                    <span>
+                      This is only about letters somebody has already deleted — a letter still in use is never touched, whatever this says.
+                      Once a deleted letter is older than this, the file and the record go for good on the next overnight run, and nothing brings them back.
+                      A letter still waiting to be acknowledged, one required by law, and any version a newer letter replaced are all kept regardless.
+                      The shortest allowed is {LETTER_RETENTION_MIN_DAYS} days, because a letter is evidence of employment.
+                    </span>
+                  </p>
+                </div>
+              </Card>
+            )}
 
             <Card title="When somebody leaves, and very large publishes" icon={HiLogout}>
               {hasEnterprise ? (

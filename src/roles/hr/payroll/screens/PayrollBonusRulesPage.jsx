@@ -26,6 +26,7 @@ import {
 } from "../variablePayMeta";
 import { PersonMultiSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
@@ -305,7 +306,10 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
             <div>
-              <label htmlFor="rule-type" className={labelCls}>How it’s worked out</label>
+              <div className="flex items-center">
+                <label htmlFor="rule-type" className={labelCls}>How it’s worked out</label>
+                <FieldHelp surface="payroll.bonus_rule" field="bonus_type" label="how the bonus is worked out" className="mb-1.5" overlay />
+              </div>
               <select id="rule-type" value={form.bonus_type} onChange={(e) => set({ bonus_type: e.target.value })} className={fieldCls}>
                 {typeOptions.map((t) => <option key={t} value={t}>{BONUS_TYPE_LABEL[t] || prettifyCode(t)}</option>)}
               </select>

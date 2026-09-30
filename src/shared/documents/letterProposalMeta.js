@@ -6,14 +6,16 @@
 // Three pieces of domain knowledge live here because getting any of them wrong
 // on a screen is worse than a layout bug:
 //
-//  · THE TWO PHASE 4 SPECS DISAGREE ABOUT #144's SHAPE. The change record says
-//    `batch.total_count` / `pending_count` / … with a queue state called
-//    `processing`; the API analysis says `counts.pending` / … with `claimed`.
-//    Neither is guessed at: `batchProgressOf()` reads both spellings and falls
-//    back from one to the other, so whichever the server actually ships, the
-//    progress bar is right. Recorded here rather than fixed in one of them,
-//    because CLAUDE.md §9 says live behaviour wins and we have not yet seen it
-//    live — the migration ships UNRUN.
+//  · #144's SHAPE IS SETTLED, AND IT IS THE LEDGER THAT COUNTS. The two Phase 4
+//    documents used to disagree (`batch.pending_count` vs `counts.pending`,
+//    `queue.processing` vs `queue.claimed`); the backend reconciled it on
+//    2026-09-29. The item counts live in `counts` and nowhere else — there is
+//    no `batch.pending_count` — while `batch` carries only the frozen request
+//    (id, template, status, total). `batch.total` and `batch.total_count` are
+//    both sent and identical, so either may be read. The worker's lock state is
+//    `claimed`, which is the real PostgreSQL status; `processing` never existed.
+//    `queue` is DIAGNOSTIC: it counts render jobs, not letters, and is never
+//    what a person is shown.
 //
 //  · A BATCH HANDLE EXISTS IN EXACTLY ONE PLACE. There is no "list my batches"
 //    endpoint: #144 answers about an id the client was handed once. Lose it and
@@ -54,7 +56,9 @@ export const LETTER_PROPOSAL_PLANES = {
     reject: (id, body) => api.rejectLetterProposal(id, body),
     // #148 takes `proposed_by`; #146 ignores it (it is always the caller).
     filtersByProposer: true,
-    catalog: () => api.getLetterTemplates(),
+    catalog: () => api.getLetterTemplates({ enabled: true }),
+    templateDetail: (code) => api.getLetterTemplate(code),
+    settings: () => api.getSettings(),
   },
   manager: {
     key: "manager",
@@ -64,28 +68,29 @@ export const LETTER_PROPOSAL_PLANES = {
     reject: null,
     filtersByProposer: false,
     /**
-     * The same catalogue read as HR's, and today it is expected to be REFUSED.
-     *
-     * #145 needs a `template_code`, but the only endpoint that lists codes
-     * (#135) is HR-only — Phase 4 added a manager plane for proposing without
-     * adding one for reading the catalogue. So this is called, and a refusal is
-     * treated as "proposing isn't open on this server" rather than as an error:
-     * the button is not rendered and the screen says so. The day the read is
-     * opened to managers, or for an HR user working in the manager workspace,
-     * the same code path lights the feature up with no change here.
+     * The manager plane's own catalogue read, added on 2026-09-29 because
+     * Phase 4 shipped the write (#145) without it: a manager could be given the
+     * right to propose a letter and no endpoint to name one from. `?enabled=true`
+     * because a switched-off letter can't be proposed either.
      */
-    catalog: () => api.getLetterTemplates(),
+    catalog: () => api.getManagerLetterTemplates({ enabled: true }),
+    templateDetail: (code) => api.getManagerLetterTemplate(code),
+    settings: () => api.getManagerSettings(),
   },
 };
 
 /**
- * Can this viewer actually raise a proposal? Both halves have to be true, and
- * neither can be known without asking: the org setting (#93) is only readable
- * by HR, and the catalogue (#135) is only readable by HR. So the screen probes
- * and believes what comes back (CLAUDE.md §7).
+ * Can this viewer actually raise a proposal?
+ *
+ * Two independent facts, and the screen asks for both rather than assuming
+ * either (CLAUDE.md §7): the organisation has opened the path
+ * (`manager_can_propose_letters`, #93, default OFF), and at least one letter is
+ * switched on to propose. A `null` setting means the read hasn't answered yet,
+ * which is not the same as `false` — a button that flickers in after a slow
+ * read is better than one offered before we know it will work.
  */
-export const canRaiseProposal = (plane, catalogState) =>
-  !!plane.propose && catalogState.allowed && catalogState.rows.some((row) => row.is_enabled && !row.is_orphaned);
+export const canRaiseProposal = (plane, { settingOn, templates }) =>
+  !!plane.propose && settingOn === true && (templates || []).some((row) => row.is_enabled && !row.is_orphaned);
 
 /** #146 / #148 → `{ rows, total, limit, offset }`. Paginates with limit/offset, not page. */
 export function proposalsPayload(res) {
@@ -227,13 +232,13 @@ const firstNumber = (...values) => {
 };
 
 /**
- * #144 → one shape the screens can rely on, whichever of the two documented
- * spellings the server actually uses (see the header).
+ * #144 → one shape the screens can rely on.
  *
  * `issued + failed + skipped` is what has finished; `pending` is what has not.
- * `total` is taken from the batch rather than summed, because a sum of counts
- * that are read a moment apart can exceed the batch and push a progress bar
- * past 100%.
+ * `total` is read from the batch rather than summed, because a sum of counts
+ * taken a moment apart can exceed the batch and push a progress bar past 100%.
+ * `total_count` is the documented alias of `total`, and the sum is a last
+ * resort for a reply that carries neither.
  */
 export function batchProgressOf(res) {
   const data = payload(res);
@@ -241,11 +246,12 @@ export function batchProgressOf(res) {
   const counts = data.counts || {};
   const queue = data.queue || {};
 
-  const pending = firstNumber(counts.pending, batch.pending_count);
-  const issued = firstNumber(counts.issued, batch.issued_count);
-  const failed = firstNumber(counts.failed, batch.failed_count);
-  const skipped = firstNumber(counts.skipped, batch.skipped_count);
-  const total = firstNumber(batch.total, batch.total_count, data.total, pending + issued + failed + skipped);
+  // The item ledger is authoritative and is the ONLY place these live.
+  const pending = firstNumber(counts.pending);
+  const issued = firstNumber(counts.issued);
+  const failed = firstNumber(counts.failed);
+  const skipped = firstNumber(counts.skipped);
+  const total = firstNumber(batch.total, batch.total_count, pending + issued + failed + skipped);
 
   const status = String(batch.status || "").toLowerCase();
   const settled = Math.min(issued + failed + skipped, total);
@@ -267,11 +273,11 @@ export function batchProgressOf(res) {
     createdAt: batch.created_at || "",
     completedAt: batch.completed_at || null,
     counts: { pending, issued, failed, skipped, total },
-    // Diagnostics only. `claimed` and `processing` are the same thing in the two
-    // specs; neither is shown as a number, only used to say "something is moving".
+    // Diagnostics only: these count RENDER JOBS, not letters, so they are never
+    // shown as a figure — only used to say whether something is moving.
     queue: {
       queued: firstNumber(queue.queued),
-      working: firstNumber(queue.claimed, queue.processing),
+      working: firstNumber(queue.claimed),
       done: firstNumber(queue.done),
       failed: firstNumber(queue.failed),
       cancelled: firstNumber(queue.cancelled),
@@ -355,3 +361,44 @@ export const LETTER_PHASE4_SETTING_KEYS = [
   "manager_can_propose_letters",
   "document_notify_letter_issued",
 ];
+
+// ── The hourly batch allowance (PDF Generation Phase 5, #96) ─────────────────
+
+/** `letter_bulk_rate_per_hour` when the organisation's settings can't be read. */
+export const BULK_RATE_PER_HOUR_FALLBACK = 10;
+/** The bounds #24 validates. Outside them is a 400, not a clamp. */
+export const BULK_RATE_PER_HOUR_MIN = 1;
+export const BULK_RATE_PER_HOUR_MAX = 500;
+
+/**
+ * A wait, in the words somebody would use out loud.
+ *
+ * Not `fmtMinutes` ("23m"), because this is read as a sentence rather than
+ * scanned in a column — "23 minutes" belongs in "try again in 23 minutes" and
+ * "23m" does not. It rounds UP: telling somebody to wait slightly too long
+ * costs nothing, and telling them too little sends them back into the refusal.
+ */
+export function cooldownLabel(seconds) {
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n < 60) return `${Math.ceil(n)} ${Math.ceil(n) === 1 ? "second" : "seconds"}`;
+  const minutes = Math.ceil(n / 60);
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const head = `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return rest ? `${head} and ${rest} ${rest === 1 ? "minute" : "minutes"}` : head;
+}
+
+/**
+ * The two settings Phase 5 adds (#95 retention, #96 the hourly allowance),
+ * only sent back once the server has returned them — same rule as every other
+ * phase's keys.
+ */
+export const LETTER_PHASE5_SETTING_KEYS = [
+  "letter_record_retention_days",
+  "letter_bulk_rate_per_hour",
+];
+
+/** #95's statutory floor. Below this the server refuses, and so does the box. */
+export const LETTER_RETENTION_MIN_DAYS = 365;

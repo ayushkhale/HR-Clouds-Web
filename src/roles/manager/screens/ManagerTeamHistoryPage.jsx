@@ -140,13 +140,13 @@ function ManagerTeamHistoryPage() {
           </div>
           <div className="flex-1">
             <label htmlFor="th-from" className="block text-xs font-semibold text-slate-500 mb-1">From</label>
-            <input id="th-from" type="date" max={draft.to || today} value={draft.from} onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
+            <input id="th-from" type="date" max={draft.to || today} value={draft.from} onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
           </div>
           <div className="flex-1">
             <label htmlFor="th-to" className="block text-xs font-semibold text-slate-500 mb-1">To</label>
-            <input id="th-to" type="date" min={draft.from} max={today} value={draft.to} onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
+            <input id="th-to" type="date" min={draft.from} max={today} value={draft.to} onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500" />
           </div>
-          <button type="submit" disabled={list.loading && !!applied} className="px-6 py-2 bg-purple-600 text-white font-bold text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+          <button type="submit" disabled={list.loading && !!applied} className="px-6 py-2 bg-purple-600 text-white font-bold text-sm rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
             <HiFilter className="w-4 h-4" /> Show history
           </button>
         </form>

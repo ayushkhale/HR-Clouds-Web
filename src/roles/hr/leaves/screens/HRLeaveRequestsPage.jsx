@@ -9,10 +9,11 @@ import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPre
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiCalendar,
   HiThumbUp, HiThumbDown, HiInformationCircle, HiDocumentText, HiSearch,
-  HiChevronLeft, HiChevronRight, HiScale,
+  HiChevronLeft, HiChevronRight, HiScale, HiClipboardCheck,
 } from "react-icons/hi";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import AttachmentLink from "../../../../shared/documents/AttachmentLink";
+import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // Leave endpoints nest the applicant under `applicant` {id, first_name, last_name, email}.
@@ -201,7 +202,11 @@ const TableSkeleton = () => (
 );
 
 // ─── Request preview ──────────────────────────────────────────────────────────
-function useBalanceImpact(request, enabled) {
+// `nonce` exists so assigning a policy from inside this dialog re-reads the
+// balance in place. Without it the section would go on saying "no balance
+// record" about an employee who now has one, and the approve decision would be
+// made against numbers that are already stale.
+function useBalanceImpact(request, enabled, nonce = 0) {
   const [state, setState] = useState({ loading: enabled, row: null, error: "" });
   const applicantId = request.applicant?.id ?? request.user_id;
   const leaveTypeId = request.leave_type_id || request.leave_type?.id;
@@ -215,18 +220,19 @@ function useBalanceImpact(request, enabled) {
       .then((res) => alive && setState({ loading: false, row: (res.data || []).find((b) => b.leave_type_id === leaveTypeId) || null, error: "" }))
       .catch((err) => alive && setState({ loading: false, row: null, error: leaveErrorMessage(err, "Couldn't load the balance.") }));
     return () => { alive = false; };
-  }, [enabled, applicantId, leaveTypeId]);
+  }, [enabled, applicantId, leaveTypeId, nonce]);
 
   return state;
 }
 
-function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
+function LeavePreview({ request, acting, balanceNonce, onApprove, onReject, onAssignPolicy, onClose }) {
   const name = applicantName(request);
   const email = applicantEmail(request);
   const canAct = ACTIONABLE.includes(request.status);
   const isCancellation = request.status === "cancellation_pending";
   const paidDays = parseFloat(request.paid_days ?? request.total_days ?? 0) || 0;
-  const balance = useBalanceImpact(request, canAct);
+  const balance = useBalanceImpact(request, canAct, balanceNonce);
+  const applicantId = request.applicant?.id ?? request.user_id;
   const busy = acting === request.id;
 
   const current = balance.row ? parseFloat(balance.row.current_balance) : null;
@@ -268,7 +274,7 @@ function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
             ["To", formatDate(request.end_date)],
             ["Total", formatDayCount(request.total_days)],
             ["Half day", request.is_half_day ? (request.half_day_type === "first_half" ? "First half" : "Second half") : "No"],
-            ["Paid", formatDayCount(request.paid_days ?? request.total_days)],
+            { label: "Paid", value: formatDayCount(request.paid_days ?? request.total_days), help: { surface: "leaves.approval", field: "paid_split", label: "paid and unpaid days" } },
             ["Unpaid", formatDayCount(request.unpaid_days ?? 0)],
             ["Applied on", formatDate(request.created_at || request.requested_at)],
           ]}
@@ -297,7 +303,25 @@ function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
           ) : balance.error ? (
             <p className="text-sm text-rose-600">{balance.error}</p>
           ) : !balance.row ? (
-            <p className="text-sm text-slate-500">No balance record exists for this leave type.</p>
+            // No balance row for this leave type is, in practice, "this person
+            // has never been given a leave policy" — the one thing HR would
+            // want to fix before deciding, and until now a dead end that meant
+            // leaving the queue for their profile.
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500">
+                There are no leave days on file for this leave type, so there is nothing to take the
+                request out of. Usually that means they haven’t been given a leave policy yet.
+              </p>
+              {applicantId && (
+                <button
+                  type="button"
+                  onClick={() => onAssignPolicy?.({ userId: applicantId, name })}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition"
+                >
+                  <HiClipboardCheck className="w-4 h-4" /> Assign a leave policy
+                </button>
+              )}
+            </div>
           ) : (
             <>
               <DetailGrid
@@ -305,7 +329,11 @@ function LeavePreview({ request, acting, onApprove, onReject, onClose }) {
                 items={[
                   ["Current balance", fmtBal(current)],
                   [isCancellation ? "Days involved" : "Paid days used", fmtBal(paidDays)],
-                  [isCancellation ? "Balance if denied" : "Balance after approval", fmtBal(after)],
+                  {
+                    label: isCancellation ? "Balance if denied" : "Balance after approval",
+                    value: fmtBal(after),
+                    help: isCancellation ? undefined : { surface: "leaves.approval", field: "balance_after", label: "the balance after approval" },
+                  },
                 ]}
               />
               {!isCancellation && after < 0 && (
@@ -342,6 +370,13 @@ export default function HRLeaveRequestsPage() {
   const [userFilter, setUserFilter] = useState("");
   const [page, setPage] = useState(1);
   const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+
+  // Assigning a leave policy from here (rather than from the employee's
+  // profile) — `null`, or `{ userId, name }` when the person is already known.
+  const [assigning, setAssigning] = useState(null);
+  // Bumped after an assignment so an open request re-reads its balance.
+  const [balanceNonce, setBalanceNonce] = useState(0);
 
   const [toast, setToast] = useState(null);
   function showToast(message, type = "success") {
@@ -379,14 +414,16 @@ export default function HRLeaveRequestsPage() {
   useEffect(() => { loadPending(); }, [loadPending]);
   useEffect(() => { if (activeTab === "history") loadHistory(); }, [activeTab, loadHistory]);
 
-  // Employee list for the history filter (best-effort; non-blocking).
+  // The roster, for the history filter and for choosing who to assign a policy
+  // to. Best-effort and non-blocking: neither use is on the critical path.
   useEffect(() => {
     organizationAPI.getEmployees({ purpose: "all_hr_list" })
       .then(res => {
         const list = res.data || [];
         setEmployees(Array.isArray(list) ? list : (list.employees || list.members || []));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setEmployeesLoading(false));
   }, []);
 
   // Changing a filter resets to page 1 in the same update so loadHistory fires once.
@@ -436,17 +473,34 @@ export default function HRLeaveRequestsPage() {
   const pendingCount = pending.filter(r => r.status === "pending").length;
   const cancellationCount = pending.filter(r => r.status === "cancellation_pending").length;
 
+  // The same 42px height as the search box and the filter selects it sits
+  // beside, so the toolbar row reads as one line of controls.
+  const assignButton = (
+    <button
+      type="button"
+      onClick={() => setAssigning({ userId: "", name: "" })}
+      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 transition whitespace-nowrap"
+    >
+      <HiClipboardCheck className="w-4 h-4" /> Assign a leave policy
+    </button>
+  );
+
   return (
     <>
       <DashboardTopBar title="Leave Requests" />
       <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">Leave Requests</h1>
             <p className="text-sm text-slate-500 mt-1">Review the organisation-wide leave queue, including escalated requests. Click a row to see the full request.</p>
           </div>
-          <div className="flex bg-slate-100 p-1 rounded-xl">
+          {/* Title row carries the view switcher and nothing else. A long blurb
+              plus a segmented control plus an action does not fit at a laptop
+              width — it either crushed the blurb or wrapped into a staircase.
+              The action lives on the toolbar row below, which is where the rest
+              of this app puts page actions and which has room to spare. */}
+          <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
             <button onClick={() => setActiveTab("pending")} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === "pending" ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
               Pending Queue
             </button>
@@ -469,7 +523,7 @@ export default function HRLeaveRequestsPage() {
                   className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
                 />
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {pendingCount > 0 && (
                   <span className="flex items-center gap-1.5 text-xs font-bold bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 px-3 py-1.5 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500" />{pendingCount} pending
@@ -480,6 +534,7 @@ export default function HRLeaveRequestsPage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500" />{cancellationCount} cancellation{cancellationCount !== 1 ? "s" : ""}
                   </span>
                 )}
+                {assignButton}
               </div>
             </div>
 
@@ -512,6 +567,7 @@ export default function HRLeaveRequestsPage() {
                 <option value="terminated_cancelled">Terminated Cancelled</option>
               </select>
               <PersonSelect className="sm:w-72" people={employees} value={userFilter} onChange={(id) => changeUser(id)} clearLabel="All employees" aria-label="Filter by employee" />
+              <div className="sm:ml-auto shrink-0">{assignButton}</div>
             </div>
 
             {historyLoading ? (
@@ -551,12 +607,33 @@ export default function HRLeaveRequestsPage() {
           key={preview.id}
           request={preview}
           acting={acting}
+          balanceNonce={balanceNonce}
           onApprove={handleApprove}
           onReject={setRejectTarget}
+          onAssignPolicy={setAssigning}
           onClose={() => setPreview(null)}
         />
       )}
       {rejectTarget && <RejectModal request={rejectTarget} onClose={() => setRejectTarget(null)} onRejected={onRejected} />}
+
+      {/* A SIBLING of the request inspector, never a child of it (CLAUDE.md §3),
+          so it layers over the dialog it was opened from instead of being
+          clipped by its scrolling body. */}
+      {assigning && (
+        <AssignLeavePolicyDialog
+          userId={assigning.userId}
+          subjectName={assigning.name}
+          people={employees}
+          peopleLoading={employeesLoading}
+          onAssigned={(message) => {
+            showToast(message);
+            // The open request, if there is one, re-reads its balance so the
+            // approve decision is made on the days they now actually have.
+            setBalanceNonce((n) => n + 1);
+          }}
+          onClose={() => setAssigning(null)}
+        />
+      )}
       <Toast toast={toast} onClose={() => setToast(null)} />
     </>
   );

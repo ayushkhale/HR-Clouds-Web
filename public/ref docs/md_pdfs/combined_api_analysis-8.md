@@ -1,4 +1,4 @@
-# Combined API Analysis: PDF Generation Module (Phases 1, 2, 3 & 4)
+# Combined API Analysis: PDF Generation Module (Phases 1, 2, 3, 4 & 5)
 
 # Phase 1: Letter Branding & Templates (APIs #130–#138)
 
@@ -730,9 +730,9 @@
 
 - **API Name / Purpose:** List Letter Template Catalog with Organization Config State
 - **HTTP Method:** `GET`
-- **Endpoint / Route:** `/api/v1/documents/hr/letter-templates`
-- **Authentication / Authorization:** Bearer JWT Token. Required Roles: `hr`. Required Feature: `documents.access`.
-- **Purpose / Business Problem Solved:** HR administrators need an overview of all standard letter templates provided by the system (e.g., Experience Letter, Appointment Letter, Bonafide Letter) alongside their organization's enablement status, version pinning, and configuration completeness.
+- **Endpoint / Route:** `/api/v1/documents/hr/letter-templates` (and `/api/v1/documents/manager/letter-templates`)
+- **Authentication / Authorization:** Bearer JWT Token. Required Roles: `hr`, `manager`. Required Feature: `documents.access`.
+- **Purpose / Business Problem Solved:** Administrators and managers need an overview of all standard letter templates provided by the system alongside their organization's enablement status, version pinning, and configuration completeness (enabling managers to discover templates when proposing a letter via API #145).
 - **Why the API Exists:** Blends static codebase template registry definitions with dynamic tenant database configurations, surfacing orphaned templates if a previously configured template is removed from the codebase.
 - **Real-World Usage:** Populates the "Document Templates" dashboard table in the HR admin console.
 - **Path Parameters:** None.
@@ -835,9 +835,9 @@
 
 - **API Name / Purpose:** Get Letter Template Details, Form Descriptor & Organization Config
 - **HTTP Method:** `GET`
-- **Endpoint / Route:** `/api/v1/documents/hr/letter-templates/:code`
-- **Authentication / Authorization:** Bearer JWT Token. Required Roles: `hr`. Required Feature: `documents.access`.
-- **Purpose / Business Problem Solved:** When configuring a specific letter template, HR administrators need to understand what fields the template accepts, which fields can be pre-configured at the organization level (e.g. `place_of_issue`, `hr_contact_line`), validation constraints (max lengths, required status), and inspection of synthetic sample data.
+- **Endpoint / Route:** `/api/v1/documents/hr/letter-templates/:code` (and `/api/v1/documents/manager/letter-templates/:code`)
+- **Authentication / Authorization:** Bearer JWT Token. Required Roles: `hr`, `manager`. Required Feature: `documents.access`.
+- **Purpose / Business Problem Solved:** When configuring or proposing a specific letter template, HR administrators and managers need to understand what fields the template accepts, which fields can be pre-configured or overridden (e.g. `place_of_issue`, `closing_note`), validation constraints (max lengths, required status), and inspection of synthetic sample data.
 - **Why the API Exists:** Converts the template's internal Joi schema into an engine-agnostic UI Form Descriptor array (`fields: [{ key, label, type, max_length, required }]`), eliminating frontend hardcoding while exposing current organization configuration.
 - **Real-World Usage:** Invoked when opening the "Configure Template" modal or page for a letter template.
 - **Path Parameters:**
@@ -2098,7 +2098,7 @@ Phase 1 is strictly additive and introduces nine new endpoints (#130–#138) on 
   - `next_action`: `'acknowledge'` | `'sign'` | `null`
 - **Security & Backward Compatibility:** Fully backward-compatible. Non-recipient access returns uniform `404 DOCUMENT_NOT_FOUND`.
 
-### 5.8. PUT /api/v1/documents/hr/settings (APIs #82–#86) — New Letter Generation & Numbering Settings
+### 5.8. PUT /api/v1/documents/hr/settings — New Letter Generation & Numbering Settings (Settings #82–#86)
 
 - **Endpoint / Method:** `PUT /api/v1/documents/hr/settings`
 - **Phase 2 Contract Change:** Expanded request validation schema in `document_hr.validator.js` and database model `document_settings.model.js`.
@@ -2617,6 +2617,7 @@ Phase 1 is strictly additive and introduces nine new endpoints (#130–#138) on 
         "template_version": 1,
         "status": "running",
         "total": 50,
+        "total_count": 50,
         "created_by": "11111111-2222-3333-4444-555555555555",
         "created_at": "2026-09-29T08:00:00.000Z",
         "completed_at": null
@@ -2660,6 +2661,7 @@ Phase 1 is strictly additive and introduces nine new endpoints (#130–#138) on 
   | `data.batch.template_version` | Integer | Version of the template frozen at batch creation time. |
   | `data.batch.status` | String | Current batch lifecycle status: `queued`, `running`, `completed`, `completed_with_failures`, or `cancelled`. |
   | `data.batch.total` | Integer | Total count of subjects registered in the batch. |
+  | `data.batch.total_count` | Integer | Alias for `total` providing total count of subjects registered in the batch. |
   | `data.batch.created_by` | UUIDv4 | User ID of the HR administrator who initiated the batch. |
   | `data.batch.created_at` | ISO Timestamp | UTC timestamp when the batch was created. |
   | `data.batch.completed_at` | ISO Timestamp / Null | UTC timestamp when all items reached terminal status, or `null` if still in progress. |
@@ -2704,6 +2706,7 @@ Phase 1 is strictly additive and introduces nine new endpoints (#130–#138) on 
 - **Purpose / Business Problem Solved:** Operational line managers often know when an employee requires an official corporate document (e.g. an employment confirmation, experience recommendation, or visa bonafide letter) before central HR is informed. However, enterprise compliance and internal controls strictly prohibit line managers from directly minting, signing, numbering, and materializing official company legal instruments. This API initiates a maker–checker workflow by allowing a manager to submit a formal letter proposal for their direct report. The proposal is placed into the central HR review queue (API #148), where an authorized HR administrator acts as the checker to inspect, edit, approve (API #149), or reject (API #150) the request.
 - **Why the API Exists:** Establishes a dedicated, hierarchy-scoped maker plane (`/api/v1/documents/manager`) for letter requests, completely segregating line management proposal initiation from HR issuance authority.
 - **Real-World Usage:** Invoked from the Manager Self-Service (MSS) portal when a manager selects a direct report from their team roster and clicks "Request Letter for Employee", selecting a permitted template (e.g. `experience_letter`) and providing operational context.
+- **Template & Settings Discovery:** Managers discover available templates via `GET /api/v1/documents/manager/letter-templates` (or `/hr/letter-templates?enabled=true`), inspect form field descriptors via `GET /api/v1/documents/manager/letter-templates/:code` (or `/hr/letter-templates/:code`), and read org settings via `GET /api/v1/documents/manager/settings` (or `/hr/settings`) to verify `manager_can_propose_letters: true`.
 - **Path Parameters:** None.
 - **Query Parameters:** None.
 - **Request Headers:**
@@ -3484,16 +3487,16 @@ Phase 1 is strictly additive and introduces nine new endpoints (#130–#138) on 
 
 ---
 
-### 11.2. GET & PUT /api/v1/documents/hr/settings (APIs #82–#86) — New Letter Automation & Proposal Settings (Settings #91–#94)
+### 11.2. GET & PUT /api/v1/documents/hr/settings — New Letter Automation & Proposal Settings (Settings #91–#94)
 
-- **Endpoints:** `GET /api/v1/documents/hr/settings` and `PUT /api/v1/documents/hr/settings`
-- **Phase 4 Contract Modification:** Exposes and validates four new organizational configuration knobs in `document_hr.validator.js` and `document_settings.service.js`:
+- **Endpoints:** `GET /api/v1/documents/hr/settings` (also `GET /api/v1/documents/manager/settings`) and `PUT /api/v1/documents/hr/settings`
+- **Phase 4 Contract Modification:** Exposes and validates four new organizational configuration knobs in `document_hr.validator.js` and `document_settings.service.js`. `GET /settings` is accessible to both `hr` and `manager` roles (so managers can read `manager_can_propose_letters`), while `PUT /settings` remains strictly restricted to `hr`:
   | Setting Key | Registry # | Data Type | Validation Rules / Allowed Values | Default | Business Purpose |
   | :--- | :---: | :--- | :--- | :---: | :--- |
   | `letter_bulk_max_subjects` | **#91** | Integer | Min `1`, Max `2000`. Validated against `SETTINGS_CAPS`. | `200` | Defines the maximum number of employee subjects permitted in a single bulk letter issuance request via API #143. Prevents memory exhaustion and bounds batch size. |
   | `letter_auto_issue_on_exit` | **#92** | Array<String> | Array of up to 5 template codes. Validated by `assertAutoIssueTemplates()`. Must be registered templates, must not repeat, and **must not be compensation-bearing** (no salary-bearing templates allowed). | `[]` | List of letter template codes automatically issued to resigning/terminated employees during the offboarding cron pass (`runLetterAutoIssue`). |
-  | `manager_can_propose_letters` | **#93** | Boolean | `true` or `false`. Validated as boolean. | `false` | Feature gate controlling whether operational line managers can submit maker–checker letter proposals for direct reports via API #145. When `false`, API #145 returns HTTP `403 Forbidden` (`LETTER_PROPOSALS_DISABLED`). |
-  | `document_notify_letter_issued` | **#94** | Boolean | `true` or `false`. Validated as boolean. | `false` | Controls whether employee email notifications (`letter_issued`) are queued upon publication of a newly issued letter. Default is `false` (disabled) per product specifications. |
+  | `manager_can_propose_letters` | **#93** | Boolean | `true` or `false`. Validated as boolean. | `false` | Feature gate controlling whether operational line managers can submit maker–checker letter proposals for direct reports via API #145. When `false`, API #145 returns HTTP `403 Forbidden` (`LETTER_PROPOSALS_DISABLED`). Discovered via `GET /settings`. |
+  | `document_notify_letter_issued` | **#94** | Boolean | `true` or `false`. Validated as boolean. | `false` | Controls whether employee email notifications (`letter_issued`) are queued upon publication of a newly issued letter. Destination CTA: `/dashboard/employee/company-documents/${documentId}`. |
 - **Pre-Flight Validation & Error Behaviors for `PUT /api/v1/documents/hr/settings`:**
   - If `letter_bulk_max_subjects` is `< 1` or `> 2000`: throws HTTP `422 Unprocessable Entity` (`SETTING_OUT_OF_RANGE` with `{ field: 'letter_bulk_max_subjects' }`).
   - If `letter_auto_issue_on_exit` is not an array: throws HTTP `422 Unprocessable Entity` (`SETTING_OUT_OF_RANGE`).
@@ -3503,3 +3506,402 @@ Phase 1 is strictly additive and introduces nine new endpoints (#130–#138) on 
   - If `letter_auto_issue_on_exit` contains a compensation-bearing template (any template where a derived field uses `SOURCES.SALARY`): throws HTTP `422 Unprocessable Entity` (`SETTING_OUT_OF_RANGE` with message `"letter_auto_issue_on_exit may not include a compensation-bearing template (<code_name>)"`).
 - **Success Response Structure (HTTP 200 OK):**
   - Returns HTTP `200 OK` with the complete, updated settings object reflecting the newly persisted columns alongside existing settings.
+
+---
+
+# Phase 5: Hardening, Retention, Observability, Rate Limits & Operations (APIs #151, #221 & Renderer Microservice)
+
+## 12. HR Administration APIs — Render Queue Observability & Pipeline Health
+
+### 151. GET /api/v1/documents/hr/jobs/pdf-render/health
+
+- **API Name / Purpose:** Get Letter Render-Queue Health & Observability Metrics
+- **HTTP Method:** `GET`
+- **Endpoint / Route:** `/api/v1/documents/hr/jobs/pdf-render/health`
+- **Authentication / Authorization:** Bearer JWT Token. Required Roles: `hr`. Required Feature: `documents.access`.
+- **Purpose / Business Problem Solved:** Provides HR operators, platform administrators, and diagnostic dashboards with immediate visibility into the health and throughput of the asynchronous letter generation pipeline without requiring server log access or direct database query privileges.
+- **Why the API Exists:** Surfaces queue backlog depth, processing worker activity, oldest queued job latency, trailing window failure rates, in-process render performance counters, and microservice authentication status. Fulfills the observability requirement that queue health must be visible without reading raw application logs.
+- **Real-World Usage:** Polled by operations monitoring dashboards and inspected by HR administrators during high-volume bulk letter generation runs or when investigating letter delivery latency.
+- **Path Parameters:** None.
+- **Query Parameters:**
+  | Field | Location | Type | Required | Nullable | Default | Description / Allowed Values |
+  | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+  | `window_hours` | Query | Integer | Optional | No | `24` | Trailing time window (in hours) used to calculate terminal job counts and failure rates. Min: `1`, Max: `168` (7 days). Validated in the controller (`queueHealthQuerySchema`). |
+- **Request Headers:**
+  - `Authorization: Bearer <JWT>` (Required)
+  - `X-Request-ID` / `X-Correlation-ID` (Optional, traced in diagnostics)
+- **Request JSON / Form Data:** None.
+- **Detailed API Behavior & Processing Flow:**
+  1. Authenticates incoming JWT, verifies `req.user.role === 'hr'`, and asserts active entitlement of `documents.access`.
+  2. Extracts `orgId` from verified token claims (`req.user.orgId`).
+  3. Parses and validates `req.query.window_hours` inside the controller via `queueHealthQuerySchema`. If non-numeric, `< 1`, or `> 168`, throws HTTP `400 VALIDATION_ERROR`.
+  4. Dispatches to `documentAutomationService.getLetterQueueHealth(orgId, { windowHours })`.
+  5. Hardcodes `sourceTypes = ['letter']` server-side (C-2, DV-6) to ensure the client cannot query or observe cross-domain queue states.
+  6. Executes three database aggregate queries via `pdf_render_job.repository.js`:
+     a. `countByStatus(orgId, { sourceTypes: ['letter'] })`: Groups by `status` to return tallies for `queued`, `claimed`, `done`, `failed`, and `cancelled`. Missing statuses are zero-filled in memory.
+     b. `failureRate(orgId, { sourceTypes: ['letter'], since })`: Aggregates terminal jobs (`done` + `failed`) updated within `since = now - (window_hours * 3600000)`. Calculates `rate = failed / terminal`. If terminal count is `0`, returns `rate: null` (never returns a false `0` on an idle queue).
+     c. `oldestQueuedAt(orgId, { sourceTypes: ['letter'] })`: Executes `MIN(created_at) WHERE status = 'queued'`. Calculates `oldest_queued_age_seconds` against current server time. Returns `null` if no jobs are queued.
+  7. Reads local renderer configuration from `pdfRendererConfig`:
+     - `configured`: `Boolean(config.baseUrl)` (whether a renderer endpoint URL is set).
+     - `authenticated`: `Boolean(config.apiKey)` (whether HRMS is configured with credentials).
+  8. Takes an in-memory snapshot of in-process monotonic counters from `pdf_metrics.utils.js`.
+  9. Assembles and returns HTTP `200 OK` response payload envelope containing queue metrics, failure rates, renderer connectivity flags, and counter snapshots.
+- **Database Impact:** Read-only index scan on `pdf_render_jobs` utilizing composite index `pdf_render_jobs_org_type_status_created_idx`. No writes, updates, or row-level locks are performed.
+- **PDF Generation Impact:** None. Does not call the renderer or initiate Chromium.
+- **File / Storage Impact:** None. S3 is not accessed.
+- **Transaction Behavior:** None (read-only execution).
+- **Concurrency Behavior:** Safe under concurrent load. Point-in-time snapshot reads do not block queue claims or worker completions.
+- **Idempotency / Retry Behavior:** Fully idempotent read operation. Safe for frequent polling.
+- **Side Effects:** None.
+- **Dependencies:** PostgreSQL table `pdf_render_jobs` (via shared repository), `pdf-renderer.config.js`, in-process metrics utility.
+- **Security & Authorization (Inside Entry):**
+  - Tenant isolation is strictly enforced via `org_id` extracted from JWT claims.
+  - Domain isolation (C-2) is enforced by hardcoding `sourceTypes = ['letter']` in service code; no client query parameter can override the domain boundary.
+  - Information minimization: Aggregates return strictly numerical counts, ratios, and timestamps. Diagnostic error text (`last_error`), storage paths (`storage_key`), employee identifiers, and payloads are categorically excluded from queries and projections.
+- **Success Response Structure (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "OK",
+    "data": {
+      "scope": "letter",
+      "window_hours": 24,
+      "renderer": {
+        "configured": true,
+        "authenticated": true
+      },
+      "queue": {
+        "queued": 4,
+        "claimed": 1,
+        "done": 812,
+        "failed": 3,
+        "cancelled": 0,
+        "oldest_queued_at": "2026-09-29T04:10:00.000Z",
+        "oldest_queued_age_seconds": 900
+      },
+      "failure_rate": {
+        "terminal": 815,
+        "failed": 3,
+        "rate": 0.0036809815950920245
+      },
+      "counters": {
+        "pdf.render.bytes|engine=html,source_type=letter": 1245892,
+        "pdf.render.ok|engine=html,source_type=letter,template_code=experience_letter": 812,
+        "pdf.render.total|engine=html,outcome=ok,source_type=letter,template_code=experience_letter": 812
+      },
+      "counters_note": "Per-process and reset on deploy; queue and failure_rate are database-derived and fleet-wide."
+    }
+  }
+  ```
+- **Response Field Documentation:**
+  | Field | Type | Description |
+  | :--- | :--- | :--- |
+  | `success` | Boolean | Always `true` for successful responses. |
+  | `message` | String | Standard status message `'OK'`. |
+  | `data.scope` | String | Fixed identifier `'letter'` indicating domain plane boundary. |
+  | `data.window_hours` | Integer | Lookback window applied to failure rate aggregation. |
+  | `data.renderer.configured` | Boolean | `true` if `PDF_RENDERER_BASE_URL` is set in environment. |
+  | `data.renderer.authenticated` | Boolean | `true` if `PDF_RENDERER_API_KEY` is configured in HRMS environment. |
+  | `data.queue.queued` | Integer | Count of letter rendering jobs currently waiting in queue. |
+  | `data.queue.claimed` | Integer | Count of letter jobs currently claimed by active background workers. |
+  | `data.queue.done` | Integer | Lifetime tally of successfully finished letter render jobs. |
+  | `data.queue.failed` | Integer | Lifetime tally of permanently failed letter render jobs. |
+  | `data.queue.cancelled` | Integer | Count of cancelled letter jobs. |
+  | `data.queue.oldest_queued_at` | ISO Timestamp / Null | Creation timestamp of the oldest job in `queued` state. `null` if queue is empty. |
+  | `data.queue.oldest_queued_age_seconds` | Integer / Null | Current latency (in seconds) of the oldest waiting job. `null` if empty. |
+  | `data.failure_rate.terminal` | Integer | Total jobs reaching terminal status (`done` + `failed`) within lookback window. |
+  | `data.failure_rate.failed` | Integer | Total jobs failing within the lookback window. |
+  | `data.failure_rate.rate` | Float / Null | Ratio of failed to terminal jobs (`failed / terminal`). Evaluates to `null` if `terminal == 0`. |
+  | `data.counters` | Object | Map of in-process monotonic performance metrics for the responding instance. |
+  | `data.counters_note` | String | Static advisory clarifying the per-process lifecycle of counters vs. persistent database aggregates. |
+- **Error Codes & Scenarios:**
+  | HTTP Status | Error Code | Scenario / Trigger Condition | Exact Error Structure |
+  | :---: | :--- | :--- | :--- |
+  | **400** | `VALIDATION_ERROR` | `window_hours` is non-numeric, `< 1`, or `> 168`. | `{"success": false, "message": "window_hours must be between 1 and 168", "errorCode": "VALIDATION_ERROR"}` |
+  | **401** | `UNAUTHORIZED` | Missing, expired, or signature-invalid Bearer token. | `{"success": false, "message": "Authentication required", "errorCode": "UNAUTHORIZED"}` |
+  | **403** | `INSUFFICIENT_PERMISSIONS` | Caller role is not `hr`. | `{"success": false, "message": "Insufficient permissions", "errorCode": "INSUFFICIENT_PERMISSIONS"}` |
+  | **403** | `FEATURE_DISABLED` | Tenant is not entitled to `documents.access`. | `{"success": false, "message": "Feature not enabled", "errorCode": "FEATURE_DISABLED"}` |
+- **Edge Cases & Boundary Handling:**
+  - **Zero Terminal Jobs in Window (EC-P5-6):** If no jobs completed or failed within `window_hours`, `failure_rate.rate` evaluates strictly to `null`. A never-run or newly-deployed queue never outputs a false healthy `0.0` failure rate.
+  - **Empty Queue Latency:** If `queue.queued === 0`, both `oldest_queued_at` and `oldest_queued_age_seconds` return `null`.
+
+---
+
+### 221. GET /api/v1/payroll/hr/jobs/payslip-render/health
+
+- **API Name / Purpose:** Get Payslip Render-Queue Health & Observability Metrics
+- **HTTP Method:** `GET`
+- **Endpoint / Route:** `/api/v1/payroll/hr/jobs/payslip-render/health`
+- **Authentication / Authorization:** Bearer JWT Token. Required Roles: `hr`. Required Feature: `payroll.access`.
+- **Purpose / Business Problem Solved:** Provides payroll operators and administrators with visibility into the background payslip rendering pipeline (for organizations utilizing the HTML rendering engine) without exposing letter queue data.
+- **Why the API Exists:** Provides identical metrics to `#151` while preserving strict tenant and domain plane isolation (C-2, C-3). Enforces `payroll.access` entitlement and binds queries to `source_type = 'payslip'`.
+- **Real-World Usage:** Monitored by payroll teams during monthly payroll finalization and bulk payslip generation cycles.
+- **Path Parameters:** None.
+- **Query Parameters:**
+  | Field | Location | Type | Required | Nullable | Default | Description / Allowed Values |
+  | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+  | `window_hours` | Query | Integer | Optional | No | `24` | Trailing window (in hours) for failure rate calculation. Min: `1`, Max: `168`. Validated in controller via `payroll_hr.validator.js`. |
+- **Request Headers:**
+  - `Authorization: Bearer <JWT>` (Required)
+  - `X-Request-ID` / `X-Correlation-ID` (Optional, traced in diagnostics)
+- **Request JSON / Form Data:** None.
+- **Detailed API Behavior & Processing Flow:**
+  1. Authenticates JWT, asserts `req.user.role === 'hr'` and active entitlement of `payroll.access`.
+  2. Extracts `orgId` from verified token claims.
+  3. Validates `req.query.window_hours` in controller. Throws `400 VALIDATION_ERROR` if invalid.
+  4. Calls `payrollAutomationService.getPayslipQueueHealth(orgId, { windowHours })`.
+  5. Fixes `sourceTypes = ['payslip']` server-side and queries `pdf_render_job.repository.js` for counts, failure rate, and oldest queued job.
+  6. Reads local renderer configuration and in-process counter snapshot.
+  7. Formats and returns HTTP `200 OK` response payload envelope with `"scope": "payslip"`.
+- **Database Impact:** Read-only index scan on `pdf_render_jobs` filtered by `source_type = 'payslip'` using `pdf_render_jobs_org_type_status_created_idx`.
+- **PDF Generation Impact:** None. Does not call the renderer or invoke Chromium.
+- **File / Storage Impact:** None.
+- **Transaction Behavior:** None (read-only execution).
+- **Concurrency & Idempotency:** Fully idempotent read operation.
+- **Security & Authorization (Inside Entry):** Scoped strictly to `req.user.orgId`. Enforces `source_type = 'payslip'` server-side; cross-domain letter queues are completely invisible.
+- **Success Response Structure (HTTP 200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "OK",
+    "data": {
+      "scope": "payslip",
+      "window_hours": 24,
+      "renderer": {
+        "configured": true,
+        "authenticated": true
+      },
+      "queue": {
+        "queued": 0,
+        "claimed": 0,
+        "done": 1250,
+        "failed": 0,
+        "cancelled": 0,
+        "oldest_queued_at": null,
+        "oldest_queued_age_seconds": null
+      },
+      "failure_rate": {
+        "terminal": 1250,
+        "failed": 0,
+        "rate": 0
+      },
+      "counters": {
+        "pdf.render.bytes|engine=html,source_type=payslip": 3845012,
+        "pdf.render.ok|engine=html,source_type=payslip,template_code=payslip": 1250,
+        "pdf.render.total|engine=html,outcome=ok,source_type=payslip,template_code=payslip": 1250
+      },
+      "counters_note": "Per-process and reset on deploy; queue and failure_rate are database-derived and fleet-wide."
+    }
+  }
+  ```
+- **Response Field Documentation:** Field definitions match API #151 with `"scope": "payslip"`.
+- **Error Codes & Scenarios:**
+  | HTTP Status | Error Code | Scenario / Trigger Condition | Exact Error Structure |
+  | :---: | :--- | :--- | :--- |
+  | **400** | `VALIDATION_ERROR` | `window_hours` is non-numeric, `< 1`, or `> 168`. | `{"success": false, "message": "window_hours must be between 1 and 168", "errorCode": "VALIDATION_ERROR"}` |
+  | **401** | `UNAUTHORIZED` | Missing, expired, or signature-invalid Bearer token. | `{"success": false, "message": "Authentication required", "errorCode": "UNAUTHORIZED"}` |
+  | **403** | `INSUFFICIENT_PERMISSIONS` | Caller role is not `hr`. | `{"success": false, "message": "Insufficient permissions", "errorCode": "INSUFFICIENT_PERMISSIONS"}` |
+  | **403** | `FEATURE_DISABLED` | Tenant is not entitled to `payroll.access`. | `{"success": false, "message": "Feature not enabled", "errorCode": "FEATURE_DISABLED"}` |
+- **Edge Cases & Boundary Handling:**
+  - **PDFKit Engine Orgs:** For organizations on the default `pdfkit` engine, payslips render inline and never enter `pdf_render_jobs`. For these organizations, `#221` safely reports zeros and `rate: null`.
+
+---
+
+## 13. External Renderer Microservice APIs (Vs_Code/pdf-generation)
+
+### POST / — Authenticated Chromium PDF Compilation Service
+
+- **API Name / Purpose:** Compile HTML/Handlebars into PDF Binary Stream
+- **HTTP Method:** `POST`
+- **Endpoint / Route:** `/` (or root AWS Lambda handler invocation)
+- **Authentication / Authorization:** API Key via HTTP Header: `x-api-key`. Evaluated prior to body parsing.
+- **Purpose / Business Problem Solved:** Eliminates the unauthenticated public endpoint vulnerability (Release Blocker D-14) by enforcing pre-parse authentication before Chromium process execution.
+- **Why the API Exists:** Provides headless Chromium PDF compilation for letters and HTML payslips, ensuring that only authenticated HRMS backend instances can initiate PDF rendering workloads.
+- **Real-World Usage:** Dispatched programmatically by HRMS backend services (`pdf-renderer.provider.js`) during on-demand single letter preview/issuance or asynchronous background batch rendering.
+- **Path Parameters:** None.
+- **Query Parameters:** None.
+- **Request Headers:**
+  - `x-api-key: <API_KEY>` (Required)
+  - `Content-Type: application/json` (Required)
+- **Request JSON Payload:**
+  | Field | Location | Type | Required | Nullable | Default | Description / Allowed Values |
+  | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+  | `templateHtml` | Body | String | Yes | No | — | Assembled HTML string containing embedded CSS styling and Handlebars template tags. |
+  | `data` | Body | Object | Optional | No | `{}` | JSON view-model providing substitution variables for Handlebars compilation. |
+  | `config` | Body | Object | Optional | No | `{}` | Chromium page print options (`format`, `margins`, `printBackground`, `landscape`). |
+- **Request JSON Example:**
+  ```json
+  {
+    "templateHtml": "<!DOCTYPE html><html><body><h1>{{title}}</h1><p>{{content}}</p></body></html>",
+    "data": {
+      "title": "Experience Certificate",
+      "content": "This is to certify that Asha Rao was employed with us..."
+    },
+    "config": {
+      "format": "A4",
+      "printBackground": true,
+      "margin": { "top": "20mm", "right": "15mm", "bottom": "20mm", "left": "15mm" }
+    }
+  }
+  ```
+- **Detailed API Behavior & Processing Flow:**
+  1. Executes `authorize(event)`. Extracts `x-api-key` header (case-insensitively).
+  2. Compares presented key against `PDF_RENDERER_API_KEY` (primary) and `PDF_RENDERER_API_KEY_PREVIOUS` (rotation grace) using fixed-width SHA-256 digests via `crypto.timingSafeEqual`.
+  3. If unauthenticated, returns HTTP `401 Unauthorized` with `{"error": "Unauthorized"}` immediately, short-circuiting prior to JSON parsing or Chromium launch.
+  4. If `PDF_RENDERER_API_KEY` is unconfigured and `ALLOW_UNAUTHENTICATED !== 'true'`, fails closed with HTTP `503 Service not configured`.
+  5. Parses JSON request body. Validates `templateHtml` is present and non-empty.
+  6. Compiles Handlebars template against `data`.
+  7. Spawns/reuses Chromium browser instance via `@sparticuz/chromium` / `puppeteer-core`.
+  8. Sets page content, awaits network idle, and compiles binary PDF buffer.
+  9. Returns HTTP `200 OK` with `isBase64Encoded: true`, base64-encoded PDF body, and attaches `x-renderer-version` header.
+- **Database Impact:** None (external stateless Lambda microservice).
+- **PDF Generation Impact:** Executes headless Chromium print pipeline.
+- **File / Storage Impact:** Generates in-memory binary PDF buffer. No files written to local disk.
+- **Transaction Behavior:** None.
+- **Concurrency Behavior:** Bounded by AWS Lambda account/function concurrency reservation.
+- **Idempotency / Retry Behavior:** Stateless compilation. Fully idempotent for identical HTML and view-model inputs.
+- **Side Effects:** None.
+- **Dependencies:** Node.js `crypto`, `puppeteer-core`, `@sparticuz/chromium`, Handlebars.
+- **Security & Authorization (Inside Entry):**
+  - Fail-closed execution: missing credentials return `503`.
+  - Constant-time comparison prevents timing oracle attacks.
+  - Zero PII / secret leakage: authentication failure emits no logs and returns no key metadata.
+- **Success Response Structure (HTTP 200 OK):**
+  - **Headers:**
+    - `Content-Type: application/pdf`
+    - `Content-Disposition: inline; filename="document.pdf"`
+    - `x-renderer-version: 1.0.0`
+  - **Body Envelope:** Base64-encoded binary PDF data (`isBase64Encoded: true`).
+- **Error Codes & Scenarios:**
+  | HTTP Status | Error Body | Scenario / Trigger Condition |
+  | :---: | :--- | :--- |
+  | **400** | `{"error": "Invalid JSON in request body"}` | Malformed JSON in HTTP request body. |
+  | **400** | `{"error": "ValidationError: \`templateHtml\` is required..."}` | Missing or invalid `templateHtml` parameter. |
+  | **401** | `{"error": "Unauthorized"}` | Missing, invalid, or unrecognized `x-api-key`. |
+  | **500** | `{"error": "PDF generation failed"}` | Chromium execution crash or unhandled render exception. |
+  | **503** | `{"error": "Service not configured"}` | `PDF_RENDERER_API_KEY` is unconfigured on the renderer service. |
+- **Edge Cases & Boundary Handling:**
+  - **Dual-Key Rotation Window (DV-7, EC-44):** During key rotation, requests bearing either the new primary key or the old previous key succeed with HTTP 200. Enables rolling deployments with zero failed renders.
+
+---
+
+### GET /health — Authenticated Renderer Health & Liveness Probe
+
+- **API Name / Purpose:** Microservice Liveness & Deployment Version Probe
+- **HTTP Method:** `GET`
+- **Endpoint / Route:** `/health`
+- **Authentication / Authorization:** API Key via HTTP Header: `x-api-key`.
+- **Purpose / Business Problem Solved:** Provides an operational probe for deployment pipelines and runbooks to verify that the renderer service is reachable, authenticated, and running the expected deployment version without launching Chromium.
+- **Why the API Exists:** Verifies renderer availability and credentials without incurring the latency, memory, or CPU overhead of spinning up headless Chromium processes.
+- **Real-World Usage:** Invoked by operator deployment scripts, monitoring health-check probes, and during key rotation verification procedures.
+- **Path Parameters:** None.
+- **Query Parameters:** None.
+- **Request Headers:**
+  - `x-api-key: <API_KEY>` (Required)
+- **Request JSON / Form Data:** None.
+- **Detailed API Behavior & Processing Flow:**
+  1. Executes `authorize(event)`. If `x-api-key` is missing or invalid, immediately returns HTTP `401 Unauthorized`.
+  2. Evaluates path suffix: `methodOf(event) === 'GET' && pathOf(event).endsWith('/health')`.
+  3. Returns HTTP `200 OK` JSON payload containing `ok: true` and active `version`. Attaches `x-renderer-version` header.
+- **Database Impact:** None.
+- **PDF Generation Impact:** None. Does not launch Chromium.
+- **File / Storage Impact:** None.
+- **Transaction Behavior:** None.
+- **Concurrency & Idempotency:** Fully idempotent read operation.
+- **Security & Authorization (Inside Entry):** Requires identical `x-api-key` authentication as the render endpoint. Unauthenticated callers are rejected with `401`, preventing public microservice enumeration.
+- **Success Response Structure (HTTP 200 OK):**
+  - **Headers:**
+    - `Content-Type: application/json`
+    - `x-renderer-version: 1.0.0`
+  - **Body:**
+    ```json
+    {
+      "ok": true,
+      "version": "1.0.0"
+    }
+    ```
+- **Error Codes & Scenarios:**
+  | HTTP Status | Error Body | Scenario / Trigger Condition |
+  | :---: | :--- | :--- |
+  | **401** | `{"error": "Unauthorized"}` | Missing or invalid `x-api-key`. |
+  | **503** | `{"error": "Service not configured"}` | `PDF_RENDERER_API_KEY` is unconfigured. |
+
+---
+
+## 14. Existing APIs Modified / Extended by Phase 5
+
+### 14.1. POST /api/v1/documents/hr/letters/bulk (API #143) — Bulk Issuance Hourly Rate Limiting (#96) & Retry-After Header
+
+- **Endpoint / Method:** `POST /api/v1/documents/hr/letters/bulk`
+- **Phase 5 Contract Modification:**
+  - **Hourly Rate Limiter Evaluation (F-6, BR-8):** Bulk letter generation is now throttled on a per-organization basis by `letter_bulk_rate_per_hour` (Setting #96, default 10 batches per UTC hour).
+  - **Reconnaissance Defense (BR-9):** The rate check executes **prior** to cohort iteration, subject validation, or database lookups against target employees:
+    ```javascript
+    await checkOrgRate(orgId, 'bulk', orgCtx.settings.letter_bulk_rate_per_hour ?? 10, {
+      errorCode: 'LETTER_BULK_RATE_EXCEEDED',
+      errorMessage: 'Bulk issuance rate limit reached; try again later',
+      withRetryAfter: true
+    })
+    ```
+  - **HTTP Response Modification:** When the rate limit is exceeded, the endpoint responds with HTTP `429 Too Many Requests` and attaches a standard `Retry-After: <seconds>` HTTP header:
+    - **Header:** `Retry-After: 1420` (number of seconds remaining until the start of the next UTC hour).
+    - **Body:**
+      ```json
+      {
+        "success": false,
+        "message": "Bulk issuance rate limit reached; try again later",
+        "errorCode": "LETTER_BULK_RATE_EXCEEDED",
+        "details": {
+          "retry_after_seconds": 1420
+        }
+      }
+      ```
+  - **Fail-Open Resilience (§9.2):** If Redis is offline or encounters connection exceptions, `checkOrgRate` logs a warning and fails open. Bulk issuance is not blocked by a cache outage.
+  - **Replay Token Consumption:** Resubmitting an existing batch idempotency key consumes a rate-limit token because probing the batch store requires database reads that the rate limiter is designed to bound.
+  - **Preserved Contract:** Request payload schema, successful batch enqueue status (`202 Accepted` fresh / `200 OK` reused), and batch polling endpoints (`#144`) remain unchanged.
+
+---
+
+### 14.2. GET & PUT /api/v1/documents/hr/settings — New Retention & Rate Limit Settings (#95, #96)
+
+- **Endpoints:**
+  - `GET /api/v1/documents/hr/settings` (API #23)
+  - `PUT /api/v1/documents/hr/settings` (API #24)
+- **Phase 5 Contract Modification:** Exposes and validates two new organizational configuration knobs in `document_settings`:
+  | Setting Key | Registry # | Data Type | Validation Rules / Allowed Values | Default | Business Purpose |
+  | :--- | :---: | :--- | :--- | :---: | :--- |
+  | `letter_record_retention_days` | **#95** | Integer (Nullable) | `Joi.number().integer().min(365).allow(null)`<br>DB: `CHECK (letter_record_retention_days IS NULL OR letter_record_retention_days >= 365)` | `null` | Defines the retention period for soft-deleted generated letters. `null` inherits master document retention (7 years / 2,555 days). Enforces a mandatory 1-year (365 days) legal floor. |
+  | `letter_bulk_rate_per_hour` | **#96** | Integer | `Joi.number().integer().min(1).max(500)`<br>DB: `CHECK (letter_bulk_rate_per_hour BETWEEN 1 AND 500)` | `10` | Maximum number of bulk letter batches an organization can enqueue per UTC hour. Enforced by API #143. |
+- **Validation Behaviors on `PUT /api/v1/documents/hr/settings`:**
+  - If `letter_record_retention_days` is `< 365` (and not `null`): rejected with HTTP `400 VALIDATION_ERROR` by Joi and blocked by database CHECK constraint `document_settings_letter_record_retention_chk`.
+  - If `letter_bulk_rate_per_hour` is `< 1` or `> 500`: rejected with HTTP `400 VALIDATION_ERROR` and blocked by database CHECK constraint `document_settings_letter_bulk_rate_chk`.
+- **Audit Logging:** Modifications record `document_settings.updated` in `document_audit_logs`, tracking `oldValues` and `newValues`.
+
+---
+
+### 14.3. POST /api/v1/documents/hr/letter-branding/assets/confirm (API #133) — Superseded Asset Quarantine
+
+- **Endpoint / Method:** `POST /api/v1/documents/hr/letter-branding/assets/confirm`
+- **Phase 5 Contract Modification:** Closes the S3 cloud storage orphaning gap (F-4).
+- **Behavioral Change:**
+  - When confirming a replacement logo or signature image, the previous storage key (`logo_storage_key` or `signature_storage_key`) is appended with a UTC timestamp to `document_letter_branding.superseded_asset_keys`:
+    ```json
+    [
+      { "key": "org/uuid/branding/logo/old-uuid.png", "superseded_at": "2026-09-29T10:00:00.000Z" }
+    ]
+    ```
+  - Executed within the existing advisory lock transaction (`SELECT pg_advisory_xact_lock(hashtext('letter-branding:' || :orgId))`).
+  - **Quarantine Safety Rule:** Assets are **not** deleted inline. Pass 4 of the nightly sweeper (`_sweepBrandingAssets`) deletes quarantined assets older than 1 hour, allowing active preview presigned URLs (300 s TTL) to expire naturally without broken images.
+  - If the quarantine array reaches its cap of 20 entries, the oldest asset is deleted inline to satisfy `document_letter_branding_superseded_keys_chk`.
+  - `superseded_asset_keys` is strictly stripped from client DTO responses (`toBrandingDto`) to prevent storage key leakage.
+
+---
+
+### 14.4. POST /api/v1/documents/hr/letter-branding/preview (API #134) — Centralized Rate Limiter Refactor
+
+- **Endpoint / Method:** `POST /api/v1/documents/hr/letter-branding/preview`
+- **Phase 5 Contract Modification:** Refactored internal rate limiting implementation.
+- **Behavioral Change:**
+  - `checkPreviewRate` refactored to delegate to `checkOrgRate(orgId, 'preview', limit)`.
+  - **Contract Invariance:** Preserves identical Redis key formatting (`pdf:preview:${orgId}:${YYYYMMDDHH}`), identical TTL (3,900 seconds), identical error code (`PREVIEW_RATE_LIMITED`), and identical fail-open behavior on Redis failure.
+  - The external wire contract, HTTP status codes, and test suite pass unmodified.

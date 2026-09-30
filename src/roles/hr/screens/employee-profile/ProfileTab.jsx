@@ -1,6 +1,7 @@
 import {
   HiUser, HiMail, HiPhone, HiLocationMarker,
-  HiCalendar, HiBriefcase, HiUserGroup, HiOfficeBuilding, HiPencil
+  HiCalendar, HiBriefcase, HiUserGroup, HiOfficeBuilding, HiPencil,
+  HiBan, HiCheckCircle, HiTrash, HiExclamation
 } from "react-icons/hi";
 
 function InfoRow({ icon: Icon, label, value }) {
@@ -18,7 +19,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function ProfileTab({ employee, onEdit }) {
+export default function ProfileTab({ employee, onEdit, danger = null }) {
   if (!employee) {
     return (
       <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center text-slate-400 shadow-xs">
@@ -98,6 +99,71 @@ export default function ProfileTab({ employee, onEdit }) {
           </div>
         </div>
       </div>
+
+      {/* The two actions that change or end someone's access. They used to sit
+          in a ··· menu at the top of the page, where they were both hard to
+          find and one slip away from each other. Here each one says what it
+          does before it is pressed, and the destructive one is last. */}
+      {danger && <DangerZone {...danger} isActive={employee.is_active !== false} />}
     </div>
+  );
+}
+
+/** HR-only. Rose is reserved for destructive actions (CLAUDE.md §5). */
+function DangerZone({ isActive, onToggleStatus, onDelete, busy = false }) {
+  return (
+    <section className="bg-white rounded-[20px] border border-rose-200 shadow-xs overflow-hidden">
+      <div className="px-6 py-4 border-b border-rose-100 bg-rose-50/50 flex items-start gap-3">
+        <span className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+          <HiExclamation className="w-4 h-4" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-slate-800">Danger zone</h2>
+          <p className="text-[11px] font-semibold text-slate-500 mt-0.5">These change what this person can reach. Only HR can do them.</p>
+        </div>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800">{isActive ? "Deactivate this employee" : "Activate this employee"}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isActive
+                ? "They can’t sign in and stop appearing in attendance and payroll. Their records are kept, and you can switch this back on."
+                : "They can sign in again and return to attendance and payroll from today."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleStatus}
+            disabled={busy}
+            className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 ${
+              isActive
+                ? "text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100 border border-fuchsia-200"
+                : "text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200"
+            }`}
+          >
+            {isActive ? <><HiBan className="w-4 h-4" /> Deactivate</> : <><HiCheckCircle className="w-4 h-4" /> Activate</>}
+          </button>
+        </div>
+
+        <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800">Delete this employee</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Removes the person and everything filed under them. This can’t be undone — deactivate instead if they may come back.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy}
+            className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 transition disabled:opacity-50"
+          >
+            <HiTrash className="w-4 h-4" /> Delete
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
