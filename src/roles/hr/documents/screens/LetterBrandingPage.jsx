@@ -44,6 +44,7 @@ import {
   HiPrinter, HiRefresh, HiTrash, HiUpload,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { Toast, useToast } from "../../../../shared/attendance/ui";
 import { fmtDateTime } from "../../../../shared/attendance/dates";
@@ -277,7 +278,7 @@ export default function LetterBrandingPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Letterhead &amp; Branding</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Letterhead & Branding" help={{ surface: "documents.letterhead", field: "page", label: "the Letterhead & Branding page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               The frame around every letter your company issues. Set it once and every letter follows.
               {branding?.updated_at && <span className="text-slate-400"> Last changed {fmtDateTime(branding.updated_at)}.</span>}
@@ -358,7 +359,11 @@ export default function LetterBrandingPage() {
                         const value = form[field.key] ?? "";
                         return (
                           <div key={field.key} className="min-w-0">
-                            <label htmlFor={`lb-${field.key}`} className={LABEL}>{field.label}</label>
+                            {/* Wired by key; the config decides which fields carry an ⓘ. */}
+                            <div className="flex items-center">
+                              <label htmlFor={`lb-${field.key}`} className={LABEL}>{field.label}</label>
+                              <FieldHelp surface="documents.letterhead" field={field.key} label={field.label} className="mb-2" />
+                            </div>
                             {field.multiline ? (
                               <textarea
                                 id={`lb-${field.key}`} rows={2} value={value} maxLength={field.max}

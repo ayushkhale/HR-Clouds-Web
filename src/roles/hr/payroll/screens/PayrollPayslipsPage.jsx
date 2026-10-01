@@ -27,6 +27,9 @@ import {
 } from "react-icons/hi";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.payslip_admin", field, ...extra });
 
 const TABS = [
   ["payslips", "Payslip history"],
@@ -417,7 +420,7 @@ export default function PayrollPayslipsPage() {
       <DashboardTopBar title="Payslips & Documents" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Payslips &amp; Documents</h1>
+          <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Payslips & Documents" help={help("page", { label: "the Payslips & Documents page" })} /></h1>
           <p className="text-sm text-slate-500 mt-1">
             Every payslip issued to an employee, their yearly statement and their Form 16 — including replaced and withdrawn versions.
           </p>
@@ -443,6 +446,10 @@ export default function PayrollPayslipsPage() {
               </button>
             ))}
           </div>
+          {/* Beside the tablist, never inside it; explains the open tab. */}
+          <span className="self-center">
+            <FieldHelp {...help(`tab.${tab}`)} label={`the ${TABS.find(([v]) => v === tab)?.[1]} tab`} />
+          </span>
         </div>
 
         {!userId ? (
@@ -473,9 +480,9 @@ export default function PayrollPayslipsPage() {
                     <thead>
                       <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                         <th className="px-6 py-4">Period</th>
-                        <th className="px-6 py-4">Version</th>
+                        <th className="px-6 py-4"><HelpLabel text="Version" help={help("version", { size: "sm", label: "payslip versions" })} /></th>
                         <th className="px-6 py-4">State</th>
-                        <th className="px-6 py-4">Employee can see it</th>
+                        <th className="px-6 py-4"><HelpLabel text="Employee can see it" help={help("is_visible", { size: "sm", label: "when employees see a payslip" })} /></th>
                         <th className="px-6 py-4">Email</th>
                         <th className="px-6 py-4">Released</th>
                       </tr>

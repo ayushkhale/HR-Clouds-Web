@@ -13,7 +13,9 @@ import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { interestMethodLabel } from "../runMeta";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.loan_admin", field, ...extra });
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -235,7 +237,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
           <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Loans &amp; Advances</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Loans & Advances" help={help("page", { label: "the Loans & Advances page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">Grant company loans and salary advances with a repayment schedule worked out for you. Click a row to see its details.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -266,7 +268,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                       <th className="px-4 py-4 border-b border-slate-100">Interest</th>
                       <th className="px-4 py-4 border-b border-slate-100">Monthly</th>
                       <th className="px-4 py-4 border-b border-slate-100">Tenure</th>
-                      <th className="px-4 py-4 border-b border-slate-100">Outstanding</th>
+                      <th className="px-4 py-4 border-b border-slate-100"><HelpLabel text="Outstanding" help={help("outstanding", { size: "sm", label: "the amount outstanding" })} /></th>
                       <th className="px-4 py-4 border-b border-slate-100">Status</th>
                       <th className="px-4 py-4 border-b border-slate-100 text-right">Actions</th>
                     </tr>
@@ -367,7 +369,10 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                     <input type="number" min="0" max="100" step="0.01" value={form.interest_rate} onChange={(e) => setForm({ ...form, interest_rate: e.target.value })} className={fieldClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Method</label>
+                    <div className="flex items-center">
+                      <label className={labelClass}>Method</label>
+                      <FieldHelp {...help("interest_method")} label="the interest method" className="mb-1.5" overlay />
+                    </div>
                     <select value={form.interest_method} onChange={(e) => setForm({ ...form, interest_method: e.target.value })} className={fieldClass}>
                       <option value="reducing_balance">Reducing</option>
                       <option value="flat">Flat</option>
@@ -449,7 +454,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 { label: "Principal", value: money(loan.principal_amount), icon: HiCash },
                 { label: "Monthly repayment", value: money(loan.emi_amount), icon: HiCalendar },
                 { label: "Recovered", value: money(loan.recovered_amount ?? loan.total_recovered), icon: HiCheckCircle },
-                { label: "Outstanding", value: money(outstanding(loan)), icon: HiTrendingUp },
+                { label: "Outstanding", value: money(outstanding(loan)), icon: HiTrendingUp, help: help("outstanding", { label: "the amount outstanding" }) },
               ]}
             />
 
@@ -459,7 +464,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 items={[
                   ["Type", prettify(loan.loan_type)],
                   ["Interest rate", `${parseFloat(loan.interest_rate || 0)}% p.a.`],
-                  ["How interest is worked out", interestMethodLabel(loan.interest_method)],
+                  { label: "How interest is worked out", value: interestMethodLabel(loan.interest_method), help: help("interest_method") },
                   ["Tenure", `${loan.tenure_months ?? 0} months`],
                   ["First payment", fmtPeriod(loan.start_period_month)],
                   ["Money paid out on", fmtDate(loan.disbursed_on)],
@@ -503,7 +508,10 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 Outstanding principal <span className="font-bold text-slate-800">{money(outstanding(foreclosing))}</span>. Remaining scheduled installments are cancelled and their interest is forgiven.
               </p>
               <div>
-                <label className={labelClass}>Settlement Mode</label>
+                <div className="flex items-center">
+                  <label className={labelClass}>Settlement Mode</label>
+                  <FieldHelp {...help("settlement_mode")} label="the settlement mode" className="mb-1.5" />
+                </div>
                 <select value={fcForm.settlement_mode} onChange={(e) => setFcForm({ ...fcForm, settlement_mode: e.target.value })} className={fieldClass}>
                   <option value="recover_via_payroll">Recover via payroll</option>
                   <option value="settled_externally">Settled externally</option>

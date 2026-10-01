@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
 import { HiSparkles, HiPlus, HiPencil, HiLocationMarker, HiX, HiSearch } from "react-icons/hi";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 // Best-effort default timezone for new locations. The backend defaults to UTC
 // when omitted, which silently breaks attendance geofence/clock calculations,
@@ -548,12 +549,18 @@ function AttendanceLocationsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timezone</label>
+                  <div className="flex items-center">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timezone</label>
+                    <FieldHelp surface="organization.location_setup" field="timezone" label="the time zone" className="mb-1.5" />
+                  </div>
                   <input type="text" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })} placeholder="Asia/Kolkata" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
                   <p className="text-[10px] text-slate-400 mt-1">IANA zone used for attendance calculations at this location.</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.geofence_radius_meters}m</span></label>
+                  <div className="flex items-center">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.geofence_radius_meters}m</span></label>
+                    <FieldHelp surface="organization.location_setup" field="geofence_radius_meters" label="the clock-in radius" className="mb-1.5" />
+                  </div>
                   <input type="range" min="25" max="1000" step="25" value={form.geofence_radius_meters} onChange={e => setForm({ ...form, geofence_radius_meters: parseInt(e.target.value) })} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 shadow-inner" />
                   <div className="flex justify-between text-[10px] text-slate-400 mt-1.5"><span>25m</span><span>500m</span><span>1000m</span></div>
                 </div>

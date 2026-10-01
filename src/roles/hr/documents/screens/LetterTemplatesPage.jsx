@@ -34,6 +34,7 @@ import {
   HiMail, HiPaperAirplane, HiRefresh,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { FilterTabs, Toast, useToast } from "../../../../shared/attendance/ui";
 import { TONE_CLASSES, TONE_DOT } from "../../../../shared/attendance/enums";
@@ -193,7 +194,7 @@ export default function LetterTemplatesPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Letter Templates</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Letter Templates" help={{ surface: "documents.letter_templates", field: "page", label: "the Letter Templates page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               The standard letters your company issues. Switch on the ones you use and save the wording that never changes.
             </p>

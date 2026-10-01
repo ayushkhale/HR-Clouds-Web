@@ -18,6 +18,7 @@ import {
   HiUserGroup, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { Pagination, Toast, useToast } from "../../../../shared/attendance/ui";
 import { fmtDate } from "../../../../shared/attendance/dates";
@@ -263,14 +264,14 @@ export default function DocumentCompliancePage() {
                   <thead className="bg-slate-50/80 text-[11px] uppercase font-bold tracking-wider text-slate-500 border-b border-slate-100">
                     <tr>
                       <th className="px-5 py-3">Document</th>
-                      <th className="px-3 py-3">Asks for</th>
+                      <th className="px-3 py-3"><HelpLabel text="Asks for" help={{ surface: "documents.compliance", field: "requires", size: "sm", label: "what the document asks for" }} /></th>
                       <th className="px-3 py-3">Published</th>
                       <th className="px-3 py-3">Progress</th>
                       <th className="px-3 py-3 text-right">People</th>
                       <th className="px-3 py-3 text-right">Done</th>
                       <th className="px-3 py-3 text-right">Still to do</th>
                       <th className="px-3 py-3 text-right">Overdue</th>
-                      <th className="px-5 py-3 text-right">Excused</th>
+                      <th className="px-5 py-3 text-right"><HelpLabel text="Excused" help={{ surface: "documents.compliance", field: "waived", size: "sm", label: "excused people" }} /></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">

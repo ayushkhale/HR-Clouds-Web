@@ -1,6 +1,7 @@
 import React from "react";
 import { HiExclamationCircle, HiPencil, HiPlus, HiTrash } from "react-icons/hi";
 import { CTC_PRESETS, formatINR, moYr, friendlyPreviewNote } from "./ctcBudget";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 // Slim target-CTC strip for the Manage Components modal. Warns only, never blocks.
 export default function CtcBudgetBar({ target, onTargetChange, budget, loading, error, isCtcDriven, suggestions = [], onSuggestion }) {
@@ -46,7 +47,10 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
   return (
     <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <label htmlFor="target-ctc" className="text-[11px] font-bold text-slate-500 uppercase">Target CTC</label>
+        <div className="flex items-center">
+          <label htmlFor="target-ctc" className="text-[11px] font-bold text-slate-500 uppercase">Target CTC</label>
+          <FieldHelp surface="payroll.structure_template" field="target_ctc" label="the target CTC" size="sm" />
+        </div>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
           <input

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { Fragment, useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import {
@@ -157,9 +157,19 @@ export default function TaxConfigurationsPage() {
 
           <div className="flex gap-1 mb-6 border-b border-slate-200 flex-wrap">
             {TABS.map((t) => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition ${tab === t.key ? "border-purple-600 text-purple-700" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
-                <t.icon className="w-4 h-4" /> {t.label}
-              </button>
+              <Fragment key={t.key}>
+                <button onClick={() => setTab(t.key)} className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition ${tab === t.key ? "border-purple-600 text-purple-700" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+                  <t.icon className="w-4 h-4" /> {t.label}
+                </button>
+                {/* One ⓘ for the strip, right after the open tab (never inside it):
+                    at 390 the strip wraps to a row per tab, and an ⓘ at the end
+                    would sit beside a tab that isn't the one it explains. */}
+                {tab === t.key && (
+                  <span className="self-center">
+                    <FieldHelp surface="payroll.statutory_config" field={`tab.${t.key}`} label={`the ${t.label} tab`} />
+                  </span>
+                )}
+              </Fragment>
             ))}
           </div>
 
@@ -235,7 +245,7 @@ function ConfigTab({ showToast }) {
           return (
             <div key={g.toggle} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 bg-slate-50/50">
-                <h2 className="font-bold text-slate-800">{g.title}</h2>
+                <h2 className="font-bold text-slate-800"><HelpLabel text={g.title} help={{ surface: "payroll.statutory_config", field: g.toggle }} /></h2>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -518,7 +528,7 @@ function PtSlabsTab({ showToast }) {
                       <Field label="Monthly PT ₹">
                         <input type="number" value={r.monthly_amount} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, monthly_amount: e.target.value }; setEditorState({ ...editorState, rows }); }} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
                       </Field>
-                      <Field label="Gender">
+                      <Field label="Gender" help={i === 0 ? { surface: "payroll.pt_slabs", field: "gender", label: "gender in PT slabs" } : undefined}>
                         <select value={r.gender} onChange={(e) => { const rows = [...editorState.rows]; rows[i] = { ...r, gender: e.target.value }; setEditorState({ ...editorState, rows }); }} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400">
                           <option value="any">Any</option><option value="male">Male</option><option value="female">Female</option>
                         </select>
@@ -654,7 +664,7 @@ function RegimesTab({ showToast }) {
                 <Row k="Standard Deduction" v={money(r.standard_deduction)} help={{ surface: "payroll.tax_regime_config", field: "standard_deduction" }} />
                 <Row k="87A income limit" v={money(r.rebate_87a_income_limit)} help={{ surface: "payroll.tax_regime_config", field: "rebate_87a_income_limit", label: "the 87A income limit" }} />
                 <Row k="87A max rebate" v={money(r.rebate_87a_max_amount)} />
-                <Row k="HRA exemption" v={r.allows_hra_exemption ? "Allowed" : "N/A"} />
+                <Row k="HRA exemption" v={r.allows_hra_exemption ? "Allowed" : "N/A"} help={{ surface: "payroll.tax_regime_config", field: "allows_hra_exemption", label: "the HRA exemption" }} />
                 <Row k="Chapter VI-A" v={r.allows_chapter_via ? "Allowed" : "N/A"} help={{ surface: "payroll.tax_regime_config", field: "allows_chapter_via", label: "Chapter VI-A deductions" }} />
               </div>
               <div className="p-4 border-t border-slate-50 flex gap-2">
@@ -679,14 +689,14 @@ function RegimesTab({ showToast }) {
             <div className="p-6 space-y-4">
               <Field label="Name"><input value={editing.name || ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" /></Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Standard Deduction ₹"><input type="number" value={editing.standard_deduction ?? ""} onChange={(e) => setEditing({ ...editing, standard_deduction: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" /></Field>
-                <Field label="87A Income Limit ₹"><input type="number" value={editing.rebate_87a_income_limit ?? ""} onChange={(e) => setEditing({ ...editing, rebate_87a_income_limit: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" /></Field>
+                <Field label="Standard Deduction ₹" help={REGIME("standard_deduction", "the standard deduction")}><input type="number" value={editing.standard_deduction ?? ""} onChange={(e) => setEditing({ ...editing, standard_deduction: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" /></Field>
+                <Field label="87A Income Limit ₹" help={REGIME("rebate_87a_income_limit", "the 87A income limit")}><input type="number" value={editing.rebate_87a_income_limit ?? ""} onChange={(e) => setEditing({ ...editing, rebate_87a_income_limit: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" /></Field>
               </div>
               <Field label="87A Max Rebate ₹"><input type="number" value={editing.rebate_87a_max_amount ?? ""} onChange={(e) => setEditing({ ...editing, rebate_87a_max_amount: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:border-purple-400 outline-none" /></Field>
               <div className="space-y-2">
-                <Check label="Allows HRA exemption" checked={!!editing.allows_hra_exemption} onChange={(v) => setEditing({ ...editing, allows_hra_exemption: v })} />
-                <Check label="Allows Chapter VI-A" checked={!!editing.allows_chapter_via} onChange={(v) => setEditing({ ...editing, allows_chapter_via: v })} />
-                <Check label="Set as default regime" checked={!!editing.is_default} onChange={(v) => setEditing({ ...editing, is_default: v })} />
+                <Check label="Allows HRA exemption" help={REGIME("allows_hra_exemption", "the HRA exemption")} checked={!!editing.allows_hra_exemption} onChange={(v) => setEditing({ ...editing, allows_hra_exemption: v })} />
+                <Check label="Allows Chapter VI-A" help={REGIME("allows_chapter_via", "Chapter VI-A deductions")} checked={!!editing.allows_chapter_via} onChange={(v) => setEditing({ ...editing, allows_chapter_via: v })} />
+                <Check label="Set as default regime" help={REGIME("is_default", "the default regime")} checked={!!editing.is_default} onChange={(v) => setEditing({ ...editing, is_default: v })} />
                 <Check label="Active" checked={editing.is_active !== false} onChange={(v) => setEditing({ ...editing, is_active: v })} />
               </div>
             </div>
@@ -713,7 +723,7 @@ function RegimesTab({ showToast }) {
                     <button onClick={() => setSlabEditor({ ...slabEditor, rows: slabEditor.rows.filter((_, x) => x !== i) })} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition" title="Remove slab"><HiTrash className="w-4 h-4" /></button>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <Field label="Age Band">
+                    <Field label="Age Band" help={i === 0 ? REGIME("age_band", "the age band") : undefined}>
                       <select value={r.age_band} onChange={(e) => { const rows = [...slabEditor.rows]; rows[i] = { ...r, age_band: e.target.value }; setSlabEditor({ ...slabEditor, rows }); }} className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400">
                         <option value="below_60">Below 60</option><option value="60_to_79">60–79</option><option value="80_plus">80+</option>
                       </select>
@@ -750,12 +760,25 @@ const Row = ({ k, v, help }) => (
     <span className="font-semibold text-slate-800 shrink-0">{v}</span>
   </div>
 );
-const Field = ({ label, children }) => (
-  <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">{label}</label>{children}</div>
+// `help` puts an ⓘ beside the label — never inside it, where it would join the input's name.
+const Field = ({ label, children, help }) => (
+  <div>
+    {help ? (
+      <div className="flex items-center">
+        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">{label}</label>
+        <FieldHelp {...help} label={help.label || label} className="mb-1.5" />
+      </div>
+    ) : <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">{label}</label>}
+    {children}
+  </div>
 );
-const Check = ({ label, checked, onChange }) => (
-  <label className="flex items-center gap-2 cursor-pointer">
-    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-    <span className="text-sm font-medium text-slate-700">{label}</span>
-  </label>
-);
+const Check = ({ label, checked, onChange, help }) => {
+  const box = (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+    </label>
+  );
+  return help ? <div className="flex items-center">{box}<FieldHelp {...help} label={help.label || label} /></div> : box;
+};
+const REGIME = (field, label) => ({ surface: "payroll.tax_regime_config", field, label });

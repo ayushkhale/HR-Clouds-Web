@@ -3,6 +3,9 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
 import { HiLightningBolt, HiRefresh, HiCheckCircle, HiExclamationCircle, HiX, HiPlay, HiInformationCircle } from "react-icons/hi";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const SURFACE = "leaves.automation";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -95,7 +98,7 @@ export default function LeaveAutomationPage() {
         <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full">
 
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Leave Automation</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Leave Automation" help={{ surface: SURFACE, field: "page", label: "the Leave Automation page" }} /></h1>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-4xl">
               The "brain" of the leave system. Automatically calculates and updates employee leave balances via scheduled background jobs. 
               When triggering manually across a year boundary, always run <strong className="text-slate-700">Year-End Rollover before the January accrual</strong>. Both engines are safe to re-run.
@@ -112,7 +115,10 @@ export default function LeaveAutomationPage() {
                   <HiLightningBolt className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-slate-800 truncate">Monthly Leave Credit</h2>
+                  <div className="flex items-center min-w-0">
+                    <h2 className="text-base font-bold text-slate-800 truncate">Monthly Leave Credit</h2>
+                    <FieldHelp surface={SURFACE} field="accrual" label="the monthly leave credit" />
+                  </div>
                   <p className="text-sm text-slate-500 mt-1 leading-relaxed pr-4">
                     Deposits one month's worth of leaves into employees' accounts on the 1st of every month.
                   </p>
@@ -132,7 +138,10 @@ export default function LeaveAutomationPage() {
               {/* Right Side: Actions */}
               <div className="flex flex-col sm:flex-row xl:flex-col gap-3 shrink-0 xl:w-56">
                 <div className="flex-1">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                  <div className="flex items-center">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                    <FieldHelp surface={SURFACE} field="reference_date" label="the reference date" className="mb-1.5" size="sm" />
+                  </div>
                   <input
                     type="date"
                     value={accrualDate}
@@ -162,7 +171,10 @@ export default function LeaveAutomationPage() {
                   <HiRefresh className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-slate-800 truncate">New Year Calculations (Rollover)</h2>
+                  <div className="flex items-center min-w-0">
+                    <h2 className="text-base font-bold text-slate-800 truncate">New Year Calculations (Rollover)</h2>
+                    <FieldHelp surface={SURFACE} field="rollover" label="the year-end rollover" />
+                  </div>
                   <p className="text-sm text-slate-500 mt-1 leading-relaxed pr-4">
                     Closes out the old year. Moves unused leaves into the new year, lapses the rest, and seeds fresh quotas.
                   </p>
@@ -183,7 +195,10 @@ export default function LeaveAutomationPage() {
               {/* Right Side: Actions */}
               <div className="flex flex-col sm:flex-row xl:flex-col gap-3 shrink-0 xl:w-56">
                 <div className="flex-1">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                  <div className="flex items-center">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reference date (optional)</label>
+                    <FieldHelp surface={SURFACE} field="rollover.reference_date" label="the reference date" className="mb-1.5" size="sm" />
+                  </div>
                   <input
                     type="date"
                     value={rolloverDate}

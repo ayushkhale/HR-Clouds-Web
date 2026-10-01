@@ -178,7 +178,7 @@ export default function TaxDeclarationsPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Tax Declarations</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Tax Declarations" help={{ surface: "payroll.tax_verification", field: "page", label: "the Tax Declarations page" }} /></h1>
               <p className="text-sm text-slate-500 mt-1">Review and verify employee tax-saving claims item by item. Open a row to review it.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -205,7 +205,7 @@ export default function TaxDeclarationsPage() {
                     <th className="px-6 py-4 border-b border-slate-100">Employee</th>
                     <th className="px-6 py-4 border-b border-slate-100">FY</th>
                     <th className="px-6 py-4 border-b border-slate-100">Declared</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Proof Deadline</th>
+                    <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Proof Deadline" help={{ surface: "payroll.tax_verification", field: "proof_deadline", size: "sm", label: "the proof deadline" }} /></th>
                     <th className="px-6 py-4 border-b border-slate-100">Status</th>
                     <th className="px-6 py-4 border-b border-slate-100 w-px"><span className="sr-only">Reopen</span></th>
                   </tr>
@@ -265,7 +265,7 @@ export default function TaxDeclarationsPage() {
                   { label: "Declared total", value: money(declaredTotal) },
                   { label: "Verifying", value: money(verifiedTotal) },
                   { label: "Items", value: (detail.items || []).length },
-                  { label: "Proof deadline", value: formatDate(detail.proof_deadline) },
+                  { label: "Proof deadline", value: formatDate(detail.proof_deadline), help: { surface: "payroll.tax_verification", field: "proof_deadline", label: "the proof deadline" } },
                 ]}
               />
 
@@ -274,7 +274,7 @@ export default function TaxDeclarationsPage() {
                   <table className="w-full text-left text-xs min-w-[760px]">
                     <thead className="bg-slate-50/80 text-[11px] uppercase font-bold tracking-wider text-slate-600 border-b border-slate-100">
                       <tr>
-                        <th className="px-4 py-3">Section</th>
+                        <th className="px-4 py-3"><HelpLabel text="Section" help={{ surface: "payroll.tax_verification", field: "section", size: "sm", label: "the tax section" }} /></th>
                         <th className="px-4 py-3 text-right">Declared</th>
                         <th className="px-4 py-3 text-right"><HelpLabel text="Verify amount" help={{ surface: "payroll.tax_verification", field: "verified_amount", label: "the amount you accept" }} /></th>
                         <th className="px-4 py-3">Proof</th>

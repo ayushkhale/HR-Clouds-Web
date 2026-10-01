@@ -25,7 +25,9 @@ import {
 } from "../../../../shared/utils/benefitMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.benefit_plan", field, ...extra });
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
@@ -170,21 +172,30 @@ function PlanFormDialog({ plan, components, activeCount, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div>
-              <label htmlFor="plan-emp" className={labelCls}>Employee pays / month <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="plan-emp" className={labelCls}>Employee pays / month <span className="text-rose-500">*</span></label>
+                <FieldHelp {...help("employee_contribution_amount")} label="what the employee pays" className="mb-2" overlay />
+              </div>
               <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₹</span>
                 <input id="plan-emp" type="number" inputMode="decimal" min="0" step="0.01" value={form.employee_contribution_amount} onChange={(e) => set({ employee_contribution_amount: e.target.value })} className={`${fieldCls} pl-7`} aria-invalid={!!show("employee_contribution_amount")} />
               </div>
               {show("employee_contribution_amount") && <p className={errorTextCls}>{show("employee_contribution_amount")}</p>}
             </div>
             <div>
-              <label htmlFor="plan-emr" className={labelCls}>Company pays / month <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="plan-emr" className={labelCls}>Company pays / month <span className="text-rose-500">*</span></label>
+                <FieldHelp {...help("employer_contribution_amount")} label="what the company pays" className="mb-2" overlay />
+              </div>
               <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₹</span>
                 <input id="plan-emr" type="number" inputMode="decimal" min="0" step="0.01" value={form.employer_contribution_amount} onChange={(e) => set({ employer_contribution_amount: e.target.value })} className={`${fieldCls} pl-7`} aria-invalid={!!show("employer_contribution_amount")} />
               </div>
               {show("employer_contribution_amount") && <p className={errorTextCls}>{show("employer_contribution_amount")}</p>}
             </div>
             <div>
-              <label htmlFor="plan-cover" className={labelCls}>Sum insured</label>
+              <div className="flex items-center">
+                <label htmlFor="plan-cover" className={labelCls}>Sum insured</label>
+                <FieldHelp {...help("coverage_amount")} label="the sum insured" className="mb-2" />
+              </div>
               <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₹</span>
                 <input id="plan-cover" type="number" inputMode="decimal" min="0" step="0.01" value={form.coverage_amount} onChange={(e) => set({ coverage_amount: e.target.value })} placeholder="Optional" className={`${fieldCls} pl-7`} aria-invalid={!!show("coverage_amount")} />
               </div>
@@ -223,7 +234,10 @@ function PlanFormDialog({ plan, components, activeCount, onClose, onSaved }) {
                 </select>
               </div>
               <div>
-                <label htmlFor="plan-emr-comp" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Company component</label>
+                <div className="flex items-center">
+                  <label htmlFor="plan-emr-comp" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Company component</label>
+                  <FieldHelp {...help("employer_component_id")} label="the company component" className="mb-1" size="sm" overlay />
+                </div>
                 <select id="plan-emr-comp" value={form.employer_component_id} onChange={(e) => set({ employer_component_id: e.target.value })} className={fieldCls}>
                   <option value="">Payroll picks one</option>
                   {catalog.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -592,8 +606,8 @@ function PlansTab({ showToast, directory, nameOf }) {
                   <th className="px-5 py-4 border-b border-slate-100">Plan</th>
                   <th className="px-5 py-4 border-b border-slate-100">Type</th>
                   <th className="px-5 py-4 border-b border-slate-100">Provider</th>
-                  <th className="px-5 py-4 border-b border-slate-100 text-right">Employee / mo</th>
-                  <th className="px-5 py-4 border-b border-slate-100 text-right">Company / mo</th>
+                  <th className="px-5 py-4 border-b border-slate-100 text-right"><HelpLabel text="Employee / mo" help={help("employee_contribution_amount", { size: "sm" })} /></th>
+                  <th className="px-5 py-4 border-b border-slate-100 text-right"><HelpLabel text="Company / mo" help={help("employer_contribution_amount", { size: "sm" })} /></th>
                   <th className="px-5 py-4 border-b border-slate-100">Valid</th>
                   <th className="px-5 py-4 border-b border-slate-100">Status</th>
                 </tr>
@@ -810,7 +824,7 @@ export default function PayrollBenefitsPage() {
       <DashboardTopBar title="Benefit Plans" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Benefit Plans</h1>
+          <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Benefit Plans" help={help("page", { label: "the Benefit Plans page" })} /></h1>
           <p className="text-sm text-slate-500 mt-1">Define benefit plans, enroll employees and see what each plan costs.</p>
         </div>
 

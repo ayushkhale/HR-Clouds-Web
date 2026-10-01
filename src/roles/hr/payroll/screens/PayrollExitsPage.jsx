@@ -44,7 +44,9 @@ import { formatDate, formatPeriod } from "../../../../shared/utils/formatUtils";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import { EXIT_TYPES, EXIT_STATUS, exitTypeLabel, exitStatusMeta, exitActions, toneClass } from "../phase7Meta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.settlement", field, ...extra });
 
 const PAGE_SIZE = 20;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -374,7 +376,10 @@ function SettlementPanel({ exit, onClose, onChanged, showToast, nameOf }) {
 
         <DetailSection title="Which payroll pays it" icon={HiCalendar} collapsible={false}>
           <div className="sm:max-w-xs">
-            <label className={labelCls}>Pay it with</label>
+            <div className="flex items-center">
+              <label className={labelCls}>Pay it with</label>
+              <FieldHelp {...help("period_month")} label="the pay month" className="mb-1.5" />
+            </div>
             <PeriodPicker value={period} onChange={setPeriod} idPrefix="fnf-period" selectClassName={fieldCls} yearsBack={1} yearsAhead={1} disabled={prepared || busy} />
             {prepared && (
               <p className="flex items-start gap-1.5 text-[10px] text-slate-500 mt-1.5">
@@ -492,7 +497,7 @@ export default function PayrollExitsPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Exits &amp; Final Pay</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Exits & Final Pay" help={help("page", { label: "the Exits & Final Pay page" })} /></h1>
             <p className="text-sm text-slate-500 mt-1">Record a last working day, then work out and pay what they are owed.</p>
           </div>
           <button onClick={() => setCreating(true)} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 flex items-center gap-2">
@@ -530,7 +535,7 @@ export default function PayrollExitsPage() {
                         <th className="px-6 py-3.5">Reason</th>
                         <th className="px-6 py-3.5">Last day</th>
                         <th className="px-6 py-3.5">Notice</th>
-                        <th className="px-6 py-3.5">Stage</th>
+                        <th className="px-6 py-3.5"><HelpLabel text="Stage" help={help("status", { size: "sm", label: "the stages" })} /></th>
                         <th className="px-6 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>

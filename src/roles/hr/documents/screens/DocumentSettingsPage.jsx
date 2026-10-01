@@ -65,7 +65,9 @@ import {
   LETTER_RETENTION_MIN_DAYS,
 } from "../../../../shared/documents/letterProposalMeta";
 import { letterTemplatesOf, letterTitle } from "../../../../shared/documents/letterMeta";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const settingHelp = (field) => ({ surface: "documents.letter_settings", field });
 
 const MB = 1024 * 1024;
 
@@ -444,7 +446,7 @@ export default function DocumentSettingsPage() {
       <DashboardTopBar title="Document Settings" />
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Document Settings</h1>
+          <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Document Settings" help={{ surface: "documents.letter_settings", field: "page", label: "the Document Settings page" }} /></h1>
           <p className="text-sm text-slate-500 mt-1">
             Who sees and decides documents, and how long links and files last.
             {saved?.updated_at && <span className="text-slate-400"> Last changed {fmtDateTime(saved.updated_at)}.</span>}
@@ -522,8 +524,8 @@ export default function DocumentSettingsPage() {
 
             <Card title="Links & storage" icon={HiEye}>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-4 py-4">
-                {numberField("document_view_url_ttl_seconds")}
-                {numberField("document_upload_url_ttl_seconds")}
+                {numberField("document_view_url_ttl_seconds", settingHelp("document_view_url_ttl_seconds"))}
+                {numberField("document_upload_url_ttl_seconds", settingHelp("document_upload_url_ttl_seconds"))}
                 {numberField("document_max_file_size_mb")}
                 {numberField("document_retention_days")}
               </div>
@@ -579,7 +581,7 @@ export default function DocumentSettingsPage() {
                     {numberField("document_request_default_due_days")}
                   </div>
                   <div className="min-w-0">
-                    {numberField("document_onboarding_completeness_threshold")}
+                    {numberField("document_onboarding_completeness_threshold", settingHelp("document_onboarding_completeness_threshold"))}
                     <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
                       Leave at 100% unless some of what you ask for isn’t essential.
                     </p>
@@ -721,7 +723,7 @@ export default function DocumentSettingsPage() {
                   </div>
 
                   <div className="py-4">
-                    {numberField("letter_preview_rate_per_hour")}
+                    {numberField("letter_preview_rate_per_hour", settingHelp("letter_preview_rate_per_hour"))}
                     <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
                       Only previews are counted. Issuing a real letter is never capped.
                     </p>
@@ -946,7 +948,7 @@ export default function DocumentSettingsPage() {
                   </div>
 
                   <div className="py-4">
-                    {numberField("document_publish_sync_threshold")}
+                    {numberField("document_publish_sync_threshold", settingHelp("document_publish_sync_threshold"))}
                   </div>
                 </>
               ) : (

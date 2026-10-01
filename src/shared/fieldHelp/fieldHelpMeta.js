@@ -22,9 +22,21 @@
 // • Anything missing — surface, field, workspace, hint — resolves to null and
 //   the ⓘ is simply absent. That is what lets components wire every row by its
 //   data key and leave the choice of which rows get help to the config.
+// • Every entry carries an enabled Ask Maya question (2026-10-01, user
+//   decision) — including our own settings, statuses and page/tab help, not
+//   only domain terms. The validator warns on any entry without one.
 // • Questions are static text on purpose. Maya is an external service that
 //   can't see anyone's records, so questions are conceptual and never carry a
 //   name, salary, balance or account number.
+// • Tiers (2026-10-01, phase 5). An entry with no `tier` is core and always
+//   shows. An entry tagged `"tier": "onboarding"` is beginner help for new HR
+//   admins — every HR field a first-month admin could stall on, exempt from
+//   the 4-per-screen cap (CLAUDE.md §10). It shows only in the workspaces the
+//   top-level `tiers.onboarding.workspaces` lists, *and* its own gate. The
+//   point is reversibility: when HR teams no longer need the extra help, thin
+//   it with one edit — drop "hr" from the tier, move a hint to core by
+//   deleting its `tier`, or delete single entries — never by hand-pruning
+//   hundreds of hints across screens.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import CONFIG from "./fieldHelp.json";
@@ -36,6 +48,12 @@ export const HINT_MAX_LENGTH = 160;
 export const QUESTION_MAX_LENGTH = 1000;
 
 const isText = (v) => typeof v === "string" && v.trim().length > 0;
+
+const tierOn = (tier, workspace) => {
+  if (tier === undefined) return true;
+  const list = CONFIG?.tiers?.[tier]?.workspaces;
+  return Array.isArray(list) && list.includes(workspace);
+};
 
 function workspacesOf(surface, field) {
   const list = Array.isArray(field?.workspaces) ? field.workspaces : surface?.workspaces;
@@ -51,6 +69,7 @@ export function getFieldHelp(surfaceId, fieldKey, workspace) {
   const field = surface?.fields?.[fieldKey];
   if (!field || !isText(field.hint) || !workspace) return null;
   if (!workspacesOf(surface, field).includes(workspace)) return null;
+  if (!tierOn(field.tier, workspace)) return null;
   const ask = field.askMaya;
   const question = ask?.enabled === true && isText(ask.question) && ask.question.length <= QUESTION_MAX_LENGTH
     ? ask.question.trim()
@@ -64,6 +83,12 @@ export function getFieldHelp(surfaceId, fieldKey, workspace) {
 function validateFieldHelp(config) {
   const warn = (msg) => console.warn(`[fieldHelp] ${msg}`);
   if (config?.forms) warn("`forms` is the v1 shape — move entries under `surfaces` with a `kind`.");
+  const tiers = config?.tiers ?? {};
+  Object.entries(tiers).forEach(([tier, def]) => {
+    if (!Array.isArray(def?.workspaces)) { warn(`tier "${tier}": no \`workspaces\` array.`); return; }
+    def.workspaces.filter((w) => !FIELD_HELP_WORKSPACES.includes(w))
+      .forEach((w) => warn(`tier "${tier}": unknown workspace "${w}".`));
+  });
   const surfaces = config?.surfaces;
   if (!surfaces || typeof surfaces !== "object") {
     warn("fieldHelp.json has no `surfaces` object.");
@@ -85,11 +110,13 @@ function validateFieldHelp(config) {
       const where = `${surfaceId}.${fieldKey}`;
       checkWorkspaces(field?.workspaces, where);
       if (workspacesOf(surface, field).length === 0) warn(`${where}: no workspaces — it will never show.`);
+      if (field?.tier !== undefined && !tiers[field.tier]) warn(`${where}: unknown tier "${field.tier}".`);
       if (!isText(field?.hint)) warn(`${where}: missing \`hint\`.`);
       else if (field.hint.length > HINT_MAX_LENGTH) warn(`${where}: hint is ${field.hint.length} characters (keep it under ${HINT_MAX_LENGTH}).`);
       const ask = field?.askMaya;
-      if (ask === undefined) return;
-      if (ask?.enabled === true && !isText(ask.question)) warn(`${where}: askMaya is enabled but has no question.`);
+      // Every hint offers Ask Maya (user decision, 2026-10-01) — a hint without
+      // a question is a gap, not a choice.
+      if (ask?.enabled !== true || !isText(ask?.question)) { warn(`${where}: every hint needs an enabled Ask Maya question.`); return; }
       if (isText(ask?.question) && ask.question.length > QUESTION_MAX_LENGTH) warn(`${where}: question is over ${QUESTION_MAX_LENGTH} characters and will be hidden.`);
     });
   });

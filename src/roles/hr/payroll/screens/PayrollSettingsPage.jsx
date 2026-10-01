@@ -6,7 +6,9 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { PDF_CACHE_NUMBERS, hasPdfCacheSettings, pdfNumberProblem, withoutInertPdfSettings } from "../pdfRenderMeta";
 import { useBulkGenerationPaused } from "../../../../shared/pdf/bulkGeneration";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, label) => ({ surface: "payroll.settings", field, label });
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -47,8 +49,8 @@ function Section({ title, blurb, children, defaultOpen = true }) {
   );
 }
 
-function Check({ checked, onChange, title, hint }) {
-  return (
+function Check({ checked, onChange, title, hint, help }) {
+  const box = (
     <label className="flex items-start gap-3 cursor-pointer group">
       <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)}
         className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
@@ -58,12 +60,19 @@ function Check({ checked, onChange, title, hint }) {
       </div>
     </label>
   );
+  // overlay: drawn in the gutter beside the row, so the hint text keeps its wrap.
+  return help ? <div className="flex items-start">{box}<FieldHelp {...help} overlay /></div> : box;
 }
 
-function Pick({ label, value, onChange, options, hint }) {
+function Pick({ label, value, onChange, options, hint, help }) {
   return (
     <div>
-      <label className={labelCls}>{label}</label>
+      {help ? (
+        <div className="flex items-center">
+          <label className={labelCls}>{label}</label>
+          <FieldHelp {...help} className="mb-2" />
+        </div>
+      ) : <label className={labelCls}>{label}</label>}
       <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} className={fieldCls}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -262,7 +271,8 @@ export default function PayrollSettingsPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900">Payroll Settings
+            <h1 className="text-2xl font-bold text-slate-900">
+              <HelpLabel text="Payroll Settings" help={help("page", "the Payroll Settings page")} />
             </h1>
             <p className="text-sm text-slate-500 mt-1">Configure global payroll policies, unpaid-day rules, and manager authorities.</p>
           </div>
@@ -287,7 +297,10 @@ export default function PayrollSettingsPage() {
                       <p className="text-xs text-slate-400 mt-1.5">Determines the per-day rate for Loss of Pay.</p>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Rounding Policy</label>
+                      <div className="flex items-center">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Rounding Policy</label>
+                        <FieldHelp {...help("rounding_policy", "the rounding policy")} className="mb-2" />
+                      </div>
                       <select value={settings.rounding_policy} onChange={e => setSettings({...settings, rounding_policy: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                         <option value="nearest_rupee">Nearest Rupee</option>
                         <option value="two_decimals">Two Decimals (Paise)</option>
@@ -306,26 +319,32 @@ export default function PayrollSettingsPage() {
                         <span className="block text-xs text-slate-500 mt-0.5">Allows managers to see the salary structures and payslips of their direct reports.</span>
                       </div>
                     </label>
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input type="checkbox" checked={settings.manager_direct_compensation_authority} onChange={e => setSettings({...settings, manager_direct_compensation_authority: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      <div>
-                        <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Manager direct compensation authority</span>
-                        <span className="block text-xs text-slate-500 mt-0.5">If enabled, manager-proposed salaries and bonuses take effect immediately without HR approval (Tier B to Tier A).</span>
-                      </div>
-                    </label>
+                    <div className="flex items-start">
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" checked={settings.manager_direct_compensation_authority} onChange={e => setSettings({...settings, manager_direct_compensation_authority: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        <div>
+                          <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Manager direct compensation authority</span>
+                          <span className="block text-xs text-slate-500 mt-0.5">If enabled, manager-proposed salaries and bonuses take effect immediately without HR approval (Tier B to Tier A).</span>
+                        </div>
+                      </label>
+                      <FieldHelp {...help("manager_direct_compensation_authority", "manager direct compensation authority")} overlay />
+                    </div>
                   </div>
                 </Section>
 
                 {/* HR Approvals */}
                 <Section title="HR Approval Policies">
                   <div className="space-y-4">
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input type="checkbox" checked={settings.payroll_require_separate_checker} onChange={e => setSettings({...settings, payroll_require_separate_checker: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      <div>
-                        <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Require separate checker (Segregation of Duties)</span>
-                        <span className="block text-xs text-slate-500 mt-0.5">Requires two distinct HR users: one to propose a change and another to approve it.</span>
-                      </div>
-                    </label>
+                    <div className="flex items-start">
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" checked={settings.payroll_require_separate_checker} onChange={e => setSettings({...settings, payroll_require_separate_checker: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        <div>
+                          <span className="block text-sm font-bold text-slate-700 group-hover:text-purple-700 transition-colors">Require separate checker (Segregation of Duties)</span>
+                          <span className="block text-xs text-slate-500 mt-0.5">Requires two distinct HR users: one to propose a change and another to approve it.</span>
+                        </div>
+                      </label>
+                      <FieldHelp {...help("payroll_require_separate_checker", "a separate checker")} overlay />
+                    </div>
                   </div>
                 </Section>
 
@@ -454,11 +473,11 @@ export default function PayrollSettingsPage() {
                     <Num label="Standard notice period" value={set7.fnf_default_notice_period_days} min={0} max={365} suffix="days"
                       onChange={(v) => upd({ fnf_default_notice_period_days: v })}
                       hint="Used when an exit doesn't specify its own notice period." />
-                    <Pick label="Recover short notice from" value={set7.fnf_notice_recovery_rate_basis} options={RATE_BASIS}
+                    <Pick label="Recover short notice from" value={set7.fnf_notice_recovery_rate_basis} options={RATE_BASIS} help={help("fnf_notice_recovery_rate_basis", "the daily rate basis")}
                       onChange={(v) => upd({ fnf_notice_recovery_rate_basis: v })}
                       hint="Which part of the salary the daily rate is worked out from." />
                     <div className="sm:col-span-2">
-                      <Check checked={set7.fnf_notice_recovery_enabled} onChange={(v) => upd({ fnf_notice_recovery_enabled: v })}
+                      <Check checked={set7.fnf_notice_recovery_enabled} onChange={(v) => upd({ fnf_notice_recovery_enabled: v })} help={help("fnf_notice_recovery_enabled", "recovering unserved notice")}
                         title="Recover pay for notice that wasn't served"
                         hint="While this is off, leaving early costs the employee nothing, whatever the exit says." />
                     </div>
@@ -489,7 +508,10 @@ export default function PayrollSettingsPage() {
                     {set7.fnf_leave_encashment_enabled && (
                       <div className="grid sm:grid-cols-2 gap-6 pl-7">
                         <div>
-                          <label className={labelCls}>Leave types paid out</label>
+                          <div className="flex items-center">
+                            <label className={labelCls}>Leave types paid out</label>
+                            <FieldHelp {...help("fnf_encashment_leave_type_codes", "the leave types paid out")} className="mb-2" />
+                          </div>
                           <input type="text" value={(set7.fnf_encashment_leave_type_codes || []).join(", ")}
                             onChange={(e) => upd({ fnf_encashment_leave_type_codes: e.target.value.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) })}
                             placeholder="EL" className={fieldCls} />

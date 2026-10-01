@@ -6,6 +6,10 @@
 //     reads as expected rather than as everyone being absent. HR had this and
 //     the other two dashboards didn't, which made the same data look worse
 //     depending on who was looking at it.
+//   · Every day of the month gets a bar slot, data or not (fillMonthDays). The
+//     server can return only the days it has records for; drawing just those
+//     made a half hold three fat bars one month and fifteen thin ones the next.
+//     A fixed 15 / 15–16 slots keeps the chart the same shape every time.
 //   · A month is paged in two halves, 1–15 and 16–end. It opens on the half containing
 //     today: opening on the 1st–15th on the 28th showed two-week-old data
 //     first and hid what people actually came to see.
@@ -15,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { ReferenceLine } from "recharts";
-import { parseYMDLocal, todayYMD } from "./dates";
+import { monthRange, parseYMDLocal, todayYMD } from "./dates";
 import SundayLabel from "./SundayLabel";
 
 export const CHART_PAGE_SIZE = 15;
@@ -27,6 +31,26 @@ export const CHART_PAGE_SIZE = 15;
 export const chartPageCount = (rows) => (rows.length > CHART_PAGE_SIZE ? 2 : 1);
 /** The rows of half `page` (0 or 1). */
 export const chartPageRows = (rows, page) => (page <= 0 ? rows.slice(0, CHART_PAGE_SIZE) : rows.slice(CHART_PAGE_SIZE));
+
+/**
+ * One row per calendar day of `period` ({ year, month }), in order. Days the
+ * server returned keep their row; the rest are made by `make(ymd)` — zero
+ * counts, so the slot is drawn empty rather than left out.
+ */
+export function fillMonthDays(rows, period, make, key = "date") {
+  if (!period?.year || !period?.month) return rows;
+  const byDay = new Map(rows.map((row) => [String(row[key] || "").slice(0, 10), row]));
+  const { from, to } = monthRange(period.year, period.month);
+  const prefix = from.slice(0, 8);
+  const days = Number(to.slice(8, 10));
+  return Array.from({ length: days }, (_, i) => {
+    const ymd = `${prefix}${String(i + 1).padStart(2, "0")}`;
+    return byDay.get(ymd) || make(ymd);
+  });
+}
+
+/** An empty day for the three-bar team charts (HR and manager). */
+export const emptyTrendDay = (date) => ({ date, final_present_count: 0, on_leave_count: 0, final_absent_count: 0 });
 
 export const isSunday = (ymd) => parseYMDLocal(String(ymd || "").slice(0, 10))?.getDay() === 0;
 

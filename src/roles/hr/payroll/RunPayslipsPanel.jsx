@@ -65,7 +65,7 @@ import {
   stillPreparing, uncacheableNote, wasEnqueued,
 } from "./pdfRenderMeta";
 import { STATUS_CHIP } from "../../../shared/utils/statusChip";
-import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 const PAGE_SIZE = 25;
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
@@ -602,8 +602,8 @@ export default function RunPayslipsPanel({ run, showToast }) {
                 <th className="px-5 py-3">Department</th>
                 <th className="px-5 py-3 text-right">Gross</th>
                 <th className="px-5 py-3 text-right">Net pay</th>
-                <th className="px-5 py-3">Version</th>
-                <th className="px-5 py-3">Employee sees it</th>
+                <th className="px-5 py-3"><HelpLabel text="Version" help={{ surface: "payroll.payslip_admin", field: "version", size: "sm", label: "payslip versions" }} /></th>
+                <th className="px-5 py-3"><HelpLabel text="Employee sees it" help={{ surface: "payroll.payslip_admin", field: "is_visible", size: "sm", label: "when employees see a payslip" }} /></th>
                 <th className="px-5 py-3">Email</th>
                 <th className="px-5 py-3 text-right">PDF</th>
               </tr>

@@ -8,7 +8,10 @@ import {
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
   HiExclamation,
 } from "react-icons/hi";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "leaves.policy_setup", field, ...extra });
+const TH = "px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -253,9 +256,12 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           {/* Quota + Accrual Type */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Days Per Year <span className="text-rose-400">*</span>
-              </label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Days Per Year <span className="text-rose-400">*</span>
+                </label>
+                <FieldHelp {...help("annual_quota")} label="days per year" className="mb-1.5" />
+              </div>
               <input
                 type="number"
                 step="0.5"
@@ -430,9 +436,9 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
               <thead>
                 <tr className="border-b border-slate-50">
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Days Per Year</th>
+                  <th className={TH}><HelpLabel text="Days Per Year" help={help("annual_quota", { size: "sm" })} /></th>
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">How Leave Is Given</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kept For Next Year</th>
+                  <th className={TH}><HelpLabel text="Kept For Next Year" help={help("max_carry_forward", { size: "sm" })} /></th>
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wait After Joining</th>
                   <th className="px-6 py-3" />
                 </tr>
@@ -543,7 +549,7 @@ export default function LeavePoliciesPage() {
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Leave Policies</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Leave Policies" help={help("page", { label: "the Leave Policies page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">
                 Create policy templates and configure leave quotas. Assign templates to employees in their profile.
               </p>

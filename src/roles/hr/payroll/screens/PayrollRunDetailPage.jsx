@@ -25,6 +25,9 @@ import {
 } from "../runMeta";
 import RunPayslipsPanel from "../RunPayslipsPanel";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const ITEM = (field, extra) => ({ surface: "payroll.run_item", field, ...extra });
 
 const PAGE_SIZE = 20;
 // Backend maximum for run items. The preview's error_items carry no item id, so
@@ -108,10 +111,11 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
   const benefitEmployeeAmount = Number.parseFloat(item.benefit_employee_amount) || 0;
   const benefitEmployerAmount = Number.parseFloat(item.benefit_employer_amount) || 0;
 
-  const lineColumns = (tone) => [
+  // `withHelp` only on the first table, so the dialog explains each column once.
+  const lineColumns = (tone, withHelp = false) => [
     { header: "Component", render: (c) => <span className="font-semibold text-slate-700">{ENGINE_COMPONENT_LABEL[c.component_code] || c.component_name || prettifyCode(c.component_code)}</span> },
-    { header: "From", render: (c) => <DetailPill tone="muted">{COMPONENT_SOURCE_LABEL[c.source] || prettifyCode(c.source) || "Salary"}</DetailPill> },
-    { header: "Full month", align: "right", render: (c) => (hasValue(c.full_month_amount) ? <span className="tabular-nums text-slate-500">{formatMoney(c.full_month_amount)}</span> : null) },
+    { header: "From", help: withHelp ? ITEM("source", { label: "where the line comes from" }) : undefined, render: (c) => <DetailPill tone="muted">{COMPONENT_SOURCE_LABEL[c.source] || prettifyCode(c.source) || "Salary"}</DetailPill> },
+    { header: "Full month", align: "right", help: withHelp ? ITEM("full_month_amount", { label: "the full-month amount" }) : undefined, render: (c) => (hasValue(c.full_month_amount) ? <span className="tabular-nums text-slate-500">{formatMoney(c.full_month_amount)}</span> : null) },
     { header: "This month", align: "right", render: (c) => <span className={`font-bold tabular-nums ${tone}`}>{formatMoney(c.amount)}</span> },
   ];
 
@@ -193,9 +197,9 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
       {hasFigures ? (
         <DetailStats
           items={[
-            { label: "Gross pay", value: formatMoney(item.gross_earnings), icon: HiCurrencyRupee },
+            { label: "Gross pay", value: formatMoney(item.gross_earnings), icon: HiCurrencyRupee, help: ITEM("gross_earnings") },
             { label: "Deductions", value: formatMoney(item.total_deductions), icon: HiBan },
-            { label: "Net pay", value: formatMoney(item.net_pay), icon: HiCheck },
+            { label: "Net pay", value: formatMoney(item.net_pay), icon: HiCheck, help: ITEM("net_pay") },
             { label: "Cost to company", value: formatMoney(item.ctc_cost), hint: hasValue(item.total_employer_contributions) ? `Employer contributions ${formatMoney(item.total_employer_contributions)}` : undefined, icon: HiUserGroup, help: { surface: "payroll.run_item", field: "ctc_cost" } },
           ]}
         />
@@ -221,14 +225,14 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
             ["Pay period starts", item.period_start ? formatDate(item.period_start) : null],
             ["Pay period ends", item.period_end ? formatDate(item.period_end) : null],
             ...(hasFigures ? [
-              ["Days paid", dayCount(item.payable_days)],
-              ["Unpaid days", dayCount(item.lop_days)],
+              { label: "Days paid", value: dayCount(item.payable_days), help: ITEM("payable_days") },
+              { label: "Unpaid days", value: dayCount(item.lop_days), help: { surface: "payroll.pay_days", field: "lop_days" } },
               ["Paid holidays & week-offs", dayCount(item.paid_non_working_days)],
               ["Working days in month", dayCount(item.standard_working_days)],
               { label: "Days used for a day's pay", value: dayCount(item.lop_divisor), help: { surface: "payroll.run_item", field: "lop_divisor" } },
-              ["Unpaid leave deduction", formatMoney(item.lop_amount)],
+              { label: "Unpaid leave deduction", value: formatMoney(item.lop_amount), help: ITEM("lop_amount") },
               ["Overtime", `${minutesLabel(item.overtime_minutes)} · ${formatMoney(item.overtime_amount)}`],
-              ["Shortfall recovered", formatMoney(item.carry_forward_in)],
+              { label: "Shortfall recovered", value: formatMoney(item.carry_forward_in), help: ITEM("carry_forward_in") },
               { label: "Shortfall carried forward", value: formatMoney(item.carry_forward_out), help: { surface: "payroll.run_item", field: "carry_forward_out" } },
               ...(reimbursementAmount > 0 ? [["Reimbursements (paid on top)", formatMoney(item.reimbursement_amount)]] : []),
               ...(benefitEmployeeAmount > 0 ? [["Benefits (employee share)", formatMoney(item.benefit_employee_amount)]] : []),
@@ -245,7 +249,7 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
       {hasFigures && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           <DetailSection title="Earnings" icon={HiCurrencyRupee}>
-            <DetailTable columns={lineColumns("text-slate-800")} rows={earnings} empty="No earnings in this payslip." />
+            <DetailTable columns={lineColumns("text-slate-800", true)} rows={earnings} empty="No earnings in this payslip." />
           </DetailSection>
           <DetailSection title="Deductions" icon={HiBan}>
             <DetailTable columns={lineColumns("text-rose-600")} rows={deductions} empty="No deductions in this payslip." />
@@ -270,15 +274,15 @@ function RunItemDialog({ runId, seed, person, canEdit, lockedReason, busy, busyA
           <DetailGrid
             items={[
               { label: "Pay counted for PF", value: formatMoney(item.pf_wage), help: { surface: "payroll.run_item", field: "pf_wage" } },
-              ["Pay counted for ESI", formatMoney(item.esi_wage)],
-              ["Taxable earnings", formatMoney(item.taxable_earnings)],
-              ["Covered by ESI", item.esi_covered ? "Yes" : "No"],
+              { label: "Pay counted for ESI", value: formatMoney(item.esi_wage), help: ITEM("esi_wage") },
+              { label: "Taxable earnings", value: formatMoney(item.taxable_earnings), help: ITEM("taxable_earnings") },
+              { label: "Covered by ESI", value: item.esi_covered ? "Yes" : "No", help: ITEM("esi_covered") },
               ["PF (employee)", formatMoney(item.pf_employee_amount)],
               ["PF (employer)", formatMoney(item.pf_employer_amount)],
-              ["Pension (EPS)", formatMoney(item.eps_amount)],
+              { label: "Pension (EPS)", value: formatMoney(item.eps_amount), help: { surface: "payroll.statutory_config", field: "eps_rate", label: "the pension (EPS) share" } },
               ["ESI (employee)", formatMoney(item.esi_employee_amount)],
               ["ESI (employer)", formatMoney(item.esi_employer_amount)],
-              ["Professional tax", formatMoney(item.professional_tax_amount)],
+              { label: "Professional tax", value: formatMoney(item.professional_tax_amount), help: { surface: "payroll.pt_slabs", field: "amount", label: "professional tax" } },
               ["Income tax (TDS)", formatMoney(item.income_tax_amount)],
             ]}
           />
@@ -754,7 +758,7 @@ export default function PayrollRunDetailPage() {
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">Gross pay</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase"><HelpLabel text="Gross pay" help={ITEM("gross_earnings", { size: "sm" })} /></p>
             <p className="text-xl font-black text-slate-800 mt-1 tabular-nums">{formatMoney(run.total_gross)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">Cost to company {formatMoney(run.total_employer_cost)}</p>
           </div>
@@ -763,7 +767,7 @@ export default function PayrollRunDetailPage() {
             <p className="text-xl font-black text-rose-600 mt-1 tabular-nums">{formatMoney(run.total_deductions)}</p>
           </div>
           <div className="bg-white rounded-2xl border border-purple-100 shadow-sm p-4">
-            <p className="text-[11px] font-bold text-purple-500 uppercase">Net pay</p>
+            <p className="text-[11px] font-bold text-purple-500 uppercase"><HelpLabel text="Net pay" help={ITEM("net_pay", { size: "sm" })} /></p>
             <p className="text-xl font-black text-purple-700 mt-1 tabular-nums">{formatMoney(run.total_net)}</p>
           </div>
         </div>
@@ -898,7 +902,7 @@ export default function PayrollRunDetailPage() {
                       const flagged = tone === "bad" && toCount(block[key]) > 0;
                       return (
                         <div key={key} className={`rounded-xl border px-3 py-2.5 ${flagged ? "bg-rose-50 border-rose-200" : "bg-purple-50/60 border-purple-100/70"}`}>
-                          <dt className={`text-[10px] font-bold uppercase tracking-wider ${flagged ? "text-rose-600" : "text-purple-500"}`}>{label}</dt>
+                          <dt className={`text-[10px] font-bold uppercase tracking-wider ${flagged ? "text-rose-600" : "text-purple-500"}`}><HelpLabel text={label} help={{ surface: "payroll.run_summary", field: key, size: "sm", overlay: true }} /></dt>
                           <dd className={`text-sm font-bold tabular-nums mt-0.5 ${flagged ? "text-rose-700" : "text-slate-800"}`}>{kind === "money" ? formatMoney(block[key]) : toCount(block[key])}</dd>
                         </div>
                       );
@@ -958,8 +962,8 @@ export default function PayrollRunDetailPage() {
               <thead className="bg-slate-50/60 border-b border-slate-100 text-slate-500">
                 <tr>
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide">Employee</th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide">Status</th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right">Days paid / unpaid</th>
+                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide"><HelpLabel text="Status" help={ITEM("item_status", { size: "sm", label: "the statuses" })} /></th>
+                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right"><HelpLabel text="Days paid / unpaid" help={ITEM("days_paid_unpaid", { size: "sm", label: "days paid and unpaid" })} /></th>
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right">Gross</th>
                   <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wide text-right">Net</th>
                 </tr>

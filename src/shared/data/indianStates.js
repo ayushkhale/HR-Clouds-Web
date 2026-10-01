@@ -61,3 +61,25 @@ export function findIndianState(code) {
   if (!c) return null;
   return INDIAN_STATES.find((s) => s.code === c || (s.aliases || []).includes(c)) || null;
 }
+
+// India Post and older records spell a few states differently.
+const NAME_ALIASES = {
+  chattisgarh: "Chhattisgarh",
+  orissa: "Odisha",
+  pondicherry: "Puducherry",
+  uttaranchal: "Uttarakhand",
+  "dadra and nagar haveli": "Dadra and Nagar Haveli and Daman and Diu",
+  "daman and diu": "Dadra and Nagar Haveli and Daman and Diu",
+  "new delhi": "Delhi",
+  "andaman and nicobar": "Andaman and Nicobar Islands",
+  "nct of delhi": "Delhi",
+};
+const normName = (name) => String(name || "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+
+/** A state by its name, however it's spelled ("Jammu & Kashmir", "Chattisgarh") → state, else null. */
+export function findIndianStateByName(name) {
+  const n = normName(name);
+  if (!n) return null;
+  const alias = NAME_ALIASES[n];
+  return INDIAN_STATES.find((s) => normName(s.name) === n || s.name === alias) || null;
+}

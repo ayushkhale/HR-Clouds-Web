@@ -81,7 +81,7 @@ export default function DocumentVerificationPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Verification Queue</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Verification Queue" help={{ surface: "documents.verification", field: "page", label: "the Verification Queue" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">Documents waiting for your decision, oldest first.</p>
           </div>
           <button type="button" onClick={load} disabled={state.loading} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50 shrink-0 self-start sm:self-auto" aria-label="Refresh" title="Refresh">

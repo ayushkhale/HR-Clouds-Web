@@ -6,6 +6,10 @@ import {
   HiExclamation, HiBan, HiClipboardList, HiUserGroup, HiAdjustments,
 } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "leaves.type_setup", field, ...extra });
+const TH = "px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider";
 
 const days = (n) => `${n} ${Number(n) === 1 ? "day" : "days"}`;
 
@@ -151,7 +155,10 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
                     <input type="text" value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Sick Leave" className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Code <span className="text-rose-400">*</span></label>
+                    <div className="flex items-center">
+                      <label className={labelClass}>Code <span className="text-rose-400">*</span></label>
+                      <FieldHelp {...help("code")} label="the leave code" className="mb-1.5" />
+                    </div>
                     <input type="text" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SL" maxLength={10} className={`${inputClass} font-mono uppercase`} />
                     <p className="text-[10px] text-slate-400 mt-1">Unique, max 10 chars.</p>
                   </div>
@@ -174,14 +181,14 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">Paid Leave</p>
+                      <p className="text-sm font-semibold text-slate-700"><HelpLabel text="Paid Leave" help={help("is_paid", { label: "paid leave" })} /></p>
                       <p className="text-[10px] text-slate-400 mt-0.5">Employee gets salary during this leave</p>
                     </div>
                     <Toggle checked={form.is_paid} onChange={v => set("is_paid", v)} />
                   </div>
                   <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">Count Weekends In Between</p>
+                      <p className="text-sm font-semibold text-slate-700"><HelpLabel text="Count Weekends In Between" help={help("sandwich_rule_applies", { label: "counting weekends in between" })} /></p>
                       <p className="text-[10px] text-slate-400 mt-0.5">Weekends between leave days also count as leave</p>
                     </div>
                     <Toggle checked={form.sandwich_rule_applies} onChange={v => set("sandwich_rule_applies", v)} />
@@ -413,7 +420,7 @@ export default function LeaveTypesPage() {
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Leave Types</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Leave Types" help={help("page", { label: "the Leave Types page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">
                 Define the categories of leave your organisation offers (e.g. Sick Leave, Casual Leave). Click a row to see its details.
               </p>
@@ -456,9 +463,9 @@ export default function LeaveTypesPage() {
                     <thead>
                       <tr className="border-b border-slate-100">
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Code</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Weekends In Between</th>
+                        <th className={TH}><HelpLabel text="Code" help={help("code", { size: "sm" })} /></th>
+                        <th className={TH}><HelpLabel text="Type" help={help("is_paid", { size: "sm" })} /></th>
+                        <th className={TH}><HelpLabel text="Weekends In Between" help={help("sandwich_rule_applies", { size: "sm" })} /></th>
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document After</th>
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
@@ -544,9 +551,9 @@ export default function LeaveTypesPage() {
           <DetailSection title="Rules" icon={HiAdjustments}>
             <DetailGrid
               items={[
-                ["Code", preview.code],
-                ["Pay", preview.is_paid ? "Paid" : "Unpaid (LWP)"],
-                ["Weekends in between", preview.sandwich_rule_applies ? "Counted as leave" : "Not counted"],
+                { label: "Code", value: preview.code, help: help("code") },
+                { label: "Pay", value: preview.is_paid ? "Paid" : "Unpaid (LWP)", help: help("is_paid") },
+                { label: "Weekends in between", value: preview.sandwich_rule_applies ? "Counted as leave" : "Not counted", help: help("sandwich_rule_applies") },
                 ["Document required after", preview.requires_document_threshold > 0 ? `After ${days(preview.requires_document_threshold)}` : "Not needed"],
               ]}
             />

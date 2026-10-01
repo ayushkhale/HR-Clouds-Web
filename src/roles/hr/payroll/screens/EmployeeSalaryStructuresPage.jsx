@@ -17,7 +17,9 @@ import CtcMoneyFlow from "../CtcMoneyFlow";
 import { prettifyCode } from "../runMeta";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const REVISION = (field) => ({ surface: "payroll.salary_revision", field });
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -197,7 +199,7 @@ function HistoryModal({ user, onClose, showToast, nameOf }) {
         <>
           <DetailStats
             items={[
-              { label: "Current CTC", value: current ? formatMoney(current.annual_ctc) : null, hint: "per year", icon: HiCurrencyRupee },
+              { label: "Current CTC", value: current ? formatMoney(current.annual_ctc) : null, hint: "per year", icon: HiCurrencyRupee, help: REVISION("annual_ctc") },
               { label: "Monthly gross", value: current ? formatMoney(current.monthly_gross) : null, hint: "before deductions", icon: HiCurrencyRupee },
               { label: "Revisions", value: String(approved.length), hint: approved.length === 1 ? "approved" : "approved to date", icon: HiClock },
               {
@@ -212,10 +214,10 @@ function HistoryModal({ user, onClose, showToast, nameOf }) {
           <DetailSection title="On this salary" icon={HiCurrencyRupee} collapsible={false}>
             <DetailGrid
               items={[
-                ["Effective from", current ? formatDate(current.effective_from) : null],
+                { label: "Effective from", value: current ? formatDate(current.effective_from) : null, help: REVISION("effective_from") },
                 ["First ever structure", firstEver ? formatDate(firstEver.effective_from) : null],
                 ["Currency", current?.currency],
-                ["Latest version", current?.version != null ? `v${current.version}` : null],
+                { label: "Latest version", value: current?.version != null ? `v${current.version}` : null, help: { surface: "payroll.structure_assign", field: "version" } },
               ]}
             />
           </DetailSection>
@@ -730,7 +732,7 @@ export default function EmployeeSalaryStructuresPage() {
       <DashboardTopBar title="Employee Salaries" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Employee Salaries</h1>
+          <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Employee Salaries" help={{ surface: "payroll.structure_assign", field: "page", label: "the Employee Salaries page" }} /></h1>
           <p className="text-sm text-slate-500 mt-1">Review current pay, then assign or revise salary structures.</p>
         </div>
 
@@ -742,8 +744,8 @@ export default function EmployeeSalaryStructuresPage() {
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-6 py-4">Employee</th>
                     <th className="px-6 py-4">Department</th>
-                    <th className="px-6 py-4 text-right">Current CTC</th>
-                    <th className="px-6 py-4">Effective from</th>
+                    <th className="px-6 py-4 text-right"><HelpLabel text="Current CTC" help={{ ...REVISION("annual_ctc"), size: "sm" }} /></th>
+                    <th className="px-6 py-4"><HelpLabel text="Effective from" help={{ ...REVISION("effective_from"), size: "sm" }} /></th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>

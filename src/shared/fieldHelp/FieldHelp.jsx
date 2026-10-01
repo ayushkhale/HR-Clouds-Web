@@ -29,6 +29,13 @@
 //   its width that the ⓘ would push it onto another line (measured at 390px:
 //   the PF row, "Standard deduction", "Pending hold", the document tab bars).
 //   Not for right-aligned labels — there the icon would hang past the edge.
+// • Page and tab help (phase 5, HR onboarding tier): a page's ⓘ sits beside
+//   its <h1> via HelpLabel with the key `page`; a tab strip gets ONE ⓘ beside
+//   it — outside any tablist or scroll container — keyed `tab.<open tab>`, so
+//   it explains whichever tab is showing. Tabs with no entry show nothing.
+// • How many: at most 4 per screen state for core entries (CLAUDE.md §10);
+//   entries tagged `"tier": "onboarding"` are exempt from that cap but keep
+//   once-per-concept and every rule above. See fieldHelpMeta.js for the tier.
 //
 // Why it's built this way (keep these — each one fixes a real failure):
 // • Everything comes from fieldHelp.json via getFieldHelp(). No entry for this

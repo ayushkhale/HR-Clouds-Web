@@ -42,6 +42,7 @@ import useToast from "../useToast";
 import { isPayrollRouteMissing, payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { drainMessage, drainResultOf } from "../pdfRenderMeta";
 import RenderQueueHealthPanel from "../../../../shared/pdf/RenderQueueHealthPanel";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 /**
  * `settingKey` is the switch that decides whether this job runs on its own.
@@ -203,7 +204,7 @@ export default function PayrollAutomationPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-6">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Payroll Automation</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Payroll Automation" help={{ surface: "payroll.automation", field: "page", label: "the Payroll Automation page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               Routine work payroll does on its own. You can also run any of it now if you need the result straight away.
             </p>

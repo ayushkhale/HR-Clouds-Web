@@ -26,7 +26,9 @@ import {
 } from "../variablePayMeta";
 import { PersonMultiSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.bonus_rule", field, ...extra });
 
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
@@ -299,7 +301,10 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
               {show("name") && <p className={errorTextCls}>{show("name")}</p>}
             </div>
             <div>
-              <label htmlFor="rule-period-month" className={labelCls}>Paid in <span className="text-rose-500">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="rule-period-month" className={labelCls}>Paid in <span className="text-rose-500">*</span></label>
+                <FieldHelp {...help("period_month")} label="the month it is paid in" className="mb-1.5" />
+              </div>
               <PeriodPicker value={form.period_month} onChange={(v) => set({ period_month: v })} idPrefix="rule-period" selectClassName={fieldCls} yearsBack={1} yearsAhead={2} />
             </div>
           </div>
@@ -332,7 +337,10 @@ function BonusRuleFormDialog({ rule, employees, departments, onClose, onSaved })
               {show("max_amount_per_employee") && <p className={errorTextCls}>{show("max_amount_per_employee")}</p>}
             </div>
             <div>
-              <label htmlFor="rule-tenure" className={labelCls}>Minimum time with us</label>
+              <div className="flex items-center">
+                <label htmlFor="rule-tenure" className={labelCls}>Minimum time with us</label>
+                <FieldHelp {...help("min_tenure_months")} label="minimum time with us" className="mb-1.5" overlay />
+              </div>
               <div className="relative">
                 <input id="rule-tenure" type="number" inputMode="numeric" min="0" max="600" step="1" value={form.min_tenure_months} onChange={(e) => set({ min_tenure_months: e.target.value })} placeholder="Anyone" className={`${fieldCls} pr-20`} aria-invalid={!!show("min_tenure_months")} />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">months</span>
@@ -594,7 +602,7 @@ export default function PayrollBonusRulesPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 w-full max-w-7xl mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Bonus Rules</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Bonus Rules" help={help("page", { label: "the Bonus Rules page" })} /></h1>
             <p className="text-sm text-slate-500 mt-1">Pay a bonus to a group at once. Create, preview the cost, approve, then apply. Open a rule to review it and take the next step.</p>
           </div>
           <button type="button" onClick={() => setForm({ rule: null })} className="h-[42px] px-4 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
@@ -633,8 +641,8 @@ export default function PayrollBonusRulesPage() {
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-5 py-4 border-b border-slate-100">Rule</th>
-                    <th className="px-5 py-4 border-b border-slate-100">Paid in</th>
-                    <th className="px-5 py-4 border-b border-slate-100">Calculation</th>
+                    <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Paid in" help={help("period_month", { size: "sm" })} /></th>
+                    <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Calculation" help={help("bonus_type", { size: "sm" })} /></th>
                     <th className="px-5 py-4 border-b border-slate-100">Who qualifies</th>
                     <th className="px-5 py-4 border-b border-slate-100">Most per person</th>
                     <th className="px-5 py-4 border-b border-slate-100">Status</th>
@@ -771,7 +779,7 @@ export default function PayrollBonusRulesPage() {
 
             <DetailStats
               items={[
-                { label: "Calculation", value: BONUS_TYPE_LABEL[detail.bonus_type] || prettifyCode(detail.bonus_type) },
+                { label: "Calculation", value: BONUS_TYPE_LABEL[detail.bonus_type] || prettifyCode(detail.bonus_type), help: help("bonus_type") },
                 { label: detail.bonus_type === "flat" ? "Amount per person" : "Percentage", value: ruleValueText(detail) },
                 { label: "Most per person", value: hasCap(detail) ? formatMoney(detail.max_amount_per_employee) : "No cap" },
                 { label: "Applied to", value: detail.applied_at ? plural(toCount(detail.applied_count), "person", "people") : "Not applied yet" },
@@ -863,7 +871,7 @@ export default function PayrollBonusRulesPage() {
                 <DetailStats
                   items={[
                     { label: "Will get a bonus", value: plural(data.awardedCount, "person", "people"), icon: HiUserGroup },
-                    { label: "Total gross bonus", value: formatMoney(data.total), icon: HiGift },
+                    { label: "Total gross bonus", value: formatMoney(data.total), icon: HiGift, help: help("total_gross") },
                     { label: "Average bonus", value: formatMoney(average), icon: HiCalculator },
                     { label: "Left out", value: plural(data.skippedCount, "person", "people"), icon: HiBan },
                   ]}

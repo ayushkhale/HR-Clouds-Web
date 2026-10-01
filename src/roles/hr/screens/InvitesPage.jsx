@@ -32,6 +32,7 @@ import DetailDialog, { DetailGrid, DetailSection, DetailStats, rowPreviewProps }
 import { organizationAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import { FilterTabs, Pagination, Toast, useToast } from "../../../shared/attendance/ui";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 import { TONE_CLASSES, TONE_DOT } from "../../../shared/attendance/enums";
 import { fmtDate, fmtDateTime } from "../../../shared/attendance/dates";
 import { useTargetingOptions } from "../../../shared/attendance/useTargetingOptions";
@@ -520,9 +521,9 @@ export default function InvitesPage() {
                   <thead>
                     <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       <th className="px-6 py-4 border-b border-slate-100">Person</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Role</th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Role" help={{ surface: "organization.invite", field: "role", size: "sm", label: "the role" }} /></th>
                       <th className="px-6 py-4 border-b border-slate-100">Department</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Status</th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Status" help={{ surface: "organization.invite", field: "status", size: "sm", label: "invite statuses" }} /></th>
                       <th className="px-6 py-4 border-b border-slate-100">Sent</th>
                       <th className="px-6 py-4 border-b border-slate-100">Invited by</th>
                       {anyAction && <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>}

@@ -17,6 +17,7 @@ import {
   HiClipboardCheck, HiDocumentAdd, HiDocumentText, HiInbox, HiPencilAlt, HiRefresh, HiSearch, HiSparkles, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { Toast, useToast } from "../../../../shared/attendance/ui";
 import { useTargetingOptions } from "../../../../shared/attendance/useTargetingOptions";
@@ -140,7 +141,7 @@ export default function OrgDocumentsPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Organisation Documents</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Organisation Documents" help={{ surface: "documents.org_documents", field: "page", label: "the Organisation Documents page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               Policies, notices and letters your organisation issues to its people. Each one goes to the audience.
             </p>

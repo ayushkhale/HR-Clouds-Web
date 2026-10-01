@@ -72,6 +72,7 @@ import { useOrgPaths } from "../attendance/paths";
 import { useCountUp } from "../motion";
 import { fmtDate, ymdOnly } from "../attendance/dates";
 import { ROLE_META } from "../organization/orgChartMeta";
+import { setOrgIdentityFrom } from "../organization/useOrgIdentity";
 
 const SURFACE = "organization.company_profile";
 
@@ -302,6 +303,7 @@ export default function CompanyProfilePage() {
       // back, so retire that read's token — and its loading state with it.
       requestRef.current += 1;
       setData(details);
+      setOrgIdentityFrom(details); // the top bar's name, short name and logo too
       setLogoFailed(false);
       setError(null);
       setLoading(false);

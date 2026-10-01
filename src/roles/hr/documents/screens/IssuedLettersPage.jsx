@@ -49,6 +49,7 @@ import {
   HiLockClosed, HiMail, HiRefresh, HiSearch, HiUserGroup, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -516,7 +517,7 @@ export default function IssuedLettersPage() {
                       <th className="px-5 py-3.5">Letter</th>
                       <th className="px-5 py-3.5">Issued to</th>
                       <th className="px-5 py-3.5">Issued</th>
-                      <th className="px-5 py-3.5">Status</th>
+                      <th className="px-5 py-3.5"><HelpLabel text="Status" help={{ surface: "documents.letter_register", field: "reissue", size: "sm", label: "reissued letters" }} /></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">

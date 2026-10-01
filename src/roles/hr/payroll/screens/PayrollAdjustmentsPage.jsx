@@ -27,7 +27,10 @@ import {
 } from "../variablePayMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const PROPOSAL = (field, extra) => ({ surface: "payroll.adjustment_proposal", field, ...extra });
+const ADMIN = (field, extra) => ({ surface: "payroll.adjustment_admin", field, ...extra });
 
 const PAGE_SIZE = 20;
 const CUSTOM_COMPONENT = "__custom__";
@@ -269,7 +272,7 @@ function AdjustmentFormDialog({ employees, components, onClose, onSaved }) {
           </div>
 
           <fieldset className="rounded-2xl border border-purple-100 bg-purple-50/40 px-4 py-3.5">
-            <legend className="px-1 text-[11px] font-bold text-purple-700 uppercase">Tax & contributions</legend>
+            <legend className="px-1 text-[11px] font-bold text-purple-700 uppercase"><HelpLabel text="Tax & contributions" help={ADMIN("tax_flags", { label: "tax and contributions", size: "sm" })} /></legend>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               {[["is_taxable", "Taxable"], ["pf_applicable", "Counts for PF"], ["esi_applicable", "Counts for ESI"]].map(([key, label]) => (
                 <label key={key} className={`flex items-center gap-2 ${selectedComponent ? "cursor-not-allowed" : "cursor-pointer"}`}>
@@ -758,7 +761,7 @@ export default function PayrollAdjustmentsPage() {
             flex-wrap the long subtitle pushed the buttons underneath it. */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Salary Adjustments</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Salary Adjustments" help={ADMIN("page", { label: "the Salary Adjustments page" })} /></h1>
             <p className="text-sm text-slate-500 mt-1">One-time additions and deductions, such as bonuses or recoveries. Open a row to see its details and approve, reject or cancel it.</p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -828,9 +831,9 @@ export default function PayrollAdjustmentsPage() {
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-5 py-4 border-b border-slate-100">Employee</th>
-                    <th className="px-5 py-4 border-b border-slate-100">Pay month</th>
-                    <th className="px-5 py-4 border-b border-slate-100">Type</th>
-                    <th className="px-5 py-4 border-b border-slate-100">Component</th>
+                    <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Pay month" help={PROPOSAL("period_month", { size: "sm" })} /></th>
+                    <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Type" help={PROPOSAL("adjustment_type", { size: "sm" })} /></th>
+                    <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Component" help={PROPOSAL("component_name", { size: "sm" })} /></th>
                     <th className="px-5 py-4 border-b border-slate-100 text-right">Amount</th>
                     <th className="px-5 py-4 border-b border-slate-100">Added via</th>
                     <th className="px-5 py-4 border-b border-slate-100">Status</th>
@@ -970,9 +973,9 @@ export default function PayrollAdjustmentsPage() {
             <DetailStats
               items={[
                 { label: "Amount", value: `${isEarning ? "+" : "−"}${formatMoney(d.amount)}` },
-                { label: "Type", value: ADJUSTMENT_TYPE_LABEL[d.adjustment_type] },
-                { label: "Category", value: ADJUSTMENT_CATEGORY_LABEL[d.category] },
-                { label: "Component", value: d.component_name },
+                { label: "Type", value: ADJUSTMENT_TYPE_LABEL[d.adjustment_type], help: PROPOSAL("adjustment_type") },
+                { label: "Category", value: ADJUSTMENT_CATEGORY_LABEL[d.category], help: ADMIN("category") },
+                { label: "Component", value: d.component_name, help: PROPOSAL("component_name") },
               ]}
             />
 
@@ -980,9 +983,9 @@ export default function PayrollAdjustmentsPage() {
               <DetailGrid
                 items={[
                   ["Status", approvalStatusMeta(d.status).label],
-                  ["Pay month", formatPeriod(d.period_month)],
+                  { label: "Pay month", value: formatPeriod(d.period_month), help: PROPOSAL("period_month") },
                   ["Added via", adjustmentSource(d)],
-                  ["In an approved payroll", isAppliedAdjustment(d) ? "Yes" : "Not yet"],
+                  { label: "In an approved payroll", value: isAppliedAdjustment(d) ? "Yes" : "Not yet", help: ADMIN("applied") },
                   ["Proposed by", actor(d, "proposed_by", "created_by") || personName(d.proposer, "") || null],
                   ["Created on", d.created_at ? formatDate(d.created_at) : null],
                   ["Approved or rejected by", actor(d, "approved_by", "rejected_by") || personName(d.approver, "") || null],

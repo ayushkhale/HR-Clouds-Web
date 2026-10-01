@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { attendanceAPI } from "../../../../shared/api";
 import { HiDownload, HiCalendar, HiUserGroup, HiUser, HiSearch } from "react-icons/hi";
 import EmployeePicker from "../../../../shared/attendance/EmployeePicker";
@@ -114,7 +115,7 @@ function DailyReport() {
                     <th className="px-5 py-3">Out</th>
                     <th className="px-5 py-3">Late</th>
                     <th className="px-5 py-3">Overtime</th>
-                    <th className="px-5 py-3">Flagged</th>
+                    <th className="px-5 py-3"><HelpLabel text="Flagged" help={{ surface: "attendance.reports", field: "flagged", size: "sm", label: "flagged days" }} /></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 text-xs">

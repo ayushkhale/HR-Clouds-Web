@@ -62,8 +62,8 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
             <DetailGrid
               cols={5}
               items={[
-                ["Late by", minutesOrZero(log.late_minutes)],
-                ["Overtime", minutesOrZero(log.overtime_minutes)],
+                { label: "Late by", value: minutesOrZero(log.late_minutes) },
+                { label: "Overtime", value: minutesOrZero(log.overtime_minutes) },
                 ["Left early by", minutesOrZero(log.early_exit_minutes)],
                 ["Work mode", log.work_mode ? humanize(log.work_mode) : null],
                 ["Corrected", log.is_regularized ? "Yes" : "No"],

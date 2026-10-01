@@ -37,7 +37,9 @@ import {
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { DICTIONARY } from "../../../../shared/config/dictionary";
 import CompOffPicker, { loadHrCompOffsFor } from "../../../../shared/components/CompOffPicker";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.encashment_admin", field, ...extra });
 
 const PAGE_SIZE = 20;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -146,7 +148,10 @@ function CreateDialog({ onClose, onDone, showToast, settings }) {
           ) : (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className={labelCls}>Leave type</label>
+                <div className="flex items-center">
+                  <label className={labelCls}>Leave type</label>
+                  <FieldHelp {...help("leave_type_code")} label="the leave type" className="mb-1.5" />
+                </div>
                 <input type="text" value={form.leave_type_code} onChange={(e) => setForm({ ...form, leave_type_code: e.target.value.toUpperCase() })} placeholder="EL" className={fieldCls} />
               </div>
               <div>
@@ -291,7 +296,7 @@ export default function PayrollEncashmentsPage() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{ENCASHMENT}s</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text={`${ENCASHMENT}s`} help={help("page", { label: `the ${ENCASHMENT}s page` })} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               Pay people for earned leave and unused leave instead of them taking the time off.
               {pending > 0 && <span className="font-semibold text-fuchsia-700"> {pending} waiting for approval.</span>}
@@ -439,7 +444,7 @@ export default function PayrollEncashmentsPage() {
               ["Employee", nameOf(detail.user_id, "Unknown")],
               ["What is paid out", sourceKindLabel(detail.source_kind)],
               ["Leave type", detail.leave_type_code || null],
-              ["Daily rate", amount(detail.per_day_amount) === null ? null : formatMoney(detail.per_day_amount)],
+              { label: "Daily rate", value: amount(detail.per_day_amount) === null ? null : formatMoney(detail.per_day_amount), help: help("per_day_amount") },
               ["Raised on", formatDate(detail.created_at)],
               ["Decided on", formatDate(detail.approved_at || detail.rejected_at)],
             ]} />

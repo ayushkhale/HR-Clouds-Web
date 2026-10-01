@@ -144,7 +144,9 @@ function LeaveTable({ rows, onOpen }) {
           <thead>
             <tr className="border-b border-slate-100">
               {["Employee", "Leave Type", "Dates", "How long", "Applied On", "Status"].map((h) => (
-                <th key={h} className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                <th key={h} className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>

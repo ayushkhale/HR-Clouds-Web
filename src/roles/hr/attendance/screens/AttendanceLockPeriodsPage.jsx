@@ -8,6 +8,7 @@ import { fmtDate, fmtDateTime, todayYMD, ymdOnly } from "../../../../shared/atte
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { EmptyState, ErrorState, FieldError, InlineAlert, LoadingRows, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiLockClosed, HiLockOpen, HiPlus, HiExclamation, HiRefresh, HiX } from "react-icons/hi";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 // Locks created by an approved payroll run (payroll D-3) must not be removed
 // casually — unlocking re-opens a period that has already been paid.
@@ -146,7 +147,7 @@ function AttendanceLockPeriodsPage() {
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Lock Attendance</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Lock Attendance" help={{ surface: "attendance.lock_periods", field: "page", label: "the Lock Attendance page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">Freeze attendance for payroll processing and run maintenance tasks.</p>
           </div>
           <button onClick={() => setShowForm((v) => !v)} className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
@@ -202,7 +203,7 @@ function AttendanceLockPeriodsPage() {
                   <tr>
                     <th className="px-6 py-3.5">Period</th>
                     <th className="px-6 py-3.5">Reason</th>
-                    <th className="px-6 py-3.5">Source</th>
+                    <th className="px-6 py-3.5"><HelpLabel text="Source" help={{ surface: "attendance.lock_periods", field: "source", size: "sm", label: "the lock source" }} /></th>
                     <th className="px-6 py-3.5">Locked</th>
                     <th className="px-6 py-3.5 text-right"><span className="sr-only">Actions</span></th>
                   </tr>

@@ -425,7 +425,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                   <div className="p-5 border-t border-slate-100">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
+                          <FieldHelp surface="organization.invite" field="employee_code" label="the employee ID" className="mb-1.5" overlay />
+                        </div>
                         <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="e.g. EMP001 (Optional)" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
@@ -550,7 +553,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
     
                       {/* Make Head Of Dept. input (To the right of Department) */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Make Head Of Dept.</label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Make Head Of Dept.</label>
+                          <FieldHelp surface="organization.invite" field="is_hod" label="head of department" className="mb-1.5" overlay />
+                        </div>
                         <select
                           value={makeHod ? "true" : "false"}
                           onChange={(e) => setMakeHod(e.target.value === "true")}
@@ -585,7 +591,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                       </div>
     
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Status <span className="text-rose-400">*</span></label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Status <span className="text-rose-400">*</span></label>
+                          <FieldHelp surface="organization.invite" field="job_status" label="the job status" className="mb-1.5" overlay />
+                        </div>
                         <select value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           <option value="probation">Probation</option>
@@ -598,7 +607,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employment Type <span className="text-rose-400">*</span></label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employment Type <span className="text-rose-400">*</span></label>
+                          <FieldHelp surface="organization.invite" field="employment_type" label="the employment type" className="mb-1.5" overlay />
+                        </div>
                         <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           <option value="full_time">Full Time</option>
@@ -618,7 +630,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Joining Date</label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Joining Date</label>
+                          <FieldHelp surface="organization.invite" field="joining_date" label="the joining date" className="mb-1.5" overlay />
+                        </div>
                         <input type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                     </div>
@@ -640,11 +655,17 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                   <div className="p-5 border-t border-slate-100">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">PAN Number</label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">PAN Number</label>
+                          <FieldHelp surface="organization.invite" field="pan_number" label="a PAN" className="mb-1.5" overlay />
+                        </div>
                         <input type="text" value={panNumber} onChange={(e) => setPanNumber(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all uppercase" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">UAN Number</label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">UAN Number</label>
+                          <FieldHelp surface="organization.invite" field="uan_number" label="a UAN" className="mb-1.5" overlay />
+                        </div>
                         <input type="text" value={uanNumber} onChange={(e) => setUanNumber(e.target.value)} className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>

@@ -9,7 +9,6 @@ import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, work
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
-import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 // Contract §2 C15 / §8.1: GET /manager/team/history ignores every query
 // parameter and returns all records ever for the whole team, unbounded — so it
@@ -181,9 +180,9 @@ function ManagerTeamHistoryPage() {
                           <th className="px-5 py-3.5">Status</th>
                           <th className="px-5 py-3.5">In</th>
                           <th className="px-5 py-3.5">Out</th>
-                          <th className="px-5 py-3.5"><HelpLabel text="Effective" help={{ surface: "attendance.team", field: "effective_hours", label: "effective hours", overlay: true }} /></th>
-                          <th className="px-5 py-3.5"><HelpLabel text="Late / Early" help={{ surface: "attendance.team", field: "late_early", label: "late / early", ariaLabel: "What do late and early mean here?", overlay: true }} /></th>
-                          <th className="px-5 py-3.5"><HelpLabel text="Overtime" help={{ surface: "attendance.team", field: "overtime_minutes", label: "overtime", overlay: true }} /></th>
+                          <th className="px-5 py-3.5">Effective</th>
+                          <th className="px-5 py-3.5">Late / Early</th>
+                          <th className="px-5 py-3.5">Overtime</th>
                           <th className="px-5 py-3.5">Work mode</th>
                         </tr>
                       </thead>

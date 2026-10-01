@@ -8,6 +8,10 @@ import {
   HiCalendar, HiInformationCircle, HiRefresh, HiClipboardCheck,
 } from "react-icons/hi";
 import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+// The override dialog reuses the policy rules' own hints — each reads the same for one person.
+const POLICY = (field) => ({ surface: "leaves.policy_setup", field });
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -182,7 +186,10 @@ function CustomiseRulesModal({ userId, balance, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>Unused days kept for next year</label>
+              <div className="flex items-center">
+                <label className={labelClass}>Unused days kept for next year</label>
+                <FieldHelp {...POLICY("max_carry_forward")} label="days kept for next year" className="mb-1.5" overlay />
+              </div>
               <input type="number" step="0.5" min="0" value={form.max_carry_forward} onChange={e => set("max_carry_forward", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
             <div>
@@ -190,13 +197,19 @@ function CustomiseRulesModal({ userId, balance, onClose, onSaved }) {
               <input type="number" step="1" min="0" value={form.probation_restriction_days} onChange={e => set("probation_restriction_days", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Extra days allowed (below zero)</label>
+              <div className="flex items-center">
+                <label className={labelClass}>Extra days allowed (below zero)</label>
+                <FieldHelp {...POLICY("max_negative_balance")} label="extra days below zero" className="mb-1.5" overlay />
+              </div>
               <input type="number" step="0.5" min="0" value={form.max_negative_balance} onChange={e => set("max_negative_balance", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
           </div>
 
           <div>
-            <label className={labelClass}>Leave during notice period</label>
+            <div className="flex items-center">
+                <label className={labelClass}>Leave during notice period</label>
+                <FieldHelp {...POLICY("notice_period_max_days")} label="leave during notice period" className="mb-1.5" overlay />
+              </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { v: "", l: "No change" },
@@ -363,7 +376,7 @@ export default function LeaveTab({ userId, employeeName = "" }) {
                 <tr className="border-b border-slate-50">
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Days Left</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Given / Taken</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider"><HelpLabel text="Given / Taken" help={{ surface: "organization.employee_profile", field: "given_taken", size: "sm", label: "given and taken" }} /></th>
                   <th className="px-6 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>

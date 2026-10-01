@@ -270,14 +270,31 @@ the new surface and rate each field on that distance:
 | The field is… | Do |
 |---|---|
 | Ordinary (name, date, title, amount, reason, search, notes) | No ⓘ — never |
-| Ours: a system-specific field, toggle or state set we invented | ⓘ saying what it changes for the person |
+| Ours: a system-specific field, toggle or state set we invented | ⓘ saying what it changes for the person, plus an Ask Maya question |
 | Domain: a payroll, tax, leave, attendance or compliance term | ⓘ in plain words (§6), plus an Ask Maya question |
-| Derived: a figure we computed (balances, pro-rata, net, accruals) | ⓘ saying what it is worked out from |
-| On someone else's behalf: an HR/manager choice that lands on an employee | ⓘ saying who feels the consequence |
+| Derived: a figure we computed (balances, pro-rata, net, accruals) | ⓘ saying what it is worked out from, plus an Ask Maya question |
+| On someone else's behalf: an HR/manager choice that lands on an employee | ⓘ saying who feels the consequence, plus an Ask Maya question |
+
+**Never on everyday data people read daily** (user decision, 2026-10-01 — they
+were removed as annoying): dashboard counts (present/absent/late), Live
+Attendance, attendance status / hours / effective / late / overtime columns and
+day inspectors, routine queue status columns. Seen every day, understood after
+the first; an ⓘ there is noise. Help belongs on setup, payroll and rarer screens.
 
 Keep the cap: at most 4 per screen state, once per concept, and nothing where the
 screen already explains itself. If the whole surface is ordinary fields, it gets
 none — say so when you report the work rather than forcing one in.
+
+**Exception: the HR onboarding tier** (2026-10-01). Entries tagged
+`"tier": "onboarding"` cover every HR field, column, tab and screen a first-month
+HR admin could stall on or set wrong. They are exempt from the 4-per-screen cap
+and the "screen already explains itself" rule — an inline range, format or jargon
+line is not an explanation. They keep once-per-concept, no layout shift and every
+placement and wording rule. The tier is switched per workspace under `tiers` in
+`fieldHelp.json` (HR only today). New HR screens get onboarding entries as part of
+the build. Don't remove them one by one: thin them by switching the tier. Page
+help is the key `page` beside the `<h1>`; tab help is one ⓘ beside the tab strip
+keyed `tab.<value>` of the open tab. Brief: `.agents/prompts/hr-onboarding-help-ask-maya.md`.
 
 **Reporting:** every hand-off of new UI states the field-help outcome in one line —
 the surface id, how many hints, and any Ask Maya questions added, or "no field
@@ -303,5 +320,10 @@ qualifies" with the reason. A hand-off that doesn't mention ⓘ help is unfinish
   figures that change with law, state or year. Settle facts from code and
   `public/ref docs/`, or leave them out. Ask Maya questions are static and
   conceptual — never a name, amount or id — and Maya **never auto-sends**.
+- **Every hint has an Ask Maya question** (user decision, 2026-10-01) — domain
+  terms, our own settings, statuses, page and tab help alike; `"enabled": false`
+  is no longer an option. Phrase it for the workspaces that see it (the employee
+  about their own data; neutral for manager/HR). The dev validator warns on any
+  entry without one.
 - Briefs and history: `.agents/prompts/*-ask-maya.md` and the audit report in
   `public/ref docs/md_updates/`.

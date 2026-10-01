@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
+import { chartPageCount, chartPageRows, defaultChartPage, fillMonthDays, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
@@ -19,7 +19,7 @@ import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { greetingFor } from "../../../shared/utils/greeting";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { DailyLogModal } from "./EmployeeAttendancePage";
-import FieldHelp, { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const PREVIEW_ROWS = 5;
 
@@ -70,7 +70,6 @@ function HoursTooltip({ active, payload }) {
 }
 
 // Same entry as the Effective column on My Attendance — one concept, one hint.
-const EFFECTIVE_HELP = { surface: "attendance.daily_log", field: "effective_hours", label: "effective hours" };
 
 /* ─── Employee Dashboard ──────────────────────────────────────────── */
 // Row 1: my punch card beside my month (three headline numbers over a
@@ -122,10 +121,16 @@ function EmployeeDashboard() {
     })
     .filter((d) => d.date)
     .sort((a, b) => a.date.localeCompare(b.date));
+  // A slot for every day of the month, like the team charts, so a half never
+  // shrinks to the few days the server happened to return.
+  const hoursByDayFull = fillMonthDays(hoursByDay, period, (date) => ({
+    date, status: "not_marked", hours: 0, worked: "0m",
+    note: beforeJoining(date) ? "Before you joined" : date > todayKey ? "Still to come" : null,
+  }));
   const hasHours = hoursByDay.some((d) => d.hours > 0);
-  const totalChartPages = chartPageCount(hoursByDay);
-  const safeChartPage = Math.min(chartPage ?? defaultChartPage(hoursByDay, period), totalChartPages - 1);
-  const chartData = chartPageRows(hoursByDay, safeChartPage);
+  const totalChartPages = chartPageCount(hoursByDayFull);
+  const safeChartPage = Math.min(chartPage ?? defaultChartPage(hoursByDayFull, period), totalChartPages - 1);
+  const chartData = chartPageRows(hoursByDayFull, safeChartPage);
 
   const absentBeforeJoining = daily.filter((d) => beforeJoining(ymdOnly(d.date)) && d.status === "absent").length;
   const mix = MIX.map((m) => ({ ...m, value: m.key === "absent" ? Math.max(0, num(summary[m.field]) - absentBeforeJoining) : num(summary[m.field]) }));
@@ -260,7 +265,7 @@ function EmployeeDashboard() {
                       <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide">Status</th>
                       <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide">Late</th>
                       <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide">Overtime</th>
-                      <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide text-right"><HelpLabel text="Effective" help={EFFECTIVE_HELP} /></th>
+                      <th className="px-2 py-2.5 text-[11px] uppercase tracking-wide text-right">Effective</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-xs font-semibold text-slate-700">

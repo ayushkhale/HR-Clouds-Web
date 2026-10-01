@@ -21,6 +21,13 @@ import {
   HiInformationCircle,
 } from "react-icons/hi";
 import TimeField from "../../../../shared/components/TimeField";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const SURFACE = "attendance.shift_setup";
+const help = (field, extra) => ({ surface: SURFACE, field, ...extra });
+// The policy's thresholds, shown on the shift, read the same as on the policy.
+const policyHelp = (field) => ({ surface: "attendance.policy_setup", field });
+const TH = "px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider";
 
 // `type` is only a label: every type is calculated the same way, from start_time,
 // end_time and the policy (update_shift_templates_2026_09_14.md §3.3). New
@@ -60,11 +67,21 @@ function fmt12(t) {
 const inputClass = (invalid) =>
   `w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition ${invalid ? "border-rose-300" : "border-slate-200"}`;
 
-const Label = ({ htmlFor, children, required }) => (
-  <label htmlFor={htmlFor} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-    {children} {required && <span className="text-rose-400">*</span>}
-  </label>
-);
+const Label = ({ htmlFor, children, required, helpField }) => {
+  const label = (
+    <label htmlFor={htmlFor} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+      {children} {required && <span className="text-rose-400">*</span>}
+    </label>
+  );
+  if (!helpField) return label;
+  // Beside the label, never inside it (FieldHelp.jsx placement rules).
+  return (
+    <div className="flex items-center">
+      {label}
+      <FieldHelp surface={SURFACE} field={helpField} label={typeof children === "string" ? children.toLowerCase() : undefined} className="mb-2" />
+    </div>
+  );
+};
 
 /* ─── Shift Modal (Create / Edit) ────────────────────────────────────────── */
 function ShiftModal({ editShift, policies, onClose, onSaved }) {
@@ -174,7 +191,7 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
           </div>
 
           <div>
-            <Label>Shift Type</Label>
+            <Label helpField="type">Shift Type</Label>
             <div className={`grid gap-3 ${typeOptions.length > 3 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-3"}`}>
               {typeOptions.map((t) => (
                 <button
@@ -197,7 +214,7 @@ function ShiftModal({ editShift, policies, onClose, onSaved }) {
           {isTimed && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <Label required>Work Starts At</Label>
+                <Label required helpField="start_time">Work Starts At</Label>
                 <TimeField label="Work starts at" value={form.start_time} onChange={(v) => set("start_time", v)} invalid={!!errors.start_time} clearable={false} />
                 <FieldError message={errors.start_time} />
               </div>
@@ -336,7 +353,7 @@ function RotationModal({ shifts, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="rot-start" required>Cycle Starts From</Label>
+              <Label htmlFor="rot-start" required helpField="start_reference_date">Cycle Starts From</Label>
               <input id="rot-start" type="date" value={form.start_reference_date} onChange={(e) => setField("start_reference_date", e.target.value)} className={inputClass(!!errors.start_reference_date)} />
               {errors.start_reference_date ? <FieldError message={errors.start_reference_date} /> : <p className="text-xs text-slate-400 mt-1.5">Day 1 of the first cycle</p>}
             </div>
@@ -349,7 +366,7 @@ function RotationModal({ shifts, onClose, onSaved }) {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phases (in order)</span>
+              <span className="inline-flex items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phases (in order)<FieldHelp surface={SURFACE} field="entries" label="phases" /></span>
               <button type="button" onClick={addEntry} className="flex items-center gap-1 text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition">
                 <HiPlus className="w-3.5 h-3.5" /> Add phase
               </button>
@@ -573,7 +590,7 @@ export default function AttendanceShiftsPage() {
         <div>
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Work Shifts</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Work Shifts" help={help("page", { label: "the Work Shifts page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">Define working hours, and link each shift to an attendance policy.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -610,9 +627,9 @@ export default function AttendanceShiftsPage() {
                     <thead>
                       <tr className="border-b border-slate-100">
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Shift Name</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Working Hours</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Policy</th>
+                        <th className={TH}><HelpLabel text="Type" help={help("type", { size: "sm" })} /></th>
+                        <th className={TH}><HelpLabel text="Working Hours" help={help("start_time", { size: "sm" })} /></th>
+                        <th className={TH}><HelpLabel text="Policy" help={help("policy_id", { size: "sm" })} /></th>
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-4" />
                       </tr>
@@ -663,7 +680,7 @@ export default function AttendanceShiftsPage() {
         <div>
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">Rotation Patterns</h2>
+              <h2 className="text-2xl font-bold text-slate-900"><HelpLabel text="Rotation Patterns" help={help("rotations", { label: "a rotation pattern" })} /></h2>
               <p className="text-sm text-slate-500 mt-1">Employees on rotating schedules cycle through shift and off-day phases automatically.</p>
             </div>
             <button onClick={() => setShowRotationModal(true)} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
@@ -690,9 +707,9 @@ export default function AttendanceShiftsPage() {
                     <thead>
                       <tr className="border-b border-slate-100">
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rotation Name</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cycle</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sequence</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Starts</th>
+                        <th className={TH}><HelpLabel text="Cycle" help={help("rotation_cycle_days", { size: "sm" })} /></th>
+                        <th className={TH}><HelpLabel text="Sequence" help={help("entries", { size: "sm" })} /></th>
+                        <th className={TH}><HelpLabel text="Starts" help={help("start_reference_date", { size: "sm" })} /></th>
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-4" />
                       </tr>
@@ -769,8 +786,8 @@ export default function AttendanceShiftsPage() {
             <DetailSection title="Working hours" icon={HiClock}>
               <DetailGrid
                 items={[
-                  ["Shift type", type.charAt(0).toUpperCase() + type.slice(1)],
-                  ["Working hours", timingLabel(p)],
+                  { label: "Shift type", value: type.charAt(0).toUpperCase() + type.slice(1), help: help("type") },
+                  { label: "Working hours", value: timingLabel(p), help: help("start_time") },
                   ["Ends next day", p.is_overnight ? "Yes" : "No"],
                   ["Time zone", p.timezone || null],
                 ]}
@@ -779,10 +796,10 @@ export default function AttendanceShiftsPage() {
             <DetailSection title="Attendance policy" icon={HiClipboardList}>
               <DetailGrid
                 items={[
-                  ["Policy", pol?.name || (pid ? "Linked policy" : "Organisation default")],
-                  ["Grace period", pol?.grace_minutes != null ? `${pol.grace_minutes} mins` : null],
-                  ["Hours for full day", hoursText(pol?.full_day_min_hours)],
-                  ["Hours for half day", hoursText(pol?.half_day_min_hours)],
+                  { label: "Policy", value: pol?.name || (pid ? "Linked policy" : "Organisation default"), help: help("policy_id") },
+                  { label: "Grace period", value: pol?.grace_minutes != null ? `${pol.grace_minutes} mins` : null, help: policyHelp("grace_minutes") },
+                  { label: "Hours for full day", value: hoursText(pol?.full_day_min_hours), help: policyHelp("full_day_min_hours") },
+                  { label: "Hours for half day", value: hoursText(pol?.half_day_min_hours), help: policyHelp("half_day_min_hours") },
                 ]}
               />
             </DetailSection>

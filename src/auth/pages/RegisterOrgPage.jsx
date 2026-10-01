@@ -13,11 +13,10 @@ import {
   bestYearlySavingPct,
 } from "../../shared/config/plans";
 import { readPlanIntent, clearPlanIntent } from "../../shared/config/planIntent";
+import { INDUSTRY_OPTIONS } from "../../shared/organization/orgProfileMeta";
 
-const INDUSTRIES = [
-  "Software Development", "IT Services", "E-Commerce", "Healthcare",
-  "Education", "Manufacturing", "Finance", "Retail", "Hospitality", "Other",
-];
+// Shared with Edit company details, so both offer the same industries.
+const INDUSTRIES = INDUSTRY_OPTIONS;
 
 const SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
 

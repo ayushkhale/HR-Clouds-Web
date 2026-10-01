@@ -48,7 +48,7 @@ import { invalidateDocumentTypes } from "../../../../shared/documents/useDocumen
 import DocumentTypeFormDialog from "../DocumentTypeFormDialog";
 import { isRequiredOfEveryone, mandatoryCriteria } from "../../../../shared/documents/requestMeta";
 import { letterTemplateMatcher } from "../../../../shared/documents/catalogLetterMeta";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const LETTER_TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 
@@ -506,7 +506,7 @@ export default function DocumentTypesPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Document Types</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Document Types" help={{ surface: "documents.type_setup", field: "page", label: "the Document Types page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               What your organisation collects from its people, and what it issues to them.
               {!state.loading && !state.error && unfiltered && <span className="font-semibold text-slate-700"> {activeCount} active{requiredCount > 0 ? `, ${requiredCount} required` : ""}.</span>}
@@ -518,13 +518,17 @@ export default function DocumentTypesPage() {
           </div>
         </div>
 
-        <div className="inline-flex gap-1 bg-slate-100/80 p-1 rounded-xl" role="tablist" aria-label="Document types">
-          {[["ours", "Our document types"], ["catalog", "Catalog"]].map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition ${tab === key ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}>
-              {label}
-            </button>
-          ))}
+        {/* The ⓘ sits beside the tablist, never inside it, and explains the open tab. */}
+        <div className="flex items-center gap-1">
+          <div className="inline-flex gap-1 bg-slate-100/80 p-1 rounded-xl" role="tablist" aria-label="Document types">
+            {[["ours", "Our document types"], ["catalog", "Catalog"]].map(([key, label]) => (
+              <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition ${tab === key ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <FieldHelp surface="documents.type_setup" field={`tab.${tab}`} label={tab === "catalog" ? "the Catalog tab" : "the Our document types tab"} />
         </div>
 
         {tab === "catalog" ? (

@@ -33,6 +33,7 @@ import {
   HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { Pagination, Toast, useToast } from "../../../../shared/attendance/ui";
 import { fmtDate } from "../../../../shared/attendance/dates";
 import { documentErrorMessage, isTemplateStale } from "../../../../shared/utils/documentErrors";
@@ -175,7 +176,7 @@ export default function TemplateLibraryPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Form Templates</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Form Templates" help={{ surface: "documents.form_library", field: "page", label: "the Form Templates page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               The blank forms your people download and fill in. Publishing a new version retires the old one at the same moment.
             </p>

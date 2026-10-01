@@ -11,7 +11,6 @@ import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attenda
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../shared/components/DetailDialog";
-import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
 
@@ -256,7 +255,7 @@ export default function EmployeeAttendancePage() {
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2">In</th>
                       <th className="px-4 py-2">Out</th>
-                      <th className="px-4 py-2"><HelpLabel text="Effective" help={{ surface: "attendance.daily_log", field: "effective_hours", label: "effective hours" }} /></th>
+                      <th className="px-4 py-2">Effective</th>
                       <th className="px-4 py-2">Late</th>
                       <th className="px-4 py-2">Left early</th>
                       <th className="px-4 py-2">Overtime</th>

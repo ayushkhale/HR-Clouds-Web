@@ -34,6 +34,7 @@ import {
   HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { Pagination, PersonCell } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -214,7 +215,7 @@ export default function DocumentExportsPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Document Exports</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Document Exports" help={{ surface: "documents.exports", field: "page", label: "the Document Exports page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">
               Every spreadsheet and leaver’s pack taken out of your documents, and who took it.
             </p>

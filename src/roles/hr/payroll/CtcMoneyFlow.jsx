@@ -21,6 +21,7 @@
 
 import { HiOfficeBuilding, HiCash, HiUser, HiInformationCircle, HiArrowNarrowDown } from "react-icons/hi";
 import { formatMoney } from "../../../shared/utils/formatUtils";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 // Same label and read-only "field" look as the invite form's inputs.
 const LABEL = "block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 truncate";
@@ -45,7 +46,7 @@ function Field({ label, value, hint, tone = "plain", title }) {
 }
 
 /** A stage of the journey: a rule, a heading with its running total, then its parts. */
-function Stage({ icon: Icon, title, note, total, children, first = false }) {
+function Stage({ icon: Icon, title, note, total, children, first = false, help }) {
   return (
     <div>
       {!first && (
@@ -56,6 +57,7 @@ function Stage({ icon: Icon, title, note, total, children, first = false }) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2.5">
         <h5 className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
           <Icon className="w-3.5 h-3.5 text-purple-500 shrink-0" /> {title}
+          {help && <FieldHelp {...help} size="sm" />}
         </h5>
         {total && <span className="text-xs font-black tabular-nums text-slate-900">{total}</span>}
       </div>
@@ -110,6 +112,7 @@ export default function CtcMoneyFlow({ annualCtc, cost, deductions, lines = [] }
         )}
 
         <Stage first icon={HiOfficeBuilding} title="Cost to the company" total={formatMoney(ctc)}
+          help={reserved > 0 ? { surface: "payroll.structure_assign", field: "employer_statutory", label: "the employer’s statutory share" } : undefined}
           note={reserved > 0
             ? "The employer's statutory share is reserved out of the CTC before the rest becomes pay."
             : "No employer statutory contribution applies, so the whole CTC becomes pay."}>

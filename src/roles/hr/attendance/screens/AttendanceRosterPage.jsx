@@ -9,6 +9,7 @@ import { listFrom, personName, personEmail, employeeCode } from "../../../../sha
 import { fmtDate, fmtClock, todayYMD, ymdOnly } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, Pagination, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { HiUserGroup, HiPlus, HiX, HiSearch, HiDotsVertical, HiTrash, HiClock, HiCalendar, HiUser } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
@@ -396,7 +397,7 @@ export default function AttendanceRosterPage() {
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Shift Management</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Shift Management" help={{ surface: "attendance.roster", field: "page", label: "the Shift Management page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">View and manage which schedule each employee follows.</p>
           </div>
           <button onClick={() => setShowModal(true)} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">

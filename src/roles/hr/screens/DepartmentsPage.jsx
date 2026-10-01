@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
 import { canBeHOD } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
 } from "react-icons/hi";
@@ -359,7 +360,10 @@ function DepartmentsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Head of Department</label>
+                <div className="flex items-center">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Head of Department</label>
+                  <FieldHelp surface="organization.invite" field="is_hod" label="head of department" className="mb-1.5" />
+                </div>
                 <PersonSelect
                   people={hodOptions.map((emp) => ({ ...toPersonOption(emp), sub: [String(emp.role || "").toUpperCase(), toPersonOption(emp).sub].filter(Boolean).join(" · ") }))}
                   value={headOfDepartmentId}

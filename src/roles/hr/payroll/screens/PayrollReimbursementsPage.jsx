@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { payrollAPI } from "../../../../shared/api";
 import {
   HiPlus, HiSearch, HiRefresh, HiChevronLeft, HiChevronRight, HiExclamationCircle,
@@ -34,6 +35,7 @@ import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 const PAGE_SIZE = 20;
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-60";
 const labelCls = "block text-[11px] font-bold text-slate-500 uppercase mb-2";
+const help = (field, extra) => ({ surface: "payroll.claims_admin", field, ...extra });
 const errorTextCls = "text-xs font-semibold text-rose-600 mt-1.5";
 const selectCls = "h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400";
 
@@ -202,10 +204,13 @@ function CategoryFormDialog({ category, components, onClose, onSaved }) {
                 {show("receipt_required_above_amount") && <p className={errorTextCls}>{show("receipt_required_above_amount")}</p>}
               </div>
             )}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.is_taxable} onChange={(e) => set({ is_taxable: e.target.checked })} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-              <span className="text-sm font-medium text-slate-700">Taxable</span>
-            </label>
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.is_taxable} onChange={(e) => set({ is_taxable: e.target.checked })} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                <span className="text-sm font-medium text-slate-700">Taxable</span>
+              </label>
+              <FieldHelp {...help("is_taxable")} label="taxable claims" />
+            </div>
             <p className="text-[11px] text-slate-500">{form.is_taxable ? "Taxed as income and counted for professional tax, not for PF/ESI." : "Paid on top of salary. Not taxed, not counted for PF/ESI."}</p>
           </fieldset>
 
@@ -229,7 +234,10 @@ function CategoryFormDialog({ category, components, onClose, onSaved }) {
               {show("max_amount_per_period") && <p className={errorTextCls}>{show("max_amount_per_period")}</p>}
             </div>
             <div>
-              <label htmlFor="cat-period" className={labelCls}>Period</label>
+              <div className="flex items-center">
+                <label htmlFor="cat-period" className={labelCls}>Period</label>
+                <FieldHelp {...help("limit_period")} label="the limit period" className="mb-2" />
+              </div>
               <select id="cat-period" value={form.limit_period} onChange={(e) => set({ limit_period: e.target.value })} disabled={form.max_amount_per_period === ""} className={fieldCls}>
                 <option value="month">Per month</option>
                 <option value="financial_year">Per financial year</option>
@@ -245,7 +253,10 @@ function CategoryFormDialog({ category, components, onClose, onSaved }) {
             <summary className="text-sm font-bold text-slate-600 cursor-pointer">Advanced</summary>
             <div className="mt-3 space-y-3">
               <div>
-                <label htmlFor="cat-component" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Salary component (optional)</label>
+                <div className="flex items-center">
+                  <label htmlFor="cat-component" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Salary component (optional)</label>
+                  <FieldHelp {...help("component_id")} label="the salary component" className="mb-1" size="sm" />
+                </div>
                 <select id="cat-component" value={form.component_id} onChange={(e) => set({ component_id: e.target.value })} className={fieldCls}>
                   <option value="">Payroll picks one automatically</option>
                   {catalog.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ""}</option>)}
@@ -394,7 +405,7 @@ function CategoriesTab({ showToast }) {
               <thead>
                 <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   <th className="px-5 py-4 border-b border-slate-100">Category</th>
-                  <th className="px-5 py-4 border-b border-slate-100">Tax</th>
+                  <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Tax" help={help("is_taxable", { size: "sm", label: "taxable claims" })} /></th>
                   <th className="px-5 py-4 border-b border-slate-100">Receipt</th>
                   <th className="px-5 py-4 border-b border-slate-100 text-right">Per claim</th>
                   <th className="px-5 py-4 border-b border-slate-100">Per period</th>
@@ -478,11 +489,11 @@ function CategoriesTab({ showToast }) {
             <DetailSection title="Rules">
               <DetailGrid
                 items={[
-                  ["Taxable", d.is_taxable ? "Yes" : "No"],
+                  { label: "Taxable", value: d.is_taxable ? "Yes" : "No", help: help("is_taxable") },
                   ["Receipt", receiptRuleText(d, formatMoney)],
                   ["Limit per claim", claimLimitText(d, formatMoney)],
                   ["Limit per period", periodLimitText(d, formatMoney)],
-                  ["Period", LIMIT_PERIOD_LABEL[d.limit_period] || "per financial year"],
+                  { label: "Period", value: LIMIT_PERIOD_LABEL[d.limit_period] || "per financial year", help: help("limit_period") },
                   ["Status", active ? "Active" : "Inactive"],
                 ]}
               />
@@ -654,7 +665,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
                   <th className="px-5 py-4 border-b border-slate-100">Submitted</th>
                   <th className="px-5 py-4 border-b border-slate-100 text-right">Amount</th>
                   <th className="px-5 py-4 border-b border-slate-100">Status</th>
-                  <th className="px-5 py-4 border-b border-slate-100">Pay month</th>
+                  <th className="px-5 py-4 border-b border-slate-100"><HelpLabel text="Pay month" help={help("period_month", { size: "sm" })} /></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 text-sm">
@@ -803,6 +814,10 @@ export default function PayrollReimbursementsPage({ embedded = false } = {}) {
               {label}
             </button>
           ))}
+          {/* One ⓘ for the strip, beside the tabs (never inside one), explaining the open tab. */}
+          <span className="self-center">
+            <FieldHelp {...help(`tab.${tab}`)} label={tab === "categories" ? "the Categories tab" : "the Claims tab"} />
+          </span>
         </div>
 
         {tab === "categories"

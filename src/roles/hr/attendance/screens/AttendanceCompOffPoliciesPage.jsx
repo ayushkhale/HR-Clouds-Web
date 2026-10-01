@@ -12,9 +12,11 @@ import { useTargetingOptions, withSelected, describeTargeting } from "../../../.
 import { EmptyState, ErrorState, FieldError, InlineAlert, LoadingRows, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiPlus, HiX, HiOutlineTrash, HiDocumentText, HiPencil, HiScale, HiUserGroup } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
+const help = (field, extra) => ({ surface: "attendance.comp_off_policy", field, ...extra });
+const LIST_HELP = { "Half / full day": "min_hours_for_full_day", Credit: "multiplier" };
 // Full field set per ATTENDANCE_API_CONTRACT.md §5.6.
 const EMPTY_FORM = {
   name: "",
@@ -108,7 +110,10 @@ function PolicyModal({ policy, onClose, onSaved }) {
               <FieldError message={errors.name} />
             </div>
             <div>
-              <label htmlFor="cop-priority" className={labelClass}>Priority</label>
+              <div className="flex items-center">
+                <label htmlFor="cop-priority" className={labelClass}>Priority</label>
+                <FieldHelp {...help("priority")} label="priority" className="mb-1.5" />
+              </div>
               <input id="cop-priority" type="number" step="1" min="0" max="999" value={form.priority} onChange={(e) => set("priority", e.target.value)} className={inputClass(!!errors.priority)} />
               <FieldError message={errors.priority} />
             </div>
@@ -122,7 +127,10 @@ function PolicyModal({ policy, onClose, onSaved }) {
               <FieldError message={errors.min_hours_for_half_day} />
             </div>
             <div>
-              <label htmlFor="cop-full" className={labelClass}>Hours for full day</label>
+              <div className="flex items-center">
+                <label htmlFor="cop-full" className={labelClass}>Hours for full day</label>
+                <FieldHelp {...help("min_hours_for_full_day")} label="hours for a full day" className="mb-1.5" overlay />
+              </div>
               <input id="cop-full" type="number" step="0.25" min="0" max="24" value={form.min_hours_for_full_day} onChange={(e) => set("min_hours_for_full_day", e.target.value)} className={inputClass(!!errors.min_hours_for_full_day)} />
               <FieldError message={errors.min_hours_for_full_day} />
             </div>
@@ -131,7 +139,10 @@ function PolicyModal({ policy, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="cop-mult" className={labelClass}>Multiplier <span className="text-rose-400">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="cop-mult" className={labelClass}>Multiplier <span className="text-rose-400">*</span></label>
+                <FieldHelp {...help("multiplier")} label="the multiplier" className="mb-1.5" />
+              </div>
               <input id="cop-mult" type="number" step="0.25" min="0.25" max="10" value={form.multiplier} onChange={(e) => set("multiplier", e.target.value)} className={inputClass(!!errors.multiplier)} />
               {errors.multiplier ? <FieldError message={errors.multiplier} /> : <p className="text-[11px] text-slate-400 mt-1">1 = one day credited per day earned.</p>}
             </div>
@@ -230,7 +241,7 @@ function AttendanceCompOffPoliciesPage() {
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">{TERM} Policies</h2>
+              <h2 className="text-xl font-bold text-slate-800"><HelpLabel text={`${TERM} Policies`} help={help("page", { label: `${TERM.toLowerCase()} policies` })} /></h2>
               <p className="text-sm text-slate-500 mt-1">Rules for earning compensatory days when employees work on holidays or weekly offs.</p>
             </div>
             <button onClick={() => setModal("create")} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-colors shadow-sm">
@@ -255,8 +266,8 @@ function AttendanceCompOffPoliciesPage() {
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-[11px]">
                     <tr>
                       <th className="px-6 py-3.5">Policy</th>
-                      <th className="px-6 py-3.5">Half / full day</th>
-                      <th className="px-6 py-3.5">Credit</th>
+                      <th className="px-6 py-3.5"><HelpLabel text="Half / full day" help={help(LIST_HELP["Half / full day"], { size: "sm" })} /></th>
+                      <th className="px-6 py-3.5"><HelpLabel text="Credit" help={help(LIST_HELP["Credit"], { size: "sm" })} /></th>
                       <th className="px-6 py-3.5">Applies to</th>
                       <th className="px-6 py-3.5">Approval</th>
                       <th className="px-6 py-3.5 text-right">Actions</th>
@@ -345,8 +356,8 @@ function AttendanceCompOffPoliciesPage() {
               <DetailGrid
                 items={[
                   ["Hours for half day", hoursOrNA(p.min_hours_for_half_day)],
-                  ["Hours for full day", hoursOrNA(p.min_hours_for_full_day)],
-                  ["Multiplier", `×${p.multiplier ?? 1}`],
+                  { label: "Hours for full day", value: hoursOrNA(p.min_hours_for_full_day), help: help("min_hours_for_full_day") },
+                  { label: "Multiplier", value: `×${p.multiplier ?? 1}`, help: help("multiplier") },
                   ["Approval", p.requires_approval === false ? "Auto-credited" : "Manager approval"],
                 ]}
               />
@@ -355,9 +366,9 @@ function AttendanceCompOffPoliciesPage() {
               <DetailGrid
                 cols={3}
                 items={[
-                  ["Valid for", p.validity_days != null ? `${p.validity_days} days` : "No expiry"],
+                  { label: "Valid for", value: p.validity_days != null ? `${p.validity_days} days` : "No expiry", help: help("validity_days") },
                   ["Maximum balance", p.max_accumulation != null ? p.max_accumulation : "No cap"],
-                  ["Priority", p.priority ?? 0],
+                  { label: "Priority", value: p.priority ?? 0, help: help("priority") },
                 ]}
               />
             </DetailSection>

@@ -26,6 +26,7 @@ import {
   HiExternalLink, HiInformationCircle, HiOfficeBuilding, HiRefresh, HiUserGroup, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { Pagination, PersonCell, Toast, useToast } from "../../../../shared/attendance/ui";
 import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -294,7 +295,7 @@ function MissingReport({ types, departmentOptions, orgLoading, showToast, nameOf
                         <th className="px-5 py-3.5">Person</th>
                         <th className="px-5 py-3.5">Department</th>
                         <th className="px-5 py-3.5">What’s missing</th>
-                        <th className="px-5 py-3.5 w-48">How complete</th>
+                        <th className="px-5 py-3.5 w-48"><HelpLabel text="How complete" help={{ surface: "documents.reports", field: "completeness", size: "sm", label: "how complete" }} /></th>
                         <th className="px-5 py-3.5 w-36 text-right">Chase</th>
                       </tr>
                     </thead>

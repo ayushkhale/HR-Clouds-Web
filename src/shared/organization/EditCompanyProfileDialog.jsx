@@ -29,9 +29,22 @@ import FieldHelp from "../fieldHelp/FieldHelp";
 import { organizationAPI } from "../api";
 import { organizationErrorMessage } from "../utils/organizationErrors";
 import {
-  FOUNDED_MIN, SIZE_OPTIONS, STATUTORY_FIELDS, changedFields, foundedMax,
+  FOUNDED_MIN, INDUSTRY_OPTIONS, SIZE_OPTIONS, STATUTORY_FIELDS, changedFields, foundedMax,
   profileFormFrom, statutoryVisible, validateProfileForm,
 } from "./orgProfileMeta";
+import { isIndianPincode, lookupIndianPincode } from "../api/pincode.api";
+import { INDIAN_STATES, findIndianStateByName } from "../data/indianStates";
+
+// What the PIN code line says after a lookup.
+const PIN_HINT = {
+  looking: "Looking up the PIN code…",
+  filled: "City and state filled in from the PIN code.",
+  notfound: "We couldn’t find this PIN code. Fill in the city and state yourself.",
+  failed: "Couldn’t look up the PIN code right now. Fill in the city and state yourself.",
+};
+const isIndia = (country) => ["", "india", "bharat"].includes(String(country || "").trim().toLowerCase());
+/** The list a select offers: the known options, plus a saved value that isn't one of them. */
+const withCurrent = (options, current) => (current && !options.includes(current) ? [current, ...options] : options);
 
 const SURFACE = "organization.company_profile_edit";
 
@@ -76,6 +89,33 @@ export default function EditCompanyProfileDialog({ details, onClose, onSaved }) 
   const blocked = Object.keys(problems).length > 0;
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  // PIN code → city and state (India Post, pincode.api.js). Only a PIN the
+  // person typed is looked up — opening the dialog on a saved address never
+  // rewrites it — and a slower, older answer never lands over a newer one.
+  const [pinStatus, setPinStatus] = useState("");
+  const pinTyped = useRef(false);
+  const onPinChange = (e) => { pinTyped.current = true; setPinStatus(""); set("zip_code")(e); };
+  useEffect(() => {
+    const pin = form.zip_code.trim();
+    if (!pinTyped.current || !isIndianPincode(pin) || !isIndia(form.country)) return undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setPinStatus("looking");
+      try {
+        const found = await lookupIndianPincode(pin, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!found) { setPinStatus("notfound"); return; }
+        const state = findIndianStateByName(found.state)?.name || found.state;
+        setForm((f) => ({ ...f, city: found.city || f.city, state: state || f.state, country: f.country.trim() ? f.country : "India" }));
+        setPinStatus("filled");
+      } catch {
+        if (!controller.signal.aborted) setPinStatus("failed");
+      }
+    }, 350);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [form.zip_code, form.country]);
+  const stateOptions = withCurrent(INDIAN_STATES.map((st) => st.name), form.state);
 
   // Escape closes — but never mid-save, where closing would hide a write in flight.
   useEffect(() => {
@@ -149,7 +189,10 @@ export default function EditCompanyProfileDialog({ details, onClose, onSaved }) 
               </Field>
 
               <Field id="industry" label="Industry" error={err("industry")}>
-                <input id="industry" value={form.industry} onChange={set("industry")} maxLength={100} className={cls("industry")} placeholder="Software" />
+                <select id="industry" value={form.industry} onChange={set("industry")} className={cls("industry")}>
+                  <option value="">Select industry</option>
+                  {withCurrent(INDUSTRY_OPTIONS, form.industry).map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
               </Field>
 
               <Field id="size" label="Company size" help="size" error={err("size")}>
@@ -195,14 +238,22 @@ export default function EditCompanyProfileDialog({ details, onClose, onSaved }) 
               <Field id="address_line_2" label="Address line 2" className="sm:col-span-2" error={err("address_line_2")}>
                 <input id="address_line_2" value={form.address_line_2} onChange={set("address_line_2")} maxLength={255} className={cls("address_line_2")} placeholder="MG Road" />
               </Field>
+              {/* PIN first: typing it fills the city and state below. */}
+              <Field id="zip_code" label="PIN code" error={err("zip_code")} hint={PIN_HINT[pinStatus] || (isIndia(form.country) ? "Enter the PIN code to fill in the city and state." : "")}>
+                <input id="zip_code" value={form.zip_code} onChange={onPinChange} maxLength={20} inputMode={isIndia(form.country) ? "numeric" : undefined} className={cls("zip_code")} placeholder="560001" />
+              </Field>
               <Field id="city" label="City" error={err("city")}>
                 <input id="city" value={form.city} onChange={set("city")} maxLength={100} className={cls("city")} placeholder="Bengaluru" />
               </Field>
               <Field id="state" label="State" error={err("state")}>
-                <input id="state" value={form.state} onChange={set("state")} maxLength={100} className={cls("state")} placeholder="Karnataka" />
-              </Field>
-              <Field id="zip_code" label="PIN code" error={err("zip_code")}>
-                <input id="zip_code" value={form.zip_code} onChange={set("zip_code")} maxLength={20} className={cls("zip_code")} placeholder="560001" />
+                {isIndia(form.country) ? (
+                  <select id="state" value={form.state} onChange={set("state")} className={cls("state")}>
+                    <option value="">Select state</option>
+                    {stateOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input id="state" value={form.state} onChange={set("state")} maxLength={100} className={cls("state")} placeholder="State or region" />
+                )}
               </Field>
               <Field id="country" label="Country" error={err("country")}>
                 <input id="country" value={form.country} onChange={set("country")} maxLength={100} className={cls("country")} placeholder="India" />

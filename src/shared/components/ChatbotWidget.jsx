@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import {
   HiXMark, HiPaperAirplane,
   HiArrowPath, HiChevronRight, HiStop,
-  HiArrowsPointingOut, HiArrowsPointingIn
+  HiArrowsPointingOut, HiArrowsPointingIn, HiMicrophone
 } from 'react-icons/hi2';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,6 +11,21 @@ import { useDocMindChat, DOCMIND_CONFIGURED } from '../hooks/useDocMindChat';
 import { useMayaVisibility } from '../hooks/useMayaVisibility';
 import { MAYA_ASK_EVENT, consumePendingQuestion, registerMaya } from '../maya/mayaBridge';
 import { mayaLayerFor } from '../fieldHelp/fieldHelpLayer';
+import { useSpeechToText, VOICE_LANGS, defaultVoiceLang } from '../maya/useSpeechToText';
+
+// Per-viewer convenience only; a blocked or empty store falls back to the default.
+const VOICE_LANG_KEY = 'hrc.maya.voiceLang';
+const LISTENING_HINT = {
+  'en-IN': 'Listening… speak your question',
+  hinglish: 'Sun rahi hoon… apna sawaal boliye',
+};
+const readVoiceLang = () => {
+  try {
+    const saved = localStorage.getItem(VOICE_LANG_KEY);
+    if (VOICE_LANGS.some((l) => l.value === saved)) return saved;
+  } catch { /* storage unavailable */ }
+  return defaultVoiceLang();
+};
 
 /* ─── helpers ─── */
 const ts = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -112,6 +127,20 @@ const ChatbotWidget = () => {
   const busy      = isLoading || isStreaming;
   const showEmpty = messages.length === 0;
 
+  // Voice typing: fills the input as the person speaks, never sends
+  // (useSpeechToText.js). Left out entirely where the browser can't do it.
+  const onSpokenText = useCallback((text) => setInputValue(text.slice(0, maxLen)), [maxLen]);
+  const [voiceLang, setVoiceLang] = useState(readVoiceLang);
+  const speech = useSpeechToText(onSpokenText, voiceLang);
+  const { stop: stopListening, cancel: cancelListening } = speech;
+  const voiceLangLabel = VOICE_LANGS.find((l) => l.value === voiceLang)?.label || 'English';
+  // Switching mid-sentence would mix two recognisers' output, so it stops first.
+  const pickVoiceLang = (value) => {
+    stopListening();
+    setVoiceLang(value);
+    try { localStorage.setItem(VOICE_LANG_KEY, value); } catch { /* storage unavailable */ }
+  };
+
   // Mounted once for the whole app, so an open panel would otherwise follow the
   // user to every page and sit over its content. Close it on navigation; the
   // conversation is kept and "Ask Maya" reopens it.
@@ -145,6 +174,7 @@ const ChatbotWidget = () => {
     const take = () => {
       const ask = consumePendingQuestion();
       if (!ask) return;
+      stopListening(); // or speech would overwrite the question just placed
       setInputValue(ask.question.slice(0, maxLen));
       setIsOpen(true);
       setRaised(mayaLayerFor(ask.layer));
@@ -154,7 +184,7 @@ const ChatbotWidget = () => {
     take();
     window.addEventListener(MAYA_ASK_EVENT, take);
     return () => window.removeEventListener(MAYA_ASK_EVENT, take);
-  }, [hidden, maxLen]);
+  }, [hidden, maxLen, stopListening]);
 
   // Caret at the end so Enter sends it. While she's still answering, the input
   // is disabled and can't take focus — and the "Ask Maya" link that had it has
@@ -204,6 +234,12 @@ const ChatbotWidget = () => {
     };
   }, [isOpen, closeChat]);
 
+  // The microphone never stays open behind a closed panel, another page or an
+  // answer being written.
+  useEffect(() => {
+    if (!isOpen || busy) stopListening();
+  }, [isOpen, busy, stopListening]);
+
   /* Auto-scroll */
   useEffect(() => {
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -220,6 +256,7 @@ const ChatbotWidget = () => {
   const handleSubmit = (e) => {
     e?.preventDefault();
     if (!inputValue.trim() || busy) return;
+    cancelListening(); // a late result would otherwise refill the cleared box
     sendMessage(inputValue.trim());
     setInputValue('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -299,7 +336,7 @@ const ChatbotWidget = () => {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => { clearMessages(); setInputValue(''); }}
+            <button onClick={() => { cancelListening(); clearMessages(); setInputValue(''); }}
               aria-label="Clear chat" title="Clear chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiArrowPath className="w-4 h-4" />
@@ -424,9 +461,9 @@ const ChatbotWidget = () => {
             <textarea
               ref={textareaRef}
               value={inputValue}
-              onChange={e => setInputValue(e.target.value.slice(0, maxLen))}
+              onChange={e => { setInputValue(e.target.value.slice(0, maxLen)); if (speech.error) speech.clearError(); }}
               onKeyDown={handleKeyDown}
-              placeholder={busy ? 'Maya is responding…' : placeholder}
+              placeholder={busy ? 'Maya is responding…' : speech.listening ? LISTENING_HINT[voiceLang] || LISTENING_HINT['en-IN'] : placeholder}
               rows={1}
               disabled={busy}
               className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400
@@ -434,6 +471,17 @@ const ChatbotWidget = () => {
                 focus:border-purple-400 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ minHeight: '44px', maxHeight: '128px' }}
             />
+            {speech.supported && !busy && (
+              <button type="button"
+                onClick={() => (speech.listening ? speech.stop() : speech.start(inputValue))}
+                aria-pressed={speech.listening}
+                aria-label={speech.listening ? 'Stop voice typing' : `Speak your question in ${voiceLangLabel}`}
+                title={speech.listening ? 'Stop voice typing' : `Speak your question in ${voiceLangLabel}`}
+                className={`p-3 rounded-xl flex items-center justify-center transition-all flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
+                  ${speech.listening ? 'bg-purple-600 text-white shadow-md ring-4 ring-purple-100' : 'bg-slate-100 text-slate-500 hover:bg-purple-50 hover:text-purple-600'}`}>
+                <HiMicrophone className="w-5 h-5" />
+              </button>
+            )}
             {busy ? (
               <button type="button" onClick={stopStreaming}
                 className="p-3 rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all flex-shrink-0 shadow-sm"
@@ -449,10 +497,41 @@ const ChatbotWidget = () => {
               </button>
             )}
           </form>
-          {inputValue.length > 0 && (
-            <p className={`text-[10px] mt-1 text-right pr-14 ${charWarn ? 'text-fuchsia-500' : 'text-slate-400'}`}>
-              {charsLeft} remaining
-            </p>
+          {speech.error && (
+            <p role="alert" className="text-[11px] mt-1.5 px-1 text-rose-600">{speech.error}</p>
+          )}
+          {speech.listening && (
+            <p className="sr-only" aria-live="polite">Listening. Speak your question, then tap the microphone to stop.</p>
+          )}
+          {(speech.supported || inputValue.length > 0) && (
+            <div className="flex items-center justify-between gap-3 mt-2 min-h-[26px]">
+              {speech.supported ? (
+                <div className="inline-flex items-center rounded-lg bg-slate-100 p-0.5" role="radiogroup" aria-label="Voice input language">
+                  <HiMicrophone className="w-3.5 h-3.5 mx-1.5 text-slate-400" aria-hidden="true" />
+                  {VOICE_LANGS.map((l) => (
+                    <button key={l.value} type="button" role="radio" aria-checked={voiceLang === l.value}
+                      onClick={() => pickVoiceLang(l.value)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
+                        ${voiceLang === l.value ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              ) : <span />}
+              {speech.listening ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700">
+                  <span className="relative flex w-2 h-2" aria-hidden="true">
+                    <span className="absolute inline-flex w-full h-full rounded-full bg-purple-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex w-2 h-2 rounded-full bg-purple-600" />
+                  </span>
+                  Listening
+                </span>
+              ) : inputValue.length > 0 && (
+                <span className={`text-[11px] tabular-nums ${charWarn ? 'text-fuchsia-600' : 'text-slate-400'}`}>
+                  {charsLeft} characters left
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

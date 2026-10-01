@@ -274,7 +274,7 @@ export default function PayrollArrearsPage() {
       <DashboardTopBar title="Pay Differences" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Pay Differences</h1>
+          <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Pay Differences" help={{ surface: "payroll.arrears", field: "page", label: "the Pay Differences page" }} /></h1>
           <p className="text-sm text-slate-500 mt-1">
             When something changes after a month has been paid, the difference is made up in the next open month.
           </p>

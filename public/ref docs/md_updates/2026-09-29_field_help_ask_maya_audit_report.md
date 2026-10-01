@@ -587,3 +587,311 @@ lines carry an ⓘ.
 **Totals now:** 65 surfaces, HR resolves 59 of them and 96 entries, 66 of which
 offer an Ask Maya question. Hints still carry no figure that changes with the
 finance act.
+
+## 12. Phase 5: HR onboarding coverage
+
+Brief: `.agents/prompts/hr-onboarding-help-ask-maya.md` (2026-10-01). Phase 4 was
+judged too thin by the people using it: a first-month HR admin still stalled on
+attendance policies, shifts, leave rules and payroll. Phase 5 puts an ⓘ on every HR
+field, column, tile, tab and screen where such a person could stall or set something
+wrong, behind a switch so the extra help can be thinned later in one edit.
+
+### 12.1 Summary
+
+**193 new entries, all tagged `"tier": "onboarding"`, in 53 surfaces (29 new), wired
+across 60 files.** The config now holds 104 surfaces and 320 entries; 27 of the new
+entries carry an Ask Maya question. With the tier on, the harness in §12.6 counted
+**188 ⓘ across 64 HR screen states at 1366** — with empty mock data, so tables with
+no rows are not in that count — against 30 on the same states before the phase.
+
+The two rules phase 4 applied (4 per screen state; nothing where the screen
+"explains itself") are lifted for onboarding entries only. An inline range, a format
+or a line of jargon ("Tier B to Tier A", "Segregation of Duties", "IANA zone") no
+longer counts as an explanation. Once-per-concept, no layout shift and every
+placement and wording rule still hold.
+
+### 12.2 The tier (new code)
+
+- `fieldHelp.json` gains a top-level `tiers` block:
+  `"onboarding": { "workspaces": ["hr"] }`.
+- An entry tagged with a tier shows only in a workspace listed there, **and**
+  its own `workspaces` gate must allow it too.
+- An untagged entry is core and always shows, so all 127 pre-phase entries behave
+  exactly as before.
+- `getFieldHelp()` checks the tier.
+- The dev validator warns on:
+  - an unknown tier;
+  - a tier with no `workspaces`;
+  - an unknown workspace inside a tier.
+- Thinning the help later takes one of three edits:
+  - remove `"hr"` from the tier;
+  - delete an entry's `tier`, which promotes it to core;
+  - delete single entries.
+
+  This is recorded in the `fieldHelpMeta.js` header and in CLAUDE.md §10.
+
+**Two new wiring points:**
+
+- **`page`:** an ⓘ beside a screen's `<h1>` (`HelpLabel`). It is given only where
+  the name doesn't say what the screen is for.
+- **`tab.<value>`:** one ⓘ beside a tab strip, outside any tablist or scroll
+  container. It explains whichever tab is open. Used on:
+  - Tax & Legal Deductions;
+  - Document Types;
+  - Claims;
+  - Payslips & Documents;
+  - the employee profile.
+
+Entries on components that managers also render (`attendance.team`) are gated
+`["manager","hr"]` so a later manager rollout reads the same. The tier's own `["hr"]`
+keeps them off for managers today.
+
+### 12.3 What was added
+
+| Surface | Onboarding entries | Ask Maya | Keys |
+|---|---|---|---|
+| `attendance.team` | 3 | 0 | `final_present_count`, `late_count`, `day_status` |
+| `documents.letter_settings` | 6 | 0 | `page`, `document_view_url_ttl_seconds`, `document_upload_url_ttl_seconds`, `document_onboarding_completeness_threshold`, `document_publish_sync_threshold`, `letter_preview_rate_per_hour` |
+| `payroll.component_setup` | 8 | 3 | `page`, `bootstrap`, `component_type`, `is_taxable`, `is_lop_applicable`, `is_prorated_on_joining`, `esi_applicable`, `flags` |
+| `payroll.statutory_config` | 23 | 8 | `tab.config`, `tab.pt`, `tab.regimes`, `pf_enabled`, `pf_employee_rate`, `pf_employer_rate`, `pf_lop_reduces_ceiling`, `pf_include_overtime`, `pf_admin_charge_rate`, `pf_admin_charge_min`, `eps_enabled`, `eps_rate`, `eps_wage_ceiling`, `edli_enabled`, `edli_rate`, `esi_enabled`, `esi_employee_rate`, `esi_employer_rate`, `esi_include_overtime`, `pt_enabled`, `income_tax_enabled`, `tds_no_pan_enforced`, `cess_rate` |
+| `payroll.settings` | 7 | 0 | `page`, `rounding_policy`, `manager_direct_compensation_authority`, `payroll_require_separate_checker`, `fnf_notice_recovery_enabled`, `fnf_notice_recovery_rate_basis`, `fnf_encashment_leave_type_codes` |
+| `leaves.policy_setup` | 2 | 0 | `page`, `annual_quota` |
+| `attendance.policy_setup` | 13 | 0 | `page`, `is_default`, `grace_minutes`, `early_exit_threshold_minutes`, `full_day_min_hours`, `late_count_half_day_threshold`, `auto_clock_out_enabled`, `auto_detect_shift`, `overtime_enabled`, `overtime_min_minutes`, `overtime_requires_approval`, `regularization_allowed`, `comp_off_on_holiday_work` |
+| `attendance.comp_off_policy` | 4 | 0 | `page`, `priority`, `min_hours_for_full_day`, `multiplier` |
+| `payroll.structure_template` | 2 | 0 | `page`, `target_ctc` |
+| `payroll.bonus_rule` | 4 | 0 | `page`, `period_month`, `min_tenure_months`, `total_gross` |
+| `payroll.benefit_plan` | 5 | 0 | `page`, `employee_contribution_amount`, `employer_contribution_amount`, `coverage_amount`, `employer_component_id` |
+| `payroll.run_item` | 12 | 0 | `gross_earnings`, `net_pay`, `payable_days`, `lop_amount`, `carry_forward_in`, `esi_wage`, `taxable_earnings`, `esi_covered`, `source`, `full_month_amount`, `item_status`, `days_paid_unpaid` |
+| `payroll.arrears` | 1 | 1 | `page` |
+| `payroll.tax_verification` | 3 | 2 | `page`, `proof_deadline`, `section` |
+| `organization.invite` | 8 | 2 | `employee_code`, `is_hod`, `job_status`, `employment_type`, `joining_date`, `pan_number`, `uan_number`, `status` |
+| `payroll.year_end` | 1 | 0 | `page` |
+| `payroll.adjustment_admin` | 3 | 0 | `page`, `tax_flags`, `applied` |
+| `payroll.encashment_admin` | 3 | 0 | `page`, `leave_type_code`, `per_day_amount` |
+| `payroll.structure_assign` | 3 | 1 | `page`, `version`, `employer_statutory` |
+| `payroll.tax_regime_config` | 3 | 1 | `allows_hra_exemption`, `is_default`, `age_band` |
+| `payroll.pt_slabs` | 1 | 0 | `gender` |
+| `documents.verification` | 1 | 0 | `page` |
+| `payroll.settlement` | 3 | 0 | `page`, `status`, `period_month` |
+| `attendance.shift_setup` (new) | 8 | 0 | `page`, `type`, `start_time`, `policy_id`, `rotations`, `start_reference_date`, `entries`, `rotation_cycle_days` |
+| `attendance.weekly_off_setup` (new) | 1 | 0 | `priority` |
+| `organization.location_setup` (new) | 2 | 0 | `timezone`, `geofence_radius_meters` |
+| `leaves.type_setup` (new) | 4 | 2 | `page`, `code`, `is_paid`, `sandwich_rule_applies` |
+| `leaves.automation` (new) | 5 | 1 | `page`, `accrual`, `reference_date`, `rollover`, `rollover.reference_date` |
+| `payroll.automation` (new) | 1 | 0 | `page` |
+| `documents.type_setup` (new) | 3 | 0 | `page`, `tab.ours`, `tab.catalog` |
+| `documents.form_library` (new) | 1 | 0 | `page` |
+| `documents.automation` (new) | 1 | 0 | `page` |
+| `documents.letterhead` (new) | 5 | 4 | `page`, `cin`, `gstin`, `pan`, `tan` |
+| `documents.letter_templates` (new) | 1 | 0 | `page` |
+| `payroll.claims_admin` (new) | 6 | 0 | `tab.claims`, `tab.categories`, `period_month`, `is_taxable`, `limit_period`, `component_id` |
+| `payroll.loan_admin` (new) | 4 | 1 | `page`, `interest_method`, `outstanding`, `settlement_mode` |
+| `attendance.lock_periods` (new) | 2 | 0 | `page`, `source` |
+| `payroll.runs` (new) | 3 | 0 | `page`, `status`, `readiness` |
+| `payroll.run_summary` (new) | 4 | 0 | `clamped_item_count`, `pt_unresolved_count`, `pan_missing_count`, `carry_forward_generated_total` |
+| `payroll.payslip_admin` (new) | 6 | 1 | `page`, `tab.payslips`, `tab.annual`, `tab.form16`, `version`, `is_visible` |
+| `payroll.salary_approvals` (new) | 1 | 0 | `page` |
+| `organization.employee_profile` (new) | 3 | 0 | `tab.department`, `tab.leave`, `given_taken` |
+| `attendance.roster` (new) | 1 | 0 | `page` |
+| `leaves.hr_queue` (new) | 1 | 0 | `status` |
+| `attendance.comp_off_queue` (new) | 1 | 0 | `page` |
+| `documents.compliance` (new) | 2 | 0 | `requires`, `waived` |
+| `documents.search` (new) | 2 | 0 | `status`, `tags` |
+| `documents.letter_register` (new) | 1 | 0 | `reissue` |
+| `documents.org_documents` (new) | 1 | 0 | `page` |
+| `attendance.reports` (new) | 1 | 0 | `flagged` |
+| `documents.reports` (new) | 1 | 0 | `completeness` |
+| `documents.exports` (new) | 1 | 0 | `page` |
+| `documents.email_log` (new) | 1 | 0 | `page` |
+
+### 12.4 Checked and left with none, with the reason
+
+- **Ordinary or already plain:**
+  - Departments (list and form), Office Locations (name, address, map);
+  - Holiday name and date;
+  - Org Chart and Company Profile (already covered in phase 4);
+  - Inbox cards (each carries its own hint line);
+  - Audit Log and Payroll Exports (their subtitles say what they are).
+- **Forms whose every field already says what it means and what it changes:**
+  - the Document Type dialog;
+  - the Letterhead cards, apart from the registration numbers;
+  - Loans, apart from the interest method, amount outstanding and settlement mode;
+  - the exits notice section;
+  - the attendance correction window and the break limits;
+  - comp-off half-day hours, balance cap and approval;
+  - leave-policy accrual and joining wait;
+  - benefit enrolment overrides;
+  - bonus eligibility;
+  - claim receipt and limit fields.
+- **Payroll Automation, Document Automation and the Letter Templates tiles:** each
+  card or tile already says what it does and what it does not. Only the page
+  itself got a hint.
+- **Bank Verification:** the core `is_verified` hint and the subtitle cover it. What
+  an unverified account blocks at payment isn't settled anywhere (§12.5).
+- **Biometric devices:** the feature is deferred (attendance phase 8), so nothing
+  was written for a screen whose behaviour isn't live.
+- **Shared queues** (Attendance Corrections, the Inbox): already covered by
+  `attendance.approval_queue`. Verified, and nothing added.
+- **Leave Requests:** `leaves.approval` (phase 4) covers the decision dialog; only
+  the list's Status column was added.
+
+### 12.5 Blocked on facts, not skipped by choice
+
+1. **`late_threshold_minutes`** (Attendance Policies): the docs disagree.
+   - DocumentsPage says "marked as half-day if exceeded";
+   - ATTENDANCE_MODULE_AUDIT C4 calls that unverified.
+
+   Beginners most need this one, beside the grace period.
+2. **`consecutive_late_penalty_days`:** what the "penalty" is isn't stated anywhere.
+3. **Holiday type** and **the leave-payout amount basis:** still open from §11.4.
+4. **`max_accumulation`** (earned-leave cap): what happens to a credit above the cap
+   is unstated.
+5. **Bank Verification:** what an unverified account stops at payment time.
+
+### 12.6 Layout: measured, not assumed
+
+**How it was measured.** A Playwright harness drove the local dev server:
+- a fake HR JWT, and every API call answered with empty data;
+- system Chrome, at 1366 and 390 wide;
+- 64 HR screen states: 48 pages plus 16 of their create dialogs (15 opened; the
+  invite dialog's button wasn't found);
+- the height of every `h1–h5`, `th`, `label`, `dt` and `legend`, plus horizontal
+  overflow, recorded in three runs:
+  1. the original code (stashed);
+  2. tier on;
+  3. tier off.
+
+**Results:**
+
+- **Tier on against the original: no host grew.** One label shrank: "Taxable (TDS)"
+  in the component dialog at 390 went from 40 to 20px, because the new flex
+  wrapper stopped a wrap that was already there. No new horizontal scroll.
+- **Two wraps found and fixed.** At 390, the new ⓘ on "Taxable (TDS)" and "ESI
+  Applicable" wrapped their labels. They now use `overlay`, as does "Cut for unpaid
+  days".
+- **One misleading placement fixed.** At 390 the Tax & Legal Deductions tabs wrap
+  to one row each, and the tab ⓘ landed beside "Income-Tax Regimes" whatever tab
+  was open. It now sits right after the open tab, still outside the button.
+- **Tier off against the original:** same heights. There are more ⓘ than before
+  the phase (42 against 30 at 1366), because newly wired places reuse existing core entries, such as the
+  salary-revision CTC header and `attendance.team` on the profile's attendance
+  inspector. Wrapper `div`s were added beside labels, so the DOM is **not**
+  byte-identical to before; the layout is.
+- **By eye:**
+  - the policy dialog at 1366, and the component dialog and Tax & Legal Deductions
+    at 390, all looked right;
+  - "Is Basic Component" (core, phase 4) wraps at 390 exactly as it did before.
+
+**Limit:** empty mock data means list tables with no rows didn't render. Their
+header ⓘ weren't measured in a browser. They are all `size="sm"` in
+`whitespace-nowrap` headers of horizontally scrolling tables, the accepted
+icon-width growth from §10.5.
+
+### 12.7 Verification
+
+- **Config:** every entry has a `kind`, valid workspaces, a known tier, a hint of at
+  most 160 characters with a curly apostrophe, and an explicit `askMaya.enabled`.
+  - The merge script refused five hints over 160 characters; all were shortened.
+  - Seven older entries (the queue-health and letter-rate ones) still have no
+    `askMaya` block. That predates this phase and is harmless.
+- **Wiring:**
+  - 248 static surface/field pairs across the codebase all resolve to an entry.
+  - Every one of the 193 onboarding entries is wired. Some are wired by key, and
+    those were confirmed against the renderer's key lists:
+    - Tax & Legal Deductions: `CONFIG_GROUPS` keys and toggles, plus `TABS`;
+    - the run summary: `VARIABLE_PAY_FIELDS`, `STATUTORY_FIELDS`, `PAYOUT_FIELDS`;
+    - Letterhead: `BRANDING_GROUPS`;
+    - Attendance Policies: the `NumberField` names;
+    - each tab strip's keys.
+- **Voice:** no new hint says "you" or "your". They are written for HR acting for
+  the organisation, as the brief requires.
+- **Lint:** 74 errors before and 74 after across the 60 touched files. No new errors.
+- **Build:** `npm run build` is clean. `dist/` was reset and `git status --short
+  dist/` is empty.
+- **Size:** `fieldHelp.json` grew from 67 KB to 142 KB. It ships in the `FieldHelp`
+  chunk: 113 KB, 32 KB gzipped.
+
+### 12.8 Copy bugs found (listed, not changed; labels are out of this phase)
+
+- Work Shifts › Rotation Patterns subtitle: "cycle through shift **and off-day**
+  phases". The rotation form itself says every phase is a working shift and rest
+  days come from Weekly Offs.
+- Leave Types: "Unpaid (LWP)". §6 says unpaid days.
+- Loan inspector: an "EMI" column header. §6 says monthly repayment.
+- Payroll Settings: "Loss of Pay" in the unpaid-days help line.
+- Location dialog: "IANA zone".
+- Payroll Settings: "(Tier B to Tier A)" and "(Segregation of Duties)" in switch
+  descriptions. These now carry an ⓘ with the plain meaning, but the jargon is
+  still on screen.
+- Attendance Policies: "Late Threshold" and "Consecutive Late Days" still have range
+  hints only (§12.5).
+- **§4 violation:** Audit Log's record inspector shows "Entity ID" as a raw id.
+- Still open from §11.8: Form 16 Part B rendered as raw JSON.
+
+### 12.9 Open items for a human
+
+1. **Managers.** Their onboarding entries exist for `attendance.team` but the tier
+   is on for HR only. Turning it on for managers is a one-word edit, but manager
+   screens have not been through this pass.
+2. **A per-user "hide beginner tips" switch.** Not built; the tier is its hook.
+3. **Maya.** 27 new questions, plus phase 4's 15, are unverified against live Maya.
+   Switch off any that don't retrieve with `"enabled": false`.
+4. **Settle the blocked facts in §12.5.** `late_threshold_minutes` matters most.
+5. **A live pass with real HR data.** This phase measured against empty mocks
+   (§12.6). Tables with rows, and dialogs that open from a row, need a real login.
+
+### 12.10 Every hint offers Ask Maya (same day, user decision)
+
+The user asked for an Ask Maya question on **every** hint across the system, not
+only on domain terms. **214 questions were added**, which brings all **320 entries**
+to an enabled question. The 214 cover:
+
+- the phase 1–4 core entries that were hint-only;
+- the 7 older entries with no `askMaya` block at all;
+- every phase 5 onboarding entry.
+
+**Wording rules:**
+
+- Questions stay static and conceptual: no name, amount, id or example number.
+  The longest is 116 characters.
+- Entries the employee sees are phrased from their side.
+- Manager and HR entries are phrased neutrally.
+
+**Enforcement:**
+
+- CLAUDE.md §10 now requires a question on every entry, and "Ours", "Derived" and
+  "On someone else's behalf" hints carry one too.
+- The phase 5 brief's hint-only rule is superseded.
+- The dev validator (`fieldHelpMeta.js`) warns on any entry without an enabled
+  question.
+
+**Risk carried forward.** Questions about HR Clouds’ own settings (automation jobs,
+queue health, tier-specific screens) depend on Maya's corpus covering the product.
+None of the 320 questions has been tried against live Maya (§12.9 item 3). If one
+returns nothing useful, change the question rather than disabling it — disabling
+now breaks the rule.
+
+### 12.11 Removed from everyday data (same day, user decision)
+
+The user found the ⓘ annoying on data they read every day, so it was taken off
+**19 places in 11 files** and four surfaces were deleted: `attendance.team`,
+`attendance.daily_log`, `attendance.overtime` and `leaves.hr_queue`. That removed
+11 entries.
+
+**What lost its ⓘ:**
+
+| Where | What |
+|---|---|
+| HR and manager dashboards | Present, absent and late tiles; the manager's Lateness column |
+| Live Attendance | Status and Hours |
+| Manager Attendance History | Effective, Late / Early and Overtime |
+| Attendance Reports | Late and Overtime |
+| The employee profile's day inspector | Effective hours, Late by and Overtime |
+| The shared approval queue (every role) | Effective and Overtime |
+| The employee dashboard and My Attendance | Effective |
+| My Overtime | Overtime |
+| HR Leave Requests | Status |
+
+The config now holds 100 surfaces and 309 entries. **CLAUDE.md §10 records the
+rule:** no ⓘ on everyday data people read daily; help belongs on setup, payroll
+and rarer screens.

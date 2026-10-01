@@ -1,0 +1,1 @@
+import{d as t}from"./download-B-mvIbsV.js";import{b as a}from"./payrollErrors-BKPW_xjP.js";const n=2e3,s=r=>new Promise(e=>{setTimeout(e,r)});async function R(r,e={}){try{return await t(r,e)}catch(o){if(!a(o))throw o;return await s(n),t(r,e)}}export{R as d};

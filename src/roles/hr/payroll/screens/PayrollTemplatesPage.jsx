@@ -14,7 +14,7 @@ import {
 } from "../ctcBudget";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { calculationLabel } from "../runMeta";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 // Org employee rows carry `user_id`; payroll rows carry `id`. Accept either.
 const orgUserId = (u) => u?.user_id ?? u?.id ?? u?._id;
@@ -466,7 +466,8 @@ export default function PayrollTemplatesPage() {
           
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Structure Templates
+              <h1 className="text-2xl font-bold text-slate-900">
+                <HelpLabel text="Structure Templates" help={{ surface: "payroll.structure_template", field: "page", label: "the Structure Templates page" }} />
               </h1>
               <p className="text-sm text-slate-500 mt-1">Define templates to standardize compensation packages.</p>
             </div>
@@ -808,7 +809,7 @@ export default function PayrollTemplatesPage() {
                   employee banked it. */}
               <DetailStats
                 items={[
-                  { label: "Annual CTC", value: formatINR(previewData.annual_ctc), hint: `${formatINR(Number(previewData.annual_ctc) / 12)} / month`, icon: HiCurrencyRupee },
+                  { label: "Annual CTC", value: formatINR(previewData.annual_ctc), hint: `${formatINR(Number(previewData.annual_ctc) / 12)} / month`, icon: HiCurrencyRupee, help: { surface: "payroll.salary_revision", field: "annual_ctc" } },
                   { label: "Monthly gross", value: formatINR(previewData.monthly_gross), hint: "before deductions — not take-home", icon: HiCurrencyRupee },
                   ...(previewFigures ? [
                     { label: "Comes off their pay", value: formatINR(previewFigures.total_deductions), hint: "tax and contributions", icon: HiCurrencyRupee },
@@ -841,6 +842,7 @@ export default function PayrollTemplatesPage() {
                     { header: "Component", render: (line) => <span className="font-semibold text-slate-700">{line.name}</span> },
                     {
                       header: "How it’s worked out",
+                      help: { surface: "payroll.structure_template", field: "calculation_type" },
                       render: (line) => (
                         <span className="flex items-center gap-1.5">
                           <DetailPill tone="muted">

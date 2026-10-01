@@ -12,6 +12,7 @@ import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "
 import DecisionDialog from "../../../../shared/attendance/DecisionDialog";
 import { DecisionDetails } from "../../../../shared/attendance/AttendanceApprovalQueue";
 import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, StatusBadge, Toast, useToast } from "../../../../shared/attendance/ui";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { HiCheckCircle, HiGift } from "react-icons/hi";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
 import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -102,7 +103,7 @@ function AttendanceCompOffsPage() {
       <DashboardTopBar title={TERM} />
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{TERM}</h1>
+          <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text={TERM} help={{ surface: "attendance.comp_off_queue", field: "page", label: `the ${TERM} page` }} /></h1>
           <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits on the manager's behalf.</p>
         </div>
 
@@ -136,8 +137,8 @@ function AttendanceCompOffsPage() {
                       <th className="px-5 py-3.5">Employee</th>
                       <th className="px-5 py-3.5">Worked on</th>
                       <th className="px-5 py-3.5">Hours</th>
-                      {showCredit && <th className="px-5 py-3.5">Credit</th>}
-                      <th className="px-5 py-3.5">Expires</th>
+                      {showCredit && <th className="px-5 py-3.5"><HelpLabel text="Credit" help={{ surface: "attendance.approval_queue", field: "days_earned", size: "sm", label: "the days earned" }} /></th>}
+                      <th className="px-5 py-3.5"><HelpLabel text="Expires" help={{ surface: "attendance.comp_off_policy", field: "validity_days", size: "sm", label: "when earned leave expires" }} /></th>
                       <th className="px-5 py-3.5">Status</th>
                     </tr>
                   </thead>

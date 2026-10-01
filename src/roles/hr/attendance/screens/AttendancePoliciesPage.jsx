@@ -11,7 +11,7 @@ import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from ".
 import { fmtHours } from "../../../../shared/attendance/dates";
 import { HiClipboardList, HiPlus, HiX, HiPencil, HiBadgeCheck, HiInformationCircle, HiClock, HiPause, HiExclamationCircle, HiLightningBolt, HiRefresh } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const days = (n) => `${n} ${Number(n) === 1 ? "day" : "days"}`;
 // "7.00" → "7h": nine columns have to fit a 14" laptop, and "7.00 hrs / 4.00 hrs"
@@ -21,10 +21,16 @@ const shortHours = (v) => fmtHours(v, "N/A");
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 
+const SURFACE = "attendance.policy_setup";
+const help = (field, extra) => ({ surface: SURFACE, field, ...extra });
+// List headers that carry the ⓘ of the rule they summarise.
+const LIST_HELP = { Grace: "grace_minutes", "Full / Half Day": "full_day_min_hours", Overtime: "overtime_enabled", Corrections: "regularization_allowed", [TERM]: "comp_off_on_holiday_work" };
+
 /* ─── Toggle ─────────────────────────────────────────────────────────────── */
-function Toggle({ checked, onChange, label }) {
+function Toggle({ id, checked, onChange, label }) {
   return (
     <button
+      id={id}
       type="button"
       role="switch"
       aria-checked={checked}
@@ -37,12 +43,12 @@ function Toggle({ checked, onChange, label }) {
   );
 }
 
-function ToggleRow({ title, description, checked, onChange, children }) {
+function ToggleRow({ title, description, checked, onChange, children, helpField }) {
   return (
     <div className="bg-slate-50 rounded-xl p-5 space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-700">{title}</p>
+          <p className="text-sm font-semibold text-slate-700"><HelpLabel text={title} help={helpField && help(helpField)} /></p>
           {description && <p className="text-xs text-slate-400 mt-0.5">{description}</p>}
         </div>
         <Toggle label={title} checked={checked} onChange={onChange} />
@@ -62,7 +68,7 @@ function NumberField({ label, hint, name, value, onChange, error, step = 1, min 
         <label htmlFor={`policy-${name}`} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
         {/* overlay: these sit five to a row on a laptop, where a 26px icon
             would wrap the label and make every field in the row taller. */}
-        <FieldHelp surface="attendance.policy_setup" field={name} label={label} className="mb-2" overlay />
+        <FieldHelp surface={SURFACE} field={name} label={label} className="mb-2" overlay />
       </div>
       <div className="relative">
         <input
@@ -189,7 +195,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
             </div>
             <div className="flex items-center justify-between gap-4 bg-purple-50 border border-purple-100 rounded-xl px-5 py-3 lg:mt-6">
               <div>
-                <p className="text-sm font-semibold text-slate-700">Default policy</p>
+                <p className="text-sm font-semibold text-slate-700"><HelpLabel text="Default policy" help={help("is_default")} /></p>
                 <p className="text-[11px] text-slate-400">Used by shifts without a linked policy</p>
               </div>
               <Toggle label="Default policy" checked={form.is_default} onChange={(v) => set("is_default", v)} />
@@ -231,43 +237,48 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
               <div className="bg-slate-50 rounded-xl p-5">
                 <div className="flex items-center">
                   <label htmlFor="policy-missing" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">When a punch is missing</label>
-                  <FieldHelp surface="attendance.policy_setup" field="missing_punch_action" label="what happens to a missing punch" className="mb-2" />
+                  <FieldHelp surface={SURFACE} field="missing_punch_action" label="what happens to a missing punch" className="mb-2" />
                 </div>
                 <select id="policy-missing" value={form.missing_punch_action} onChange={(e) => set("missing_punch_action", e.target.value)} className={inputClass(!!errors.missing_punch_action)}>
                   {MISSING_PUNCH_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
                 </select>
                 <FieldError message={errors.missing_punch_action} />
               </div>
-              <ToggleRow title="Auto clock-out" description="Close days that are never clocked out" checked={form.auto_clock_out_enabled} onChange={(v) => set("auto_clock_out_enabled", v)}>
+              <ToggleRow title="Auto clock-out" helpField="auto_clock_out_enabled" description="Close days that are never clocked out" checked={form.auto_clock_out_enabled} onChange={(v) => set("auto_clock_out_enabled", v)}>
                 {form.auto_clock_out_enabled && (
                   <NumberField label="Clock Out After" suffix="hrs" step={0.5} min={1} max={24} name="auto_clock_out_after_hours" value={form.auto_clock_out_after_hours} onChange={set} error={errors.auto_clock_out_after_hours} hint="1–24 hours after clock-in" />
                 )}
               </ToggleRow>
-              <ToggleRow title="Auto-detect shift" description="Match clock-ins to the nearest shift when none is assigned" checked={form.auto_detect_shift} onChange={(v) => set("auto_detect_shift", v)} />
+              <ToggleRow title="Auto-detect shift" helpField="auto_detect_shift" description="Match clock-ins to the nearest shift when none is assigned" checked={form.auto_detect_shift} onChange={(v) => set("auto_detect_shift", v)} />
             </div>
           </Section>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <ToggleRow title="Track Overtime" description="Record work beyond the shift" checked={form.overtime_enabled} onChange={(v) => set("overtime_enabled", v)}>
+            <ToggleRow title="Track Overtime" helpField="overtime_enabled" description="Record work beyond the shift" checked={form.overtime_enabled} onChange={(v) => set("overtime_enabled", v)}>
               {form.overtime_enabled && (
                 <>
                   <NumberField label="Count Overtime After" suffix="mins" max={480} name="overtime_min_minutes" value={form.overtime_min_minutes} onChange={set} error={errors.overtime_min_minutes} hint="0–480. Extra minutes below this aren't counted" />
-                  <label className="flex items-center justify-between gap-3 text-xs font-semibold text-slate-600">
-                    Requires manager approval
-                    <Toggle label="Overtime requires approval" checked={form.overtime_requires_approval} onChange={(v) => set("overtime_requires_approval", v)} />
-                  </label>
+                  {/* The ⓘ sits beside the label, not inside it: a label wrapping the
+                      switch would fold the ⓘ into the switch's accessible name. */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center">
+                      <label htmlFor="policy-ot-approval" className="text-xs font-semibold text-slate-600">Requires manager approval</label>
+                      <FieldHelp surface={SURFACE} field="overtime_requires_approval" label="overtime approval" />
+                    </div>
+                    <Toggle id="policy-ot-approval" label="Overtime requires approval" checked={form.overtime_requires_approval} onChange={(v) => set("overtime_requires_approval", v)} />
+                  </div>
                   {!form.overtime_requires_approval && <p className="text-[10px] text-slate-400 -mt-2">Overtime will be approved automatically at clock-out.</p>}
                 </>
               )}
             </ToggleRow>
 
-            <ToggleRow title="Allow Corrections" description="Employees can request a fix for a missed or wrong punch" checked={form.regularization_allowed} onChange={(v) => set("regularization_allowed", v)}>
+            <ToggleRow title="Allow Corrections" helpField="regularization_allowed" description="Employees can request a fix for a missed or wrong punch" checked={form.regularization_allowed} onChange={(v) => set("regularization_allowed", v)}>
               {form.regularization_allowed && (
                 <NumberField label="Correction Window" suffix="days" min={1} max={365} name="regularization_window_days" value={form.regularization_window_days} onChange={set} error={errors.regularization_window_days} hint="1–365 past days an employee can request a correction for" />
               )}
             </ToggleRow>
 
-            <ToggleRow title={`Earn ${TERM} for Holiday Work`} description={`Working a holiday or weekly off earns ${TERM.toLowerCase()}, per the ${TERM.toLowerCase()} policy`} checked={form.comp_off_on_holiday_work} onChange={(v) => set("comp_off_on_holiday_work", v)} />
+            <ToggleRow title={`Earn ${TERM} for Holiday Work`} helpField="comp_off_on_holiday_work" description={`Working a holiday or weekly off earns ${TERM.toLowerCase()}, per the ${TERM.toLowerCase()} policy`} checked={form.comp_off_on_holiday_work} onChange={(v) => set("comp_off_on_holiday_work", v)} />
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">
@@ -363,7 +374,7 @@ export default function AttendancePoliciesPage() {
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Attendance Policies</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Attendance Policies" help={help("page", { label: "the Attendance Policies page" })} /></h1>
             <p className="text-sm text-slate-500 mt-1">Manage how attendance is calculated. Link policies to shift templates.</p>
           </div>
           <button onClick={() => setModal("create")} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
@@ -398,7 +409,9 @@ export default function AttendancePoliciesPage() {
                   <thead>
                     <tr className="border-b border-slate-100">
                       {["Policy Name", "Grace", "Full / Half Day", "Breaks", "Overtime", "Corrections", TERM, "Status", "Actions"].map((h) => (
-                        <th key={h} className={`px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                        <th key={h} className={`px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap ${h === "Actions" ? "text-right" : "text-left"}`}>
+                          <HelpLabel text={h} help={LIST_HELP[h] && help(LIST_HELP[h], { size: "sm" })} />
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -487,11 +500,11 @@ export default function AttendancePoliciesPage() {
               <DetailGrid
                 cols={5}
                 items={[
-                  ["Grace period", mins(p.grace_minutes)],
+                  { label: "Grace period", value: mins(p.grace_minutes), help: help("grace_minutes") },
                   ["Late threshold", mins(p.late_threshold_minutes)],
-                  ["Early exit threshold", mins(p.early_exit_threshold_minutes)],
-                  ["Hours for half day", hrs(p.half_day_min_hours)],
-                  ["Hours for full day", hrs(p.full_day_min_hours)],
+                  { label: "Early exit threshold", value: mins(p.early_exit_threshold_minutes), help: help("early_exit_threshold_minutes") },
+                  { label: "Hours for half day", value: hrs(p.half_day_min_hours), help: help("half_day_min_hours") },
+                  { label: "Hours for full day", value: hrs(p.full_day_min_hours), help: help("full_day_min_hours") },
                 ]}
               />
             </DetailSection>
@@ -500,7 +513,7 @@ export default function AttendancePoliciesPage() {
                 <DetailGrid
                   cols={2}
                   items={[
-                    ["Late arrivals per half day", p.late_count_half_day_threshold ?? "Off"],
+                    { label: "Late arrivals per half day", value: p.late_count_half_day_threshold ?? "Off", help: help("late_count_half_day_threshold") },
                     ["Consecutive late days", p.consecutive_late_penalty_days != null ? days(p.consecutive_late_penalty_days) : "Off"],
                   ]}
                 />
@@ -519,19 +532,19 @@ export default function AttendancePoliciesPage() {
               <DetailGrid
                 cols={3}
                 items={[
-                  ["When a punch is missing", missing],
-                  ["Auto clock-out", p.auto_clock_out_enabled ? `After ${p.auto_clock_out_after_hours ?? 0} hrs` : "Off"],
-                  ["Auto-detect shift", p.auto_detect_shift ? "On" : "Off"],
+                  { label: "When a punch is missing", value: missing, help: help("missing_punch_action") },
+                  { label: "Auto clock-out", value: p.auto_clock_out_enabled ? `After ${p.auto_clock_out_after_hours ?? 0} hrs` : "Off", help: help("auto_clock_out_enabled") },
+                  { label: "Auto-detect shift", value: p.auto_detect_shift ? "On" : "Off", help: help("auto_detect_shift") },
                 ]}
               />
             </DetailSection>
             <DetailSection title={`Overtime, corrections & ${TERM}`} icon={HiLightningBolt}>
               <DetailGrid
                 items={[
-                  ["Overtime", p.overtime_enabled ? `After ${p.overtime_min_minutes ?? 0} mins` : "Off"],
-                  ["Overtime approval", p.overtime_enabled ? (p.overtime_requires_approval === false ? "Auto-approved" : "Needs approval") : null],
-                  ["Corrections", p.regularization_allowed ? `Within ${days(p.regularization_window_days ?? 0)}` : "Not allowed"],
-                  [TERM, p.comp_off_on_holiday_work ? "Earned on holidays" : "Off"],
+                  { label: "Overtime", value: p.overtime_enabled ? `After ${p.overtime_min_minutes ?? 0} mins` : "Off", help: help("overtime_enabled") },
+                  { label: "Overtime approval", value: p.overtime_enabled ? (p.overtime_requires_approval === false ? "Auto-approved" : "Needs approval") : null, help: help("overtime_requires_approval") },
+                  { label: "Corrections", value: p.regularization_allowed ? `Within ${days(p.regularization_window_days ?? 0)}` : "Not allowed", help: help("regularization_allowed") },
+                  { label: TERM, value: p.comp_off_on_holiday_work ? "Earned on holidays" : "Off", help: help("comp_off_on_holiday_work") },
                 ]}
               />
             </DetailSection>

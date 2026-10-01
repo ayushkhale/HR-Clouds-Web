@@ -14,6 +14,9 @@ import { useTargetingOptions, withSelected, describeTargeting } from "../../../.
 import { EmptyState, ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
 import { HiTemplate, HiPlus, HiX, HiTrash, HiPencil, HiCalendar, HiUserGroup } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const PRIORITY_HELP = { surface: "attendance.weekly_off_setup", field: "priority" };
 
 const dayName = (v) => WEEKDAYS.find((d) => d.value === Number(v))?.label || "Unknown day";
 const sortDays = (days) => [...new Set(days.map(Number))].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b);
@@ -109,7 +112,10 @@ function WeeklyOffModal({ shifts, onClose, onSaved, editRule }) {
               <FieldError message={errors.name} />
             </div>
             <div>
-              <label htmlFor="wo-priority" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Priority <span className="text-rose-400">*</span></label>
+              <div className="flex items-center">
+                <label htmlFor="wo-priority" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Priority <span className="text-rose-400">*</span></label>
+                <FieldHelp {...PRIORITY_HELP} label="priority" className="mb-1.5" size="sm" />
+              </div>
               <input id="wo-priority" type="number" min={0} max={999} step={1} value={form.priority} onChange={(e) => set("priority", e.target.value)} className={inputClass(!!errors.priority)} />
               {errors.priority ? <FieldError message={errors.priority} /> : <p className="text-[10px] text-slate-400 mt-1">When rules overlap, the higher number wins.</p>}
             </div>
@@ -242,7 +248,9 @@ export default function AttendanceWeeklyOffsPage() {
               <thead>
                 <tr className="border-b border-slate-100">
                   {["Rule", "Days Off", "Priority", "Effective", "Applies To", "Status", "Actions"].map((h) => (
-                    <th key={h} className={`px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                    <th key={h} className={`px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${h === "Actions" ? "text-right" : "text-left"}`}>
+                      <HelpLabel text={h} help={h === "Priority" ? { ...PRIORITY_HELP, size: "sm" } : undefined} />
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -365,7 +373,7 @@ export default function AttendanceWeeklyOffsPage() {
               <DetailGrid
                 items={[
                   ["Days off", days.map(dayName).join(", ")],
-                  ["Priority", r.priority ?? 0],
+                  { label: "Priority", value: r.priority ?? 0, help: PRIORITY_HELP },
                   ["Effective from", fmtDate(ymdOnly(r.effective_from))],
                   ["Effective until", r.effective_to ? fmtDate(ymdOnly(r.effective_to)) : "Ongoing"],
                 ]}

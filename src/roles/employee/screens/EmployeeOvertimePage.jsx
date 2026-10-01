@@ -7,7 +7,6 @@ import { fmtDate, fmtDateTime, fmtMinutes, ymdOnly } from "../../../shared/atten
 import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { OvertimeDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
-import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 
 // Response shape is undocumented (audit C14); minutes are the canonical unit
 // elsewhere in the module, hours are accepted as a fallback.
@@ -46,7 +45,7 @@ function EmployeeOvertimePage() {
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                     <tr>
                       <th className="px-6 py-3.5">Date</th>
-                      <th className="px-6 py-3.5"><HelpLabel text="Overtime" help={{ surface: "attendance.overtime", field: "overtime_minutes", label: "overtime" }} /></th>
+                      <th className="px-6 py-3.5">Overtime</th>
                       <th className="px-6 py-3.5">Status</th>
                       <th className="px-6 py-3.5">Reviewed</th>
                     </tr>

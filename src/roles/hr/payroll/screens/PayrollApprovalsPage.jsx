@@ -5,6 +5,7 @@ import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/att
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCheck, HiClipboardList } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -77,7 +78,7 @@ export default function PayrollApprovalsPage() {
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900">Salary Approvals</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Salary Approvals" help={{ surface: "payroll.salary_approvals", field: "page", label: "the Salary Approvals page" }} /></h1>
             <p className="text-sm text-slate-500 mt-1">Review and approve salary structures proposed by managers or other HRs.</p>
           </div>
 
@@ -87,8 +88,8 @@ export default function PayrollApprovalsPage() {
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-6 py-4 border-b border-slate-100">Employee</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Proposed CTC</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Effective Date</th>
+                    <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Proposed CTC" help={{ surface: "payroll.salary_revision", field: "annual_ctc", size: "sm" }} /></th>
+                    <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Effective Date" help={{ surface: "payroll.salary_revision", field: "effective_from", size: "sm" }} /></th>
                     <th className="px-6 py-4 border-b border-slate-100">Type / Reason</th>
                     <th className="px-6 py-4 border-b border-slate-100">Proposed By</th>
                     <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>

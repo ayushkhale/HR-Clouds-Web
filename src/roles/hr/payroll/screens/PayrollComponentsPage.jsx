@@ -6,7 +6,10 @@ import Skeleton from "../../../../shared/components/Skeleton";
 import { formatComponentValue } from "../../../../shared/utils/formatUtils";
 import { calculationLabel } from "../runMeta";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
-import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const SURFACE = "payroll.component_setup";
+const help = (field, extra) => ({ surface: SURFACE, field, ...extra });
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -140,13 +143,17 @@ export default function PayrollComponentsPage() {
 
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Salary Components</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Salary Components" help={help("page", { label: "the Salary Components page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">Manage the catalog of earnings, deductions, and reimbursements. Click a row to see its details.</p>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={handleBootstrap} className="px-4 py-2.5 text-sm font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-xl transition">
-                Bootstrap Defaults
-              </button>
+              {/* The ⓘ sits beside the button, never inside it. */}
+              <div className="flex items-center">
+                <button onClick={handleBootstrap} className="px-4 py-2.5 text-sm font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-xl transition">
+                  Bootstrap Defaults
+                </button>
+                <FieldHelp {...help("bootstrap")} label="Bootstrap Defaults" />
+              </div>
               <button onClick={() => handleOpenModal()} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
                 <HiPlus className="w-5 h-5" /> New Component
               </button>
@@ -160,10 +167,10 @@ export default function PayrollComponentsPage() {
                   <thead>
                     <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       <th className="px-6 py-4 border-b border-slate-100">Name / Code</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Type</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Calculation</th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Type" help={help("component_type", { size: "sm" })} /></th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Calculation" help={help("calculation_type", { size: "sm" })} /></th>
                       <th className="px-6 py-4 border-b border-slate-100">Value</th>
-                      <th className="px-6 py-4 border-b border-slate-100">Flags</th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Flags" help={help("flags", { size: "sm" })} /></th>
                       <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -232,8 +239,8 @@ export default function PayrollComponentsPage() {
         >
           <DetailStats
             items={[
-              { label: "Type", value: prettify(preview.component_type) },
-              { label: "Calculation", value: calculationLabel(preview.calculation_type) },
+              { label: "Type", value: prettify(preview.component_type), help: help("component_type") },
+              { label: "Calculation", value: calculationLabel(preview.calculation_type), help: help("calculation_type") },
               { label: "Value", value: componentValue(preview) },
               { label: "Display order", value: preview.display_order ?? 0 },
             ]}
@@ -241,13 +248,13 @@ export default function PayrollComponentsPage() {
           <DetailSection title="How it behaves" icon={HiAdjustments}>
             <DetailGrid
               items={[
-                ["Basic component", yesNo(preview.is_basic)],
-                ["Part of CTC", yesNo(preview.is_part_of_ctc)],
-                ["Taxable (TDS)", yesNo(preview.is_taxable)],
-                ["Cut for unpaid days", yesNo(preview.is_lop_applicable)],
-                ["Prorated on joining", yesNo(preview.is_prorated_on_joining)],
-                ["PF applicable", yesNo(preview.pf_applicable)],
-                ["ESI applicable", yesNo(preview.esi_applicable)],
+                { label: "Basic component", value: yesNo(preview.is_basic), help: help("is_basic") },
+                { label: "Part of CTC", value: yesNo(preview.is_part_of_ctc), help: help("is_part_of_ctc") },
+                { label: "Taxable (TDS)", value: yesNo(preview.is_taxable), help: help("is_taxable") },
+                { label: "Cut for unpaid days", value: yesNo(preview.is_lop_applicable), help: help("is_lop_applicable") },
+                { label: "Prorated on joining", value: yesNo(preview.is_prorated_on_joining), help: help("is_prorated_on_joining") },
+                { label: "PF applicable", value: yesNo(preview.pf_applicable), help: help("pf_applicable") },
+                { label: "ESI applicable", value: yesNo(preview.esi_applicable), help: help("esi_applicable") },
                 ["System component", yesNo(preview.is_system)],
               ]}
             />
@@ -299,7 +306,10 @@ export default function PayrollComponentsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <div className="flex items-center">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                      <FieldHelp {...help("component_type")} label="the component type" className="mb-2" />
+                    </div>
                     <select disabled={editingComp?.is_system} value={formData.component_type} onChange={e => setFormData({...formData, component_type: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-50">
                       <option value="earning">Earning</option>
                       <option value="deduction">Deduction</option>
@@ -310,7 +320,7 @@ export default function PayrollComponentsPage() {
                   <div>
                     <div className="flex items-center">
                       <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Calculation</label>
-                      <FieldHelp surface="payroll.component_setup" field="calculation_type" label="how this component is worked out" className="mb-2" />
+                      <FieldHelp surface={SURFACE} field="calculation_type" label="how this component is worked out" className="mb-2" />
                     </div>
                     <select disabled={editingComp?.is_system} value={formData.calculation_type} onChange={e => setFormData({...formData, calculation_type: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-50">
                       <option value="flat">Flat Amount</option>
@@ -337,34 +347,43 @@ export default function PayrollComponentsPage() {
                         <input type="checkbox" checked={formData.is_basic} onChange={e => setFormData({...formData, is_basic: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                         Is Basic Component
                       </label>
-                      <FieldHelp surface="payroll.component_setup" field="is_basic" label="the basic component" />
+                      <FieldHelp surface={SURFACE} field="is_basic" label="the basic component" />
                     </div>
                     <div className="flex items-center">
                       <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                         <input type="checkbox" checked={formData.is_part_of_ctc} onChange={e => setFormData({...formData, is_part_of_ctc: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                         Part of CTC
                       </label>
-                      <FieldHelp surface="payroll.component_setup" field="is_part_of_ctc" label="part of CTC" />
+                      <FieldHelp surface={SURFACE} field="is_part_of_ctc" label="part of CTC" />
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_taxable} onChange={e => setFormData({...formData, is_taxable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Taxable (TDS)
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_lop_applicable} onChange={e => setFormData({...formData, is_lop_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Cut for unpaid days
-                    </label>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_taxable} onChange={e => setFormData({...formData, is_taxable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Taxable (TDS)
+                      </label>
+                      <FieldHelp {...help("is_taxable")} label="taxable" overlay />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_lop_applicable} onChange={e => setFormData({...formData, is_lop_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Cut for unpaid days
+                      </label>
+                      <FieldHelp {...help("is_lop_applicable")} label="cut for unpaid days" overlay />
+                    </div>
                     <div className="flex items-center">
                       <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                         <input type="checkbox" checked={formData.pf_applicable} onChange={e => setFormData({...formData, pf_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
                         PF Applicable
                       </label>
-                      <FieldHelp surface="payroll.component_setup" field="pf_applicable" label="PF applicable" />
+                      <FieldHelp surface={SURFACE} field="pf_applicable" label="PF applicable" />
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.esi_applicable} onChange={e => setFormData({...formData, esi_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      ESI Applicable
-                    </label>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.esi_applicable} onChange={e => setFormData({...formData, esi_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        ESI Applicable
+                      </label>
+                      <FieldHelp {...help("esi_applicable")} label="ESI applicable" overlay />
+                    </div>
                   </div>
                 </div>
               </form>

@@ -21,6 +21,7 @@ import {
 import { PersonSelect } from "../../../shared/components/PersonPicker";
 import { useEmployeeDirectory, refreshEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 import ProfileTabStrip from "../../../shared/components/ProfileTabStrip";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
@@ -523,7 +524,14 @@ export default function EmployeeProfilePage() {
             <div className="min-w-0 flex flex-col gap-6">
               
               {/* Horizontal Tabs Header — one strip for HR and the manager. */}
-              <ProfileTabStrip tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+              {/* The ⓘ sits beside the strip, outside its scroll container and
+                  arrows, and explains the open tab; tabs with no entry show none. */}
+              <div className="flex items-center gap-1 min-w-0">
+                <div className="flex-1 min-w-0">
+                  <ProfileTabStrip tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+                </div>
+                <FieldHelp surface="organization.employee_profile" field={`tab.${activeTab}`} label={`the ${TABS.find((t) => t.key === activeTab)?.label} tab`} />
+              </div>
 
               {/* Tab Content Area */}
               <div>

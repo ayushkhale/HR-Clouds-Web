@@ -15,7 +15,7 @@ import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attenda
 import { DepartmentCard } from "../../hr/screens/HRDashboard";
 import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
 import { DICTIONARY } from "../../../shared/config/dictionary";
-import { chartPageCount, chartPageRows, defaultChartPage, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
+import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
 import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
@@ -263,11 +263,14 @@ function ManagerDashboard() {
 
   // Same three series as HR's chart. The manager payload nests the per-status
   // counts under `counts`, so leave is lifted to the top level for the bar.
-  const daily = listFrom(graph.data, ["daily", "days"]).map((d) => ({
+  const recorded = listFrom(graph.data, ["daily", "days"]).map((d) => ({
     ...d,
     date: ymdOnly(d.date),
     on_leave_count: num(d.on_leave_count ?? d.counts?.on_leave_count),
   }));
+  // Every day of the month gets a slot, so each half always shows its 15 or
+  // 15–16 days — the empty-state check still looks at what was recorded.
+  const daily = fillMonthDays(recorded, period, emptyTrendDay);
   const totalChartPages = chartPageCount(daily);
   const safeChartPage = Math.min(chartPage ?? defaultChartPage(daily, period), totalChartPages - 1);
   const chartData = chartPageRows(daily, safeChartPage);
@@ -356,7 +359,7 @@ function ManagerDashboard() {
                       <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
                     ) : graph.error ? (
                       <ErrorState error={graph.error} onRetry={loadGraph} fallback="Couldn't load team trends." />
-                    ) : chartData.length === 0 ? (
+                    ) : recorded.length === 0 ? (
                       <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                         <HiChartBar className="w-8 h-8 mb-2 opacity-50" />
                         <p className="text-sm font-semibold">No attendance recorded for {monthLabel(period.year, period.month)}</p>

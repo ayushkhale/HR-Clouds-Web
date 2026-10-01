@@ -22,6 +22,9 @@ import {
 } from "../runMeta";
 import { currentPeriod } from "../variablePayMeta";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "payroll.runs", field, ...extra });
 
 const PAGE_SIZE = 10;
 const INTERACTIVE = "button, a, input, select, textarea, label";
@@ -182,6 +185,7 @@ function StartRunDialog({ onClose, onCreated, onOpenExisting }) {
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="flex items-center gap-2 text-[11px] font-bold text-purple-700 uppercase tracking-wide">
                 <HiUserGroup className="w-4 h-4" /> Readiness for {formatPeriod(period)}
+                <FieldHelp {...help("readiness")} label="readiness" size="sm" />
               </span>
               {!elig.loading && (
                 <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="text-[11px] font-bold text-purple-600 hover:underline flex items-center gap-1">
@@ -492,7 +496,7 @@ export default function PayrollRunDashboard() {
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Payroll Runs</h1>
+            <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Payroll Runs" help={help("page", { label: "the Payroll Runs page" })} /></h1>
             <p className="text-sm text-slate-500 mt-1">Work out, check, approve and pay each month’s salaries. Click a run to open it.</p>
           </div>
           <button type="button" onClick={() => setStartOpen(true)} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
@@ -503,6 +507,7 @@ export default function PayrollRunDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-2">
             <label htmlFor="run-status-filter" className="text-xs font-bold text-slate-500 uppercase">Show</label>
+            <FieldHelp {...help("status")} label="the run stages" />
             <select id="run-status-filter" value={statusFilter} onChange={(e) => changeFilter(e.target.value)} className="h-10 px-3 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-400">
               {RUN_STATUS_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>

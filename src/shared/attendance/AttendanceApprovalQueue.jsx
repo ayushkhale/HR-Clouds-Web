@@ -110,7 +110,7 @@ const COLUMNS = {
   ],
   overtime: [
     { header: "Date", render: (i) => fmtDate(itemDate(i)) },
-    { header: "Overtime", help: { surface: "attendance.team", field: "overtime_minutes", label: "overtime" }, render: (i) => <span className="font-bold text-indigo-600">{fmtMinutes(otMinutes(i))}</span> },
+    { header: "Overtime", render: (i) => <span className="font-bold text-indigo-600">{fmtMinutes(otMinutes(i))}</span> },
     {
       header: "Shift",
       render: (i) => {
@@ -127,7 +127,7 @@ const COLUMNS = {
     },
     { header: "Worked", render: (i) => <PunchRange record={recordOf(i)} date={itemDate(i)} /> },
     // The backend's own worked figure (breaks off) — the one overtime is measured against.
-    { header: "Effective", help: { surface: "attendance.team", field: "effective_hours", label: "effective hours" }, render: (i) => (i.worked_duration_formatted || recordOf(i)?.effective_hours != null ? workedLabel(i.worked_duration_formatted ? i : recordOf(i)) : "N/A") },
+    { header: "Effective", render: (i) => (i.worked_duration_formatted || recordOf(i)?.effective_hours != null ? workedLabel(i.worked_duration_formatted ? i : recordOf(i)) : "N/A") },
   ],
   // `when` drops a column that no row on the page can fill. The pending list
   // carries no credit and no expiry (both are set on approval), so those two

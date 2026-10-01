@@ -53,6 +53,19 @@ export const foundedMax = () => new Date().getFullYear();
  * Company-size bands. A free-typed value from an older record is kept and
  * offered as-is, so editing another field never silently rewrites the size.
  */
+/**
+ * Industries offered on sign-up and in Edit company details — one list, so a
+ * company never registers under a name the edit form can't show. A value from
+ * an older free-typed record is kept and offered as-is.
+ */
+export const INDUSTRY_OPTIONS = [
+  "Software Development", "IT Services", "E-Commerce", "Healthcare", "Pharmaceuticals",
+  "Education", "Manufacturing", "Automotive", "Finance", "Banking & Insurance",
+  "Retail", "Hospitality", "Consulting", "Construction & Real Estate", "Logistics & Transport",
+  "Media & Marketing", "Telecommunications", "Energy & Utilities", "Agriculture",
+  "Non-profit", "Government", "Other",
+];
+
 export const SIZE_OPTIONS = ["1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5000+"];
 
 const text = (v) => (v === null || v === undefined ? "" : String(v));

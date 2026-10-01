@@ -38,6 +38,7 @@ import {
   HiInformationCircle, HiRefresh, HiSearch, HiShieldCheck, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import { documentsAPI } from "../../../../shared/api";
 import { Pagination, PersonCell, Toast, useToast } from "../../../../shared/attendance/ui";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
@@ -249,7 +250,10 @@ export default function DocumentSearchPage() {
                 </select>
               </div>
               <div className="min-w-0 md:col-span-2">
-                <label htmlFor="tag-filter" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tags</label>
+                <div className="flex items-center">
+                  <label htmlFor="tag-filter" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tags</label>
+                  <FieldHelp surface="documents.search" field="tags" label="tags" className="mb-1.5" />
+                </div>
                 <div className="flex items-center gap-2">
                   <input
                     id="tag-filter" type="text" value={tagDraft}
@@ -332,7 +336,7 @@ export default function DocumentSearchPage() {
                     <tr>
                       <th className="px-5 py-3.5">Document</th>
                       <th className="px-5 py-3.5">Whose</th>
-                      <th className="px-5 py-3.5">State</th>
+                      <th className="px-5 py-3.5"><HelpLabel text="State" help={{ surface: "documents.search", field: "status", size: "sm", label: "document states" }} /></th>
                       <th className="px-5 py-3.5">Tags</th>
                       <th className="px-5 py-3.5">Issued</th>
                       <th className="px-5 py-3.5">Expires</th>
