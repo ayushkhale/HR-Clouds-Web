@@ -1,4 +1,4 @@
-name: Deploy Frontend to Nginx
+name: Deploy Frontend (Production) to Nginx
 
 on:
   push:
@@ -13,35 +13,42 @@ jobs:
     - name: Checkout Frontend Code
       uses: actions/checkout@v4
 
-    # Since the 'dist' folder is pushed directly to GitHub, 
-    # we don't need to run npm install or npm run build!
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
 
-    - name: Setup SSH Key Natively
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build with production environment
+      run: npm run build
+      env:
+        VITE_API_BASE_URL: https://hrclouds.in/api/v1
+        VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+        VITE_RAZORPAY_KEY_ID: ${{ secrets.VITE_RAZORPAY_KEY_ID_LIVE }}
+        VITE_DOCMIND_API_KEY: ${{ secrets.VITE_DOCMIND_API_KEY }}
+
+    - name: Setup SSH Key
       run: |
         mkdir -p ~/.ssh/
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
-    - name: Deploy 'dist' to Server (Nginx Web Root)
+    - name: Deploy to Server
       run: |
         SERVER_USER=${{ secrets.SERVER_USER }}
         SERVER_IP=${{ secrets.SERVER_IP }}
-        
-        # The folder containing your built files that is pushed to GitHub
-        BUILD_DIR="dist/" 
-        
-        # The directory serving the frontend (must match the 'root' directive in Nginx config)
+        BUILD_DIR="dist/"
         WEB_ROOT="/home/$SERVER_USER/hrms-frontend-main"
 
-        # Ensure web root directory exists
         ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
           mkdir -p $WEB_ROOT
         "
 
-        # Sync the 'dist' folder to the server
         rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no" ./$BUILD_DIR $SERVER_USER@$SERVER_IP:$WEB_ROOT
 
-        # Fix Permissions so Nginx can read the files and Reload Nginx to clear cache
         ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
           chmod +x /home/$SERVER_USER
           chmod -R 755 $WEB_ROOT
