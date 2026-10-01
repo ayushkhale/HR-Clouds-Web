@@ -3,13 +3,26 @@
 // All domain API modules import `request` and `tokenHelper` from here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://development.hrclouds.in/api/v1";
+// Fail at boot, not at the first API call. A blank screen with a clear
+// console error beats a deployed app that 404s against `undefined/auth/login`.
+const BASE_URL = (() => {
+  const url = import.meta.env.VITE_API_BASE_URL;
+  if (!url) {
+    throw new Error(
+      "Missing build-time config: VITE_API_BASE_URL. " +
+      "Set it in .env.development / .env.production or pass it as an env var during build."
+    );
+  }
+  return url.replace(/\/+$/, "");
+})();
 
 // Binary downloads (payslip PDFs, report CSVs, bank advice, ZIPs) bypass
 // `request()` because it always parses JSON — they need the same base URL.
 export const API_BASE_URL = BASE_URL;
 
-// const BASE_URL = "http://192.168.29.131:4500/api/v1";
+// Production nginx cuts requests at 120s. Keep the client timeout below
+// that so we produce our own error rather than parsing nginx's HTML 504.
+const REQUEST_TIMEOUT_MS = 110_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKEN HELPERS — localStorage access / refresh token management
@@ -83,6 +96,21 @@ function handleUnauthorized(endpoint, sentToken, data) {
   window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
+// Safely parse a response body. Production nginx returns HTML for gateway
+// errors (413, 429, 502, 504) — parsing that as JSON would throw and mask
+// the real status code.
+const isJsonResponse = (response) =>
+  (response.headers.get("content-type") || "").includes("application/json");
+
+async function safeParseBody(response) {
+  if (!isJsonResponse(response)) return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Core fetch wrapper — handles headers, JSON, and error responses centrally
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,23 +124,39 @@ export async function request(endpoint, options = {}) {
     ...(options.headers || {}),
   };
 
+  // Abort after REQUEST_TIMEOUT_MS so we fail before the gateway's 120s cut-off.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   const config = {
     ...options,
     headers,
+    signal: options.signal || controller.signal,
   };
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, config);
-
-  let data;
+  let response;
   try {
-    data = await response.json();
-  } catch {
-    data = null;
+    response = await fetch(`${BASE_URL}${endpoint}`, config);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      const error = new Error("Request timed out. Please try again.");
+      error.status = 408;
+      error.isTimeout = true;
+      throw error;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
+
+  const data = await safeParseBody(response);
 
   if (!response.ok) {
     if (response.status === 401) handleUnauthorized(endpoint, token, data);
-    const error = new Error(data?.message || `Request failed: ${response.status}`);
+    const message = data?.message
+      || `Request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`;
+    const error = new Error(message);
     error.status = response.status;
     error.data = data;
     // `Retry-After` is the one response HEADER a caller acts on: a 429 from a
@@ -128,6 +172,9 @@ export async function request(endpoint, options = {}) {
   return data;
 }
 
+export const ENVIRONMENT = import.meta.env.VITE_ENVIRONMENT || "development";
+export const IS_PRODUCTION = ENVIRONMENT === "production";
+
 // Like request(), but uses an explicitly provided token instead of the stored one
 export async function requestWithToken(endpoint, customToken, options = {}) {
   const headers = {
@@ -136,20 +183,41 @@ export async function requestWithToken(endpoint, customToken, options = {}) {
     ...(options.headers || {}),
   };
 
-  const config = { ...options, headers };
-  const response = await fetch(`${BASE_URL}${endpoint}`, config);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  let data;
+  const config = {
+    ...options,
+    headers,
+    signal: options.signal || controller.signal,
+  };
+
+  let response;
   try {
-    data = await response.json();
-  } catch {
-    data = null;
+    response = await fetch(`${BASE_URL}${endpoint}`, config);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      const error = new Error("Request timed out. Please try again.");
+      error.status = 408;
+      error.isTimeout = true;
+      throw error;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
+  const data = await safeParseBody(response);
+
   if (!response.ok) {
-    const error = new Error(data?.message || `Request failed: ${response.status}`);
+    const message = data?.message
+      || `Request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`;
+    const error = new Error(message);
     error.status = response.status;
     error.data = data;
+    const retryAfter = Number(response.headers.get("Retry-After"));
+    if (Number.isFinite(retryAfter) && retryAfter >= 0) error.retryAfter = retryAfter;
     throw error;
   }
 

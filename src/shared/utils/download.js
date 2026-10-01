@@ -76,25 +76,46 @@ const isJsonResponse = (response) => /application\/json/i.test(response.headers.
  */
 async function fetchBinary(endpoint, { params, method = "GET", body, acceptJson = false } = {}) {
   const token = tokenHelper.get();
-  const response = await fetch(`${API_BASE_URL}${endpoint}${buildQuery(params)}`, {
-    method,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 110_000);
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}${buildQuery(params)}`, {
+      method,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      const error = new Error("Download timed out. Please try again.");
+      error.status = 408;
+      throw error;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   // A refusal (403 held payslip, 409 unpaid run, 422 too large) still comes back
   // as the normal JSON envelope — throw it the way `request()` does.
   if (!response.ok) {
     let data = null;
-    try {
-      data = await response.json();
-    } catch {
-      // A non-JSON error body carries nothing worth showing.
+    if (isJsonResponse(response)) {
+      try {
+        data = await response.json();
+      } catch {
+        // A non-JSON error body carries nothing worth showing.
+      }
     }
-    const error = new Error(data?.message || `Download failed: ${response.status}`);
+    const message = data?.message
+      || `Download failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`;
+    const error = new Error(message);
     error.status = response.status;
     error.data = data;
     throw error;
