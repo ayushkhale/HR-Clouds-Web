@@ -231,7 +231,9 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiCog,
           defaultCollapsed: true,
           items: [
+            // Departments first: they exist before anyone is invited into one.
             group("Organisation", HiOfficeBuilding, [
+              link("Departments", `${H}/departments`, HiOfficeBuilding, { nested: true }),
               link("Office Locations", `${H}/attendance/locations`, HiLocationMarker),
             ]),
             // Which days are working days, then the hours on them, then the
@@ -272,11 +274,9 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         {
-          // Departments exist before anyone is invited into one.
           title: "PEOPLE",
           icon: HiUserGroup,
           items: [
-            link("Departments", `${H}/departments`, HiOfficeBuilding),
             link("Invites", `${H}/invites`, HiMail),
             link(DICTIONARY.NAV.EMPLOYEES, `${H}/employees`, HiUserGroup, { nested: true }),
           ],
@@ -377,6 +377,18 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Dashboard", M, HiViewGrid),
             link("Inbox", `${M}/requests/inbox`, HiInboxIn, inboxBadge),
+          ],
+        },
+        {
+          // Same place and shape as HR's Setup › Organisation (role parity);
+          // a manager reads departments but never sets them up.
+          title: "SETUP",
+          icon: HiCog,
+          defaultCollapsed: true,
+          items: [
+            group("Organisation", HiOfficeBuilding, [
+              link("Departments", `${M}/departments`, HiOfficeBuilding, { nested: true }),
+            ]),
           ],
         },
         {

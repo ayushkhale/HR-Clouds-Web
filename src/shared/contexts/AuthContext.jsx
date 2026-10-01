@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { tokenHelper, authAPI } from "../api";
 import { SESSION_EXPIRED_EVENT, TOKEN_KEY, decodeJWT } from "../api/client";
+import { dashboardPathForRole } from "../auth/permissions";
 
 const AuthContext = createContext();
 
@@ -232,17 +233,13 @@ export function AuthContextProvider({ children }) {
     setSessionExpired(false);
   }, [clearSession]);
 
-  // Get the role-based dashboard path
-  const getDashboardPath = useCallback((overrideRole) => {
-    const r = (overrideRole || role || "").toLowerCase();
-    switch (r) {
-      case "hr":       return "/dashboard/hr";
-      case "employee": return "/dashboard/employee";
-      case "manager":  return "/dashboard/manager";
-      case "guest":    return "/dashboard/guest";
-      default:         return "/dashboard";
-    }
-  }, [role]);
+  // Get the role-based dashboard path. Delegates to the one map in
+  // permissions.js; this used to be its own switch, which drifted (no
+  // admin/super-admin) and parked those users on the /dashboard spinner.
+  const getDashboardPath = useCallback(
+    (overrideRole) => dashboardPathForRole(overrideRole || role),
+    [role]
+  );
 
   return (
     <AuthContext.Provider

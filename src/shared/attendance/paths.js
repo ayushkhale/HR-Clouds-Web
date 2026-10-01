@@ -6,6 +6,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { useWorkspace } from "../contexts/WorkspaceContext";
+import { workspaceForRole } from "../auth/permissions";
 
 export const SELF_SERVICE_BASE = {
   employee: "/dashboard/employee/attendance",
@@ -21,10 +24,31 @@ export const SELF_SERVICE_PAGES = {
   compOffs: "/comp-offs",
 };
 
+/**
+ * The workspace a URL sits in, or null when it sits in none (/dashboard/profile,
+ * /dashboard/directory, /dashboard/documents). This used to answer "employee"
+ * for anything that wasn't HR or manager, so the organisation name in the top
+ * bar on My Profile sent an HR user to /dashboard/employee/company. Never
+ * default a missing workspace to "employee" — use useCurrentWorkspace().
+ */
 export function workspaceFromPath(pathname = "") {
   if (pathname.startsWith("/dashboard/hr")) return "hr";
   if (pathname.startsWith("/dashboard/manager")) return "manager";
-  return "employee";
+  if (pathname.startsWith("/dashboard/employee")) return "employee";
+  return null;
+}
+
+/**
+ * The workspace this page is rendered in: the layout's (DashboardLayout puts
+ * it in WorkspaceContext), else the URL's, else the signed-in role's own
+ * workspace (permissions.workspaceForRole). Every link a shared page builds
+ * goes through this, so it can only ever point inside the user's workspace.
+ */
+export function useCurrentWorkspace() {
+  const fromLayout = useWorkspace();
+  const { pathname } = useLocation();
+  const { role } = useAuth();
+  return fromLayout || workspaceFromPath(pathname) || workspaceForRole(role);
 }
 
 /**
@@ -110,31 +134,32 @@ export const ORG_PATHS = {
   hr: { chart: "/dashboard/hr/org-chart", company: "/dashboard/hr/company" },
 };
 
+// The hooks below return null for a workspace with no such pages (guest), never
+// another workspace's links — a link into someone else's workspace is exactly
+// the leak the route gate exists to stop.
+
 /** The Org Chart / Company Profile links for whichever workspace is rendered. */
 export function useOrgPaths() {
-  const { pathname } = useLocation();
-  return ORG_PATHS[workspaceFromPath(pathname)] || ORG_PATHS.employee;
+  return ORG_PATHS[useCurrentWorkspace()] || null;
 }
 
 /** The self-service leave and pay links for whichever workspace is rendered. */
 export function useMyPayPaths() {
-  const { pathname } = useLocation();
-  return MY_PAY_PATHS[workspaceFromPath(pathname)] || MY_PAY_PATHS.employee;
+  return MY_PAY_PATHS[useCurrentWorkspace()] || null;
 }
 
 /** The self-service Documents links for whichever workspace is rendered. */
 export function useMyDocumentPaths() {
-  const { pathname } = useLocation();
-  return MY_DOCUMENT_PATHS[workspaceFromPath(pathname)] || MY_DOCUMENT_PATHS.employee;
+  return MY_DOCUMENT_PATHS[useCurrentWorkspace()] || null;
 }
 
 export function selfServicePath(workspace, page = "history") {
-  return `${SELF_SERVICE_BASE[workspace] || SELF_SERVICE_BASE.employee}${SELF_SERVICE_PAGES[page] ?? ""}`;
+  const base = SELF_SERVICE_BASE[workspace];
+  return base ? `${base}${SELF_SERVICE_PAGES[page] ?? ""}` : null;
 }
 
 /** Build self-service links relative to the workspace currently rendered. */
 export function useSelfServicePath() {
-  const { pathname } = useLocation();
-  const workspace = workspaceFromPath(pathname);
+  const workspace = useCurrentWorkspace();
   return (page = "history") => selfServicePath(workspace, page);
 }

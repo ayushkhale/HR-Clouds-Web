@@ -22,16 +22,24 @@
     p { line-height: inherit; }
     .btn-white:hover { background-color: #EDE9FE !important; }
 
-    @media (max-width: 620px) {
+    /* Web (desktop webmail) is the primary design; everything below is the
+       phone-app variation. The container is already fluid (max 640px), so a
+       mail app that ignores this block still fits the screen. */
+    @media (max-width: 660px) {
       .container { width: 100% !important; }
       .px { padding-left: 20px !important; padding-right: 20px !important; }
-      .hero-title { font-size: 34px !important; line-height: 38px !important; letter-spacing: -1px !important; }
+      .hero-pad { padding-top: 28px !important; padding-bottom: 32px !important; }
+      .hero-title { font-size: 32px !important; line-height: 36px !important; letter-spacing: -1px !important; }
+      .lead { font-size: 15px !important; line-height: 23px !important; }
+      .hide-mobile { display: none !important; max-height: 0 !important; overflow: hidden !important; mso-hide: all; }
+      .foot-pad { padding-top: 28px !important; padding-bottom: 32px !important; }
       .otp-code { font-size: 30px !important; letter-spacing: 8px !important; padding-left: 8px !important; }
       .otp-cell { padding: 16px 24px !important; }
       .logo { width: 120px !important; }
       .head-btn { padding: 8px 14px !important; font-size: 13px !important; }
       .stack { display: block !important; width: 100% !important; text-align: left !important; padding-left: 0 !important; padding-right: 0 !important; }
       .stack-gap { padding-top: 16px !important; }
+      .band { padding: 52px 20px 34px !important; }
       .fact { display: block !important; width: 100% !important; }
       .fact + .fact { border-left: 0 !important; border-top: 1px solid #EDE9FE !important; }
     }
@@ -44,7 +52,7 @@
     <tr>
       <td align="center">
         <!--[if mso]><table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-        <table class="container" role="presentation" width="640" border="0" cellpadding="0" cellspacing="0" style="width: 640px; max-width: 640px;">
+        <table class="container" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="width: 100%; max-width: 640px;">
 
           <!-- Header -->
           <tr>
@@ -52,7 +60,7 @@
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="left" valign="middle">
-                    <a href="https://hrclouds.in" target="_blank"><img class="logo" src="https://hrclouds.in/logocolored.png" width="140" alt="HRClouds" style="width: 140px; height: auto;"></a>
+                    <a href="https://hrclouds.in" target="_blank"><img class="logo" src="https://frontend.dev.hrclouds.in/logocolorwhite.png" width="140" alt="HRClouds" style="width: 140px; height: auto;"></a>
                   </td>
                   <td align="right" valign="middle">
                     <a class="btn-white head-btn" href="https://hrclouds.in" target="_blank" style="display: inline-block; padding: 11px 22px; background-color: #ffffff; border-radius: 6px; font-family: 'Orbit', 'Helvetica', Arial, sans-serif; font-size: 15px; font-weight: 600; color: #6328D7; text-decoration: none; white-space: nowrap;">Discover More &rarr;</a>
@@ -64,10 +72,10 @@
 
           <!-- Hero -->
           <tr>
-            <td class="px" align="center" style="padding: 40px 56px 48px; background-color: #6328D7;">
+            <td class="px hero-pad" align="center" style="padding: 40px 56px 48px; background-color: #6328D7;">
               <p style="margin: 0 0 14px; font-family: 'Orbit', 'Helvetica', Arial, sans-serif; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; color: #DDD6FE;">Payroll reminder</p>
               <h1 class="hero-title" style="margin: 0; font-family: 'Instrument Sans', Helvetica, Arial, sans-serif; font-size: 46px; line-height: 50px; font-weight: 400; letter-spacing: -1.5px; color: #ffffff;">Attendance cut-off is today</h1>
-              <p style="margin: 18px 0 0; font-family: 'Instrument Sans', Helvetica, Arial, sans-serif; font-size: 17px; line-height: 26px; color: #EDE9FE;">For <strong style="color: #ffffff;">{{ORG_NAME}}</strong>. Finalise attendance, regularisations and overtime before starting the payroll run.</p>
+              <p class="lead" style="margin: 18px 0 0; font-family: 'Instrument Sans', Helvetica, Arial, sans-serif; font-size: 17px; line-height: 26px; color: #EDE9FE;">For <strong style="color: #ffffff;">{{ORG_NAME}}</strong>. Finalise attendance, regularisations and overtime before starting the payroll run.</p>
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 28px; background-color: #ffffff; border-radius: 8px;">
                 <tr>
                   <td class="fact" width="50%" align="center" style="padding: 18px 16px;">
@@ -80,19 +88,28 @@
                   </td>
                 </tr>
               </table>
+              <!-- Hero photo (same art as the main OTP email). Web only: on a
+                   phone it would push the code/button below a screen of art. -->
+              <table class="hide-mobile" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 34px;">
+                <tr>
+                  <td align="center">
+                    <img src="https://i.ibb.co/39tMZtvT/4-01-double-optin-glitch.png" width="528" alt="" style="display: block; width: 100%; max-width: 528px; height: auto; border: 0;">
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
-          <!-- Tagline band -->
+          <!-- Tagline band on the purple perspective grid (Outlook shows the flat purple fallback) -->
           <tr>
-            <td align="center" style="padding: 34px 20px; background-color: #9466FC; background-image: linear-gradient(180deg, #8B5CF6 0%, #A78BFA 100%);">
-              <p style="margin: 0; font-family: 'Orbit', 'Helvetica', Arial, sans-serif; font-size: 15px; letter-spacing: 2px; text-transform: uppercase; color: #1E1033;">Smart HR. Simplified.</p>
+            <td class="band" align="center" background="https://i.ibb.co/m5CHZXD1/6-05-Base-Grid-04.png" style="padding: 150px 20px 84px; background-color: #9466FC; background-image: url('https://i.ibb.co/m5CHZXD1/6-05-Base-Grid-04.png'); background-position: center top; background-repeat: no-repeat; background-size: auto;">
+              <p style="margin: 0; font-family: 'Orbit', 'Helvetica', Arial, sans-serif; font-size: 16px; letter-spacing: 2px; text-transform: uppercase; color: #0e1318;">Smart HR. Simplified.</p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td class="px" style="padding: 40px 56px 44px; background-color: #ffffff;">
+            <td class="px foot-pad" style="padding: 40px 56px 44px; background-color: #ffffff;">
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td class="stack" valign="top" align="left">

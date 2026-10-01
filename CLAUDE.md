@@ -37,6 +37,11 @@ src/shared/
   utils/ contexts/ hooks/ motion/ layouts/ config/ data/
 ```
 
+**Never put "cookie", "ads", "advert", "tracking" or "consent" in a source file
+name.** `npm run dev` serves each module at its file path, ad/cookie-banner
+blockers drop those URLs, and one blocked static import blanks the whole app
+(`legal/CookiePolicy.jsx` did, 2026-10-01 — it is `BrowserStoragePolicy.jsx` now).
+
 One role → `roles/<role>/`. Two or more → `shared/`, taking a `viewer`/`plane` prop
 rather than branching on the URL. Domain knowledge (labels, state machines, enum maps,
 error copy) goes in a `*Meta.js`, not inline in JSX.
@@ -61,6 +66,19 @@ export default function SalaryTab({ userId, viewer = "hr" }) { … }   // manage
 - Self-service pages mount in all three workspaces under each one's prefix, so the
   sidebar never ejects anyone (`SELF_SERVICE_BASE`, `MY_DOCUMENT_PATHS` in
   `shared/attendance/paths.js`).
+- **One role, one workspace — the route gate is exact, not cumulative.**
+  `workspaceForRole()` (`shared/auth/permissions.js`) maps super-admin/admin/hr →
+  `hr`, manager → `manager`, employee → `employee`, guest → `guest`, and
+  `ProtectedRoute` renders a workspace only for its own role, failing closed on an
+  unknown one. HR must never render `/dashboard/employee/*` or
+  `/dashboard/manager/*`, even though the self-service APIs behind them accept
+  HR — that is exactly how HR once walked the employee tabs (2026-10-01). If a
+  role lacks a page, mount it under that role's own prefix; never widen the
+  gate. Links on shared pages come from `useCurrentWorkspace()` and the
+  `useOrgPaths`/`useMyPayPaths`/`useMyDocumentPaths` hooks — never default a
+  missing workspace to `"employee"`, never hardcode another workspace's URL,
+  and never treat the raw role as a workspace (`admin` is not one). Cumulative
+  role lists are API capabilities only (`canSelfServeAttendance`…).
 - Sidebar label = page `<h1>` = top bar title, identical across roles.
 
 ## 3. Data flow: list → row → record inspector
