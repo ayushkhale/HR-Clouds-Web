@@ -1,1 +1,0 @@
-import{N as c,e as n}from"./index-DmI3WTLl.js";function w({includeInactive:o=!0,enabled:s=!0}={}){const{rows:p,activeRows:a,options:t,activeOptions:r,byId:e,status:u,nameOf:i,reload:m}=c({enabled:s}),y=n.useMemo(()=>({options:o?t:r,activeOptions:r,byId:e}),[o,t,r,e]);return{rows:o?p:a,status:u,directory:y,nameOf:i,reload:m}}export{w as u};
