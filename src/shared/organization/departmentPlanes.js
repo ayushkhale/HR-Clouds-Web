@@ -1,16 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// organization/departmentPlanes.js — what each workspace may do with
-// Departments, so DepartmentsPage and DepartmentDetailPage ask "what can this
-// viewer do?" instead of branching on role (CLAUDE.md §2, same idea as
-// ORG_PLANES in documents/orgDocumentPlanes.js).
+// organization/departmentPlanes.js — what a viewer may do with Departments, so
+// DepartmentsPage and DepartmentDetailPage read a plane instead of branching on
+// role (CLAUDE.md §2, same idea as ORG_PLANES in documents/orgDocumentPlanes.js).
 //
-//   hr      — list, create and edit (#16–#18), today's attendance by department
-//             (#61), every member's profile.
-//   manager — list only (#16 is open to every role; #17/#18 are HR-only) and
-//             no attendance summary (#61 is hr/admin). Their roster read (#8)
-//             is hierarchy-scoped to their own reports, so a department's
-//             member list for a manager is "your team in this department", and
-//             only those people have a profile page they can open.
+// Departments are HR only: there is no manager department screen (user decision,
+// 2026-10-02 — a manager-read plane was added, then removed). The adapter stays
+// so the screens keep their `viewer` seam for a future workspace; today only
+// `hr` exists and the screens default to it.
 //
 // A capability the plane lacks is `null`, and the screen hides the control
 // rather than offering one the server would refuse.
@@ -28,15 +24,5 @@ export const DEPARTMENT_PLANES = {
     todaySummary: (date) => attendanceAPI.getDepartmentSummary(date),
     memberPath: (userId) => `/dashboard/hr/employees/${userId}`,
     rosterIsTeam: false,
-  },
-  manager: {
-    key: "manager",
-    listPath: "/dashboard/manager/departments",
-    detailPath: (id) => `/dashboard/manager/departments/${id}`,
-    create: null,
-    update: null,
-    todaySummary: null,
-    memberPath: (userId) => `/dashboard/manager/team/member/${userId}`,
-    rosterIsTeam: true,
   },
 };

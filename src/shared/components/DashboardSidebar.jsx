@@ -382,18 +382,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         {
-          // Same place and shape as HR's Setup › Organisation (role parity);
-          // a manager reads departments but never sets them up.
-          title: "SETUP",
-          icon: HiCog,
-          defaultCollapsed: true,
-          items: [
-            group("Organisation", HiOfficeBuilding, [
-              link("Departments", `${M}/departments`, HiOfficeBuilding, { nested: true }),
-            ]),
-          ],
-        },
-        {
           title: "PEOPLE",
           icon: HiUserGroup,
           forceDropdown: true,

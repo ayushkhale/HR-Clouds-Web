@@ -431,10 +431,6 @@ function AppRoutes() {
         <Route path="/dashboard/manager/team/member/:userId" element={<ManagerMemberProfilePage />} />
         <Route path="/dashboard/manager/org-chart" element={<OrgChartPage />} />
         <Route path="/dashboard/manager/company" element={<CompanyProfilePage />} />
-        {/* Read-only Departments (DEPARTMENT_PLANES.manager): the same shared
-            screens HR uses, with add/edit and the attendance summary absent. */}
-        <Route path="/dashboard/manager/departments" element={<DepartmentsPage viewer="manager" />} />
-        <Route path="/dashboard/manager/departments/:departmentId" element={<DepartmentDetailPage viewer="manager" />} />
         {/* The page was called "Team Roster"; it is "Team" now, like HR's. */}
         <Route path="/dashboard/manager/team/roster" element={<Navigate to="/dashboard/manager/team" replace />} />
         <Route path="/dashboard/manager/team/anomalies" element={<ManagerAnomaliesPage />} />
