@@ -1,17 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// hrms.api.js — HRMS endpoints (active endpoints only)
+// hrms.api.js — Legacy HRMS shim
+//
+// Department transfer now lives in organizationAPI.transferDepartment(), which
+// targets the correct backend route (PUT /organizations/users/:id/department-transfer).
+// This shim is kept only for backwards-compatibility with any older imports and
+// delegates to the canonical implementation. Prefer organizationAPI directly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { request } from "./client.js";
+import { organizationAPI } from "./organization.api.js";
 
 export const hrmsAPI = {
-  /**
-   * Transfer an employee to a new department
-   * PUT /hr/users/:id/department-transfer
-   * @param {string} id - The global user_id
-   * @param {Object} payload - { role, new_department_id, new_manager_id, is_current_hod, is_new_hod, replacement_hod_id, old_dept_fallback_manager_id }
-   */
+  /** @deprecated Use organizationAPI.transferDepartment(id, payload) instead. */
   transferDepartment(id, payload) {
-    return request(`/hr/users/${id}/department-transfer`, { method: "PUT", body: JSON.stringify(payload) });
+    return organizationAPI.transferDepartment(id, payload);
   },
 };

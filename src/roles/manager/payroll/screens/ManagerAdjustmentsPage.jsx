@@ -1,39 +1,190 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI, organizationAPI } from "../../../../shared/api";
+import { payrollAPI } from "../../../../shared/api";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash
+  HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash,
+  HiCalendar, HiTrendingUp, HiDocumentText,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import { PersonMultiSelect, PersonSelect } from "../../../../shared/components/PersonPicker";
+import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
+import { personName } from "../../../../shared/attendance/normalize";
+import { formatDate } from "../../../../shared/utils/formatUtils";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { humanize } from "../../../../shared/attendance/enums";
+import { interestMethodLabel } from "../../../hr/payroll/runMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
   );
 }
 
+/* ── Record inspectors for a proposal ──────────────────────────────────────
+   HR's Salary Adjustments rows open a record; the manager's didn't, so the same
+   job felt like a different product. Built from the list row: the manager
+   endpoints return every field shown here, and there is no per-proposal read. */
+function AdjustmentDetail({ adj, memberName, onCancel, onClose }) {
+  const pending = adj.status === "pending";
+  return (
+    <DetailDialog
+      eyebrow="Salary adjustment"
+      icon={HiAdjustments}
+      title={memberName}
+      subtitle={`${adj.adjustment_type === "deduction" ? "Deduction" : "Addition"} · ${fmtPeriod(adj.period_month)}`}
+      badge={adj.status ? <DetailPill tone="onDark">{prettify(adj.status)}</DetailPill> : undefined}
+      onClose={onClose}
+      footer={pending ? (
+        <button type="button" onClick={() => { onCancel(adj.id); onClose(); }} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100">
+          <HiTrash className="w-4 h-4" /> Cancel proposal
+        </button>
+      ) : null}
+    >
+      <DetailStats items={[{ label: adj.adjustment_type === "deduction" ? "Taken off" : "Added", value: money(adj.amount), icon: HiCash }]} />
+      <DetailSection title="What was proposed" icon={HiDocumentText} collapsible={false}>
+        <DetailGrid
+          cols={3}
+          items={[
+            ["Kind", prettify(adj.category)],
+            ["Shown on the payslip as", adj.component_name || null],
+            ["Paid in", fmtPeriod(adj.period_month)],
+            ["Proposed on", adj.created_at ? formatDate(adj.created_at) : null],
+            ["Why", adj.reason || null],
+            ...(adj.rejection_reason ? [["Why HR turned it down", adj.rejection_reason]] : []),
+          ]}
+        />
+      </DetailSection>
+    </DetailDialog>
+  );
+}
+
+// "flat" is an amount; the two percent types say what they're a percent OF.
+// (The inspector once called every percent bonus "% of basic pay".)
+const bonusValueLabel = (b) => (b.bonus_type === "flat"
+  ? money(b.value)
+  : `${parseFloat(b.value || 0)}% of ${b.bonus_type === "percent_of_gross" ? "gross pay" : "basic pay"}`);
+
+function BonusProposalDetail({ bonus, nameOf, onClose }) {
+  const ids = bonus.eligibility_config?.user_ids || [];
+  return (
+    <DetailDialog
+      eyebrow="Bonus proposal"
+      icon={HiGift}
+      title={bonus.name || "Bonus"}
+      subtitle={fmtPeriod(bonus.period_month)}
+      badge={bonus.status ? <DetailPill tone="onDark">{prettify(bonus.status)}</DetailPill> : undefined}
+      onClose={onClose}
+    >
+      <DetailStats items={[
+        { label: "Each person gets", value: bonusValueLabel(bonus), icon: HiCash },
+        { label: "People", value: String(ids.length), icon: HiGift },
+      ]} />
+      {bonus.reason && <DetailSection title="Why" icon={HiDocumentText} collapsible={false}><p className="text-sm text-slate-600">{bonus.reason}</p></DetailSection>}
+      <DetailSection title={`Who it's for (${ids.length})`} icon={HiGift} defaultOpen={ids.length <= 8}>
+        <DetailTable rows={ids.map((id) => ({ id }))} empty="Nobody chosen." columns={[{ header: "Person", render: (r) => nameOf(r.id) }]} />
+      </DetailSection>
+    </DetailDialog>
+  );
+}
+
 const MONTHS = Array.from({ length: 12 }).map((_, i) => new Date(0, i).toLocaleString("default", { month: "long" }));
-const money = (v) => (v === null || v === undefined || v === "" ? "—" : `₹${parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+// The org roster keys people by `user_id`; the proposal endpoints need that GUID.
+const memberId = (m) => m.user_id || m.id || m._id;
+const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : `₹${parseFloat(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+// "personal_loan" reads as "Personal loan" — never a raw enum in front of a user.
+const prettify = (v) => (v ? String(v).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null);
 const fmtPeriod = (pm) => {
-  if (!pm) return "-";
+  if (!pm) return "N/A";
   const [y, m] = pm.split("-");
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
 };
 const STATUS_PILL = {
-  pending: "bg-amber-100 text-amber-700",
-  approved: "bg-emerald-100 text-emerald-700",
-  active: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-red-100 text-red-700",
+  pending: "bg-fuchsia-100 text-fuchsia-700",
+  approved: "bg-violet-100 text-violet-700",
+  active: "bg-violet-100 text-violet-700",
+  rejected: "bg-rose-100 text-rose-700",
   cancelled: "bg-slate-100 text-slate-600",
 };
-const Pill = ({ s }) => <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{s}</span>;
+const Pill = ({ s }) => <span className={`${STATUS_CHIP} border-transparent ${STATUS_PILL[s] || "bg-slate-100 text-slate-600"}`}>{humanize(s)}</span>;
+
+// Team loan detail + installment schedule (#90).
+// The same record-inspector HR reads on Payroll > Loans, so a manager and HR
+// looking at one loan see it laid out identically.
+function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
+  const [data, setData] = useState(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    payrollAPI.getTeamLoan(loanId)
+      .then((res) => { if (!cancelled) setData(res.data || res); })
+      .catch((err) => { if (!cancelled) { showToast(err.message || "Failed to load loan", "error"); setData(null); } });
+    return () => { cancelled = true; };
+  }, [loanId, showToast]);
+
+  const loan = data?.loan || data || {};
+  const installments = data?.installments || loan.installments || [];
+  const outstanding = loan.outstanding_amount ?? loan.outstanding_balance;
+
+  return (
+    <DetailDialog
+      eyebrow="Loan details"
+      icon={HiCash}
+      title={memberName}
+      subtitle={loan.loan_type ? `${prettify(loan.loan_type)} · first instalment ${fmtPeriod(loan.start_period_month)}` : undefined}
+      badge={loan.status ? <DetailPill tone="onDark">{loan.status}</DetailPill> : undefined}
+      loading={data === undefined}
+      onClose={onClose}
+    >
+      {data !== undefined && (
+        <>
+          <DetailStats
+            items={[
+              { label: "Principal", value: money(loan.principal_amount), icon: HiCash },
+              { label: "Monthly instalment", value: money(loan.emi_amount), icon: HiCalendar },
+              { label: "Recovered", value: money(loan.recovered_amount ?? loan.total_recovered), icon: HiCheckCircle },
+              { label: "Still to repay", value: money(outstanding), icon: HiTrendingUp },
+            ]}
+          />
+
+          <DetailSection title="Loan terms" icon={HiDocumentText}>
+            <DetailGrid
+              cols={3}
+              items={[
+                ["Type", prettify(loan.loan_type)],
+                ["Interest rate", loan.interest_rate != null ? `${parseFloat(loan.interest_rate) || 0}% a year` : null],
+                ["How interest is worked out", interestMethodLabel(loan.interest_method)],
+                ["Repaid over", loan.tenure_months != null ? `${loan.tenure_months} months` : null],
+                ["First instalment", fmtPeriod(loan.start_period_month)],
+                ["Money paid out on", loan.disbursed_on ? formatDate(loan.disbursed_on) : null],
+              ]}
+            />
+          </DetailSection>
+
+          <DetailSection title={`Repayment schedule (${installments.length})`} icon={HiCalendar}>
+            <DetailTable
+              rows={installments}
+              rowKey={(inst, i) => inst.id || inst.installment_number || i}
+              empty={loan.status === "pending" ? "The schedule is drawn up once the loan is approved." : "No instalments scheduled yet."}
+              columns={[
+                { header: "Month", render: (inst) => fmtPeriod(inst.period_month || inst.due_period_month) },
+                { header: "Amount", align: "right", render: (inst) => <span className="font-semibold text-slate-800 tabular-nums">{money(inst.amount ?? inst.emi_amount ?? inst.installment_amount ?? inst.total_amount)}</span> },
+                { header: "Status", align: "center", render: (inst) => <DetailPill tone={inst.status === "deducted" || inst.status === "paid" ? "solid" : "soft"}>{inst.status || "N/A"}</DetailPill> },
+              ]}
+            />
+          </DetailSection>
+        </>
+      )}
+    </DetailDialog>
+  );
+}
 
 const now = new Date();
 const TABS = [
@@ -44,34 +195,39 @@ const TABS = [
 
 export default function ManagerAdjustmentsPage() {
   const [tab, setTab] = useState("adjustments");
-  const [team, setTeam] = useState([]);
+  const { user } = useAuth();
+  // The reports come from the app-wide roster (read once, photos included), not
+  // from a fetch of this screen's own.
+  const { activeRows: team } = useEmployeeDirectory();
   const [adjustments, setAdjustments] = useState([]);
   const [bonuses, setBonuses] = useState([]);
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null); // 'adj' | 'bonus' | 'loan'
+  const [loanDetail, setLoanDetail] = useState(null); // { id, name } | null
+  const [adjDetail, setAdjDetail] = useState(null);
+  const [bonusDetail, setBonusDetail] = useState(null);
 
   const [adjForm, setAdjForm] = useState({ user_id: "", adjustment_type: "earning", category: "incentive", component_name: "", amount: "", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
   const [bonusForm, setBonusForm] = useState({ name: "", bonus_type: "flat", value: "", user_ids: [], reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
-  const [loanForm, setLoanForm] = useState({ user_id: "", loan_type: "salary_advance", principal_amount: "", tenure_months: "3", annual_interest_rate: "0", interest_method: "reducing_balance", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
+  const [loanForm, setLoanForm] = useState({ user_id: "", loan_type: "salary_advance", principal_amount: "", tenure_months: "3", interest_rate: "0", interest_method: "reducing_balance", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
 
-  const showToast = (message, type = "success") => {
+  // Stable identity: LoanDetailModal's fetch effect lists showToast in its deps,
+  // so an unstable function would re-fire the fetch on every parent re-render.
+  const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
-  };
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [teamRes, adjRes, bonusRes, loanRes] = await Promise.all([
-        organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ data: [] })),
+      const [adjRes, bonusRes, loanRes] = await Promise.all([
         payrollAPI.getTeamAdjustments().catch(() => ({ data: [] })),
         payrollAPI.getTeamBonusRules().catch(() => ({ data: [] })),
         payrollAPI.getTeamLoans().catch(() => ({ data: [] })),
       ]);
-      const rawTeam = Array.isArray(teamRes.data) ? teamRes.data : (teamRes.data?.employees ?? teamRes.data?.records ?? teamRes.data?.data ?? []);
-      setTeam(Array.isArray(rawTeam) ? rawTeam : []);
       setAdjustments(adjRes.data?.records || adjRes.data || []);
       setBonuses(bonusRes.data?.records || bonusRes.data || []);
       setLoans(loanRes.data?.records || loanRes.data || []);
@@ -84,11 +240,25 @@ export default function ManagerAdjustmentsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const teamName = (id) => team.find((m) => (m.id || m._id || m.user_id) === id)?.name || id;
+  // Never show a raw user_id. The list can hold people who are not among the
+  // current direct reports (someone who moved teams, or the manager's own
+  // rows), so fall back through the row's embedded employee, the team, the
+  // signed-in user and finally a plain label.
+  const teamName = (id, row) => {
+    const embedded = personName({ employee: row?.employee, user: row?.user }, "");
+    if (embedded) return embedded;
+    const member = team.find((m) => memberId(m) === id);
+    if (member) return personName(member, "") || "Team member";
+    if (id && id === user?.id) return `${personName(user, "") || "You"} (you)`;
+    return "Former team member";
+  };
+  // Only a pending proposal can be cancelled; with none, the column is dropped.
+  const hasCancellable = adjustments.some((a) => a.status === "pending");
   const period = (f) => `${f.year}-${String(f.month).padStart(2, "0")}`;
 
   const submitAdj = async (e) => {
     e.preventDefault();
+    if (!adjForm.user_id) return showToast("Choose a team member", "error");
     try {
       await payrollAPI.proposeTeamAdjustment(adjForm.user_id, {
         period_month: period(adjForm),
@@ -129,12 +299,14 @@ export default function ManagerAdjustmentsPage() {
 
   const submitLoan = async (e) => {
     e.preventDefault();
+    if (!loanForm.user_id) return showToast("Choose a team member", "error");
     try {
       await payrollAPI.recommendTeamLoan(loanForm.user_id, {
         loan_type: loanForm.loan_type,
         principal_amount: parseFloat(loanForm.principal_amount),
         tenure_months: parseInt(loanForm.tenure_months),
-        annual_interest_rate: parseFloat(loanForm.annual_interest_rate) || 0,
+        // recommendLoanSchema strips unknown keys, so this must be interest_rate.
+        interest_rate: parseFloat(loanForm.interest_rate) || 0,
         interest_method: loanForm.interest_method,
         start_period_month: period(loanForm),
         reason: loanForm.reason.trim(),
@@ -148,7 +320,7 @@ export default function ManagerAdjustmentsPage() {
   };
 
   const cancelAdj = async (id) => {
-    if (!window.confirm("Cancel this proposal?")) return;
+    if (!(await window.confirm("Cancel this proposal?"))) return;
     try {
       await payrollAPI.cancelTeamAdjustment(id);
       showToast("Proposal cancelled");
@@ -158,11 +330,6 @@ export default function ManagerAdjustmentsPage() {
     }
   };
 
-  const toggleReport = (id) => setBonusForm((f) => ({
-    ...f,
-    user_ids: f.user_ids.includes(id) ? f.user_ids.filter((x) => x !== id) : [...f.user_ids, id],
-  }));
-
   const addBtn = {
     adjustments: { label: "Propose Adjustment", onClick: () => setModal("adj") },
     bonuses: { label: "Propose Bonus", onClick: () => setModal("bonus") },
@@ -170,17 +337,13 @@ export default function ManagerAdjustmentsPage() {
   }[tab];
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardTopBar title="Team Variable Pay" />
+    <>
+        <DashboardTopBar title="Salary Adjustments" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
 
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiAdjustments className="text-purple-600 w-7 h-7" /> Team Variable Pay
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-900">Salary Adjustments</h1>
               <p className="text-sm text-slate-500 mt-1">Propose bonuses, one-off adjustments and loan recommendations — HR gives the final approval.</p>
             </div>
             <button onClick={addBtn.onClick} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
@@ -208,25 +371,27 @@ export default function ManagerAdjustmentsPage() {
                         <th className="px-6 py-4 border-b border-slate-100">Type</th>
                         <th className="px-6 py-4 border-b border-slate-100">Amount</th>
                         <th className="px-6 py-4 border-b border-slate-100">Status</th>
-                        <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
+                        {hasCancellable && <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {adjustments.map((a) => (
-                        <tr key={a.id} className="hover:bg-slate-50/50">
-                          <td className="px-6 py-4 font-bold text-slate-800">{a.employee?.name || teamName(a.user_id)}</td>
+                        <tr key={a.id} {...rowPreviewProps(() => setAdjDetail(a), "Adjustment details")}>
+                          <td className="px-6 py-4 font-bold text-slate-800">{teamName(a.user_id, a)}</td>
                           <td className="px-6 py-4 text-slate-600">{fmtPeriod(a.period_month)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{a.adjustment_type}<span className="block text-[10px] text-slate-400 font-bold">{a.category?.replace(/_/g, " ")}</span></td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(a.amount)}</td>
                           <td className="px-6 py-4"><Pill s={a.status} /></td>
-                          <td className="px-6 py-4 text-right">
-                            {a.status === "pending" && (
-                              <button onClick={() => cancelAdj(a.id)} className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition" title="Cancel"><HiTrash className="w-4 h-4" /></button>
-                            )}
-                          </td>
+                          {hasCancellable && (
+                            <td className="px-6 py-4 text-right">
+                              {a.status === "pending" && (
+                                <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
-                      {adjustments.length === 0 && <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-500">No adjustment proposals yet.</td></tr>}
+                      {adjustments.length === 0 && <tr><td colSpan={hasCancellable ? 6 : 5} className="px-6 py-10 text-center text-slate-500">No adjustment proposals yet.</td></tr>}
                     </tbody>
                   </>
                 )}
@@ -244,10 +409,10 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {bonuses.map((b) => (
-                        <tr key={b.id} className="hover:bg-slate-50/50">
+                        <tr key={b.id} {...rowPreviewProps(() => setBonusDetail(b), "Bonus proposal details")}>
                           <td className="px-6 py-4 font-bold text-slate-800">{b.name}<span className="block text-[11px] text-slate-400 font-normal line-clamp-1">{b.reason}</span></td>
                           <td className="px-6 py-4 text-slate-600">{fmtPeriod(b.period_month)}</td>
-                          <td className="px-6 py-4 text-slate-600">{b.bonus_type === "flat" ? money(b.value) : `${parseFloat(b.value || 0)}%`}</td>
+                          <td className="px-6 py-4 text-slate-600">{bonusValueLabel(b)}</td>
                           <td className="px-6 py-4 text-slate-600">{(b.eligibility_config?.user_ids || []).length}</td>
                           <td className="px-6 py-4"><Pill s={b.status} /></td>
                         </tr>
@@ -270,8 +435,8 @@ export default function ManagerAdjustmentsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">
                       {loans.map((l) => (
-                        <tr key={l.id} className="hover:bg-slate-50/50">
-                          <td className="px-6 py-4 font-bold text-slate-800">{teamName(l.user_id)}</td>
+                        <tr key={l.id} {...rowPreviewProps(() => setLoanDetail({ id: l.id, name: teamName(l.user_id, l) }), "Loan details")}>
+                          <td className="px-6 py-4 font-bold text-slate-800">{teamName(l.user_id, l)}</td>
                           <td className="px-6 py-4 capitalize text-slate-600">{(l.loan_type || "").replace(/_/g, " ")}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{money(l.principal_amount)}</td>
                           <td className="px-6 py-4 text-slate-600">{l.tenure_months} mo</td>
@@ -286,40 +451,42 @@ export default function ManagerAdjustmentsPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Propose Adjustment */}
       {modal === "adj" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose Adjustment</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitAdj} className="p-6 space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-red-500">*</span></label>
-                <select required value={adjForm.user_id} onChange={(e) => setAdjForm({ ...adjForm, user_id: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                  <option value="">-- Select Report --</option>
-                  {team.map((m) => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
-                </select>
+            <form onSubmit={submitAdj} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
+                <PersonSelect people={team} value={adjForm.user_id} onChange={(id) => setAdjForm({ ...adjForm, user_id: id })} placeholder="Choose a report" emptyText="No reports found." />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <FieldHelp surface="payroll.adjustment_proposal" field="adjustment_type" label="the adjustment type" className="mb-2" />
+                  </div>
                   <select value={adjForm.adjustment_type} onChange={(e) => setAdjForm({ ...adjForm, adjustment_type: e.target.value, category: e.target.value === "earning" ? "incentive" : "ad_hoc_deduction" })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="earning">Earning (+)</option>
                     <option value="deduction">Deduction (-)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Amount <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Amount <span className="text-rose-500">*</span></label>
                   <input type="number" required min="1" value={adjForm.amount} onChange={(e) => setAdjForm({ ...adjForm, amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                    <FieldHelp surface="payroll.adjustment_proposal" field="period_month" label="the pay month" className="mb-2" />
+                  </div>
                   <select value={adjForm.month} onChange={(e) => setAdjForm({ ...adjForm, month: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     {MONTHS.map((mo, i) => <option key={i} value={i + 1}>{mo}</option>)}
                   </select>
@@ -330,15 +497,18 @@ export default function ManagerAdjustmentsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Label</label>
+                <div className="flex items-center">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Label</label>
+                  <FieldHelp surface="payroll.adjustment_proposal" field="component_name" label="the payslip label" className="mb-2" />
+                </div>
                 <input type="text" value={adjForm.component_name} onChange={(e) => setAdjForm({ ...adjForm, component_name: e.target.value })} placeholder="e.g. Spot Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <input type="text" required value={adjForm.reason} onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
-              <p className="text-xs text-slate-400 italic">Sent to HR for final approval before it reaches payroll.</p>
-              <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
+              <p className="sm:col-span-2 text-xs text-slate-400 italic">Sent to HR for final approval before it reaches payroll.</p>
+              <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Propose to HR</button>
               </div>
@@ -349,20 +519,23 @@ export default function ManagerAdjustmentsPage() {
 
       {/* Propose Bonus */}
       {modal === "bonus" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose Team Bonus</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitBonus} className="p-6 space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-red-500">*</span></label>
+            <form onSubmit={submitBonus} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-rose-500">*</span></label>
                 <input type="text" required value={bonusForm.name} onChange={(e) => setBonusForm({ ...bonusForm, name: e.target.value })} placeholder="e.g. Sprint Delivery Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <FieldHelp surface="payroll.bonus_proposal" field="bonus_type" label="the bonus type" className="mb-2" />
+                  </div>
                   <select value={bonusForm.bonus_type} onChange={(e) => setBonusForm({ ...bonusForm, bonus_type: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="flat">Flat ₹</option>
                     <option value="percent_of_basic">% of Basic</option>
@@ -370,11 +543,11 @@ export default function ManagerAdjustmentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Value <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Value <span className="text-rose-500">*</span></label>
                   <input type="number" required min="0.01" step="0.01" value={bonusForm.value} onChange={(e) => setBonusForm({ ...bonusForm, value: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
                   <select value={bonusForm.month} onChange={(e) => setBonusForm({ ...bonusForm, month: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
@@ -386,26 +559,15 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required value={bonusForm.year} onChange={(e) => setBonusForm({ ...bonusForm, year: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reports <span className="text-red-500">*</span></label>
-                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-3 space-y-1.5 bg-slate-50/50">
-                  {team.map((m) => {
-                    const id = m.id || m._id;
-                    return (
-                      <label key={id} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" checked={bonusForm.user_ids.includes(id)} onChange={() => toggleReport(id)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                        <span className="text-slate-700">{m.name || m.identifier}</span>
-                      </label>
-                    );
-                  })}
-                  {team.length === 0 && <p className="text-xs text-slate-400">No reports found.</p>}
-                </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reports <span className="text-rose-500">*</span></label>
+                <PersonMultiSelect people={team} value={bonusForm.user_ids} onChange={(ids) => setBonusForm((f) => ({ ...f, user_ids: ids }))} placeholder="Choose reports" emptyText="No reports found." />
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-red-500">*</span></label>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={bonusForm.reason} onChange={(e) => setBonusForm({ ...bonusForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
-              <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
+              <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Propose to HR</button>
               </div>
@@ -416,40 +578,46 @@ export default function ManagerAdjustmentsPage() {
 
       {/* Recommend Loan */}
       {modal === "loan" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Recommend Loan / Advance</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={submitLoan} className="p-6 space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-red-500">*</span></label>
-                <select required value={loanForm.user_id} onChange={(e) => setLoanForm({ ...loanForm, user_id: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                  <option value="">-- Select Report --</option>
-                  {team.map((m) => <option key={m.id || m._id} value={m.id || m._id}>{m.name || m.identifier}</option>)}
-                </select>
+            <form onSubmit={submitLoan} className="p-6 grid sm:grid-cols-2 gap-x-6 gap-y-4 items-start overflow-y-auto">
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Team Member <span className="text-rose-500">*</span></label>
+                <PersonSelect people={team} value={loanForm.user_id} onChange={(id) => setLoanForm({ ...loanForm, user_id: id })} placeholder="Choose a report" emptyText="No reports found." />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="loan_type" label="the loan type" className="mb-2" />
+                  </div>
                   <select value={loanForm.loan_type} onChange={(e) => setLoanForm({ ...loanForm, loan_type: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     <option value="salary_advance">Salary Advance</option>
                     <option value="loan">Company Loan</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Principal (₹) <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Principal (₹) <span className="text-rose-500">*</span></label>
                   <input type="number" required min="1" value={loanForm.principal_amount} onChange={(e) => setLoanForm({ ...loanForm, principal_amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid sm:col-span-2 grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Tenure</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Tenure</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="tenure_months" label="the tenure" className="mb-2" />
+                  </div>
                   <input type="number" required min="1" value={loanForm.tenure_months} onChange={(e) => setLoanForm({ ...loanForm, tenure_months: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Month</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="start_period_month" label="the first instalment month" className="mb-2" />
+                  </div>
                   <select value={loanForm.month} onChange={(e) => setLoanForm({ ...loanForm, month: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
                     {MONTHS.map((mo, i) => <option key={i} value={i + 1}>{mo.slice(0, 3)}</option>)}
                   </select>
@@ -459,12 +627,12 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required value={loanForm.year} onChange={(e) => setLoanForm({ ...loanForm, year: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-red-500">*</span></label>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <textarea required value={loanForm.reason} onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
-              <p className="text-xs text-slate-400 italic">HR reviews and, if approved, generates the EMI schedule.</p>
-              <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
+              <p className="sm:col-span-2 text-xs text-slate-400 italic">HR reviews and, if approved, generates the instalment schedule.</p>
+              <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Send to HR</button>
               </div>
@@ -473,7 +641,17 @@ export default function ManagerAdjustmentsPage() {
         </div>
       )}
 
+      {adjDetail && (
+        <AdjustmentDetail adj={adjDetail} memberName={teamName(adjDetail.user_id, adjDetail)} onCancel={cancelAdj} onClose={() => setAdjDetail(null)} />
+      )}
+      {bonusDetail && (
+        <BonusProposalDetail bonus={bonusDetail} nameOf={(id) => teamName(id)} onClose={() => setBonusDetail(null)} />
+      )}
+      {loanDetail && (
+        <LoanDetailModal loanId={loanDetail.id} memberName={loanDetail.name} onClose={() => setLoanDetail(null)} showToast={showToast} />
+      )}
+
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

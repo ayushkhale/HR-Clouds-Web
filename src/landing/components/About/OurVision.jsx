@@ -1,24 +1,24 @@
-import React from "react";
+import { Reveal } from "../../../shared/motion";
 
 const OurVision = () => {
   return (
     <section className="m-auto py-16 sm:py-20 xl:py-28 max-w-[90rem]">
       {/* Section Heading */}
       <div className="px-4 sm:px-8 md:px-16 xl:px-24 mb-12 sm:mb-16">
-        <h2 className="font-bold text-[2rem]/[2.5rem] text-primary-500 sm:text-4xl md:text-5xl xl:text-[3.5rem]/[4rem] tracking-tight">
+        <Reveal as="h2" className="font-bold text-[2rem]/[2.5rem] text-primary-500 sm:text-4xl md:text-5xl xl:text-[3.5rem]/[4rem] tracking-tight">
           Why{" "}
           <span className="underline underline-offset-4 decoration-[6px] decoration-purple-500">
             Choose
           </span>{" "}
           Us?
-        </h2>
+        </Reveal>
       </div>
 
       {/* Grid of Dark Glassmorphic Cards */}
       <div className="px-4 sm:px-8 md:px-16 xl:px-24 grid gap-8 sm:grid-cols-2">
         
         {/* Card 1 — Commitment to Quality */}
-        <div className="bg-primary-500 px-8 py-10 rounded-2xl relative overflow-hidden flex flex-col justify-start border border-white/5 shadow-xl">
+        <Reveal variant="left" className="bg-primary-500 px-8 py-10 rounded-2xl relative overflow-hidden flex flex-col justify-start border border-white/5 shadow-xl transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-purple-400/30 motion-reduce:transform-none">
           {/* Overlapping white transparent highlights matching pricing cards exactly */}
           <div className="left-[-20%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />
           <div className="top-[30%] left-[30%] absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />
@@ -41,10 +41,10 @@ const OurVision = () => {
               passion, and purpose.
             </p>
           </div>
-        </div>
+        </Reveal>
 
         {/* Card 2 — Scalability & Security */}
-        <div className="bg-primary-500 px-8 py-10 rounded-2xl relative overflow-hidden flex flex-col justify-start border border-white/5 shadow-xl">
+        <Reveal variant="right" delay={120} className="bg-primary-500 px-8 py-10 rounded-2xl relative overflow-hidden flex flex-col justify-start border border-white/5 shadow-xl transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-purple-400/30 motion-reduce:transform-none">
           {/* Overlapping white transparent highlights matching pricing cards exactly */}
           <div className="left-[-20%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />
           <div className="top-[30%] left-[30%] absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />
@@ -63,7 +63,7 @@ const OurVision = () => {
               your organization’s most critical asset — its people data — is completely protected.
             </p>
           </div>
-        </div>
+        </Reveal>
 
       </div>
     </section>

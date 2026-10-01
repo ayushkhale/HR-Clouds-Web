@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { HiDocumentText, HiOutlineFolder, HiCheckCircle, HiExclamation, HiChevronLeft, HiChevronRight, HiSearch } from "react-icons/hi";
 import { attendanceAPI } from "../api";
@@ -73,10 +72,7 @@ function DocumentsPage() {
   const activeContent = docsData.content[activeTab]?.[currentRole] || {};
 
   return (
-    <div className="min-h-screen bg-white flex font-sans text-slate-800">
-      <DashboardSidebar role={currentRole} />
-
-      <div className="flex-1 flex flex-col min-w-0 border-l border-slate-100">
+    <>
         <DashboardTopBar title="Documentation" />
 
         <main className="px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-6 max-w-6xl w-full mx-auto overflow-y-auto">
@@ -154,21 +150,21 @@ function DocumentsPage() {
                             
                             <ul className="space-y-2.5 m-0 list-none pl-0">
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                                 <span>
                                   Late Grace Period: <strong>{policy.grace_minutes} minutes</strong>
                                 </span>
                               </li>
                               
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                                 <span>
                                   Early Exit Allowance: <strong>{policy.early_exit_threshold_minutes} minutes</strong>
                                 </span>
                               </li>
 
                               <li className="flex items-start gap-2.5">
-                                <HiCheckCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                                <HiCheckCircle className="w-4 h-4 text-fuchsia-500 mt-0.5 shrink-0" />
                                 <span>
                                   Late Mark Threshold: <strong>{policy.late_threshold_minutes} minutes</strong> (marked as half-day if exceeded)
                                 </span>
@@ -184,13 +180,13 @@ function DocumentsPage() {
                               <li className="flex items-start gap-2.5">
                                 <HiCheckCircle className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
                                 <span>
-                                  Regularization Window: <strong>{policy.regularization_window_days} days</strong>
+                                  Correction window: <strong>{policy.regularization_window_days} days</strong>
                                 </span>
                               </li>
                               
                               {policy.late_count_half_day_threshold && (
                                 <li className="flex items-start gap-2.5">
-                                  <HiExclamation className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                                  <HiExclamation className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
                                   <span>
                                     Deduction Rule: <strong>Half Day</strong> deducted per <strong>{policy.late_count_half_day_threshold} late marks</strong>
                                   </span>
@@ -261,8 +257,7 @@ function DocumentsPage() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+    </>
   );
 }
 

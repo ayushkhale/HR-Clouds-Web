@@ -41,13 +41,18 @@ function OtpInput({ value = "", onChange, disabled = false }) {
   }
 
   return (
-    <div className="flex gap-3 justify-center">
+    // The boxes are one field split six ways, so the group carries the name and
+    // each box says which digit it is. Without this a screen reader announced
+    // "edit, blank" six times with no clue what was wanted.
+    <div className="flex gap-3 justify-center" role="group" aria-label="Six-digit verification code">
       {Array.from({ length: 6 }).map((_, i) => (
         <input
           key={i}
           ref={(el) => (inputsRef.current[i] = el)}
           type="text"
           inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          aria-label={`Digit ${i + 1} of 6`}
           maxLength={1}
           value={digits[i] || ""}
           onChange={(e) => handleChange(e, i)}

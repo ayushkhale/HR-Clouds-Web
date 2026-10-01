@@ -1,33 +1,46 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { organizationAPI, hrmsAPI } from "../../../shared/api";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import { organizationAPI } from "../../../shared/api";
+import { canBeHOD, roleLabel } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
 import ProfileTab from "./employee-profile/ProfileTab";
+import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
 import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
+import DepartmentTab from "./employee-profile/DepartmentTab";
+import DocumentsTab from "./employee-profile/DocumentsTab";
+import SalaryTab from "./employee-profile/SalaryTab";
+import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
-  HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar,
-  HiOutlineCalendar,
-  HiOutlineOfficeBuilding, HiOutlinePhone, HiOutlineMail,
-  HiCog, HiTrash, HiBan, HiCheckCircle, HiX, HiDotsHorizontal, HiSwitchHorizontal
+  HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar, HiOutlineFolder,
+  HiOutlineCalendar, HiOutlineOfficeBuilding, HiOutlineCurrencyRupee,
+  HiTrash, HiBan, HiCheckCircle, HiX
 } from "react-icons/hi";
+import { PersonSelect } from "../../../shared/components/PersonPicker";
+import { useEmployeeDirectory, refreshEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
+import ProfileTabStrip from "../../../shared/components/ProfileTabStrip";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
+  { key: "department", label: "Department", icon: HiOutlineOfficeBuilding },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
+  { key: "salary", label: "Salary", icon: HiOutlineCurrencyRupee },
+  { key: "documents", label: "Documents", icon: HiOutlineFolder },
   { key: "profile", label: "Profile", icon: HiOutlineUser },
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
 ];
 
-import Avatar, { genConfig } from 'react-nice-avatar';
+
 
 function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   const [departments, setDepartments] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // Candidates come from the app-wide roster, so this dialog offers the same
+  // people as every other picker.
+  const { activeRows: employees } = useEmployeeDirectory();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -43,16 +56,9 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   });
 
   useEffect(() => {
-    Promise.all([
-      organizationAPI.getDepartments(),
-      organizationAPI.getEmployees({ purpose: "shift_assignment" })
-    ])
-      .then(([deptRes, empRes]) => {
-        setDepartments(deptRes.data || []);
-        const members = empRes.data || [];
-        setEmployees(Array.isArray(members) ? members : (members.employees || members.members || []));
-      })
-      .catch(() => setError("Failed to load departments or employees."))
+    organizationAPI.getDepartments()
+      .then((deptRes) => setDepartments(deptRes.data || []))
+      .catch(() => setError("Failed to load departments."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -64,13 +70,41 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
     }));
   };
 
+  const isManagerial = employeeRole === "manager" || employeeRole === "hr";
+  // Managers and HR who can take over, never the person being transferred.
+  const hodCandidates = employees.filter((x) => canBeHOD(x.role) && String(x.user_id || x.id) !== String(userId));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Client-side guards mirroring the backend transfer contract.
+    if (!form.new_department_id) {
+      setError("Select a new department (or choose “Remove from department”).");
+      return;
+    }
+    if (isManagerial && form.is_current_hod && !form.replacement_hod_id) {
+      setError("A Replacement HOD is required when the user is the current Head of Department.");
+      return;
+    }
+    if (!isManagerial && form.new_department_id === "none" && !form.new_manager_id) {
+      setError("A New Reporting Person is required when removing an employee from their department.");
+      return;
+    }
+    // For an employee moving into a department, the backend requires a manager
+    // unless that department already has an active HOD to inherit them.
+    if (!isManagerial && form.new_department_id !== "none" && !form.new_manager_id) {
+      const targetDept = departments.find(d => String(d.id || d._id) === String(form.new_department_id));
+      if (targetDept && !targetDept.head_of_department_id) {
+        setError(`“${targetDept.name}” has no Head of Department — select a New Reporting Person for this employee.`);
+        return;
+      }
+    }
+
     setSubmitting(true);
-    
+
     const payload = { role: employeeRole };
-    
+
     if (form.new_department_id === "none") {
       payload.new_department_id = null;
     } else if (form.new_department_id) {
@@ -78,17 +112,18 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
     }
 
     if (form.new_manager_id) payload.new_manager_id = form.new_manager_id;
-    if (form.is_current_hod) {
+    // HOD handover only applies to managerial roles.
+    if (isManagerial && form.is_current_hod) {
       payload.is_current_hod = true;
       if (form.replacement_hod_id) payload.replacement_hod_id = form.replacement_hod_id;
     }
-    if (form.is_new_hod) payload.is_new_hod = true;
-    if (requiresFallback && form.old_dept_fallback_manager_id) {
+    if (isManagerial && form.is_new_hod) payload.is_new_hod = true;
+    if (isManagerial && form.old_dept_fallback_manager_id) {
       payload.old_dept_fallback_manager_id = form.old_dept_fallback_manager_id;
     }
 
     try {
-      await hrmsAPI.transferDepartment(userId, payload);
+      await organizationAPI.transferDepartment(userId, payload);
       onSuccess("Department transferred successfully.");
     } catch (err) {
       if (err.data?.errorCode === "MISSING_FALLBACK_MANAGER") {
@@ -103,7 +138,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
@@ -120,7 +155,7 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
         
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-start gap-2">
+            <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm font-semibold flex items-start gap-2">
               <HiBan className="w-5 h-5 shrink-0 mt-0.5" />
               <p>{error}</p>
             </div>
@@ -149,24 +184,23 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">New Manager (Optional)</label>
-                <select 
-                  name="new_manager_id" 
-                  value={form.new_manager_id} 
-                  onChange={handleChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                >
-                  <option value="">Select a manager...</option>
-                  {employees.map(e => {
-                    const id = e.user_id || e.id;
-                    const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
-                    if (String(id) === String(userId)) return null;
-                    return <option key={id} value={id}>{name}</option>;
-                  })}
-                </select>
-                <p className="text-[10px] text-slate-400 mt-1">Required if the user's new department has no HOD, or if moving them to "No Department". Ignored for HR/Manager roles.</p>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">New Reporting Person</label>
+                <PersonSelect
+                    people={hodCandidates}
+                    value={form.new_manager_id}
+                    onChange={(id) => handleChange({ target: { name: "new_manager_id", value: id } })}
+                    placeholder="Select a reporting person…"
+                    emptyText="No managers or HR found."
+                  />
+                <p className="text-[10px] text-slate-400 mt-1">Required if the user&apos;s new department has no HOD, or if moving them to &ldquo;No Department&rdquo;. Ignored for HR/Manager roles.</p>
+                {employees.filter(x => canBeHOD(x.role)).length === 0 && (
+                  <p className="text-[10px] text-fuchsia-600 font-semibold mt-1">
+                    No Managers or HR admins exist yet — create one before transferring.
+                  </p>
+                )}
               </div>
 
+              {isManagerial && (<>
               <div className="border-t border-slate-100 my-2"></div>
 
               <label className="flex items-start gap-3 cursor-pointer group">
@@ -183,21 +217,14 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
 
               {form.is_current_hod && (
                 <div className="pl-8">
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5">Replacement HOD <span className="text-red-500">*</span></label>
-                  <select 
-                    name="replacement_hod_id" 
-                    value={form.replacement_hod_id} 
-                    onChange={handleChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                  >
-                    <option value="">Who will take over?</option>
-                    {employees.map(e => {
-                      const id = e.user_id || e.id;
-                      const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
-                      if (String(id) === String(userId)) return null;
-                      return <option key={id} value={id}>{name}</option>;
-                    })}
-                  </select>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">Replacement HOD <span className="text-rose-500">*</span></label>
+                  <PersonSelect
+                    people={hodCandidates}
+                    value={form.replacement_hod_id}
+                    onChange={(id) => handleChange({ target: { name: "replacement_hod_id", value: id } })}
+                    placeholder="Who will take over?"
+                    emptyText="No managers or HR found."
+                  />
                 </div>
               )}
 
@@ -214,25 +241,19 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
               </label>
 
               {requiresFallback && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-2">
-                  <label className="block text-xs font-bold text-amber-800 mb-1.5">Fallback Manager <span className="text-red-500">*</span></label>
-                  <p className="text-xs text-amber-700 mb-2">The old department has no HOD. Select a manager to inherit this user's subordinates.</p>
-                  <select 
-                    name="old_dept_fallback_manager_id" 
-                    value={form.old_dept_fallback_manager_id} 
-                    onChange={handleChange}
-                    className="w-full bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-amber-900 outline-none focus:border-amber-500 transition-all"
-                  >
-                    <option value="">Select fallback manager...</option>
-                    {employees.map(e => {
-                      const id = e.user_id || e.id;
-                      const name = e.profile?.display_name || e.profile?.first_name || e.user?.name || e.name || e.identifier;
-                      if (String(id) === String(userId)) return null;
-                      return <option key={id} value={id}>{name}</option>;
-                    })}
-                  </select>
+                <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 mt-2">
+                  <label className="block text-xs font-bold text-fuchsia-800 mb-1.5">Fallback Manager <span className="text-rose-500">*</span></label>
+                  <p className="text-xs text-fuchsia-700 mb-2">The old department has no HOD. Select a manager to inherit this user's subordinates.</p>
+                  <PersonSelect
+                    people={hodCandidates}
+                    value={form.old_dept_fallback_manager_id}
+                    onChange={(id) => handleChange({ target: { name: "old_dept_fallback_manager_id", value: id } })}
+                    placeholder="Select fallback manager…"
+                    emptyText="No managers or HR found."
+                  />
                 </div>
               )}
+              </>)}
             </>
           )}
 
@@ -264,13 +285,18 @@ export default function EmployeeProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
-  const initialTab = queryParams.get("tab") || "overview";
+  // An unknown ?tab= value would match no panel and leave the content area blank.
+  const requestedTab = queryParams.get("tab");
+  const initialTab = TABS.some((t) => t.key === requestedTab) ? requestedTab : "overview";
   
   const [activeTab, setActiveTab] = useState(initialTab);
+  // The roster the app already holds, for the fallback below.
+  const { byId: rosterById } = useEmployeeDirectory();
   const [employee, setEmployee] = useState(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [managerName, setManagerName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -278,56 +304,43 @@ export default function EmployeeProfilePage() {
   const [successToast, setSuccessToast] = useState("");
   const [actionError, setActionError] = useState("");
 
-  // Close settings dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = () => setShowSettings(false);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
-
   useEffect(() => {
     if (!userId) return;
 
     const fetchEmployee = async () => {
       setLoading(true);
+      setLoadError("");
       try {
-        // Fetch detailed profile using the Phase 2 endpoint
-        console.log("Fetching detailed profile for user_id:", userId);
         const profileRes = await organizationAPI.getEmployee(userId);
-        console.log("Response from getEmployee API:", profileRes);
-        
+
         if (profileRes?.data) {
           setEmployee(profileRes.data);
-          
-          if (profileRes.data.reporting_person) {
-            try {
-              const mgrRes = await organizationAPI.getEmployee(profileRes.data.reporting_person);
-              if (mgrRes?.data) {
-                setManagerName(mgrRes.data.name || `${mgrRes.data.first_name || ''} ${mgrRes.data.last_name || ''}`.trim());
-              }
-            } catch (err) {
-              console.error("Failed to fetch reporting manager details:", err);
-            }
-          }
-
-          setLoading(false);
-          return;
+          // The detail endpoint already resolves the reporting person's name —
+          // no second round-trip needed.
+          const mgr = profileRes.data.reporting_person_details;
+          setManagerName(mgr?.name || "");
+        } else {
+          setEmployee(null);
         }
       } catch (err) {
-        console.error("Failed to fetch detailed profile:", err);
-        // Fallback to org members list if direct fetch fails (e.g. backend not fully implemented)
-        try {
-          const orgRes = await organizationAPI.getEmployees({ purpose: "shift_assignment" });
-          if (orgRes?.success && orgRes?.data) {
-            const found = orgRes.data.find(e => String(e.user_id || e.id) === String(userId));
-            setEmployee(found || null);
-            if (found && found.reporting_person) {
-              const mgr = orgRes.data.find(e => String(e.user_id || e.id) === String(found.reporting_person));
-              if (mgr) setManagerName(mgr.name || `${mgr.first_name || ''} ${mgr.last_name || ''}`.trim());
-            }
-          }
-        } catch {
+        // A 403 means out-of-scope/non-existent (BOLA guard) and a 404 means not
+        // found — neither should be papered over with a roster fallback.
+        if (err.status === 403 || err.status === 404) {
+          setLoadError(
+            err.status === 403
+              ? "You don't have access to this employee's profile."
+              : "Employee not found."
+          );
           setEmployee(null);
+        } else {
+          // Transient/backend error — best-effort fallback to the roster the
+          // app already holds, rather than a second read of the whole org.
+          const found = rosterById.get(String(userId)) || null;
+          if (found) setEmployee(found.raw || found);
+          else {
+            setEmployee(null);
+            setLoadError(err?.message || "Could not load this employee's profile.");
+          }
         }
       } finally {
         setLoading(false);
@@ -335,6 +348,9 @@ export default function EmployeeProfilePage() {
     };
 
     fetchEmployee();
+    // rosterById is only read inside the catch; re-running on a roster refresh
+    // would re-fetch the profile for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleToggleStatus = async () => {
@@ -347,15 +363,15 @@ export default function EmployeeProfilePage() {
     setIsActionLoading(true);
     setActionError("");
     try {
-      const res = await organizationAPI.updateEmployeeStatus(userId, { is_active: newStatus });
-      console.log("Toggle Status Success:", res);
+      await organizationAPI.updateEmployeeStatus(userId, { is_active: newStatus });
       setEmployee(prev => ({ ...prev, is_active: newStatus, status: newStatus ? "active" : "inactive" }));
+      // Who is in the organisation just changed: every list and picker reads
+      // the shared roster, so re-read it rather than leave them stale.
+      refreshEmployeeDirectory();
     } catch (err) {
-      console.error("Toggle Status Error:", err);
       setActionError(err.message || `Failed to ${actionText} employee`);
     } finally {
       setIsActionLoading(false);
-      setShowSettings(false);
     }
   };
 
@@ -364,11 +380,10 @@ export default function EmployeeProfilePage() {
     setIsActionLoading(true);
     setActionError("");
     try {
-      const res = await organizationAPI.deleteEmployee(userId);
-      console.log("Delete Employee Success:", res);
+      await organizationAPI.deleteEmployee(userId);
+      refreshEmployeeDirectory();
       navigate("/dashboard/hr/employees");
     } catch (err) {
-      console.error("Delete Employee Error:", err);
       setActionError(err.message || "Failed to delete employee");
       setIsActionLoading(false);
     }
@@ -378,9 +393,7 @@ export default function EmployeeProfilePage() {
   const displayName = employee?.name || employee?.full_name || "Employee";
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title={displayName} />
 
         <main className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
@@ -401,50 +414,25 @@ export default function EmployeeProfilePage() {
                   {employeeRole}
                 </span>
               )}
-            </div>
-
-            {/* Settings Actions */}
-            <div className="relative">
-              <button 
-                onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-600 transition-colors"
-                disabled={isActionLoading}
-              >
-                <HiDotsHorizontal className="w-5 h-5" />
-              </button>
-              {showSettings && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 py-1.5 z-20" onClick={e => e.stopPropagation()}>
-                  <button 
-                    onClick={handleToggleStatus}
-                    disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
-                  >
-                    {employee?.is_active === false ? (
-                      <><HiCheckCircle className="w-4 h-4 text-emerald-500" /> Activate Employee</>
-                    ) : (
-                      <><HiBan className="w-4 h-4 text-amber-500" /> Deactivate Employee</>
-                    )}
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button 
-                    onClick={() => { setShowSettings(false); setShowTransferModal(true); }}
-                    disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-bold text-purple-600 hover:bg-purple-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
-                  >
-                    <HiSwitchHorizontal className="w-4 h-4" /> Transfer Department
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button 
-                    onClick={() => { setShowSettings(false); setShowDeleteModal(true); }}
-                    disabled={isActionLoading}
-                    className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors disabled:opacity-50"
-                  >
-                    <HiTrash className="w-4 h-4" /> Delete Employee
-                  </button>
-                </div>
+              {!loading && employee && (
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold flex items-center gap-1.5 ${
+                  employee.is_active === false
+                    ? "bg-rose-50 text-rose-700"
+                    : "bg-violet-50 text-violet-700"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${employee.is_active === false ? "bg-rose-500" : "bg-violet-500"}`}></span>
+                  {employee.is_active === false ? "Inactive" : "Active"}
+                </span>
               )}
             </div>
           </div>
+
+          {loadError && !loading && (
+            <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold flex items-center gap-2">
+              <HiBan className="w-5 h-5 shrink-0" />
+              {loadError}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6 items-start">
             {/* ── LEFT: Employee Card ── */}
@@ -457,15 +445,7 @@ export default function EmployeeProfilePage() {
                     <div className="w-24 h-24 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
                     <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-purple-50 shrink-0 flex items-center justify-center">
-                      {employee?.avatar ? (
-                        <img 
-                          src={employee.avatar} 
-                          alt={displayName} 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Avatar className="w-full h-full" {...genConfig(employee?.email || displayName || String(userId))} />
-                      )}
+                      <GenderAvatar person={employee} name={displayName} />
                     </div>
                   )}
                 </div>
@@ -480,7 +460,7 @@ export default function EmployeeProfilePage() {
                   <div className="w-full">
                     <h2 className="text-xl font-bold text-slate-900 truncate w-full max-w-[260px] mx-auto">{displayName}</h2>
                     <p className="text-sm font-medium text-slate-500 mt-1">
-                      #{employee?.employee_code || employee?.emp_id || "EMP000"}
+                      {employee?.employee_code || employee?.emp_id ? `#${employee.employee_code || employee.emp_id}` : "N/A"}
                     </p>
                   </div>
                 )}
@@ -495,19 +475,27 @@ export default function EmployeeProfilePage() {
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Department</span>
-                        <span className="font-medium text-slate-900">{employee.department || "—"}</span>
+                        <span className="font-medium text-slate-900">{employee.department || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Designation</span>
-                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.designation}>{employee.designation || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.designation}>{employee.designation || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Role</span>
-                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded capitalize">{employee.role || employeeRole || "—"}</span>
+                        <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{roleLabel(employee.role || employeeRole) || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Manager</span>
-                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={managerName || employee.reporting_person}>{managerName || employee.reporting_person || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={managerName || undefined}>
+                          {managerName || "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm px-2">
+                        <span className="text-slate-500">Dept. Head</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.department_head_details?.name || undefined}>
+                          {employee.department_head_details?.name || "N/A"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -520,11 +508,11 @@ export default function EmployeeProfilePage() {
                     <div className="space-y-2.5">
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Phone</span>
-                        <span className="font-medium text-slate-900">{employee.contact || employee.phone_number || "—"}</span>
+                        <span className="font-medium text-slate-900">{employee.contact || employee.phone_number || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
                         <span className="text-slate-500">Email</span>
-                        <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={employee.email}>{employee.email || "—"}</span>
+                        <span className="font-medium text-slate-900 text-right truncate max-w-[150px]" title={employee.email}>{employee.email || "N/A"}</span>
                       </div>
                     </div>
                   </div>
@@ -535,54 +523,60 @@ export default function EmployeeProfilePage() {
             {/* ── RIGHT: Horizontal Tabs & Content ── */}
             <div className="min-w-0 flex flex-col gap-6">
               
-              {/* Horizontal Tabs Header */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-2 flex gap-1 overflow-x-auto no-scrollbar">
-                {TABS.map(tab => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                        isActive
-                          ? "bg-slate-900 text-white shadow-sm"
-                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-                      {tab.label}
-                    </button>
-                  );
-                })}
+              {/* Horizontal Tabs Header — one strip for HR and the manager. */}
+              {/* The ⓘ sits beside the strip, outside its scroll container and
+                  arrows, and explains the open tab; tabs with no entry show none. */}
+              <div className="flex items-center gap-1 min-w-0">
+                <div className="flex-1 min-w-0">
+                  <ProfileTabStrip tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+                </div>
+                <FieldHelp surface="organization.employee_profile" field={`tab.${activeTab}`} label={`the ${TABS.find((t) => t.key === activeTab)?.label} tab`} />
               </div>
 
               {/* Tab Content Area */}
               <div>
-                {activeTab === "overview" && (
-                <OverviewTab userId={userId} employeeRole={employeeRole} />
+                {/* Attendance reads are split by role (/employees, /managers, /hrs).
+                    Wait for the profile so a manager/HR isn't first queried through
+                    /employees/* — that stale response could overwrite the real one. */}
+                {(activeTab === "overview" || activeTab === "attendance" || activeTab === "department") && loading && (
+                  <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
+                )}
+                {activeTab === "overview" && !loading && employee && (
+                <OverviewTab key={userId} userId={userId} employeeRole={employeeRole} />
               )}
-              {activeTab === "attendance" && (
-                <AttendanceTab userId={userId} employeeRole={employeeRole} />
+              {activeTab === "attendance" && !loading && employee && (
+                <AttendanceTab key={userId} userId={userId} employeeRole={employeeRole} />
+              )}
+              {activeTab === "department" && !loading && employee && (
+                <DepartmentTab key={userId} employee={employee} userId={userId} employeeRole={employeeRole} onTransfer={() => setShowTransferModal(true)} />
               )}
               {activeTab === "leave" && (
-                <LeaveTab userId={userId} />
+                <LeaveTab userId={userId} employeeName={displayName} />
+              )}
+              {activeTab === "salary" && (
+                <SalaryTab key={userId} userId={userId} />
+              )}
+              {activeTab === "documents" && (
+                <DocumentsTab key={userId} userId={userId} employeeName={displayName} />
               )}
               {activeTab === "profile" && (
-                <ProfileTab employee={employee} />
+                <ProfileTab
+                  employee={employee}
+                  onEdit={() => setEditingProfile(true)}
+                  danger={{ onToggleStatus: handleToggleStatus, onDelete: () => setShowDeleteModal(true), busy: isActionLoading }}
+                />
               )}
               {activeTab === "reports" && (
-                <ReportsTab userId={userId} />
+                <ReportsTab userId={userId} employeeName={displayName} />
               )}
               </div>
             </div>
           </div>
         </main>
-      </div>
 
       {/* ── DELETE MODAL ── */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-lg text-slate-800">Delete Employee</h3>
@@ -595,8 +589,8 @@ export default function EmployeeProfilePage() {
               </button>
             </div>
             <div className="p-6">
-              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
-                <HiTrash className="w-6 h-6 text-red-500" />
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
+                <HiTrash className="w-6 h-6 text-rose-500" />
               </div>
               <p className="text-sm font-semibold text-slate-700 mb-2">
                 This action is permanent and cannot be undone.
@@ -615,12 +609,12 @@ export default function EmployeeProfilePage() {
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="DELETE"
                   disabled={isActionLoading}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-red-500 focus:bg-white transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-rose-500 focus:bg-white transition-all"
                 />
               </div>
 
               {actionError && (
-                <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-semibold flex items-center gap-2">
+                <div className="mb-6 px-4 py-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm font-semibold flex items-center gap-2">
                   <HiBan className="w-5 h-5 shrink-0" />
                   <p>{actionError}</p>
                 </div>
@@ -637,7 +631,7 @@ export default function EmployeeProfilePage() {
                 <button
                   onClick={handleDeleteEmployee}
                   disabled={isActionLoading || deleteConfirmText !== "DELETE"}
-                  className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isActionLoading ? (
                     <>
@@ -664,24 +658,46 @@ export default function EmployeeProfilePage() {
             setShowTransferModal(false);
             setSuccessToast(msg);
             setTimeout(() => setSuccessToast(""), 4000);
-            // Re-fetch profile to show new department
+            // Re-fetch profile so the new department AND the rewired reporting
+            // line are both reflected.
             setLoading(true);
             organizationAPI.getEmployee(userId).then(profileRes => {
-              if (profileRes?.data) setEmployee(profileRes.data);
-            }).finally(() => setLoading(false));
+              if (profileRes?.data) {
+                setEmployee(profileRes.data);
+                setManagerName(profileRes.data.reporting_person_details?.name || "");
+              }
+            }).catch(() => { /* toast already shown; keep prior data */ })
+              .finally(() => setLoading(false));
+          }}
+        />
+
+      )}
+      {editingProfile && (
+        <EditMemberProfileModal
+          userId={userId}
+          name={employee?.name}
+          profile={employee}
+          onClose={() => setEditingProfile(false)}
+          onSaved={(message) => {
+            setEditingProfile(false);
+            setSuccessToast(message);
+            setTimeout(() => setSuccessToast(""), 4000);
+            organizationAPI.getEmployee(userId)
+              .then((res) => { if (res?.data) setEmployee(res.data); })
+              .catch(() => { /* toast already shown; keep prior data */ });
           }}
         />
       )}
       
       {/* ── TOAST ── */}
       {successToast && (
-        <div className="fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
-          <HiCheckCircle className="w-5 h-5 text-emerald-500" />
+        <div className="fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl bg-violet-50 text-violet-700 border border-violet-200 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
+          <HiCheckCircle className="w-5 h-5 text-violet-500" />
           <span>{successToast}</span>
-          <button onClick={() => setSuccessToast("")}><HiX className="w-4 h-4 text-emerald-300 hover:text-emerald-500" /></button>
+          <button onClick={() => setSuccessToast("")}><HiX className="w-4 h-4 text-violet-300 hover:text-violet-500" /></button>
         </div>
       )}
 
-    </div>
+    </>
   );
 }

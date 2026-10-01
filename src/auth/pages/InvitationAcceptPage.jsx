@@ -104,7 +104,7 @@ function InvitationAcceptPage() {
       <PageWrapper>
         <div className="text-center">
           <div className="flex justify-center mb-6 relative">
-             <div className="absolute inset-0 bg-red-100/50 rounded-full blur-2xl max-w-[120px] mx-auto"></div>
+             <div className="absolute inset-0 bg-rose-100/50 rounded-full blur-2xl max-w-[120px] mx-auto"></div>
              <img 
                src="https://cdn3d.iconscout.com/3d/premium/thumb/something-went-wrong-3d-icon-png-download-13356832.png" 
                alt="Invalid Invitation" 
@@ -147,8 +147,8 @@ function InvitationAcceptPage() {
     return (
       <PageWrapper>
         <div className="text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-            <HiCheck className="w-8 h-8 text-green-600" />
+          <div className="w-16 h-16 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <HiCheck className="w-8 h-8 text-violet-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">You're In! 🎉</h1>
           <p className="text-sm text-gray-500 mb-6">
@@ -184,11 +184,11 @@ function InvitationAcceptPage() {
 
       {/* Existing user flow */}
       {!inviteData?.is_new_user && (
-        <div className="mb-5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
-          <p className="text-sm text-emerald-700 font-medium">
+        <div className="mb-5 p-3 bg-violet-50 border border-violet-200 rounded-xl text-center">
+          <p className="text-sm text-violet-700 font-medium">
             ✓ We found your existing account ({inviteData?.email})
           </p>
-          <p className="text-xs text-emerald-600 mt-1">Click below to join this organization.</p>
+          <p className="text-xs text-violet-600 mt-1">Click below to join this organization.</p>
         </div>
       )}
 
@@ -196,15 +196,15 @@ function InvitationAcceptPage() {
         {/* New user: password creation */}
         {inviteData?.is_new_user && (
           <>
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl mb-2">
-              <p className="text-sm text-blue-700 font-medium">
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl mb-2">
+              <p className="text-sm text-indigo-700 font-medium">
                 Welcome! Create a password for <span className="font-semibold">{inviteData?.email}</span>
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Create Password <span className="text-red-400">*</span>
+                Create Password <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <input
@@ -227,7 +227,7 @@ function InvitationAcceptPage() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Confirm Password <span className="text-red-400">*</span>
+                Confirm Password <span className="text-rose-400">*</span>
               </label>
               <input
                 type="password"
@@ -242,7 +242,7 @@ function InvitationAcceptPage() {
         )}
 
         {formError && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
             {formError}
           </p>
         )}

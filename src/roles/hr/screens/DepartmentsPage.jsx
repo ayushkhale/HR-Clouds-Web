@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import { canBeHOD } from "../../../shared/auth/permissions";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
 } from "react-icons/hi";
+import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
+import { useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 
 function DepartmentsPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [departments, setDepartments] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // The app-wide roster: the head-of-department picker lists exactly the
+  // people every other picker lists.
+  const { activeRows: employees } = useEmployeeDirectory();
   const [searchQuery, setSearchQuery] = useState("");
 
   const [showModal, setShowModal] = useState(false);
@@ -24,31 +32,41 @@ function DepartmentsPage() {
   const [isActive, setIsActive] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [result, setResult] = useState({ type: "", message: "" });
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  // The detail page sends people back here with ?edit=<id> to change a
+  // department; consume the parameter so a refresh doesn't reopen the modal.
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || departments.length === 0) return;
+    const target = departments.find((d) => (d.id || d._id) === editId);
+    if (target) openEditModal(target);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, departments]);
+
   const fetchData = async () => {
+    setPageLoading(true);
+    setFetchError("");
     try {
-      const [depRes, locRes, empRes] = await Promise.all([
+      const [depRes, locRes] = await Promise.all([
         organizationAPI.getDepartments(),
         organizationAPI.getLocations().catch(() => ({ success: false, data: [] })),
-        organizationAPI.getEmployees({ purpose: "shift_assignment" }).catch(() => ({ success: false, data: [] }))
       ]);
 
-      if (depRes.success && depRes.data) {
-        setDepartments(depRes.data);
-      }
-      if (locRes.success && locRes.data) {
-        setLocations(locRes.data);
-      }
-      if (empRes.success && empRes.data) {
-        setEmployees(empRes.data);
-      }
+      setDepartments(Array.isArray(depRes?.data) ? depRes.data : []);
+      if (Array.isArray(locRes?.data)) setLocations(locRes.data);
     } catch (error) {
-      console.error("Failed to fetch data", error);
+      console.error("Failed to fetch departments", error);
+      setFetchError(error?.data?.message || error?.message || "Could not load departments.");
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -82,6 +100,22 @@ function DepartmentsPage() {
     setResult({ type: "", message: "" });
 
     try {
+      // Warn before an HOD change: the backend atomically rewires every
+      // subordinate reporting line to the new Head of Department.
+      if (isEditing) {
+        const current = departments.find((d) => (d.id || d._id) === editingId);
+        const prevHod = current?.head_of_department_id || "";
+        if (prevHod && headOfDepartmentId && prevHod !== headOfDepartmentId) {
+          const ok = await window.confirm(
+            "Changing the Head of Department will transfer all direct reports to the new HOD. Continue?"
+          );
+          if (!ok) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const payload = {
         name,
         description,
@@ -114,11 +148,28 @@ function DepartmentsPage() {
     (dept.name || "").toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1));
 
-  return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
+  // ── HOD selector options ──────────────────────────────────────────────────
+  // Only Managers/HR may lead a department. A department that already has an
+  // HOD must be handed over to a named successor rather than left headless, so
+  // the blank option is withheld in that case. A legacy HOD whose role no
+  // longer qualifies is still listed, otherwise the select would render blank
+  // and silently reassign on save.
+  const editingDept = isEditing
+    ? departments.find((d) => (d.id || d._id) === editingId)
+    : null;
+  const hasExistingHod = Boolean(editingDept?.head_of_department_id);
+  const eligibleHods = employees.filter((emp) => canBeHOD(emp.role));
+  const hodOptions = (headOfDepartmentId && !eligibleHods.some(
+    (e) => String(e.user_id || e.id) === String(headOfDepartmentId)
+  ))
+    ? [
+        ...eligibleHods,
+        ...employees.filter((e) => String(e.user_id || e.id) === String(headOfDepartmentId)),
+      ]
+    : eligibleHods;
 
-      <div className="flex-1 flex flex-col min-w-0">
+  return (
+    <>
         <DashboardTopBar title="Departments" />
 
         <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
@@ -150,21 +201,53 @@ function DepartmentsPage() {
               </div>
             </div>
 
+            {fetchError && !pageLoading && (
+              <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold flex flex-wrap items-center gap-3">
+                <span>{fetchError}</span>
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-              {filteredDepartments.length === 0 ? (
+              {pageLoading ? (
+                [...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-[20px] h-56 border border-slate-100 animate-pulse" />
+                ))
+              ) : filteredDepartments.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-slate-400 font-medium">
                   <HiOutlineOfficeBuilding className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  No departments found.
+                  {fetchError
+                    ? "Departments unavailable."
+                    : searchQuery
+                      ? `No departments matching "${searchQuery}"`
+                      : "No departments yet — add your first one."}
                 </div>
               ) : (
                 filteredDepartments.map((dept) => {
-                  const loc = locations.find(l => l.id === dept.location_id || l._id === dept.location_id) || dept.location;
-                  const hod = employees.find(e => e.user_id === dept.head_of_department_id || e.id === dept.head_of_department_id) || dept.head_of_department;
+                  // Prefer server-resolved names; fall back to local lookup only if absent.
+                  const locName = dept.location_name
+                    || (locations.find(l => l.id === dept.location_id || l._id === dept.location_id) || dept.location)?.name;
+                  const hodName = dept.head_of_department_name
+                    || (employees.find(e => e.user_id === dept.head_of_department_id || e.id === dept.head_of_department_id) || dept.head_of_department)?.name;
+
+                  const deptId = dept.id || dept._id;
+                  const open = () => navigate(`/dashboard/hr/departments/${deptId}`);
 
                   return (
                     <div
-                      key={dept.id || dept._id}
-                      className={`rounded-[20px] transition-all duration-200 group relative flex flex-col overflow-hidden p-6 ${
+                      key={deptId}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open ${dept.name}`}
+                      onClick={open}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
+                      className={`rounded-[20px] transition-all duration-200 group relative flex flex-col overflow-hidden p-6 cursor-pointer outline-none focus:ring-2 focus:ring-purple-200 ${
                         dept.is_active 
                         ? 'bg-white border border-slate-100 hover:border-purple-200 hover:shadow-md hover:-translate-y-1 shadow-sm' 
                         : 'bg-slate-50 border border-dashed border-slate-300 hover:border-slate-400 opacity-90'
@@ -197,7 +280,9 @@ function DepartmentsPage() {
                             </div>
                           </div>
                           <button
-                            onClick={() => openEditModal(dept)}
+                            title="Edit department"
+                            aria-label={`Edit ${dept.name}`}
+                            onClick={(e) => { e.stopPropagation(); openEditModal(dept); }}
                             className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-purple-600 bg-white hover:bg-purple-50 rounded-xl transition-all shadow-xs border border-slate-100 hover:shadow-sm"
                           >
                             <HiPencil className="w-3.5 h-3.5" />
@@ -213,11 +298,11 @@ function DepartmentsPage() {
                         <div className="mt-auto flex flex-col gap-2.5 pt-4 border-t border-slate-100">
                           <div className="flex items-center gap-2">
                             <HiLocationMarker className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="text-xs font-semibold text-slate-600 truncate">{loc?.name || "No location assigned"}</span>
+                            <span className="text-xs font-semibold text-slate-600 truncate">{locName || "No location assigned"}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <HiUser className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="text-xs font-semibold text-slate-600 truncate">{hod?.name || hod?.full_name || "No HOD assigned"}</span>
+                            <span className="text-xs font-semibold text-slate-600 truncate">{hodName || "No HOD assigned"}</span>
                           </div>
                         </div>
                       </div>
@@ -228,7 +313,6 @@ function DepartmentsPage() {
             </div>
           </div>
         </main>
-      </div>
 
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
@@ -249,7 +333,7 @@ function DepartmentsPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department Name <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department Name <span className="text-rose-400">*</span></label>
                 <input
                   type="text"
                   value={name}
@@ -276,17 +360,27 @@ function DepartmentsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Head of Department</label>
-                <select
+                <div className="flex items-center">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Head of Department</label>
+                  <FieldHelp surface="organization.invite" field="is_hod" label="head of department" className="mb-1.5" />
+                </div>
+                <PersonSelect
+                  people={hodOptions.map((emp) => ({ ...toPersonOption(emp), sub: [String(emp.role || "").toUpperCase(), toPersonOption(emp).sub].filter(Boolean).join(" · ") }))}
                   value={headOfDepartmentId}
-                  onChange={(e) => setHeadOfDepartmentId(e.target.value)}
-                  className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                >
-                  <option value="">---Select HOD---</option>
-                  {employees.map(emp => (
-                    <option key={emp.user_id || emp.id} value={emp.user_id || emp.id}>{emp.name || emp.full_name || emp.email}</option>
-                  ))}
-                </select>
+                  onChange={(id) => setHeadOfDepartmentId(id)}
+                  placeholder="Select head of department"
+                  emptyText="No managers or HR found."
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {hasExistingHod
+                    ? "Only Managers and HR Admins can lead a department. Choose a successor to hand over — a department cannot be left headless."
+                    : "Only Managers and HR Admins can lead a department."}
+                </p>
+                {hodOptions.length === 0 && (
+                  <p className="text-[11px] text-fuchsia-600 font-medium mt-1">
+                    No Managers or HR Admins available to assign.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -314,8 +408,8 @@ function DepartmentsPage() {
               </div>
 
               {result.message && (
-                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-                  {result.type === "success" && <HiCheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+                  {result.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
                   {result.message}
                 </div>
               )}
@@ -330,7 +424,7 @@ function DepartmentsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

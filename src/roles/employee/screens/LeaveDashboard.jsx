@@ -1,11 +1,32 @@
-import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI, attendanceAPI } from "../../../shared/api";
+import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
-  HiInformationCircle, HiClock, HiXCircle, HiExternalLink, HiChevronDown
+  HiInformationCircle, HiClock, HiXCircle, HiChevronDown,
+  HiDocumentText, HiScale
 } from "react-icons/hi";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, rowPreviewProps } from "../../../shared/components/DetailDialog";
+import AttachmentLink from "../../../shared/documents/AttachmentLink";
+import LeaveAttachmentField from "../../../shared/documents/LeaveAttachmentField";
+import { FilterTabs } from "../../../shared/attendance/ui";
+import FieldHelp, { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
+
+// Whether a leave's start date is today or already past. The backend decides
+// cancellation behaviour by DATE, not status: a leave entirely in the future is
+// cancelled + refunded instantly; one that has started (today or earlier) needs
+// manager approval and enters `cancellation_pending`.
+function hasLeaveStarted(startDateStr) {
+  if (!startDateStr) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Force local-midnight parse so a "YYYY-MM-DD" string isn't shifted by TZ.
+  const start = new Date(`${String(startDateStr).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return false;
+  return start <= today;
+}
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -13,34 +34,44 @@ function Toast({ toast, onClose }) {
   const ok = toast.type === "success";
   const info = toast.type === "info";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : info ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-blue-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : info ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
   );
 }
 
+// Filter tabs for My Leave Requests, in the order people look for them.
+const LEAVE_STATUS_TABS = [
+  ["pending", "Pending"],
+  ["approved", "Approved"],
+  ["cancellation_pending", "Cancellation requested"],
+  ["rejected", "Rejected"],
+  ["cancelled", "Cancelled"],
+  ["terminated_cancelled", "Cancelled on exit"],
+];
+
 // ─── Cancel Confirm Modal ─────────────────────────────────────────────────────
 function CancelConfirmModal({ request, onClose, onConfirm }) {
-  const isPast = request.status === "approved";
+  const needsApproval = hasLeaveStarted(request.start_date);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-800">Cancel Leave?</h2>
           <p className="text-xs text-slate-400 mt-1.5">
-            {isPast
-              ? "This leave is already approved. Cancelling will submit a cancellation request — your manager must approve it before the balance is refunded."
-              : "This will immediately cancel your leave request and refund the balance to your account."}
+            {needsApproval
+              ? "This leave has already started (or is today). Cancelling submits a cancellation request — your manager must approve it before the balance is refunded."
+              : "This leave is in the future, so it will be cancelled immediately and the balance refunded to your account."}
           </p>
         </div>
         <div className="p-6 flex gap-3">
           <button
             onClick={onConfirm}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-xl transition"
+            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-2.5 rounded-xl transition"
           >
-            {isPast ? "Request Cancellation" : "Yes, Cancel Leave"}
+            {needsApproval ? "Request Cancellation" : "Yes, Cancel Leave"}
           </button>
           <button
             onClick={onClose}
@@ -61,17 +92,20 @@ function StatusBadge({ status }) {
     approved: "bg-purple-100 text-purple-800",
     rejected: "bg-slate-100 text-slate-500",
     cancelled: "bg-slate-50 text-slate-400 border border-slate-100",
-    cancellation_pending: "bg-purple-50 text-purple-600 border border-purple-200",
+    cancellation_pending: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200",
+    terminated_cancelled: "bg-slate-100 text-slate-500 border border-slate-200",
   };
   const cls = map[status] || "bg-slate-100 text-slate-500";
   return (
     <span className={`inline-block text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${cls}`}>
-      {status?.replace(/_/g, " ") || "—"}
+      {status?.replace(/_/g, " ") || "N/A"}
     </span>
   );
 }
 
 // ─── Leave Request Detail Modal ───────────────────────────────────────────────
+// The same record-inspector HR and managers read on a leave request, so an
+// employee checking their own request sees it laid out identically.
 function LeaveRequestDetailModal({ requestId, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,86 +127,67 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
 
   if (!requestId) return null;
 
+  const onDate = (v) => (v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null);
+  const sameDay = details && details.start_date === details.end_date;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <h2 className="text-base font-bold text-slate-800">Leave Request Details</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
-            <HiX className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="p-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-            </div>
-          ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          ) : details ? (
-            <div className="space-y-6">
-              {/* Header Info */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">{details.leave_type?.name}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {new Date(details.start_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    {details.start_date !== details.end_date && ` → ${new Date(details.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`}
-                  </p>
-                </div>
-                <StatusBadge status={details.status} />
-              </div>
+    <DetailDialog
+      eyebrow="Leave request"
+      icon={HiCalendar}
+      title={details?.leave_type?.name || "Leave request"}
+      subtitle={details ? (sameDay ? onDate(details.start_date) : `${onDate(details.start_date)} → ${onDate(details.end_date)}`) : undefined}
+      badge={details?.status ? <DetailPill tone="onDark">{String(details.status).replace(/_/g, " ")}</DetailPill> : undefined}
+      loading={loading}
+      onClose={onClose}
+    >
+      {error ? (
+        <p className="flex items-start gap-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+          <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
+        </p>
+      ) : details ? (
+        <>
+          <DetailStats
+            items={[
+              { label: "Days off", value: formatDayCount(details.total_days), icon: HiCalendar },
+              { label: "Paid", value: formatDayCount(details.paid_days ?? 0), hint: "comes out of your balance", icon: HiCheckCircle },
+              { label: "Unpaid", value: formatDayCount(details.unpaid_days ?? 0), hint: "not paid for", icon: HiScale, help: { surface: "leaves.request_detail", field: "unpaid_days", label: "unpaid leave" } },
+            ]}
+          />
 
-              {/* Days breakdown */}
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-slate-900">{parseFloat(details.total_days).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">Total</p>
-                </div>
-                <div className="bg-emerald-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-emerald-700">{parseFloat(details.paid_days || 0).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-emerald-500 mt-1">Paid</p>
-                </div>
-                <div className="bg-rose-50 rounded-xl p-4">
-                  <p className="text-2xl font-extrabold text-rose-600">{parseFloat(details.unpaid_days || 0).toFixed(1)}</p>
-                  <p className="text-[10px] uppercase font-bold text-rose-400 mt-1">LWP</p>
-                </div>
-              </div>
+          <DetailSection title="Leave details" icon={HiCalendar}>
+            <DetailGrid
+              items={[
+                ["Leave type", details.leave_type?.name],
+                ["From", onDate(details.start_date)],
+                ["To", onDate(details.end_date)],
+                ["Total", formatDayCount(details.total_days)],
+                ["Half day", details.is_half_day ? (details.half_day_type === "first_half" ? "First half" : "Second half") : "No"],
+                ["Paid", formatDayCount(details.paid_days ?? details.total_days)],
+                ["Unpaid", formatDayCount(details.unpaid_days ?? 0)],
+                ["Applied on", onDate(details.created_at || details.requested_at)],
+              ]}
+            />
+          </DetailSection>
 
-              {/* Reason */}
-              {details.reason && (
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Reason</p>
-                  <p className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100">{details.reason}</p>
-                </div>
-              )}
-
-              {/* Rejection */}
-              {details.rejection_reason && (
-                <div>
-                  <p className="text-[11px] font-bold text-red-500 uppercase tracking-wider mb-2">Rejection Reason</p>
-                  <p className="text-sm text-red-700 bg-red-50 p-4 rounded-xl border border-red-100">{details.rejection_reason}</p>
-                </div>
-              )}
-
-              {/* Document */}
-              {details.document_url && (
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Attachment</p>
-                  <a href={details.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 px-4 py-2 rounded-xl font-semibold transition">
-                    <HiExternalLink className="w-4 h-4" /> View Document
-                  </a>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
+          <DetailSection
+            title="Reason"
+            icon={HiDocumentText}
+            action={details.document_url && (
+              <AttachmentLink
+                url={details.document_url}
+                label="View document"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-lg transition"
+              />
+            )}
+          >
+            <DetailText>{details.reason}</DetailText>
+            {details.rejection_reason && (
+              <div className="mt-4"><DetailText label="Why it was rejected">{details.rejection_reason}</DetailText></div>
+            )}
+          </DetailSection>
+        </>
+      ) : null}
+    </DetailDialog>
   );
 }
 
@@ -190,11 +205,6 @@ function BalanceCards({ balances }) {
     );
   }
 
-  function fmt(n) {
-    const f = parseFloat(n);
-    return Number.isInteger(f) ? `${f}` : f.toFixed(1);
-  }
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {balances.map((b) => (
@@ -209,12 +219,12 @@ function BalanceCards({ balances }) {
           </div>
           <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
           <div className="flex items-end gap-1 mb-4">
-             <span className="text-3xl font-black tracking-tight text-slate-800 leading-none">{fmt(parseFloat(b.current_balance))}</span>
-             <span className="text-xs font-semibold text-slate-400 mb-1 tracking-normal">days left</span>
+             <span className="text-2xl font-black tracking-tight text-slate-800 leading-tight">{formatDayCount(b.current_balance, { fallback: "0 Days" })}</span>
+             <span className="text-xs font-semibold text-slate-400 mb-0.5 tracking-normal">left</span>
           </div>
-          <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[10px] uppercase font-bold text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{fmt(parseFloat(b.total_accrued))} Earned</span>
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{fmt(parseFloat(b.total_used))} Used</span>
+          <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[11px] font-semibold text-slate-400">
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{formatDayCount(b.total_accrued, { lower: true, fallback: "0 days" })} given so far</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{formatDayCount(b.total_used, { lower: true, fallback: "0 days" })} used</span>
           </div>
         </div>
       ))}
@@ -251,7 +261,7 @@ function UpcomingHolidaysWidget({ holidays }) {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-800">Upcoming Holidays</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Your organization's official non-working days.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Your organization’s official non-working days.</p>
           </div>
         </div>
         <HiChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
@@ -276,7 +286,7 @@ function UpcomingHolidaysWidget({ holidays }) {
                   <td className="px-4 py-3 text-xs text-slate-500">{dayOfWeek(h.date?.split('T')[0] || h.date)}</td>
                   <td className="px-4 py-3">
                     <span className="inline-block px-2.5 py-1 text-[10px] font-bold rounded-full capitalize bg-purple-50 text-purple-600">
-                      {h.type || 'Public'}
+                      {h.is_optional ? 'Optional' : (h.type || 'Public')}
                     </span>
                   </td>
                 </tr>
@@ -290,7 +300,7 @@ function UpcomingHolidaysWidget({ holidays }) {
 }
 
 // ─── Apply Leave Drawer ───────────────────────────────────────────────────────
-function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
+function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, onSubmitted }) {
   const [form, setForm] = useState({
     leave_type_id: "",
     start_date: "",
@@ -299,10 +309,65 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
     half_day_type: "first_half",
     reason: "",
     document_url: "",
+    document_id: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [breakdown, setBreakdown] = useState(null);
+
+  // Normalise the apply-form catalog (getMyLeaveTypes returns either a flat
+  // leave type or { leave_type, ...config }).
+  const typeOptions = useMemo(() => leaveTypes.map(item => {
+    const lt = item.leave_type ? item.leave_type : item;
+    const id = lt.id || lt._id || item.leave_type_id;
+    return {
+      id,
+      name: lt.name,
+      code: lt.code,
+      requires_document_threshold: lt.requires_document_threshold ?? item.requires_document_threshold ?? 0,
+    };
+  }).filter(t => t.id && t.name), [leaveTypes]);
+
+  // Current balance per leave type.
+  const balanceByType = useMemo(() => {
+    const m = {};
+    balances.forEach(b => { if (b.leave_type_id) m[b.leave_type_id] = b; });
+    return m;
+  }, [balances]);
+
+  // Phantom holds: pending requests already count against the effective balance.
+  const pendingByType = useMemo(() => {
+    const m = {};
+    requests.forEach(r => {
+      const id = r.leave_type_id || r.leave_type?.id;
+      if (id && (r.status === "pending" || r.status === "cancellation_pending")) {
+        m[id] = (m[id] || 0) + parseFloat(r.total_days || 0);
+      }
+    });
+    return m;
+  }, [requests]);
+
+  const selectedType = typeOptions.find(t => t.id === form.leave_type_id) || null;
+  const selectedBalance = selectedType ? balanceByType[selectedType.id] : null;
+  const available = selectedBalance ? parseFloat(selectedBalance.current_balance) : null;
+  const pendingHold = selectedType ? (pendingByType[selectedType.id] || 0) : 0;
+  const effective = available !== null ? available - pendingHold : null;
+
+  // Naive calendar-day span (backend computes the true deductible working days;
+  // this is only a pre-submit hint for balance/document guidance).
+  const spanDays = useMemo(() => {
+    if (form.is_half_day) return 0.5;
+    if (!form.start_date || !form.end_date) return 0;
+    const s = new Date(`${form.start_date}T00:00:00`);
+    const e = new Date(`${form.end_date}T00:00:00`);
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) return 0;
+    return Math.round((e - s) / 86400000) + 1;
+  }, [form.start_date, form.end_date, form.is_half_day]);
+
+  const docThreshold = selectedType?.requires_document_threshold || 0;
+  const hasEvidence = !!form.document_id || !!form.document_url.trim();
+  const docMayBeRequired = docThreshold > 0 && spanDays > docThreshold && !hasEvidence;
+  const mayNeedLWP = effective !== null && spanDays > 0 && spanDays > effective;
 
   function set(key, val) {
     setForm(f => {
@@ -343,12 +408,16 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
     };
     if (form.is_half_day) payload.half_day_type = form.half_day_type;
     if (form.reason.trim()) payload.reason = form.reason.trim();
-    if (form.document_url.trim()) payload.document_url = form.document_url.trim();
+    // One piece of evidence, one field. A document already in the portal is
+    // sent as an id — the server stores a reference to it that the approver
+    // and HR can open, instead of a second copy nobody can check.
+    if (form.document_id) payload.document_id = form.document_id;
+    else if (form.document_url.trim()) payload.document_url = form.document_url.trim();
     try {
       const res = await leaveAPI.submitRequest(payload);
       setBreakdown(res.data);
     } catch (err) {
-      setError(err.message || "Failed to submit request.");
+      setError(leaveErrorMessage(err, "Failed to submit request."));
     } finally {
       setLoading(false);
     }
@@ -357,13 +426,12 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
   if (breakdown) {
     const req = breakdown.leaveRequest;
     const bk = breakdown.breakdown || [];
-    const workingDays = bk.filter(d => d.is_working_day);
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <HiCheckCircle className="w-5 h-5 text-emerald-500" />
+            <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
+              <HiCheckCircle className="w-5 h-5 text-violet-500" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-800">Leave Request Submitted!</h2>
@@ -373,16 +441,16 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
           <div className="p-6 space-y-4">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-slate-900">{parseFloat(req.total_days).toFixed(1)}</p>
-                <p className="text-xs text-slate-400 mt-1">total days</p>
+                <p className="text-lg font-extrabold text-slate-900 leading-tight">{formatDayCount(req.total_days)}</p>
+                <p className="text-xs text-slate-400 mt-1">in total</p>
               </div>
-              <div className="bg-emerald-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-emerald-700">{parseFloat(req.paid_days || 0).toFixed(1)}</p>
-                <p className="text-xs text-emerald-500 mt-1">paid days</p>
+              <div className="bg-violet-50 rounded-xl p-4">
+                <p className="text-lg font-extrabold text-violet-700 leading-tight">{formatDayCount(req.paid_days || 0)}</p>
+                <p className="text-xs text-violet-500 mt-1">paid</p>
               </div>
               <div className="bg-rose-50 rounded-xl p-4">
-                <p className="text-2xl font-extrabold text-rose-600">{parseFloat(req.unpaid_days || 0).toFixed(1)}</p>
-                <p className="text-xs text-rose-400 mt-1">LWP days</p>
+                <p className="text-lg font-extrabold text-rose-600 leading-tight">{formatDayCount(req.unpaid_days || 0)}</p>
+                <p className="text-xs text-rose-400 mt-1">unpaid</p>
               </div>
             </div>
             <div>
@@ -391,14 +459,14 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
                 {bk.map((d, i) => (
                   <div key={i} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg ${d.is_working_day ? "bg-slate-50" : "bg-slate-50/40 text-slate-400"}`}>
                     <span className={d.is_working_day ? "font-medium text-slate-700" : "line-through"}>{d.date}</span>
-                    <span className={`text-[10px] font-semibold ${d.is_working_day ? "text-emerald-600" : "text-slate-400"}`}>{d.reason || (d.is_working_day ? "Leave Day" : "Skipped")}</span>
+                    <span className={`text-[10px] font-semibold ${d.is_working_day ? "text-violet-600" : "text-slate-400"}`}>{d.reason || (d.is_working_day ? "Leave Day" : "Skipped")}</span>
                   </div>
                 ))}
               </div>
             </div>
             {req.escalated_to_role && (
-              <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <div className="flex items-start gap-2 text-xs text-fuchsia-700 bg-fuchsia-50 border border-fuchsia-100 rounded-xl px-4 py-3">
+                <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-fuchsia-500" />
                 No direct manager found — your request was escalated to <strong>{req.escalated_to_role}</strong>.
               </div>
             )}
@@ -412,7 +480,7 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div>
@@ -425,7 +493,7 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -433,32 +501,71 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
 
           {/* Leave Type */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Leave Type <span className="text-red-400">*</span>
-            </label>
+            <div className="flex items-center">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Leave Type <span className="text-rose-400">*</span>
+              </label>
+              <FieldHelp surface="leaves.apply" field="leave_type_id" label="the leave type" className="mb-1.5" />
+            </div>
             <select
               value={form.leave_type_id}
               onChange={e => set("leave_type_id", e.target.value)}
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
             >
               <option value="">Select a leave type...</option>
-              {leaveTypes.map(item => {
-                const t = item.leave_type ? item.leave_type : item;
-                if (!t || !t.name) return null;
+              {typeOptions.map(t => {
+                const bal = balanceByType[t.id];
+                const left = bal ? parseFloat(bal.current_balance) : null;
                 return (
-                  <option key={t.id || t._id} value={t.id || t._id}>
-                    {t.name} {t.code ? `(${t.code})` : ""}
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.code ? ` (${t.code})` : ""}{left !== null ? ` — ${formatDayCount(left, { lower: true })} left` : ""}
                   </option>
                 );
               })}
             </select>
+
+            {/* Selected leave type: balance + phantom-hold decision support */}
+            {selectedType && (
+              <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2">
+                {available !== null ? (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-800 leading-tight">{formatDayCount(available)}</p>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Available</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-extrabold text-fuchsia-600 leading-tight">{formatDayCount(pendingHold || 0)}</p>
+                      <p className="text-[10px] uppercase font-bold text-slate-400"><HelpLabel text="Pending hold" help={{ surface: "leaves.apply", field: "pending_hold", label: "pending hold", size: "sm", overlay: true }} /></p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-extrabold text-purple-700 leading-tight">{formatDayCount(effective)}</p>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Effective</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">No balance record for this leave type yet.</p>
+                )}
+                {mayNeedLWP && (
+                  <p className="flex items-start gap-1.5 text-[11px] text-rose-600">
+                    <HiExclamationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    This request may exceed your balance — the extra days will be unpaid. The exact split is confirmed after submit.
+                  </p>
+                )}
+                {docMayBeRequired && (
+                  <p className="flex items-start gap-1.5 text-[11px] text-fuchsia-600">
+                    <HiInformationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    Leaves longer than {docThreshold} day{docThreshold > 1 ? "s" : ""} may require a supporting document — add a link below.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Start Date <span className="text-red-400">*</span>
+                Start Date <span className="text-rose-400">*</span>
               </label>
               <input
                 type="date"
@@ -469,7 +576,7 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                End Date <span className="text-red-400">*</span>
+                End Date <span className="text-rose-400">*</span>
               </label>
               <input
                 type="date"
@@ -526,26 +633,21 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
             <p className="text-[10px] text-slate-400 mt-1 text-right">{form.reason.length}/1000</p>
           </div>
 
-          {/* Document URL */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Supporting Document{" "}
-              <span className="normal-case font-normal text-slate-400">(may be required for longer leaves)</span>
-            </label>
-            <div className="relative">
-              <HiExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="url"
-                value={form.document_url}
-                onChange={e => set("document_url", e.target.value)}
-                placeholder="https://drive.google.com/file/..."
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-              />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Paste a link to your doctor's note, medical certificate, etc.</p>
-          </div>
+          {/* Supporting document — one they already have, or a link. */}
+          <LeaveAttachmentField
+            value={{ document_id: form.document_id, document_url: form.document_url }}
+            onChange={(next) => {
+              setForm(f => ({ ...f, document_id: next.document_id, document_url: next.document_url }));
+              setError("");
+              setBreakdown(null);
+            }}
+            required={docThreshold > 0 && spanDays > docThreshold}
+            disabled={loading}
+          />
 
-          <div className="flex gap-3 pt-1">
+          {/* Pinned like the header: at 768px tall the form outgrows the dialog
+              and Submit used to scroll out of sight. */}
+          <div className="flex gap-3 sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white border-t border-slate-100">
             <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
               {loading ? "Submitting…" : "Submit Leave Request"}
             </button>
@@ -558,29 +660,49 @@ function ApplyLeaveDrawer({ leaveTypes, onClose, onSubmitted }) {
 }
 
 // ─── Requests Table ───────────────────────────────────────────────────────────
-function RequestsTable({ requests, onCancel, cancelling }) {
-  if (requests.length === 0) {
-    return (
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-10 flex flex-col items-center gap-3 text-center">
-        <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center">
-          <HiClock className="w-7 h-7 text-purple-400" />
-        </div>
-        <p className="text-sm font-semibold text-slate-600">No leave requests yet</p>
-        <p className="text-xs text-slate-400">Your submitted leave requests will appear here.</p>
-      </div>
-    );
-  }
+function RequestsTable({ requests, onView, onCancel, cancelling }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   function fmtDate(d) {
-    if (!d) return "—";
+    if (!d) return "N/A";
     return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   }
 
-  const cancellable = ["pending", "approved", "cancellation_pending"];
+  // `cancellation_pending` is already awaiting manager approval — cancelling it
+  // again would 400. Only pending and approved leaves are cancellable.
+  const cancellable = ["pending", "approved"];
+
+  // Tabs only for the statuses this person actually has, each with its count —
+  // the house FilterTabs pattern, not a select of seven mostly-empty options.
+  const statusTabs = useMemo(() => {
+    const counts = requests.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] || 0) + 1 }), {});
+    return [
+      { value: "", label: `All (${requests.length})` },
+      ...LEAVE_STATUS_TABS.filter(([key]) => counts[key]).map(([key, label]) => ({ value: key, label: `${label} (${counts[key]})` })),
+    ];
+  }, [requests]);
+
+  // A tab disappears when its last request moves on (cancel your only pending
+  // leave and "Pending" goes). Fall back to All rather than an empty list with
+  // no tab selected.
+  const activeStatus = statusTabs.some((t) => t.value === statusFilter) ? statusFilter : "";
+
+  // my-requests has no server-side filter, so search/status are client-side.
+  const filtered = useMemo(() => {
+    let list = requests;
+    if (activeStatus) list = list.filter(r => r.status === activeStatus);
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter(r =>
+      (r.leave_type?.name || "").toLowerCase().includes(q) ||
+      (r.reason || "").toLowerCase().includes(q)
+    );
+    return list;
+  }, [requests, activeStatus, search]);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col mt-8">
-      <div className="px-6 py-5 flex items-center justify-between">
+      <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
             <HiCalendar className="w-4 h-4" />
@@ -591,6 +713,32 @@ function RequestsTable({ requests, onCancel, cancelling }) {
           </div>
         </div>
       </div>
+      {requests.length > 0 && (
+        <div className="px-6 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <FilterTabs options={statusTabs} value={activeStatus} onChange={setStatusFilter} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search type or reason…"
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition sm:w-56"
+          />
+        </div>
+      )}
+
+      {requests.length === 0 ? (
+        <div className="p-10 flex flex-col items-center gap-3 text-center">
+          <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center">
+            <HiClock className="w-7 h-7 text-purple-400" />
+          </div>
+          <p className="text-sm font-semibold text-slate-600">No leave requests yet</p>
+          <p className="text-xs text-slate-400">Your submitted leave requests will appear here.</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="p-10 text-center">
+          <p className="text-sm font-semibold text-slate-600">No matching requests</p>
+          <p className="text-xs text-slate-400 mt-1">Try clearing the search or status filter.</p>
+        </div>
+      ) : (
       <div className="overflow-x-auto p-4 sm:p-6 pt-0">
         <table className="w-full text-left border-separate border-spacing-y-2">
           <thead>
@@ -604,14 +752,12 @@ function RequestsTable({ requests, onCancel, cancelling }) {
             </tr>
           </thead>
           <tbody className="text-xs font-semibold text-slate-700">
-            {requests.map(r => (
+            {filtered.map(r => (
               <React.Fragment key={r.id}>
-                <tr className="hover:bg-slate-50 transition-colors">
+                <tr {...rowPreviewProps(() => onView(r.id), "Leave request")}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => onCancel(r.id, true)} className="text-sm font-semibold text-purple-600 hover:text-purple-700 hover:underline text-left">
-                        {r.leave_type?.name || "—"}
-                      </button>
+                      <span className="text-sm font-semibold text-slate-800">{r.leave_type?.name || "N/A"}</span>
                       {r.is_half_day && (
                         <span className="text-[9px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
                           {r.half_day_type === "first_half" ? "1st Half" : "2nd Half"}
@@ -624,29 +770,30 @@ function RequestsTable({ requests, onCancel, cancelling }) {
                     {r.start_date !== r.end_date && <> → {fmtDate(r.end_date)}</>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-sm font-bold text-slate-800">{parseFloat(r.total_days).toFixed(1)}</span>
-                    <span className="text-[10px] text-slate-400 ml-1">days</span>
+                    <span className="text-sm font-bold text-slate-800">{formatDayCount(r.total_days)}</span>
                     {parseFloat(r.unpaid_days || 0) > 0 && (
                       <p className="text-[10px] mt-0.5">
-                        <span className="text-purple-600 font-semibold">{parseFloat(r.paid_days || 0).toFixed(1)}p</span>
+                        <span className="text-purple-600 font-semibold">{formatDayCount(r.paid_days || 0, { lower: true })} paid</span>
                         {" · "}
-                        <span className="text-slate-400 font-semibold">{parseFloat(r.unpaid_days).toFixed(1)} LWP</span>
+                        <span className="text-slate-400 font-semibold">{formatDayCount(r.unpaid_days, { lower: true })} unpaid</span>
                       </p>
                     )}
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3 text-slate-400">{fmtDate(r.created_at || r.requested_at)}</td>
                   <td className="px-4 py-3 text-right">
-                    {cancellable.includes(r.status) && (
-                      <button
-                        onClick={() => onCancel(r.id)}
-                        disabled={cancelling === r.id}
-                        className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                      >
-                        <HiXCircle className="w-3.5 h-3.5" />
-                        {cancelling === r.id ? "…" : "Cancel"}
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 justify-end">
+                      {cancellable.includes(r.status) && (
+                        <button
+                          onClick={() => onCancel(r.id)}
+                          disabled={cancelling === r.id}
+                          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                        >
+                          <HiXCircle className="w-3.5 h-3.5" />
+                          {cancelling === r.id ? "…" : "Cancel"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 {r.status === "rejected" && r.rejection_reason && (
@@ -664,17 +811,23 @@ function RequestsTable({ requests, onCancel, cancelling }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
+
 export default function LeaveDashboard() {
   const [balances, setBalances] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [requests, setRequests] = useState([]);
   const [upcomingHolidays, setUpcomingHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [balancesLoading, setBalancesLoading] = useState(true);
+  const [year, setYear] = useState(CURRENT_YEAR);
   const [showApply, setShowApply] = useState(false);
   const [cancelling, setCancelling] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -687,11 +840,14 @@ export default function LeaveDashboard() {
   }
 
   const loadBalances = useCallback(async () => {
+    setBalancesLoading(true);
     try {
-      const res = await leaveAPI.getMyBalances();
+      const res = await leaveAPI.getMyBalances(year);
       setBalances(res.data || []);
-    } catch { /* non-critical */ }
-  }, []);
+    } catch { /* non-critical */ } finally {
+      setBalancesLoading(false);
+    }
+  }, [year]);
 
   const loadRequests = useCallback(async () => {
     try {
@@ -704,7 +860,14 @@ export default function LeaveDashboard() {
     try {
       const res = await attendanceAPI.getUpcomingHolidays();
       if (res.success) {
-        setUpcomingHolidays(res.data || []);
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const list = Array.isArray(res.data) ? res.data : res.data?.holidays || [];
+        setUpcomingHolidays(
+          list
+            .filter((h) => String(h.date || "").slice(0, 10) >= today)
+            .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+        );
       }
     } catch { /* non-critical */ }
   }, []);
@@ -716,18 +879,17 @@ export default function LeaveDashboard() {
     } catch { /* non-critical */ }
   }, []);
 
+  // Balances reload on their own when the year changes.
+  useEffect(() => { loadBalances(); }, [loadBalances]);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadBalances(), loadRequests(), loadHolidays(), loadLeaveTypes()]).finally(() => setLoading(false));
-  }, [loadBalances, loadRequests, loadHolidays, loadLeaveTypes]);
+    Promise.all([loadRequests(), loadHolidays(), loadLeaveTypes()]).finally(() => setLoading(false));
+  }, [loadRequests, loadHolidays, loadLeaveTypes]);
 
-  function handleCancelClick(id, viewOnly = false) {
-    if (viewOnly) {
-      setDetailRequestId(id);
-      return;
-    }
+  function handleCancelClick(id) {
     const req = requests.find(r => r.id === id);
-    setCancelTarget(req || { id, status: "pending" });
+    setCancelTarget(req || { id });
   }
 
   async function executeCancelRequest() {
@@ -745,7 +907,7 @@ export default function LeaveDashboard() {
       }
       await Promise.all([loadBalances(), loadRequests()]);
     } catch (err) {
-      showToast(err.message || "Failed to cancel leave.", "error");
+      showToast(leaveErrorMessage(err, "Failed to cancel leave."), "error");
     } finally {
       setCancelling(null);
     }
@@ -757,21 +919,14 @@ export default function LeaveDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="My Leaves" />
-        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 space-y-8">
+        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 space-y-8 max-w-7xl mx-auto w-full">
 
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
-                  <HiCalendar className="w-5 h-5" />
-                </div>
-                My Leave Dashboard
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-800">My Leaves</h1>
               <p className="text-sm text-slate-500 mt-1">View your leave balances and manage your requests.</p>
             </div>
             <button
@@ -784,17 +939,30 @@ export default function LeaveDashboard() {
           </div>
 
           {/* Balance Cards */}
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => <div key={i} className="h-36 bg-white rounded-2xl border border-slate-100 animate-pulse" />)}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-bold text-slate-700"><HelpLabel text="Leave Balances" help={{ surface: "leaves.balances", field: "total_accrued", label: "your leave balance" }} /></h2>
+              <select
+                value={year}
+                onChange={e => setYear(Number(e.target.value))}
+                className="px-3 py-2 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white"
+                title="Balance year"
+              >
+                {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
             </div>
-          ) : (
-            <BalanceCards balances={balances} />
-          )}
+            {balancesLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => <div key={i} className="h-36 bg-white rounded-2xl border border-slate-100 animate-pulse" />)}
+              </div>
+            ) : (
+              <BalanceCards balances={balances} />
+            )}
+          </div>
 
           {/* Requests Table */}
           {!loading && (
-            <RequestsTable requests={requests} onCancel={handleCancelClick} cancelling={cancelling} />
+            <RequestsTable requests={requests} onView={setDetailRequestId} onCancel={handleCancelClick} cancelling={cancelling} />
           )}
           
           {/* Upcoming Holidays Widget */}
@@ -802,14 +970,15 @@ export default function LeaveDashboard() {
             <UpcomingHolidaysWidget holidays={upcomingHolidays} />
           )}
         </main>
-      </div>
 
       {/* Apply Modal */}
       {showApply && (
-        <ApplyLeaveDrawer 
-          leaveTypes={leaveTypes.length > 0 ? leaveTypes : balances.map(b => ({ ...(b.leave_type || {}), id: b.leave_type_id })).filter(t => t.name)} 
-          onClose={() => setShowApply(false)} 
-          onSubmitted={onLeaveSubmitted} 
+        <ApplyLeaveDrawer
+          leaveTypes={leaveTypes.length > 0 ? leaveTypes : balances.map(b => ({ ...(b.leave_type || {}), id: b.leave_type_id })).filter(t => t.name)}
+          balances={balances}
+          requests={requests}
+          onClose={() => setShowApply(false)}
+          onSubmitted={onLeaveSubmitted}
         />
       )}
 
@@ -829,6 +998,6 @@ export default function LeaveDashboard() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { organizationAPI } from "../api";
-import { useAuth } from "../contexts/AuthContext";
+import GenderAvatar from "../components/GenderAvatar";
 import { 
   HiOutlineSearch, 
   HiOutlineMail, 
@@ -13,7 +12,7 @@ import {
 } from "react-icons/hi";
 
 export default function DirectoryPage() {
-  const { role } = useAuth();
+
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -26,10 +25,11 @@ export default function DirectoryPage() {
   async function fetchDirectory() {
     try {
       setLoading(true);
+      setError(null);
       const res = await organizationAPI.getDirectory();
-      setEmployees(res.data || []);
+      setEmployees(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
-      setError(err.message || "Failed to load directory.");
+      setError(err?.data?.message || err?.message || "Failed to load directory.");
     } finally {
       setLoading(false);
     }
@@ -43,10 +43,7 @@ export default function DirectoryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={role} />
-
-      <div className="flex-1 flex flex-col min-w-0">
+    <>
         <DashboardTopBar title="Organization Directory" />
 
         <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6 lg:space-y-8">
@@ -72,15 +69,19 @@ export default function DirectoryPage() {
             </div>
           </div>
 
-          {/* Error State */}
-          {error && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100">
-              {error}
-            </div>
-          )}
-
           {/* Directory Grid */}
-          {loading ? (
+          {error && !loading ? (
+            <div className="bg-rose-50 text-rose-700 p-6 rounded-xl text-sm border border-rose-200 flex flex-wrap items-center gap-3">
+              <span className="font-semibold">{error}</span>
+              <button
+                type="button"
+                onClick={fetchDirectory}
+                className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl h-64 border border-slate-100 animate-pulse"></div>
@@ -92,25 +93,21 @@ export default function DirectoryPage() {
                 <HiUsers className="w-8 h-8 text-slate-400" />
               </div>
               <h3 className="text-lg font-bold text-slate-800">No members found</h3>
-              <p className="text-slate-500 text-sm mt-1">We couldn't find anyone matching your search criteria.</p>
+              <p className="text-slate-500 text-sm mt-1">
+                {searchQuery
+                  ? "We couldn't find anyone matching your search criteria."
+                  : "The directory is empty."}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredEmployees.map((emp) => (
-                <div key={emp.id || emp._id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
+                <div key={emp.user_id || emp.id || emp._id || emp.email} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
                   <div className="h-20 bg-gradient-to-r from-purple-500 to-indigo-600 relative">
                     <div className="absolute -bottom-10 inset-x-0 flex justify-center">
-                      {emp.avatar_url ? (
-                        <img 
-                          src={emp.avatar_url} 
-                          alt={emp.name} 
-                          className="w-20 h-20 rounded-full border-4 border-white object-cover bg-white"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full border-4 border-white bg-slate-100 flex items-center justify-center text-xl font-bold text-slate-400 uppercase">
-                          {emp.name?.charAt(0) || '?'}
-                        </div>
-                      )}
+                      <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden bg-white text-xl">
+                        <GenderAvatar person={emp} name={emp.name} />
+                      </div>
                     </div>
                   </div>
                   
@@ -155,7 +152,6 @@ export default function DirectoryPage() {
             </div>
           )}
         </main>
-      </div>
-    </div>
+    </>
   );
 }

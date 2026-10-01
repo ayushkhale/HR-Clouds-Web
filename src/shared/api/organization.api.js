@@ -55,6 +55,32 @@ export const organizationAPI = {
   },
 
   /**
+   * List invitations sent by this organisation.
+   * GET /organizations/users/invite
+   *
+   * Same path as the POST that creates them, differing only by verb. Contract:
+   * `public/ref docs/md_updates/invitation_list_manager_daily_log_and_type_contracts_2026_09_24.md` §1.
+   *
+   * HR sees the whole org; a manager sees only invitations they sent. `status`
+   * is repeatable and derived on read. Unknown keys are silently DROPPED, not
+   * rejected — a typo returns an unfiltered page. Answers 500 until migration
+   * 00052 is applied; the Invites screen shows a plain notice for that.
+   *
+   * @param {{ status?: string|string[], q?: string, role?: string,
+   *           department_id?: string, limit?: number, offset?: number }} params
+   */
+  listInvitations(params = {}) {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") return;
+      if (Array.isArray(value)) value.forEach((v) => v !== "" && search.append(key, v));
+      else search.append(key, String(value));
+    });
+    const query = search.toString();
+    return request(`/organizations/users/invite${query ? `?${query}` : ""}`);
+  },
+
+  /**
    * Revoke a pending invitation
    * POST /organizations/users/invite/revoke
    * @param {{ email }} payload
@@ -81,8 +107,16 @@ export const organizationAPI = {
   // ── HR › Employee Management ───────────────────────────────────────────────
   //    List, view, update, deactivate, and delete employees
   /**
-   * Get organization employees (for shift assignments / dropdowns)
-   * GET /organizations/employees?purpose=shift_assignment
+   * Get organization employees.
+   * GET /organizations/employees?purpose=emp_report&include_inactive=true
+   *
+   * SCREENS DO NOT CALL THIS. It is paginated (100 per page) and its `purpose`
+   * decides which fields come back — `shift_assignment` and `all_*_list` carry
+   * no `avatar_url` — so calling it per screen gave the same person a photo on
+   * one and initials on the next, and lost everyone past page one. The whole
+   * app reads `useEmployeeDirectory()`
+   * (shared/contexts/EmployeeDirectoryContext), which pages the widest
+   * projection once per session and shares it.
    * @param {Object} params
    */
   getEmployees(params = {}) {
@@ -120,6 +154,19 @@ export const organizationAPI = {
   deleteEmployee(id) {
     return request(`/organizations/employees/${id}`, {
       method: "DELETE",
+    });
+  },
+
+  /**
+   * Transfer an employee/manager to a new department and rewire reporting lines.
+   * PUT /organizations/users/:id/department-transfer
+   * @param {string} id - The global user_id
+   * @param {Object} payload - { role, new_department_id, new_manager_id, is_current_hod, is_new_hod, replacement_hod_id, old_dept_fallback_manager_id }
+   */
+  transferDepartment(id, payload) {
+    return request(`/organizations/users/${id}/department-transfer`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
     });
   },
 
@@ -204,6 +251,108 @@ export const organizationAPI = {
       method: "PATCH",
       body: JSON.stringify(payload),
     });
+  },
+
+  // ── Employee › Profile Photo (presigned handshake) ─────────────────────────
+  //    Contract: `public/ref docs/md_updates/5_org_details_and_hierarchy_api.md` §3.
+  //    Step 2 (the PUT of the bytes) goes straight to storage, not through
+  //    `request()` — see `shared/organization/avatarUpload.js`.
+  /**
+   * Step 1 — mint a presigned PUT for the caller's own photo.
+   * POST /organizations/me/avatar/upload-url
+   * @param {{ content_type: "image/png"|"image/jpeg"|"image/webp", size_bytes: number, file_name?: string }} payload
+   * @returns `{ upload_url, storage_key_token, expires_in, required_headers }`
+   */
+  requestAvatarUploadUrl(payload) {
+    return request("/organizations/me/avatar/upload-url", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Step 3 — verify the uploaded object and make it the caller's photo.
+   * POST /organizations/me/avatar/confirm
+   * Idempotent: replaying the same token returns the current profile.
+   * @param {{ storage_key_token: string }} payload
+   * @returns the caller's full profile (same shape as GET /organizations/me)
+   */
+  confirmAvatarUpload(payload) {
+    return request("/organizations/me/avatar/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // ── Everyone › Company Profile & Org Chart ─────────────────────────────────
+  //    Both are whole-org reads open to every tenant role.
+  /**
+   * The company detail sheet: org core, company profile, HR contacts, stats.
+   * GET /organizations/details
+   *
+   * `profile.gst_number` / `profile.company_pan_number` are returned to HR only;
+   * for everyone else the keys are ABSENT (not null). `profile` itself may be null.
+   */
+  getOrganizationDetails() {
+    return request("/organizations/details");
+  },
+
+  // ── HR › Company Profile (edit + logo) ─────────────────────────────────────
+  //    Contract: `public/ref docs/6_org_profile_management_api.md`. HR only.
+  /**
+   * Change the company's own details. PARTIAL — send only what changed, and at
+   * least one field, or the server rejects it (`.min(1)`).
+   * PATCH /organizations/profile
+   *
+   * `org_name` also renames the organisation itself (one transaction). Nullable
+   * fields take `null` or "" to clear. Unknown keys are stripped, so the logo
+   * CANNOT be set here — it has its own handshake below.
+   * @param {Object} payload only the changed keys
+   * @returns the refreshed GET /organizations/details payload
+   */
+  updateOrganizationProfile(payload) {
+    return request("/organizations/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Step 1 of the company-logo handshake — mint a presigned PUT.
+   * POST /organizations/logo/upload-url
+   * PNG/JPEG/WebP, ≤ 5 MB. 50 per hour per org (429 `LOGO_RATE_LIMITED`).
+   * @param {{ content_type: "image/png"|"image/jpeg"|"image/webp", size_bytes: number, file_name?: string }} payload
+   * @returns `{ upload_url, storage_key_token, expires_in, required_headers }`
+   */
+  requestLogoUploadUrl(payload) {
+    return request("/organizations/logo/upload-url", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Step 3 — verify the uploaded object and make it the company logo.
+   * POST /organizations/logo/confirm
+   * Idempotent: replaying a committed token is a no-op.
+   * @param {{ storage_key_token: string }} payload
+   * @returns the refreshed GET /organizations/details payload
+   */
+  confirmLogoUpload(payload) {
+    return request("/organizations/logo/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * The live reporting tree of every active member.
+   * GET /organizations/hierarchy → `{ total_members, roots: Node[] }`, each Node
+   * carrying `children` recursively. `roots` is a forest (several top nodes).
+   * No pagination. Avatar URLs are presigned and last ~5 minutes.
+   */
+  getOrganizationHierarchy() {
+    return request("/organizations/hierarchy");
   },
 
   // ── Employee › Organization Directory ──────────────────────────────────────

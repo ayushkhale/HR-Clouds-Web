@@ -163,14 +163,24 @@ export const leaveAPI = {
   /**
    * POST /leaves/automation/accrual/run
    * Triggers monthly accrual calculation for all active employees.
+   * @param {string|null} referenceDate - optional YYYY-MM-DD to run for a specific month.
    */
-  runAccrual: () => request("/leaves/automation/accrual/run", { method: "POST" }),
+  runAccrual: (referenceDate = null) =>
+    request("/leaves/automation/accrual/run", {
+      method: "POST",
+      body: JSON.stringify(referenceDate ? { reference_date: referenceDate } : {}),
+    }),
 
   /**
    * POST /leaves/automation/rollover/run
    * Triggers year-end balance rollover.
+   * @param {string|null} referenceDate - optional YYYY-MM-DD to run across a year boundary.
    */
-  runRollover: () => request("/leaves/automation/rollover/run", { method: "POST" }),
+  runRollover: (referenceDate = null) =>
+    request("/leaves/automation/rollover/run", {
+      method: "POST",
+      body: JSON.stringify(referenceDate ? { reference_date: referenceDate } : {}),
+    }),
 
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -198,8 +208,13 @@ export const leaveAPI = {
   /**
    * GET /leaves/team/member/:userId/requests
    * Fetches a specific direct report's leave history.
+   * @param {string} userId
+   * @param {Object} params - optional { status, page, limit }
    */
-  getTeamMemberRequests: (userId) => request(`/leaves/team/member/${userId}/requests`),
+  getTeamMemberRequests: (userId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/leaves/team/member/${userId}/requests${qs ? `?${qs}` : ""}`);
+  },
 
   /**
    * GET /leaves/team/member/:userId/balances
@@ -269,9 +284,22 @@ export const leaveAPI = {
   /**
    * POST /leaves/request
    * Submit a leave application. Backend auto-handles holidays/weekends/sandwich/LWP.
+   *
+   * Two ways to attach evidence, and only one of them per request:
+   *   `document_url`  a link the applicant pasted, stored as given
+   *   `document_id`   a document of theirs already in this portal (Documents
+   *                   Phase 5). The server checks it belongs to the applicant
+   *                   and is in an evidence-grade state (`available` or
+   *                   `pending_verification`), then stores the relative path
+   *                   `/api/v1/documents/attachments/:id/view-url` in
+   *                   `document_url`. That path is NOT a link a browser can
+   *                   follow — see shared/documents/AttachmentLink.jsx, which
+   *                   every screen showing a leave attachment goes through.
+   *
    * @param {Object} payload - {
    *   leave_type_id, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD),
-   *   is_half_day?, half_day_type? ('first_half'|'second_half'), reason?, document_url?
+   *   is_half_day?, half_day_type? ('first_half'|'second_half'), reason?,
+   *   document_url?, document_id?
    * }
    */
   submitRequest: (payload) =>

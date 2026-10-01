@@ -4,6 +4,7 @@ import { HiEye, HiEyeOff } from "react-icons/hi";
 import { authAPI, tokenHelper } from "../../shared/api";
 import { useAuth } from "../../shared/contexts/AuthContext";
 import GoogleButton from "../components/GoogleButton";
+import { safeRedirect } from "../redirect";
 
 function LoginPage() {
   const [identifier, setIdentifier] = useState("");
@@ -14,10 +15,10 @@ function LoginPage() {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, startOrgSelection, getDashboardPath } = useAuth();
+  const { login, startOrgSelection, getDashboardPath, sessionExpired } = useAuth();
 
-  // Check for a redirect URL (e.g. from invitation flow)
-  const redirectUrl = searchParams.get("redirect");
+  // Check for a redirect URL (e.g. from invitation flow or an expired session)
+  const redirectUrl = safeRedirect(searchParams.get("redirect"));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -59,6 +60,12 @@ function LoginPage() {
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h2>
       <p className="text-sm text-gray-500 mb-7">Sign in to your HR Clouds account</p>
 
+      {sessionExpired && (
+        <p role="status" className="text-xs text-fuchsia-700 bg-fuchsia-50 border border-fuchsia-200 rounded-lg px-3 py-2 -mt-3 mb-5">
+          Your session has expired. Please sign in again{redirectUrl ? " to continue where you left off" : ""}.
+        </p>
+      )}
+
       <GoogleButton
         onSuccess={(res) => {
           console.log("Google Signup/Login Success:", res);
@@ -86,7 +93,7 @@ function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-            Email Address <span className="text-red-400">*</span>
+            Email Address <span className="text-rose-400">*</span>
           </label>
           <input
             type="email"
@@ -102,7 +109,7 @@ function LoginPage() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-sm font-semibold text-gray-700">
-              Password <span className="text-red-400">*</span>
+              Password <span className="text-rose-400">*</span>
             </label>
             <Link to="/auth/forgot-password" state={{ identifier }} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
               Forgot password?
@@ -129,7 +136,7 @@ function LoginPage() {
         </div>
 
         {error && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
             {error}
           </p>
         )}
@@ -145,9 +152,9 @@ function LoginPage() {
 
       <p className="text-center text-[11px] text-gray-400 mt-7 leading-relaxed">
         By signing in, you agree to our{" "}
-        <a href="#" className="text-purple-600 hover:underline">Terms of Service</a>{" "}
+        <Link to="/legal/terms" className="text-purple-600 hover:underline">Terms of Service</Link>{" "}
         and{" "}
-        <a href="#" className="text-purple-600 hover:underline">Privacy Policy</a>.
+        <Link to="/legal/privacy" className="text-purple-600 hover:underline">Privacy Policy</Link>.
       </p>
     </div>
   );

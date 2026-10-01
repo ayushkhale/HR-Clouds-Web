@@ -1,12 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   HiXMark, HiPaperAirplane,
   HiArrowPath, HiChevronRight, HiStop,
-  HiArrowsPointingOut, HiArrowsPointingIn
+  HiArrowsPointingOut, HiArrowsPointingIn, HiMicrophone
 } from 'react-icons/hi2';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useDocMindChat } from '../hooks/useDocMindChat';
+import { useDocMindChat, DOCMIND_CONFIGURED } from '../hooks/useDocMindChat';
+import { useMayaVisibility } from '../hooks/useMayaVisibility';
+import { MAYA_ASK_EVENT, consumePendingQuestion, registerMaya } from '../maya/mayaBridge';
+import { mayaLayerFor } from '../fieldHelp/fieldHelpLayer';
+import { useSpeechToText, VOICE_LANGS, defaultVoiceLang } from '../maya/useSpeechToText';
+
+// Per-viewer convenience only; a blocked or empty store falls back to the default.
+const VOICE_LANG_KEY = 'hrc.maya.voiceLang';
+const LISTENING_HINT = {
+  'en-IN': 'Listening… speak your question',
+  hinglish: 'Sun rahi hoon… apna sawaal boliye',
+};
+const readVoiceLang = () => {
+  try {
+    const saved = localStorage.getItem(VOICE_LANG_KEY);
+    if (VOICE_LANGS.some((l) => l.value === saved)) return saved;
+  } catch { /* storage unavailable */ }
+  return defaultVoiceLang();
+};
 
 /* ─── helpers ─── */
 const ts = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -81,10 +100,21 @@ const ChatbotWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  // Opened by a field's "Ask Maya" (FieldHelp → mayaBridge): she then sits above
+  // the form dialog that asked, instead of opening invisibly behind it. Holds
+  // the z-index to use (0 = not raised) — just above the asking dialog.
+  const [raised, setRaised] = useState(0);
+  const [focusRequest, setFocusRequest] = useState(0);
   const messagesEndRef = useRef(null);
   const textareaRef    = useRef(null);
+  const panelRef       = useRef(null);
+  const fabRef         = useRef(null);
+  // A pre-filled question waiting for the caret: null, "now", or "deferred"
+  // (it arrived while she was answering — see the focus effect).
+  const pendingFocusRef = useRef(null);
 
-  const { messages, sendMessage, clearMessages, isLoading, isStreaming, error, config } = useDocMindChat();
+  const { messages, sendMessage, clearMessages, stopStreaming, isLoading, isStreaming, error, config } = useDocMindChat();
+  const { hidden } = useMayaVisibility(); // toggled from My Profile
 
   /* Config values */
   const w             = config?.widget || {};
@@ -96,6 +126,119 @@ const ChatbotWidget = () => {
 
   const busy      = isLoading || isStreaming;
   const showEmpty = messages.length === 0;
+
+  // Voice typing: fills the input as the person speaks, never sends
+  // (useSpeechToText.js). Left out entirely where the browser can't do it.
+  const onSpokenText = useCallback((text) => setInputValue(text.slice(0, maxLen)), [maxLen]);
+  const [voiceLang, setVoiceLang] = useState(readVoiceLang);
+  const speech = useSpeechToText(onSpokenText, voiceLang);
+  const { stop: stopListening, cancel: cancelListening } = speech;
+  const voiceLangLabel = VOICE_LANGS.find((l) => l.value === voiceLang)?.label || 'English';
+  // Switching mid-sentence would mix two recognisers' output, so it stops first.
+  const pickVoiceLang = (value) => {
+    stopListening();
+    setVoiceLang(value);
+    try { localStorage.setItem(VOICE_LANG_KEY, value); } catch { /* storage unavailable */ }
+  };
+
+  // Mounted once for the whole app, so an open panel would otherwise follow the
+  // user to every page and sit over its content. Close it on navigation; the
+  // conversation is kept and "Ask Maya" reopens it.
+  const closeChat = useCallback(() => {
+    setIsOpen(false);
+    setRaised(0);
+    pendingFocusRef.current = null;
+  }, []);
+
+  const { pathname } = useLocation();
+  useEffect(() => {
+    closeChat();
+  }, [pathname, closeChat]);
+
+  // Tell field help whether she can take a question right now. Hidden from My
+  // Profile or no API key → the "Ask Maya" links are left out, not broken.
+  // Her live query limit goes with it, so a stored question she'd reject is
+  // never offered.
+  useEffect(() => {
+    registerMaya(!hidden && DOCMIND_CONFIGURED, maxLen);
+    return () => registerMaya(false);
+  }, [hidden, maxLen]);
+
+  // A pre-written question from a form field. It is only placed in the input —
+  // never sent: the user reads it and presses Send. The conversation so far is
+  // kept, and the question replaces any half-typed text because the click was
+  // explicit. Declared after the pathname effect so an ask waiting from before
+  // she loaded isn't closed again by the first-mount close.
+  useEffect(() => {
+    if (hidden || !DOCMIND_CONFIGURED) return undefined;
+    const take = () => {
+      const ask = consumePendingQuestion();
+      if (!ask) return;
+      stopListening(); // or speech would overwrite the question just placed
+      setInputValue(ask.question.slice(0, maxLen));
+      setIsOpen(true);
+      setRaised(mayaLayerFor(ask.layer));
+      pendingFocusRef.current = "now";
+      setFocusRequest((n) => n + 1);
+    };
+    take();
+    window.addEventListener(MAYA_ASK_EVENT, take);
+    return () => window.removeEventListener(MAYA_ASK_EVENT, take);
+  }, [hidden, maxLen, stopListening]);
+
+  // Caret at the end so Enter sends it. While she's still answering, the input
+  // is disabled and can't take focus — and the "Ask Maya" link that had it has
+  // just unmounted, which used to drop keyboard focus to <body>. Focus then
+  // holds on the panel (so Escape stays hers) and moves to the input when the
+  // stream ends — unless the person has gone back to the page by then.
+  useEffect(() => {
+    if (!pendingFocusRef.current) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    if (el.disabled) {
+      pendingFocusRef.current = "deferred";
+      panelRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    const deferred = pendingFocusRef.current === "deferred";
+    pendingFocusRef.current = null;
+    // Only a *deferred* move checks where focus is now: the ask itself always
+    // takes the caret (focus was still in the form field the person had been
+    // typing in — that's expected), but after waiting out an answer, someone
+    // who has gone back to the page keeps their place.
+    const active = document.activeElement;
+    if (deferred && active && active !== document.body && !panelRef.current?.contains(active)) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [focusRequest, busy]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const inPanel = () => !!panelRef.current?.contains(document.activeElement);
+    // Capture phase: an Escape typed inside Maya closes Maya and stops there.
+    // Several forms close on *any* Escape (the reimbursement claim editor, the
+    // correction request…), and she can now sit on top of them.
+    const onCapture = (e) => {
+      if (e.key !== 'Escape' || !inPanel()) return;
+      e.stopPropagation();
+      closeChat();
+      fabRef.current?.focus({ preventScroll: true });
+    };
+    // Anywhere else, as before: she closes and the page still gets the key.
+    const onBubble = (e) => { if (e.key === 'Escape') closeChat(); };
+    window.addEventListener('keydown', onCapture, true);
+    window.addEventListener('keydown', onBubble);
+    return () => {
+      window.removeEventListener('keydown', onCapture, true);
+      window.removeEventListener('keydown', onBubble);
+    };
+  }, [isOpen, closeChat]);
+
+  // The microphone never stays open behind a closed panel, another page or an
+  // answer being written.
+  useEffect(() => {
+    if (!isOpen || busy) stopListening();
+  }, [isOpen, busy, stopListening]);
 
   /* Auto-scroll */
   useEffect(() => {
@@ -113,6 +256,7 @@ const ChatbotWidget = () => {
   const handleSubmit = (e) => {
     e?.preventDefault();
     if (!inputValue.trim() || busy) return;
+    cancelListening(); // a late result would otherwise refill the cleared box
     sendMessage(inputValue.trim());
     setInputValue('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -125,13 +269,48 @@ const ChatbotWidget = () => {
   const charsLeft = maxLen - inputValue.length;
   const charWarn  = charsLeft < 100;
 
+  // Hiding Maya from My Profile unmounts her entirely — the chat hook lives in
+  // this component, so the conversation does not survive a hide/show. That is
+  // intentional: a hidden assistant should hold nothing and cost nothing.
+  if (hidden) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end font-sans select-none pointer-events-none">
+    /* Layer order for the app, highest last:
+         landing content        ≤ z-50
+         landing header           z-[60]
+         Maya (this)              z-[70]
+         dialogs / modals         z-[100] – z-[150]
+         field-help popover       z-[155]  or host dialog + 5
+         Maya, raised             z-[160]  or host dialog + 10 — opened from a
+                                           field's "Ask Maya" (fieldHelpLayer.js)
+         claim review             z-[160]
+         attachment viewer        z-[165]
+         reason prompt, document
+           recommend / request    z-[170]
+         toasts                   z-[200]
+         global alerts            z-[99999]
+       Maya has to clear the header — enlarged she reaches the top of the
+       viewport — but normally stays under dialogs, which should cover her.
+       The exception is a question asked *from* a form: she then has to sit on
+       top of that form, or she opens invisibly behind it and a click toward
+       her lands on its backdrop and closes it. A form above z-150 (the claim
+       review, the z-170 document dialogs) lifts her just above itself.
+       Closing drops her back. */
+    <div
+      className={`fixed bottom-6 right-6 ${isOpen && raised ? '' : 'z-[70]'} flex flex-col items-end font-sans select-none pointer-events-none`}
+      style={isOpen && raised ? { zIndex: raised } : undefined}
+    >
 
       {/* ══ Chat Window ══ */}
       <div
-        className={`transition-all duration-300 ease-in-out origin-bottom-right mb-3 rounded-2xl
+        ref={panelRef}
+        id="maya-chat-panel"
+        tabIndex={-1}
+        role="dialog"
+        aria-label="Chat with Maya, the HR Clouds assistant"
+        aria-hidden={!isOpen}
+        {...(isOpen ? {} : { inert: "" })}
+        className={`outline-none transition-all duration-300 ease-in-out origin-bottom-right mb-3 rounded-2xl
           shadow-2xl bg-white flex flex-col overflow-hidden border border-purple-100
           ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                    : 'opacity-0 scale-95 translate-y-4 pointer-events-none'}
@@ -149,7 +328,7 @@ const ChatbotWidget = () => {
             <div>
               <p className="text-white font-bold text-sm leading-tight">Maya</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-yellow-300 animate-pulse' : 'bg-emerald-300 animate-pulse'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${busy ? 'bg-fuchsia-300 animate-pulse' : 'bg-violet-300 animate-pulse'}`} />
                 <span className="text-purple-100 text-[11px]">
                   {busy ? 'Thinking…' : 'HR Assistant · Online'}
                 </span>
@@ -157,15 +336,19 @@ const ChatbotWidget = () => {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => { clearMessages(); setInputValue(''); }} title="Clear chat"
+            <button onClick={() => { cancelListening(); clearMessages(); setInputValue(''); }}
+              aria-label="Clear chat" title="Clear chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiArrowPath className="w-4 h-4" />
             </button>
-            <button onClick={() => setIsExpanded(p => !p)} title={isExpanded ? 'Shrink' : 'Enlarge'}
+            <button onClick={() => setIsExpanded(p => !p)}
+              aria-label={isExpanded ? 'Shrink chat window' : 'Enlarge chat window'}
+              title={isExpanded ? 'Shrink' : 'Enlarge'}
               className="hidden sm:block p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               {isExpanded ? <HiArrowsPointingIn className="w-4 h-4" /> : <HiArrowsPointingOut className="w-4 h-4" />}
             </button>
-            <button onClick={() => setIsOpen(false)}
+            <button onClick={closeChat}
+              aria-label="Close chat" title="Close chat"
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors">
               <HiXMark className="w-4 h-4" />
             </button>
@@ -278,9 +461,9 @@ const ChatbotWidget = () => {
             <textarea
               ref={textareaRef}
               value={inputValue}
-              onChange={e => setInputValue(e.target.value.slice(0, maxLen))}
+              onChange={e => { setInputValue(e.target.value.slice(0, maxLen)); if (speech.error) speech.clearError(); }}
               onKeyDown={handleKeyDown}
-              placeholder={busy ? 'Maya is responding…' : placeholder}
+              placeholder={busy ? 'Maya is responding…' : speech.listening ? LISTENING_HINT[voiceLang] || LISTENING_HINT['en-IN'] : placeholder}
               rows={1}
               disabled={busy}
               className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400
@@ -288,10 +471,22 @@ const ChatbotWidget = () => {
                 focus:border-purple-400 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ minHeight: '44px', maxHeight: '128px' }}
             />
+            {speech.supported && !busy && (
+              <button type="button"
+                onClick={() => (speech.listening ? speech.stop() : speech.start(inputValue))}
+                aria-pressed={speech.listening}
+                aria-label={speech.listening ? 'Stop voice typing' : `Speak your question in ${voiceLangLabel}`}
+                title={speech.listening ? 'Stop voice typing' : `Speak your question in ${voiceLangLabel}`}
+                className={`p-3 rounded-xl flex items-center justify-center transition-all flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
+                  ${speech.listening ? 'bg-purple-600 text-white shadow-md ring-4 ring-purple-100' : 'bg-slate-100 text-slate-500 hover:bg-purple-50 hover:text-purple-600'}`}>
+                <HiMicrophone className="w-5 h-5" />
+              </button>
+            )}
             {busy ? (
-              <button type="button" onClick={() => { clearMessages(); setInputValue(''); }}
+              <button type="button" onClick={stopStreaming}
                 className="p-3 rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all flex-shrink-0 shadow-sm"
-                title="Stop">
+                aria-label="Stop generating"
+                title="Stop generating">
                 <HiStop className="w-5 h-5" />
               </button>
             ) : (
@@ -302,17 +497,52 @@ const ChatbotWidget = () => {
               </button>
             )}
           </form>
-          {inputValue.length > 0 && (
-            <p className={`text-[10px] mt-1 text-right pr-14 ${charWarn ? 'text-amber-500' : 'text-slate-400'}`}>
-              {charsLeft} remaining
-            </p>
+          {speech.error && (
+            <p role="alert" className="text-[11px] mt-1.5 px-1 text-rose-600">{speech.error}</p>
+          )}
+          {speech.listening && (
+            <p className="sr-only" aria-live="polite">Listening. Speak your question, then tap the microphone to stop.</p>
+          )}
+          {(speech.supported || inputValue.length > 0) && (
+            <div className="flex items-center justify-between gap-3 mt-2 min-h-[26px]">
+              {speech.supported ? (
+                <div className="inline-flex items-center rounded-lg bg-slate-100 p-0.5" role="radiogroup" aria-label="Voice input language">
+                  <HiMicrophone className="w-3.5 h-3.5 mx-1.5 text-slate-400" aria-hidden="true" />
+                  {VOICE_LANGS.map((l) => (
+                    <button key={l.value} type="button" role="radio" aria-checked={voiceLang === l.value}
+                      onClick={() => pickVoiceLang(l.value)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
+                        ${voiceLang === l.value ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              ) : <span />}
+              {speech.listening ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700">
+                  <span className="relative flex w-2 h-2" aria-hidden="true">
+                    <span className="absolute inline-flex w-full h-full rounded-full bg-purple-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex w-2 h-2 rounded-full bg-purple-600" />
+                  </span>
+                  Listening
+                </span>
+              ) : inputValue.length > 0 && (
+                <span className={`text-[11px] tabular-nums ${charWarn ? 'text-fuchsia-600' : 'text-slate-400'}`}>
+                  {charsLeft} characters left
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
 
       {/* ══ FAB pill ══ */}
       <button
-        onClick={() => setIsOpen(p => !p)}
+        ref={fabRef}
+        onClick={() => (isOpen ? closeChat() : setIsOpen(true))}
+        aria-expanded={isOpen}
+        aria-controls="maya-chat-panel"
+        aria-label={isOpen ? 'Close the Maya assistant' : 'Open the Maya assistant'}
         className={`flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full shadow-xl transition-all
           hover:scale-105 active:scale-95 z-50 relative pointer-events-auto
           ${isOpen ? 'bg-slate-700' : 'bg-gradient-to-r from-purple-700 to-purple-500'}
@@ -324,7 +554,7 @@ const ChatbotWidget = () => {
           : <><MayaAvatar size="sm" />
               <span className="text-white text-sm font-semibold">Ask Maya</span>
               {messages.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-violet-400 border-2 border-white" />
               )}
             </>
         }

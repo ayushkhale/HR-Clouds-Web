@@ -1,19 +1,26 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiPlus, HiTrash,
-  HiCalculator, HiCalendar, HiScale, HiPaperClip
+  HiCalculator, HiCalendar, HiScale, HiPaperClip, HiEye, HiInformationCircle
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import AttachmentUploadButton from "../../../../shared/components/AttachmentUploadButton";
+import AttachmentViewerDialog from "../../../../shared/components/AttachmentViewerDialog";
+import { normalizeAttachment } from "../../../../shared/utils/reimbursementMeta";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { humanize } from "../../../../shared/attendance/enums";
+import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -22,7 +29,7 @@ function Toast({ toast, onClose }) {
 
 const money = (v) => `₹${parseFloat(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const monthLabel = (pm) => {
-  if (!pm) return "-";
+  if (!pm) return "N/A";
   const [y, m] = String(pm).split("-");
   return `${new Date(0, parseInt(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
 };
@@ -34,12 +41,12 @@ function currentFY(d = new Date()) {
 const SECTIONS = ["80C", "80D", "80CCD(1B)", "80E", "80G", "80TTA", "24B (Home Loan Interest)", "HRA", "LTA", "Other"];
 
 const STATUS_PILL = {
-  draft: "bg-slate-100 text-slate-600",
-  submitted: "bg-amber-100 text-amber-700",
-  under_review: "bg-amber-100 text-amber-700",
-  verified: "bg-emerald-100 text-emerald-700",
-  partially_verified: "bg-purple-100 text-purple-700",
-  rejected: "bg-red-100 text-red-700",
+  draft: "bg-slate-50 text-slate-600 border-slate-200",
+  submitted: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  under_review: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  verified: "bg-violet-50 text-violet-700 border-violet-200",
+  partially_verified: "bg-purple-50 text-purple-700 border-purple-200",
+  rejected: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 const TABS = [
@@ -61,16 +68,13 @@ export default function MyTaxAndInvestmentsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="employee" />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardTopBar title="Tax & Investments" />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+    <>
+        <DashboardTopBar title="My Tax & Investments" />
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <HiDocumentReport className="text-purple-600 w-7 h-7" /> Tax &amp; Investments
+            <h1 className="text-2xl font-bold text-slate-900">My Tax &amp; Investments
             </h1>
-            <p className="text-sm text-slate-500 mt-1">FY {fy} — your regime, declarations, TDS projection and Form 16.</p>
+            <p className="text-sm text-slate-500 mt-1">FY {fy} — your tax regime, investment declarations, the year’s tax estimate and Form 16.</p>
           </div>
 
           <div className="flex gap-1 mb-6 border-b border-slate-200 flex-wrap">
@@ -84,14 +88,28 @@ export default function MyTaxAndInvestmentsPage() {
           {tab === "summary" && <SummaryTab fy={fy} showToast={showToast} />}
           {tab === "declarations" && <DeclarationsTab fy={fy} showToast={showToast} />}
           {tab === "regime" && <RegimeTab fy={fy} showToast={showToast} />}
-          {tab === "projection" && <TraceTab fy={fy} showToast={showToast} fetcher={payrollAPI.getMyTaxProjection} title="Tax Projection Trace" />}
+          {tab === "projection" && <ProjectionTab fy={fy} showToast={showToast} />}
           {tab === "monthly" && <MonthlyTab fy={fy} showToast={showToast} />}
           {tab === "form16" && <Form16Tab fy={fy} showToast={showToast} />}
         </main>
-      </div>
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
+}
+
+// The summary's regime arrives either as a code ("new") or as the regime record
+// ({ id, code, name }) — reduce both to a lowercase code plus a display label.
+function regimeCodeOf(data) {
+  const raw = data?.regime_code ?? data?.regime;
+  const code = raw && typeof raw === "object" ? raw.code ?? raw.regime_code : raw;
+  return code ? String(code).toLowerCase() : "";
+}
+
+function regimeLabelOf(data) {
+  const raw = data?.regime;
+  if (raw && typeof raw === "object" && raw.name) return raw.name;
+  const code = regimeCodeOf(data);
+  return code ? `${code.charAt(0).toUpperCase()}${code.slice(1)} Regime` : "N/A";
 }
 
 function SummaryTab({ fy, showToast }) {
@@ -109,24 +127,24 @@ function SummaryTab({ fy, showToast }) {
   if (!data) return <Empty text="No tax summary available yet." />;
 
   const ytd = data.ytd || data.actuals || {};
-  const regime = data.regime_code || data.regime;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat k="Regime" v={regime ? String(regime).toUpperCase() : "—"} />
-        <Stat k="Projected Annual Tax" v={money(data.projected_annual_tax ?? data.projected_liability)} />
-        <Stat k="TDS Deducted (YTD)" v={money(ytd.tds ?? ytd.income_tax)} />
-        <Stat k="Remaining TDS" v={money(data.remaining_tds ?? data.balance_tds)} />
+        {/* House wording (CLAUDE.md §6): "TDS YTD" reads as "Income tax so far". */}
+        <Stat k="Tax regime" v={regimeLabelOf(data)} />
+        <Stat k="Income tax for the year" v={money(data.projected_annual_tax ?? data.projected_liability)} />
+        <Stat k="Income tax so far" v={money(ytd.tds ?? ytd.income_tax)} />
+        <Stat k="Income tax still to deduct" v={money(data.remaining_tds ?? data.balance_tds)} help={{ surface: "payroll.tax_summary", field: "remaining_tds", label: "income tax still to deduct" }} />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat k="PF (YTD)" v={money(ytd.pf)} />
-        <Stat k="ESI (YTD)" v={money(ytd.esi)} />
-        <Stat k="PT (YTD)" v={money(ytd.pt ?? ytd.professional_tax)} />
-        <Stat k="Declaration" v={(data.declaration_status || "none").replace(/_/g, " ")} />
+        <Stat k="PF so far" v={money(ytd.pf)} />
+        <Stat k="ESI so far" v={money(ytd.esi)} />
+        <Stat k="Professional tax so far" v={money(ytd.pt ?? ytd.professional_tax)} />
+        <Stat k="Investment declaration" v={data.declaration_status && data.declaration_status !== "none" ? humanize(data.declaration_status) : "Not started"} />
       </div>
       {data.previous_employer && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <h3 className="font-bold text-slate-800 mb-3">Previous Employer (Form 12B)</h3>
+          <h3 className="font-bold text-slate-800 mb-3"><HelpLabel text="Previous Employer (Form 12B)" help={{ surface: "payroll.tax_summary", field: "previous_employer", label: "previous employer income" }} /></h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <KV k="Gross" v={money(data.previous_employer.gross ?? data.previous_employer.previous_employer_gross)} />
             <KV k="TDS" v={money(data.previous_employer.tds ?? data.previous_employer.previous_employer_tds)} />
@@ -143,6 +161,7 @@ function DeclarationsTab({ fy, showToast }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [viewAttachment, setViewAttachment] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,6 +177,7 @@ function DeclarationsTab({ fy, showToast }) {
         verified_amount: it.verified_amount,
         proof_status: it.proof_status,
         proof_reference: it.proof_reference || "",
+        attachments: (Array.isArray(it.attachments) ? it.attachments : []).map(normalizeAttachment).filter((a) => a && a.id),
         locked: it.sub_category === "EPF_AUTO",
       })));
     } catch (err) {
@@ -202,7 +222,7 @@ function DeclarationsTab({ fy, showToast }) {
   };
 
   const submit = async () => {
-    if (!window.confirm("Submit to HR? You will no longer be able to edit the declared amounts.")) return;
+    if (!(await window.confirm("Submit to HR? You will no longer be able to edit the declared amounts."))) return;
     setBusy(true);
     try {
       await payrollAPI.submitMyDeclaration({ financial_year: fy });
@@ -230,13 +250,25 @@ function DeclarationsTab({ fy, showToast }) {
     }
   };
 
+  const canUploadProof = isDraft || canProofs;
+  const removeProof = async (i, att) => {
+    if (!(await window.confirm(`Remove ${att.file_name}?`))) return;
+    try {
+      await payrollAPI.deleteMyAttachment(att.id);
+      setRow(i, { attachments: (items[i]?.attachments || []).filter((a) => a.id !== att.id) });
+      showToast("Proof removed");
+    } catch (err) {
+      showToast(payrollErrorMessage(err, "Couldn't remove this proof."), "error");
+    }
+  };
+
   if (loading) return <Skeleton type="table" rows={5} />;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 text-sm">
-          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${STATUS_PILL[status] || "bg-slate-100 text-slate-600"}`}>{status.replace(/_/g, " ")}</span>
+          <span className={`${STATUS_CHIP} ${STATUS_PILL[status] || "bg-slate-50 text-slate-600 border-slate-200"}`}>{humanize(status)}</span>
           {decl?.proof_deadline && <span className="text-slate-500">Proof deadline: {new Date(decl.proof_deadline).toLocaleDateString()}</span>}
         </div>
         {isDraft && (
@@ -248,11 +280,11 @@ function DeclarationsTab({ fy, showToast }) {
         <table className="w-full text-left border-collapse text-sm">
           <thead>
             <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-              <th className="px-5 py-3">Section</th>
+              <th className="px-5 py-3"><HelpLabel text="Section" help={{ surface: "payroll.tax_declaration", field: "section", label: "the section" }} /></th>
               <th className="px-5 py-3">Detail</th>
               <th className="px-5 py-3 text-right">Declared ₹</th>
-              <th className="px-5 py-3 text-right">Verified ₹</th>
-              <th className="px-5 py-3">Proof Reference</th>
+              <th className="px-5 py-3 text-right"><HelpLabel text="Verified ₹" help={{ surface: "payroll.tax_declaration", field: "verified_amount", label: "the verified amount" }} /></th>
+              <th className="px-5 py-3"><HelpLabel text="Proof Reference" help={{ surface: "payroll.tax_declaration", field: "proof_reference", label: "the proof reference" }} /></th>
               {isDraft && <th className="px-5 py-3"></th>}
             </tr>
           </thead>
@@ -269,22 +301,40 @@ function DeclarationsTab({ fy, showToast }) {
                 <td className="px-5 py-2.5">
                   {isDraft && !r.locked ? (
                     <input value={r.sub_category} onChange={(e) => setRow(i, { sub_category: e.target.value })} placeholder="e.g. LIC premium" className="px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400 w-40" />
-                  ) : <span className="text-slate-500">{r.sub_category || "—"}</span>}
+                  ) : <span className="text-slate-500">{r.sub_category || "N/A"}</span>}
                 </td>
                 <td className="px-5 py-2.5 text-right">
                   {isDraft && !r.locked ? (
                     <input type="number" min="0" value={r.declared_amount} onChange={(e) => setRow(i, { declared_amount: e.target.value })} className="w-28 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-right outline-none focus:border-purple-400" />
                   ) : money(r.declared_amount)}
                 </td>
-                <td className="px-5 py-2.5 text-right text-slate-600">{r.verified_amount != null ? money(r.verified_amount) : "—"}</td>
+                <td className="px-5 py-2.5 text-right text-slate-600">{r.verified_amount != null ? money(r.verified_amount) : "N/A"}</td>
                 <td className="px-5 py-2.5">
                   {(isDraft || canProofs) && !r.locked ? (
                     <input value={r.proof_reference} onChange={(e) => setRow(i, { proof_reference: e.target.value })} placeholder="link or ref #" className="w-44 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-400" />
-                  ) : <span className="text-slate-500 truncate block max-w-[11rem]">{r.proof_reference || "—"}</span>}
+                  ) : <span className="text-slate-500 truncate block max-w-[11rem]">{r.proof_reference || "N/A"}</span>}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {(r.attachments || []).map((att) => (
+                      <span key={att.id} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-[11px] text-slate-700">
+                        <span className="max-w-[100px] truncate">{att.file_name}</span>
+                        <button type="button" onClick={() => setViewAttachment(att)} className="text-purple-600 hover:text-purple-800" aria-label="View proof"><HiEye className="w-3.5 h-3.5" /></button>
+                        {canUploadProof && !r.locked && <button type="button" onClick={() => removeProof(i, att)} className="text-slate-400 hover:text-rose-600" aria-label="Remove proof"><HiTrash className="w-3.5 h-3.5" /></button>}
+                      </span>
+                    ))}
+                    {canUploadProof && !r.locked && r.item_id && (
+                      <AttachmentUploadButton
+                        issue={(meta) => payrollAPI.requestDeclarationProofUpload(r.item_id, meta)}
+                        confirm={(id) => payrollAPI.confirmMyAttachment(id)}
+                        label="Add proof"
+                        onUploaded={(att) => { setRow(i, { attachments: [...(items[i]?.attachments || []), att] }); showToast("Proof attached"); }}
+                      />
+                    )}
+                    {canUploadProof && !r.locked && !r.item_id && <span className="text-[11px] text-slate-400">Save the draft to attach a proof file.</span>}
+                  </div>
                 </td>
                 {isDraft && (
                   <td className="px-5 py-2.5">
-                    {!r.locked && <button onClick={() => removeRow(i)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><HiTrash className="w-4 h-4" /></button>}
+                    {!r.locked && <button onClick={() => removeRow(i)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><HiTrash className="w-4 h-4" /></button>}
                   </td>
                 )}
               </tr>
@@ -294,7 +344,7 @@ function DeclarationsTab({ fy, showToast }) {
         </table>
         <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-between text-sm">
           <span className="text-slate-500">Declared <span className="font-bold text-slate-800">{money(declaredTotal)}</span></span>
-          <span className="text-slate-500">Verified <span className="font-bold text-emerald-600">{money(verifiedTotal)}</span></span>
+          <span className="text-slate-500">Verified <span className="font-bold text-violet-600">{money(verifiedTotal)}</span></span>
         </div>
       </div>
 
@@ -311,6 +361,10 @@ function DeclarationsTab({ fy, showToast }) {
           </button>
         )}
       </div>
+
+      {canUploadProof && <p className="text-[11px] text-slate-400">Uploaded proofs appear here once HR&apos;s copy is refreshed. You can attach a PDF, JPG, PNG or WebP up to 10 MB per item.</p>}
+
+      {viewAttachment && <AttachmentViewerDialog attachment={viewAttachment} getViewUrl={payrollAPI.getMyAttachmentViewUrl} onClose={() => setViewAttachment(null)} />}
     </div>
   );
 }
@@ -342,10 +396,13 @@ function RegimeTab({ fy, showToast }) {
   };
 
   if (loading) return <Skeleton type="dashboard" />;
-  const regime = data?.regime_code || data?.regime;
+  const regime = regimeCodeOf(data);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <p className="md:col-span-2 -mb-2 flex items-center text-sm font-bold text-slate-700">
+        Your tax regime <FieldHelp surface="payroll.tax_regime" field="regime_code" label="the tax regime" />
+      </p>
       {[
         { code: "old", title: "Old Regime", blurb: "Lower slabs but you can claim HRA, 80C, 80D and other Chapter VI-A deductions." },
         { code: "new", title: "New Regime", blurb: "Higher standard deduction, wider slabs, but most exemptions are not available." },
@@ -365,53 +422,89 @@ function RegimeTab({ fy, showToast }) {
   );
 }
 
-function TraceTab({ fy, showToast, fetcher, title }) {
+// `/payroll/me/tax/projection` nests its figures — `annual_projected`,
+// `projected_monthly`, a `tax` block and a `tds` block — and says whether
+// income tax is switched on at all (`income_tax_enabled`, `tax.enabled`). The
+// tab used to read flat keys (`projected_gross`, `total_tax`…) that the live
+// reply doesn't have, so every tile said ₹0 and the only real content was a
+// raw JSON dump. Flat keys stay as fallbacks for older servers.
+function ProjectionTab({ fy, showToast }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    let alive = true;
+    setLoading(true);
     (async () => {
-      try { const res = await fetcher({ financial_year: fy }); setData(res.data || res); }
-      catch (err) { showToast(err.message || "Failed to load projection", "error"); }
-      finally { setLoading(false); }
+      try { const res = await payrollAPI.getMyTaxProjection({ financial_year: fy }); if (alive) setData(res.data || res); }
+      catch (err) { if (alive) showToast(payrollErrorMessage(err, "Couldn't load your tax projection"), "error"); }
+      finally { if (alive) setLoading(false); }
     })();
-  }, [fy, showToast, fetcher]);
+    return () => { alive = false; };
+  }, [fy, showToast]);
 
   if (loading) return <Skeleton type="dashboard" />;
   if (!data) return <Empty text="No projection available yet." />;
 
-  const steps = data.steps || data.trace || data.breakdown || [];
+  const tax = data.tax || {};
+  const tds = data.tds || {};
+  const annual = data.annual_projected || {};
+  const monthly = data.projected_monthly || {};
+  const taxOn = data.income_tax_enabled !== false && tax.enabled !== false;
+  const limitations = Array.isArray(data.limitations) ? data.limitations.filter((l) => typeof l === "string") : [];
+  const notes = Array.isArray(data.notes) ? data.notes.filter((n) => typeof n === "string") : [];
+
   return (
-    <div className="space-y-4 max-w-3xl">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Stat k="Projected Gross" v={money(data.projected_gross ?? data.annual_gross)} />
-        <Stat k="Taxable Income" v={money(data.taxable_income)} />
-        <Stat k="Annual Tax" v={money(data.total_tax ?? data.annual_tax)} />
-        <Stat k="This Month TDS" v={money(data.monthly_tds ?? data.tds_this_month)} />
-        <Stat k="Std Deduction" v={money(data.standard_deduction)} />
-        <Stat k="Total Exemptions" v={money(data.total_exemptions ?? data.total_deductions)} />
-      </div>
-      {steps.length > 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-50 bg-slate-50/50 font-bold text-slate-800 text-sm">{title}</div>
-          <table className="w-full text-left border-collapse text-sm">
-            <tbody className="divide-y divide-slate-50">
-              {steps.map((s, i) => (
-                <tr key={i}>
-                  <td className="px-5 py-2.5 text-slate-600">{s.label || s.name || s.step}</td>
-                  <td className="px-5 py-2.5 text-right font-semibold text-slate-800">{typeof (s.value ?? s.amount) === "number" ? money(s.value ?? s.amount) : (s.value ?? s.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="space-y-4">
+      {!taxOn && (
+        <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl px-4 py-3 text-sm">
+          <HiInformationCircle className="w-5 h-5 shrink-0 mt-px text-indigo-500" />
+          <p>Your organisation hasn’t switched on income tax deduction in payroll yet, so none is taken from your pay. The figures below are what your pay is expected to be for the year.</p>
         </div>
-      ) : (
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Stat k="Taxable pay for the year" v={money(annual.gross_taxable ?? data.projected_gross ?? data.annual_gross)} />
+        <Stat k="Taxable pay a month" v={money(monthly.taxable)} />
+        <Stat k="Months left this year" v={data.months_remaining ?? "N/A"} />
+        {taxOn && (
+          <>
+            <Stat k="Taxable income" v={money(tax.taxable_income ?? data.taxable_income)} />
+            <Stat k="Income tax for the year" v={money(tax.total_liability ?? tax.annual_liability ?? data.total_tax ?? data.annual_tax)} />
+            <Stat k="Income tax this month" v={money(tds.this_month ?? tds.monthly_tds ?? tds.amount ?? data.monthly_tds ?? data.tds_this_month)} />
+          </>
+        )}
+        <Stat k="PF for the year" v={money(annual.epf ?? monthly.pf_employee)} />
+        <Stat k="Professional tax for the year" v={money(annual.professional_tax)} />
+        {taxOn && <Stat k="Standard deduction" v={money(tax.standard_deduction ?? data.standard_deduction)} help={{ surface: "payroll.tax_projection", field: "standard_deduction", label: "the standard deduction", overlay: true }} />}
+      </div>
+      {notes.length > 0 && (
+        <ul className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-1.5 text-sm text-slate-600 list-disc pl-9">
+          {notes.map((n, i) => <li key={i}>{n}</li>)}
+        </ul>
+      )}
+      {limitations.length > 0 && (
         <details className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <summary className="text-sm font-bold text-slate-700 cursor-pointer">Raw calculation trace</summary>
-          <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto mt-3 max-h-96">{JSON.stringify(data, null, 2)}</pre>
+          <summary className="text-sm font-bold text-slate-700 cursor-pointer">What this estimate leaves out ({limitations.length})</summary>
+          <ul className="mt-3 space-y-1.5 text-xs text-slate-500 list-disc pl-5">
+            {limitations.map((l, i) => <li key={i}>{l}</li>)}
+          </ul>
         </details>
       )}
     </div>
   );
+}
+
+// `/payroll/me/tax/monthly` has no documented response shape. Accept an array
+// under a known key, or a map keyed by month ({ "2026-04": {...} }); anything
+// else yields no rows instead of crashing the tab.
+function monthlyTaxRows(res) {
+  const list = listFrom(res, ["months", "monthly", "breakdown", "records"]);
+  if (list.length) return list;
+  const payload = unwrap(res);
+  const map = payload && typeof payload === "object" && !Array.isArray(payload) ? (payload.months || payload.monthly || payload) : null;
+  if (!map || typeof map !== "object" || Array.isArray(map)) return [];
+  return Object.entries(map)
+    .filter(([key, value]) => /^\d{4}-\d{2}/.test(key) && value && typeof value === "object")
+    .map(([key, value]) => ({ period_month: key, ...value }));
 }
 
 function MonthlyTab({ fy, showToast }) {
@@ -419,7 +512,7 @@ function MonthlyTab({ fy, showToast }) {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     (async () => {
-      try { const res = await payrollAPI.getMyMonthlyTax({ financial_year: fy }); setRows(res.data?.records || res.data?.months || res.data || []); }
+      try { const res = await payrollAPI.getMyMonthlyTax({ financial_year: fy }); setRows(monthlyTaxRows(res)); }
       catch (err) { showToast(err.message || "Failed to load", "error"); }
       finally { setLoading(false); }
     })();
@@ -429,7 +522,7 @@ function MonthlyTab({ fy, showToast }) {
   if (rows.length === 0) return <Empty text="No monthly tax data yet." />;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden max-w-3xl">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
       <table className="w-full text-left border-collapse text-sm">
         <thead>
           <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
@@ -459,6 +552,7 @@ function MonthlyTab({ fy, showToast }) {
 function Form16Tab({ fy, showToast }) {
   const [data, setData] = useState(null);
   const [state, setState] = useState("idle"); // idle | loading | ready | unavailable
+  const [viewAttachment, setViewAttachment] = useState(null);
 
   const fetchIt = async () => {
     setState("loading");
@@ -473,27 +567,37 @@ function Form16Tab({ fy, showToast }) {
   };
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h3 className="font-bold text-slate-800">Form 16 — Part B (FY {fy})</h3>
+        <h3 className="font-bold text-slate-800"><HelpLabel text={`Form 16 — Part B (FY ${fy})`} help={{ surface: "payroll.form16", field: "form16", label: "Form 16" }} /></h3>
         <p className="text-sm text-slate-500 mt-1">Available only after HR finalizes the financial year. A provisional Form 16 is never issued.</p>
         <button onClick={fetchIt} disabled={state === "loading"} className="mt-4 px-4 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50">
           {state === "loading" ? "Checking…" : "Fetch My Form 16"}
         </button>
-        {state === "unavailable" && <p className="mt-3 text-sm text-red-600">Not finalized yet — check back after year-end closure.</p>}
+        {state === "unavailable" && <p className="mt-3 text-sm text-rose-600">Not finalized yet — check back after year-end closure.</p>}
+        {state === "ready" && data?.part_a_attachment && (() => {
+          const att = normalizeAttachment(data.part_a_attachment);
+          if (!att?.id) return null;
+          return (
+            <button type="button" onClick={() => setViewAttachment(att)} className="mt-4 ml-3 px-4 py-2.5 rounded-xl font-bold text-sm text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 transition inline-flex items-center gap-1.5">
+              <HiEye className="w-4 h-4" /> View Part A
+            </button>
+          );
+        })()}
       </div>
       {state === "ready" && data && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <pre className="text-[11px] text-slate-600 whitespace-pre-wrap overflow-x-auto max-h-[28rem]">{JSON.stringify(data, null, 2)}</pre>
         </div>
       )}
+      {viewAttachment && <AttachmentViewerDialog attachment={viewAttachment} getViewUrl={payrollAPI.getMyAttachmentViewUrl} onClose={() => setViewAttachment(null)} />}
     </div>
   );
 }
 
-const Stat = ({ k, v }) => (
+const Stat = ({ k, v, help }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-    <p className="text-[11px] font-bold text-slate-400 uppercase">{k}</p>
+    <p className="text-[11px] font-bold text-slate-400 uppercase"><HelpLabel text={k} help={help} /></p>
     <p className="text-lg font-black text-slate-800 mt-1 capitalize">{v}</p>
   </div>
 );

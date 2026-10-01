@@ -1,6 +1,21 @@
 import { HiCheckCircle, HiExclamationCircle, HiClock } from "react-icons/hi";
 
 export const DICTIONARY = {
+  /**
+   * What each role is CALLED in front of the person holding it. The API's
+   * `role` is a code (`hr`), and "hr" on screen reads like a database value —
+   * these are the words used in the top bar and anywhere else we name somebody's
+   * place in the organisation. One map, so the workspace can't be called three
+   * different things on three screens.
+   */
+  ROLE_TITLE: {
+    hr: "HR Admin",
+    manager: "Manager",
+    employee: "Employee",
+    guest: "Guest",
+    admin: "Admin",
+    "super-admin": "Platform Admin",
+  },
   NAV: {
     DIRECTORY: "Directory",
     EMPLOYEES: "Team",
@@ -22,7 +37,7 @@ export const DICTIONARY = {
     present: {
       label: "Present",
       icon: HiCheckCircle,
-      className: "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs"
+      className: "bg-violet-50 text-violet-700 border border-violet-200 shadow-xs"
     },
     absent: {
       label: "Absent",
@@ -32,12 +47,12 @@ export const DICTIONARY = {
     late: {
       label: "Late",
       icon: HiClock,
-      className: "bg-amber-50 text-amber-700 border border-amber-200 shadow-xs"
+      className: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 shadow-xs"
     },
     half_day: {
       label: "Half Day",
       icon: HiClock,
-      className: "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+      className: "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
     },
     on_leave: {
       label: "On Leave",
@@ -47,7 +62,7 @@ export const DICTIONARY = {
     in_progress: {
       label: "In Progress",
       icon: HiClock,
-      className: "bg-sky-50 text-sky-700 border border-sky-200 shadow-xs"
+      className: "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
     },
     weekly_off: {
       label: "Weekly Off",
@@ -62,7 +77,7 @@ export const DICTIONARY = {
     overtime: {
       label: "Overtime",
       icon: HiClock,
-      className: "bg-orange-50 text-orange-700 border border-orange-200 shadow-xs"
+      className: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 shadow-xs"
     },
     not_marked: {
       label: "Not Marked",
@@ -75,12 +90,32 @@ export const DICTIONARY = {
     TEAM_DIRECTORY: "Team Directory",
     TOP_DEFAULTERS: "Top Defaulters",
     WORK_MODE: "Work Mode",
-    TEAM_PERFORMANCE: "Team Performance"
+    // The daily attendance chart on the HR and manager dashboards. One name,
+    // one subtitle: the two cards are the same card (§2), so neither screen
+    // types its own heading.
+    TEAM_ATTENDANCE_TRENDS: "Team attendance trends"
   },
   DESCRIPTIONS: {
-    ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization."
+    ATTENDANCE_DIRECTORY: "View and manage attendance records for the organization.",
+    TEAM_ATTENDANCE_TRENDS: "Present, on leave and absent, day by day"
   },
   TERMS: {
-    COMP_OFF: "Complimentary Off"
+    // A day credited for working an off day. Reads as a mass noun — "Earned
+    // Leave" both for one day and for many, never "Earned Leaves" — so count
+    // phrases say "3 earned leave days".
+    COMP_OFF: "Earned Leave",
+    // A request to fix a missed or wrong punch. Pluralises normally.
+    REGULARIZATION: "Attendance Correction",
+    // Turning unused leave, or a day earned for working an off day, into money
+    // on a payslip. "Encashment" is the API's word and a payroll word — nobody
+    // outside payroll says it, so it never reaches the screen. Pluralises
+    // normally ("Leave Payouts"), and the action is "pay out", never "encash".
+    ENCASHMENT: "Leave Payout"
   }
 };
+
+/** "hr" → "HR Admin". An unknown or missing role gives "", never a raw code. */
+export function roleTitle(role) {
+  const key = String(role || "").trim().toLowerCase();
+  return DICTIONARY.ROLE_TITLE[key] || "";
+}

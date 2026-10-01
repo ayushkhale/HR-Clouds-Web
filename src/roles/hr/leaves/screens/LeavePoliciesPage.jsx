@@ -1,22 +1,61 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
+import { noticeModeOf, noticeValue } from "../../../../shared/utils/leaveConfig";
+import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
   HiExclamation,
 } from "react-icons/hi";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const help = (field, extra) => ({ surface: "leaves.policy_setup", field, ...extra });
+const TH = "px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
+    </div>
+  );
+}
+
+// Reusable tri-state control for notice_period_max_days (null/0/n).
+function NoticePeriodField({ mode, days, onModeChange, onDaysChange }) {
+  return (
+    <div>
+      <div className="flex items-center">
+        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Leave During Notice Period</label>
+        <FieldHelp surface="leaves.policy_setup" field="notice_period_max_days" label="leave during notice period" className="mb-1.5" />
+      </div>
+      <div className="flex gap-2">
+        {[
+          { v: "unrestricted", l: "No limit" },
+          { v: "blocked", l: "Not allowed" },
+          { v: "capped", l: "Limited" },
+        ].map(opt => (
+          <button type="button" key={opt.v} onClick={() => onModeChange(opt.v)}
+            className={`flex-1 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${mode === opt.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+            {opt.l}
+          </button>
+        ))}
+      </div>
+      {mode === "capped" && (
+        <input type="number" step="1" min="1" value={days} onChange={e => onDaysChange(e.target.value)}
+          placeholder="Most days allowed during notice period"
+          className="mt-2 w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+      )}
+      <p className="text-[10px] text-slate-400 mt-1">
+        {mode === "unrestricted" ? "No limit on this leave once an employee resigns."
+          : mode === "blocked" ? "This leave cannot be taken at all during the notice period."
+          : "Employee may take at most this many days of this leave during their notice period."}
+      </p>
     </div>
   );
 }
@@ -24,8 +63,8 @@ function Toast({ toast, onClose }) {
 // ─── Accrual Pill ─────────────────────────────────────────────────────────────
 function AccrualPill({ type }) {
   return (
-    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${type === "upfront" ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"}`}>
-      {type === "upfront" ? "Upfront" : "Monthly"}
+    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${type === "upfront" ? "bg-purple-100 text-purple-700" : "bg-violet-50 text-violet-700"}`}>
+      {type === "upfront" ? "All at once" : "Every month"}
     </span>
   );
 }
@@ -61,7 +100,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -74,13 +113,13 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Policy Name <span className="text-red-400">*</span>
+              Policy Name <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
@@ -115,7 +154,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
 }
 
 // ─── Add / Edit Entitlement Modal ─────────────────────────────────────────────
-function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, onSaved }) {
+function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTypeIds = [], onClose, onSaved }) {
   const isEdit = !!editEntitlement;
   const [form, setForm] = useState({
     leave_type_id: editEntitlement?.leave_type_id || "",
@@ -124,16 +163,27 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
     max_carry_forward: editEntitlement?.max_carry_forward ?? 0,
     probation_restriction_days: editEntitlement?.probation_restriction_days ?? 0,
     max_negative_balance: editEntitlement?.max_negative_balance ?? 0,
+    notice_mode: noticeModeOf(editEntitlement?.notice_period_max_days),
+    notice_days: noticeModeOf(editEntitlement?.notice_period_max_days) === "capped" ? editEntitlement.notice_period_max_days : "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
 
+  // When adding, don't offer leave types that already have a quota in this policy.
+  const selectableTypes = isEdit
+    ? leaveTypes
+    : leaveTypes.filter(lt => !existingTypeIds.includes(lt.id));
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!isEdit && !form.leave_type_id) { setError("Please select a leave type."); return; }
     if (form.annual_quota === "" || form.annual_quota === null) { setError("Annual quota is required."); return; }
+    if (form.notice_mode === "capped" && (form.notice_days === "" || parseInt(form.notice_days, 10) < 1)) {
+      setError("Enter the maximum notice-period days, or choose Unrestricted / Blocked.");
+      return;
+    }
     setLoading(true); setError("");
     const payload = {
       annual_quota: parseFloat(form.annual_quota) || 0,
@@ -141,6 +191,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
       max_carry_forward: parseFloat(form.max_carry_forward) || 0,
       probation_restriction_days: parseInt(form.probation_restriction_days) || 0,
       max_negative_balance: parseFloat(form.max_negative_balance) || 0,
+      notice_period_max_days: noticeValue(form.notice_mode, form.notice_days),
     };
     if (!isEdit) payload.leave_type_id = form.leave_type_id;
     try {
@@ -162,7 +213,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div>
@@ -175,7 +226,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
@@ -183,8 +234,8 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
           {/* Leave Type */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Leave Type <span className="text-red-400">*</span>
-              {isEdit && <span className="ml-2 text-[10px] text-amber-500 normal-case font-semibold">(Immutable — cannot change)</span>}
+              Leave Type <span className="text-rose-400">*</span>
+              {isEdit && <span className="ml-2 text-[10px] text-fuchsia-500 normal-case font-semibold">(Immutable — cannot change)</span>}
             </label>
             <select
               value={form.leave_type_id}
@@ -193,18 +244,24 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
               className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               <option value="">Select a leave type...</option>
-              {leaveTypes.map(lt => (
+              {(isEdit ? leaveTypes : selectableTypes).map(lt => (
                 <option key={lt.id} value={lt.id}>{lt.name} ({lt.code})</option>
               ))}
             </select>
+            {!isEdit && selectableTypes.length === 0 && (
+              <p className="text-[10px] text-fuchsia-600 mt-1">Every active leave type already has a quota in this policy. Edit or remove an existing one instead.</p>
+            )}
           </div>
 
           {/* Quota + Accrual Type */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Annual Quota (days) <span className="text-red-400">*</span>
-              </label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Days Per Year <span className="text-rose-400">*</span>
+                </label>
+                <FieldHelp {...help("annual_quota")} label="days per year" className="mb-1.5" />
+              </div>
               <input
                 type="number"
                 step="0.5"
@@ -217,23 +274,26 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Accrual Type</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">How Leave Is Given</label>
               <div className="flex gap-2 mt-1">
                 {["upfront", "monthly"].map(t => (
                   <label key={t} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.accrual_type === t ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
                     <input type="radio" name="accrual_type" value={t} checked={form.accrual_type === t} onChange={() => set("accrual_type", t)} className="sr-only" />
-                    {t === "upfront" ? "Upfront" : "Monthly"}
+                    {t === "upfront" ? "All at once" : "Every month"}
                   </label>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">{form.accrual_type === "upfront" ? "Full quota credited at year start." : "Quota split and credited monthly."}</p>
+              <p className="text-[10px] text-slate-400 mt-1">{form.accrual_type === "upfront" ? "All days are given at the start of the year." : "Days are given a little every month."}</p>
             </div>
           </div>
 
           {/* Carry Forward + Probation */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Max Carry Forward (days)</label>
+              <div className="flex items-center">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Unused Days Kept For Next Year</label>
+                <FieldHelp surface="leaves.policy_setup" field="max_carry_forward" label="days kept for next year" className="mb-1.5" overlay />
+              </div>
               <input
                 type="number"
                 step="0.5"
@@ -245,7 +305,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
               <p className="text-[10px] text-slate-400 mt-1">Days that roll to next year. 0 = no carry.</p>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Probation Restriction (days)</label>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Wait After Joining (days)</label>
               <input
                 type="number"
                 step="1"
@@ -260,7 +320,10 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
 
           {/* Max Negative Balance */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Max Overdraft (days)</label>
+            <div className="flex items-center">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Extra Days Allowed Below Zero</label>
+              <FieldHelp surface="leaves.policy_setup" field="max_negative_balance" label="extra days below zero" className="mb-1.5" />
+            </div>
             <input
               type="number"
               step="0.5"
@@ -271,6 +334,14 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, onClose, on
             />
             <p className="text-[10px] text-slate-400 mt-1">Days the employee can go below zero. 0 = no overdraft.</p>
           </div>
+
+          {/* Notice-period cap (Phase 6) */}
+          <NoticePeriodField
+            mode={form.notice_mode}
+            days={form.notice_days}
+            onModeChange={v => set("notice_mode", v)}
+            onDaysChange={v => set("notice_days", v)}
+          />
 
           <div className="flex gap-3 pt-1">
             <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
@@ -300,7 +371,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
   }
 
   async function handleDeleteEntitlement(eid) {
-    if (!window.confirm("Remove this entitlement from the policy?")) return;
+    if (!(await window.confirm("Remove this leave type from the policy?"))) return;
     try {
       await leaveAPI.deleteEntitlement(policy.id, eid);
       showToast("Entitlement removed.");
@@ -335,7 +406,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
           <button onClick={() => onEditPolicy(policy)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit policy">
             <HiPencil className="w-4 h-4" />
           </button>
-          <button onClick={() => onDeletePolicy(policy)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition" title="Delete policy">
+          <button onClick={() => onDeletePolicy(policy)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition" title="Delete policy">
             <HiTrash className="w-4 h-4" />
           </button>
         </div>
@@ -345,11 +416,11 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
       {expanded && (
         <div className="border-t border-slate-100">
           {/* Live-template warning */}
-          <div className="flex items-start gap-2.5 px-6 py-3 bg-amber-50 border-b border-amber-100">
-            <HiInformationCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700 font-medium">
+          <div className="flex items-start gap-2.5 px-6 py-3 bg-fuchsia-50 border-b border-fuchsia-100">
+            <HiInformationCircle className="w-4 h-4 text-fuchsia-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-fuchsia-700 font-medium">
               Editing this policy won't change anything for employees who are <strong>already assigned</strong> to it.
-              To change a specific employee's leave right now, go to their profile and use <strong>Override Config</strong>.
+              To change a specific employee's leave right now, open their profile and use <strong>Customise Leave Rules</strong>.
             </p>
           </div>
 
@@ -365,10 +436,10 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
               <thead>
                 <tr className="border-b border-slate-50">
                   <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Annual Quota</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Accrual</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Carry Forward</th>
-                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Probation</th>
+                  <th className={TH}><HelpLabel text="Days Per Year" help={help("annual_quota", { size: "sm" })} /></th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">How Leave Is Given</th>
+                  <th className={TH}><HelpLabel text="Kept For Next Year" help={help("max_carry_forward", { size: "sm" })} /></th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wait After Joining</th>
                   <th className="px-6 py-3" />
                 </tr>
               </thead>
@@ -377,24 +448,24 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                   <tr key={ent.id} className="hover:bg-slate-50/40 transition-colors">
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{ent.leave_type?.name || "—"}</span>
+                        <span className="text-sm font-semibold text-slate-800">{ent.leave_type?.name || "N/A"}</span>
                         <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{ent.leave_type?.code}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm font-semibold text-slate-700">{parseFloat(ent.annual_quota)} days</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-700">{formatDayCount(ent.annual_quota)}</td>
                     <td className="px-6 py-3"><AccrualPill type={ent.accrual_type} /></td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {ent.max_carry_forward > 0 ? `Max ${parseFloat(ent.max_carry_forward)} days` : "None"}
+                      {ent.max_carry_forward > 0 ? `Max ${formatDayCount(ent.max_carry_forward, { lower: true })}` : "None"}
                     </td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {ent.probation_restriction_days > 0 ? `${ent.probation_restriction_days} days` : "—"}
+                      {ent.probation_restriction_days > 0 ? `${ent.probation_restriction_days} days` : "None"}
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => setEntitlementModal(ent)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition">
                           <HiPencil className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteEntitlement(ent.id)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition">
+                        <button onClick={() => handleDeleteEntitlement(ent.id)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition">
                           <HiTrash className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -413,6 +484,7 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
           templateId={policy.id}
           editEntitlement={entitlementModal === "create" ? null : entitlementModal}
           leaveTypes={leaveTypes}
+          existingTypeIds={entitlements.map(e => e.leave_type_id)}
           onClose={() => setEntitlementModal(null)}
           onSaved={onEntitlementSaved}
         />
@@ -459,7 +531,7 @@ export default function LeavePoliciesPage() {
   }
 
   async function handleDeletePolicy(policy) {
-    if (!window.confirm(`Delete policy "${policy.name}"? All entitlements will be permanently removed. Assigned employees will lose their configuration.`)) return;
+    if (!(await window.confirm(`Delete policy "${policy.name}"? All its leave types will be removed, and assigned employees will lose these leave rules.`))) return;
     try {
       await leaveAPI.deleteTemplate(policy.id);
       showToast(`Policy "${policy.name}" deleted.`);
@@ -470,16 +542,14 @@ export default function LeavePoliciesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardTopBar title="Leave Management" />
-        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
+    <>
+        <DashboardTopBar title="Leave Policies" />
+        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full">
 
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Leave Policies</h1>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Leave Policies" help={help("page", { label: "the Leave Policies page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">
                 Create policy templates and configure leave quotas. Assign templates to employees in their profile.
               </p>
@@ -529,7 +599,6 @@ export default function LeavePoliciesPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Policy Modal */}
       {policyModal && (
@@ -541,6 +610,6 @@ export default function LeavePoliciesPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

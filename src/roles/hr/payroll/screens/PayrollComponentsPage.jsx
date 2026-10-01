@@ -1,27 +1,38 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiCurrencyRupee } from "react-icons/hi";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiCurrencyRupee, HiAdjustments } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { formatComponentValue } from "../../../../shared/utils/formatUtils";
+import { calculationLabel } from "../runMeta";
+import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, rowPreviewProps } from "../../../../shared/components/DetailDialog";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+const SURFACE = "payroll.component_setup";
+const help = (field, extra) => ({ surface: SURFACE, field, ...extra });
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const isError = toast.type === "error";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-      {isError ? <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${isError ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-violet-50 text-violet-700 border border-violet-200"}`}>
+      {isError ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" /> : <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
   );
 }
 
+const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "");
+const yesNo = (v) => (v ? "Yes" : "No");
+const componentValue = (comp) => formatComponentValue(comp);
+
 export default function PayrollComponentsPage() {
   const [components, setComponents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  
+  const [preview, setPreview] = useState(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingComp, setEditingComp] = useState(null);
   const [formData, setFormData] = useState({
@@ -49,6 +60,19 @@ export default function PayrollComponentsPage() {
 
   useEffect(() => { fetchComponents(); }, [fetchComponents]);
 
+  // The list row opens the dialog at once; the single-component read then
+  // replaces it so the dialog never shows a row that changed since the list loaded.
+  const openPreview = async (comp) => {
+    setPreview(comp);
+    try {
+      const res = await payrollAPI.getComponent(comp.id);
+      const fresh = res?.data;
+      if (fresh?.id) setPreview((current) => (current?.id === fresh.id ? { ...current, ...fresh } : current));
+    } catch {
+      // Keep showing the list row; it is only at most one refresh stale.
+    }
+  };
+
   const handleBootstrap = async () => {
     try {
       await payrollAPI.bootstrapComponents();
@@ -64,9 +88,10 @@ export default function PayrollComponentsPage() {
       setEditingComp(comp);
       setFormData({
         name: comp.name, code: comp.code, component_type: comp.component_type, calculation_type: comp.calculation_type,
-        value: comp.value || 0, is_basic: comp.is_basic, is_part_of_ctc: comp.is_part_of_ctc, is_taxable: comp.is_taxable,
+        value: Number.isFinite(parseFloat(comp.value)) ? parseFloat(comp.value) : 0, is_basic: comp.is_basic, is_part_of_ctc: comp.is_part_of_ctc, is_taxable: comp.is_taxable,
         is_lop_applicable: comp.is_lop_applicable, is_prorated_on_joining: comp.is_prorated_on_joining,
-        pf_applicable: comp.pf_applicable, esi_applicable: comp.esi_applicable, display_order: comp.display_order
+        pf_applicable: comp.pf_applicable, esi_applicable: comp.esi_applicable, display_order: comp.display_order,
+        is_active: comp.is_active !== false
       });
     } else {
       setEditingComp(null);
@@ -84,7 +109,8 @@ export default function PayrollComponentsPage() {
     try {
       if (editingComp) {
         await payrollAPI.updateComponent(editingComp.id, formData);
-        showToast("Component updated successfully");
+        const statusChanged = formData.is_active !== (editingComp.is_active !== false);
+        showToast(statusChanged ? (formData.is_active ? "Component activated" : "Component deactivated") : "Component updated successfully");
       } else {
         await payrollAPI.createComponent(formData);
         showToast("Component created successfully");
@@ -96,11 +122,14 @@ export default function PayrollComponentsPage() {
     }
   };
 
+  // window.confirm is replaced app-wide by an async dialog (GlobalAlertProvider),
+  // so it must be awaited — otherwise the API ran before the user chose OK.
   const handleDeactivate = async (id) => {
-    if (!window.confirm("Are you sure you want to deactivate this component?")) return;
+    if (!(await window.confirm("Are you sure you want to deactivate this component?"))) return;
     try {
       await payrollAPI.deactivateComponent(id);
       showToast("Component deactivated");
+      setPreview(null);
       fetchComponents();
     } catch (err) {
       showToast(err.message || "Failed to deactivate", "error");
@@ -108,23 +137,23 @@ export default function PayrollComponentsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Salary Components" />
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
-          
+
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiCurrencyRupee className="text-purple-600 w-7 h-7" /> Salary Components
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">Manage the catalog of earnings, deductions, and reimbursements.</p>
+              <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Salary Components" help={help("page", { label: "the Salary Components page" })} /></h1>
+              <p className="text-sm text-slate-500 mt-1">Manage the catalog of earnings, deductions, and reimbursements. Click a row to see its details.</p>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={handleBootstrap} className="px-4 py-2.5 text-sm font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-xl transition">
-                Bootstrap Defaults
-              </button>
+              {/* The ⓘ sits beside the button, never inside it. */}
+              <div className="flex items-center">
+                <button onClick={handleBootstrap} className="px-4 py-2.5 text-sm font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-xl transition">
+                  Bootstrap Defaults
+                </button>
+                <FieldHelp {...help("bootstrap")} label="Bootstrap Defaults" />
+              </div>
               <button onClick={() => handleOpenModal()} className="px-4 py-2.5 text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
                 <HiPlus className="w-5 h-5" /> New Component
               </button>
@@ -133,78 +162,154 @@ export default function PayrollComponentsPage() {
 
           {loading ? <Skeleton type="table" rows={6} /> : (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    <th className="px-6 py-4 border-b border-slate-100">Name / Code</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Type</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Calculation</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Value</th>
-                    <th className="px-6 py-4 border-b border-slate-100">Flags</th>
-                    <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 text-sm">
-                  {components.map(comp => (
-                    <tr key={comp.id} className={`hover:bg-slate-50/50 transition-colors ${!comp.is_active ? 'opacity-50' : ''}`}>
-                      <td className="px-6 py-4">
-                        <p className="font-bold text-slate-800">{comp.name}</p>
-                        <p className="text-[10px] font-medium text-slate-400 font-mono mt-0.5">{comp.code}</p>
-                      </td>
-                      <td className="px-6 py-4 capitalize font-semibold text-slate-600">{comp.component_type.replace(/_/g, ' ')}</td>
-                      <td className="px-6 py-4 capitalize text-slate-600">{comp.calculation_type.replace(/_/g, ' ')}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-800">{comp.calculation_type === 'flat' ? `₹${comp.value}` : comp.calculation_type !== 'balancing' ? `${comp.value}%` : '—'}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {comp.is_basic && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-bold rounded">BASIC</span>}
-                          {comp.is_part_of_ctc && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[9px] font-bold rounded">CTC</span>}
-                          {comp.is_taxable && <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold rounded">TAX</span>}
-                          {comp.pf_applicable && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[9px] font-bold rounded">PF</span>}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => handleOpenModal(comp)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"><HiPencil className="w-4 h-4" /></button>
-                          {comp.is_active && !comp.is_system && (
-                            <button onClick={() => handleDeactivate(comp.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><HiTrash className="w-4 h-4" /></button>
-                          )}
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[760px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                      <th className="px-6 py-4 border-b border-slate-100">Name / Code</th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Type" help={help("component_type", { size: "sm" })} /></th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Calculation" help={help("calculation_type", { size: "sm" })} /></th>
+                      <th className="px-6 py-4 border-b border-slate-100">Value</th>
+                      <th className="px-6 py-4 border-b border-slate-100"><HelpLabel text="Flags" help={help("flags", { size: "sm" })} /></th>
+                      <th className="px-6 py-4 border-b border-slate-100 text-right">Actions</th>
                     </tr>
-                  ))}
-                  {components.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No components found. Click "Bootstrap Defaults" to seed standard components.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-sm">
+                    {components.map(comp => {
+                      const row = rowPreviewProps(() => openPreview(comp),`View ${comp.name}`);
+                      return (
+                        <tr key={comp.id} {...row} className={`${row.className} ${!comp.is_active ? "opacity-50" : ""}`}>
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-slate-800">{comp.name}</p>
+                            <p className="text-[10px] font-medium text-slate-400 font-mono mt-0.5">{comp.code}</p>
+                          </td>
+                          <td className="px-6 py-4 capitalize font-semibold text-slate-600">{prettify(comp.component_type) || "N/A"}</td>
+                          <td className="px-6 py-4 text-slate-600">{calculationLabel(comp.calculation_type) || "N/A"}</td>
+                          <td className="px-6 py-4 font-semibold text-slate-800">{componentValue(comp)}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1">
+                              {!comp.is_active && <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[9px] font-bold rounded">INACTIVE</span>}
+                              {comp.is_basic && <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-bold rounded">BASIC</span>}
+                              {comp.is_part_of_ctc && <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[9px] font-bold rounded">CTC</span>}
+                              {comp.is_taxable && <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold rounded">TAX</span>}
+                              {comp.pf_applicable && <span className="px-1.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold rounded">PF</span>}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => handleOpenModal(comp)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Edit"><HiPencil className="w-4 h-4" /></button>
+                              {comp.is_active && !comp.is_system && (
+                                <button onClick={() => handleDeactivate(comp.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Deactivate"><HiTrash className="w-4 h-4" /></button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {components.length === 0 && (
+                      <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No components found. Click "Bootstrap Defaults" to seed standard components.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </main>
-      </div>
+
+      {preview && (
+        <DetailDialog
+          eyebrow="Salary component"
+          icon={HiCurrencyRupee}
+          title={preview.name}
+          subtitle={preview.code}
+          badge={<DetailPill tone="onDark">{preview.is_active !== false ? "Active" : "Inactive"}</DetailPill>}
+          onClose={() => setPreview(null)}
+          footer={
+            <>
+              {preview.is_active && !preview.is_system && (
+                <button onClick={() => handleDeactivate(preview.id)} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
+                  <HiTrash className="w-4 h-4" /> Deactivate
+                </button>
+              )}
+              <button onClick={() => { const c = preview; setPreview(null); handleOpenModal(c); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                <HiPencil className="w-4 h-4" /> Edit component
+              </button>
+            </>
+          }
+        >
+          <DetailStats
+            items={[
+              { label: "Type", value: prettify(preview.component_type), help: help("component_type") },
+              { label: "Calculation", value: calculationLabel(preview.calculation_type), help: help("calculation_type") },
+              { label: "Value", value: componentValue(preview) },
+              { label: "Display order", value: preview.display_order ?? 0 },
+            ]}
+          />
+          <DetailSection title="How it behaves" icon={HiAdjustments}>
+            <DetailGrid
+              items={[
+                { label: "Basic component", value: yesNo(preview.is_basic), help: help("is_basic") },
+                { label: "Part of CTC", value: yesNo(preview.is_part_of_ctc), help: help("is_part_of_ctc") },
+                { label: "Taxable (TDS)", value: yesNo(preview.is_taxable), help: help("is_taxable") },
+                { label: "Cut for unpaid days", value: yesNo(preview.is_lop_applicable), help: help("is_lop_applicable") },
+                { label: "Prorated on joining", value: yesNo(preview.is_prorated_on_joining), help: help("is_prorated_on_joining") },
+                { label: "PF applicable", value: yesNo(preview.pf_applicable), help: help("pf_applicable") },
+                { label: "ESI applicable", value: yesNo(preview.esi_applicable), help: help("esi_applicable") },
+                ["System component", yesNo(preview.is_system)],
+              ]}
+            />
+          </DetailSection>
+        </DetailDialog>
+      )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <h2 className="text-lg font-bold text-slate-800">{editingComp ? "Edit Component" : "New Component"}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+              <div className="flex items-center gap-3">
+                {editingComp && (() => {
+                  // System components can't be deactivated (same rule as the row's delete action).
+                  const locked = editingComp.is_system && editingComp.is_active !== false;
+                  return (
+                    <label className={`flex items-center gap-2 ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`} title={locked ? "System components can't be deactivated" : undefined}>
+                      <span className={`text-xs font-bold ${formData.is_active ? "text-purple-600" : "text-slate-400"}`}>{formData.is_active ? "Active" : "Inactive"}</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formData.is_active}
+                        aria-label="Component active"
+                        disabled={locked}
+                        onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed ${formData.is_active ? "bg-purple-600" : "bg-slate-300"}`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${formData.is_active ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                      </button>
+                    </label>
+                  );
+                })()}
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
+              </div>
             </div>
             <div className="p-6 overflow-y-auto">
               <form id="compForm" onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-red-500">*</span></label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Name <span className="text-rose-500">*</span></label>
                     <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none transition-all" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Code <span className="text-red-500">*</span></label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Code <span className="text-rose-500">*</span></label>
                     <input type="text" required disabled={editingComp?.is_system} value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none transition-all disabled:opacity-50" placeholder="E.g. BASIC_SALARY" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                    <div className="flex items-center">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
+                      <FieldHelp {...help("component_type")} label="the component type" className="mb-2" />
+                    </div>
                     <select disabled={editingComp?.is_system} value={formData.component_type} onChange={e => setFormData({...formData, component_type: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-50">
                       <option value="earning">Earning</option>
                       <option value="deduction">Deduction</option>
@@ -213,7 +318,10 @@ export default function PayrollComponentsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Calculation</label>
+                    <div className="flex items-center">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Calculation</label>
+                      <FieldHelp surface={SURFACE} field="calculation_type" label="how this component is worked out" className="mb-2" />
+                    </div>
                     <select disabled={editingComp?.is_system} value={formData.calculation_type} onChange={e => setFormData({...formData, calculation_type: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none disabled:opacity-50">
                       <option value="flat">Flat Amount</option>
                       <option value="percent_of_basic">Percentage of Basic</option>
@@ -234,30 +342,48 @@ export default function PayrollComponentsPage() {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <h4 className="text-xs font-bold text-slate-800 mb-3">Behavioural Flags</h4>
                   <div className="grid grid-cols-2 gap-y-3">
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_basic} onChange={e => setFormData({...formData, is_basic: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Is Basic Component
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_part_of_ctc} onChange={e => setFormData({...formData, is_part_of_ctc: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Part of CTC
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_taxable} onChange={e => setFormData({...formData, is_taxable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      Taxable (TDS)
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.is_lop_applicable} onChange={e => setFormData({...formData, is_lop_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      LOP Applicable
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.pf_applicable} onChange={e => setFormData({...formData, pf_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      PF Applicable
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" checked={formData.esi_applicable} onChange={e => setFormData({...formData, esi_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                      ESI Applicable
-                    </label>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_basic} onChange={e => setFormData({...formData, is_basic: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Is Basic Component
+                      </label>
+                      <FieldHelp surface={SURFACE} field="is_basic" label="the basic component" />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_part_of_ctc} onChange={e => setFormData({...formData, is_part_of_ctc: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Part of CTC
+                      </label>
+                      <FieldHelp surface={SURFACE} field="is_part_of_ctc" label="part of CTC" />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_taxable} onChange={e => setFormData({...formData, is_taxable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Taxable (TDS)
+                      </label>
+                      <FieldHelp {...help("is_taxable")} label="taxable" overlay />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.is_lop_applicable} onChange={e => setFormData({...formData, is_lop_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        Cut for unpaid days
+                      </label>
+                      <FieldHelp {...help("is_lop_applicable")} label="cut for unpaid days" overlay />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.pf_applicable} onChange={e => setFormData({...formData, pf_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        PF Applicable
+                      </label>
+                      <FieldHelp surface={SURFACE} field="pf_applicable" label="PF applicable" />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" checked={formData.esi_applicable} onChange={e => setFormData({...formData, esi_applicable: e.target.checked})} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                        ESI Applicable
+                      </label>
+                      <FieldHelp {...help("esi_applicable")} label="ESI applicable" overlay />
+                    </div>
                   </div>
                 </div>
               </form>
@@ -273,6 +399,6 @@ export default function PayrollComponentsPage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

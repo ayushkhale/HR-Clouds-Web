@@ -1,12 +1,26 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { uuid } from '../utils/uuid';
+import { ENV } from '../../config/env';
 
-const API_URL = import.meta.env.VITE_DOCMIND_API_URL || 'https://api.codewithrishi.fun/api/public';
-const API_KEY = import.meta.env.VITE_DOCMIND_API_KEY;
+const API_URL = ENV.DOCMIND_API_URL;
+const API_KEY = ENV.DOCMIND_API_KEY;
+
+// Without a key every request fails, so nothing should route questions to Maya
+// (the field-help "Ask Maya" link reads this through the widget).
+export const DOCMIND_CONFIGURED = !!API_KEY;
 
 // The RAG backend emits this sentinel when no relevant context is found.
 // We replace it with a friendly message that doesn't expose implementation details.
 const NOT_IN_CONTEXT_SENTINEL = "I could not find any relevant information in the uploaded documents to answer your question.";
 const NOT_IN_CONTEXT_REPLY = "I'm sorry, I don't have information about that right now. Please try rephrasing your question, or contact our support team for more help.";
+
+// A hung request used to wait forever: the SSE loop had no deadline and no
+// AbortController, so a server that accepted the connection and then went
+// quiet left the widget stuck on "Thinking…" with no way out.
+// CONNECT_TIMEOUT_MS covers the initial response; IDLE_TIMEOUT_MS restarts on
+// every chunk, so a slow-but-alive stream is never cut off mid-answer.
+const CONNECT_TIMEOUT_MS = 20000;
+const IDLE_TIMEOUT_MS = 30000;
 
 // Default config used before the API responds
 const DEFAULT_CONFIG = {
@@ -16,10 +30,12 @@ const DEFAULT_CONFIG = {
     description: 'HR Assistant · Online',
     welcomeMessage: "Hi there! I'm Maya, your HR assistant. Ask me anything about HR Clouds — policies, payroll, leave, and more.",
     placeholder: 'Ask Maya anything…',
+    // Framed for a visitor evaluating the product, not for someone who already
+    // works here — the old set read as if the browser were an HR Clouds employee.
     suggestedQuestions: [
-      'What are the leave policies at HR Clouds?',
-      'How do I apply for payroll services?',
-      'What features does HR Clouds offer?',
+      'What does HR Clouds do?',
+      'Which plan fits a team of 20?',
+      'How does payroll compliance work?',
     ],
     primaryColor: '#7c3aed',
     theme: 'light',
@@ -39,11 +55,19 @@ export function useDocMindChat() {
 
   // Keep limits in ref for use inside callbacks without stale closure issues
   const limitsRef = useRef(DEFAULT_CONFIG.limits);
-  const sessionIdRef = useRef(crypto.randomUUID());
+  const sessionIdRef = useRef(uuid());
+
+  // The in-flight request, so Stop and unmount can both abort it.
+  const abortRef = useRef(null);
 
   // Initialization
   useEffect(() => {
     const initChat = async () => {
+      if (!API_KEY) {
+        setIsInitialized(true);
+        return;
+      }
+
       try {
         const res = await fetch(`${API_URL}/config`, {
           headers: { 'X-Api-Key': API_KEY }
@@ -95,11 +119,29 @@ export function useDocMindChat() {
     }
   }, []);
 
+  /**
+   * Abort whatever is in flight. Returns true if there was something to stop.
+   * Kept separate from clearMessages: "stop generating" and "throw the whole
+   * conversation away" are different intents, and the Stop button used to do
+   * the second one.
+   */
+  const stopStreaming = useCallback(() => {
+    const controller = abortRef.current;
+    if (!controller) return false;
+    controller.abort();
+    abortRef.current = null;
+    return true;
+  }, []);
+
+  // Never leave a request running behind a closed widget.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const clearMessages = useCallback(() => {
+    stopStreaming();
     setMessages([]);
     setError(null);
-    sessionIdRef.current = crypto.randomUUID(); // Fresh session
-  }, []);
+    sessionIdRef.current = uuid(); // Fresh session
+  }, [stopStreaming]);
 
   const sendMessage = useCallback(async (query) => {
     if (!query.trim() || isLoading || isStreaming) return;
@@ -121,8 +163,8 @@ export function useDocMindChat() {
     const historyPayload = validHistory.slice(-maxTurns);
 
     // Optimistically add the user message and a placeholder for the assistant
-    const userMessage = { id: crypto.randomUUID(), role: 'user', content: currentQuery, sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-    const assistantMessageId = crypto.randomUUID();
+    const userMessage = { id: uuid(), role: 'user', content: currentQuery, sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+    const assistantMessageId = uuid();
 
     setMessages(prev => [
       ...prev,
@@ -133,9 +175,27 @@ export function useDocMindChat() {
     setIsLoading(true);
     setError(null);
 
+    // One controller per request, aborted by Stop, by unmount, or by a deadline.
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let timedOut = false;
+    let deadline = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, CONNECT_TIMEOUT_MS);
+    // Each chunk buys the stream another idle window.
+    const bumpDeadline = () => {
+      clearTimeout(deadline);
+      deadline = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, IDLE_TIMEOUT_MS);
+    };
+
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': API_KEY
@@ -149,6 +209,7 @@ export function useDocMindChat() {
       });
 
       setIsLoading(false);
+      bumpDeadline();
 
       if (!response.ok) {
         let errMessage = 'An error occurred while generating the answer.';
@@ -160,7 +221,7 @@ export function useDocMindChat() {
           try {
             const errData = await response.json();
             if (errData.error) errMessage = errData.error;
-          } catch(e) {
+          } catch {
              errMessage = response.statusText;
           }
         }
@@ -176,6 +237,7 @@ export function useDocMindChat() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        bumpDeadline();
 
         buffer += decoder.decode(value, { stream: true });
         
@@ -202,9 +264,14 @@ export function useDocMindChat() {
           }
 
           if (dataStr) {
+            let data;
             try {
-              const data = JSON.parse(dataStr);
-              
+              data = JSON.parse(dataStr);
+            } catch {
+              // A malformed frame is skipped; a genuine error event below is not.
+              continue;
+            }
+            {
               if (eventType === 'chunk') {
                 setMessages(prev => prev.map(msg => {
                   if (msg.id === assistantMessageId) {
@@ -222,9 +289,6 @@ export function useDocMindChat() {
               } else if (eventType === 'error') {
                 throw new Error(data.error);
               }
-            } catch (e) {
-              // If JSON parsing fails, we might just ignore or log
-              // console.warn('Failed to parse SSE data:', e);
             }
           }
         }
@@ -242,14 +306,34 @@ export function useDocMindChat() {
       }));
 
     } catch (err) {
-      console.error('Chat error:', err);
-      // Remove the optimistically added placeholder if we didn't start streaming it properly
-      // Or just append an error message
-      setMessages(prev => {
-        const filtered = prev.filter(msg => msg.id !== assistantMessageId);
-        return [...filtered, { id: crypto.randomUUID(), role: 'assistant', content: `**Error:** ${err.message}`, isError: true }];
-      });
+      const aborted = err?.name === 'AbortError';
+
+      if (aborted && !timedOut) {
+        // The reader pressed Stop. Keep whatever Maya had already said —
+        // a half-answer is still useful — and just close the message off.
+        setMessages(prev => prev.flatMap(msg => {
+          if (msg.id !== assistantMessageId) return [msg];
+          if (!msg.content.trim()) return [];
+          return [{
+            ...msg,
+            isStreaming: false,
+            stopped: true,
+            sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }];
+        }));
+      } else {
+        const message = aborted
+          ? 'Maya took too long to respond. Please try again, or email us if it keeps happening.'
+          : err.message;
+        if (!aborted) console.error('Chat error:', err);
+        setMessages(prev => {
+          const filtered = prev.filter(msg => msg.id !== assistantMessageId);
+          return [...filtered, { id: uuid(), role: 'assistant', content: `**Error:** ${message}`, isError: true }];
+        });
+      }
     } finally {
+      clearTimeout(deadline);
+      if (abortRef.current === controller) abortRef.current = null;
       setIsLoading(false);
       setIsStreaming(false);
     }
@@ -259,6 +343,7 @@ export function useDocMindChat() {
     messages,
     sendMessage,
     clearMessages,
+    stopStreaming,
     isLoading,
     isStreaming,
     error,

@@ -1,460 +1,165 @@
-import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { organizationAPI, leaveAPI, attendanceAPI } from "../../../shared/api";
-import { 
-  HiUserGroup, HiOutlineMail, HiOutlinePhone, HiOutlineOfficeBuilding, 
-  HiOutlineBriefcase, HiOutlineCalendar, HiPencil, HiX, HiCheckCircle, HiExclamationCircle,
-  HiUserCircle, HiInformationCircle, HiClock
-} from "react-icons/hi";
+import { useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
+import { HiOfficeBuilding, HiSearch, HiUserGroup } from "react-icons/hi";
+import { departmentName, employeeCode, personName } from "../../../shared/attendance/normalize";
+import { ErrorState, FilterTabs } from "../../../shared/attendance/ui";
+import GenderAvatar from "../../../shared/components/GenderAvatar";
+import { DICTIONARY } from "../../../shared/config/dictionary";
 
-// ─── Edit Profile Modal ───────────────────────────────────────────────────────
-function EditProfileModal({ employee, onClose, onSuccess }) {
-  const [form, setForm] = useState({
-    name: employee.name || "",
-    phone_number: employee.phone_number || "",
-    avatar_url: employee.avatar_url || ""
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+// The org roster keys people by `user_id`.
+const memberId = (m) => m.user_id || m.id || m._id;
+const isActive = (m) => m.is_active !== false && String(m.status || "active").toLowerCase() === "active";
+const openKeys = (e) => e.key === "Enter" || e.key === " ";
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+/**
+ * A manager's direct reports, laid out like HR's Team directory. Selecting a
+ * card opens the member's profile, where attendance, leave and editing live.
+ */
+/** "hr" → "HR", "employee" → "Employee". */
+const titleCaseRole = (r) => (r === "hr" ? "HR" : r ? r.charAt(0).toUpperCase() + r.slice(1) : r);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-    try {
-      await organizationAPI.updateEmployeeProfile(employee.id || employee._id, {
-        name: form.name.trim(),
-        phone_number: form.phone_number.trim(),
-        avatar_url: form.avatar_url.trim()
-      });
-      onSuccess("Profile updated successfully!");
-    } catch (err) {
-      setError(err.message || "Failed to update profile.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-800">Edit Profile</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Update {employee.name}'s details.</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
-            <HiX className="w-4 h-4" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
-            </div>
-          )}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Name</label>
-            <input type="text" name="name" value={form.name} onChange={handleChange} className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" required />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
-            <input type="text" name="phone_number" value={form.phone_number} onChange={handleChange} className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Avatar URL</label>
-            <input type="url" name="avatar_url" value={form.avatar_url} onChange={handleChange} placeholder="https://..." className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="submit" disabled={submitting} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition disabled:opacity-60">
-              {submitting ? "Saving..." : "Save Changes"}
-            </button>
-            <button type="button" onClick={onClose} className="px-6 py-3 font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ─── View Leave History Modal ─────────────────────────────────────────────────
-function ViewLeaveHistoryModal({ employee, onClose }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    leaveAPI.getTeamMemberRequests(employee.id || employee._id)
-      .then(res => setHistory(res.data || []))
-      .catch(err => setError(err.message || "Failed to load leave history."))
-      .finally(() => setLoading(false));
-  }, [employee]);
-
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
-          <div>
-            <h2 className="text-base font-bold text-slate-800">Leave History</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{employee.name}'s past and upcoming leaves.</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
-            <HiX className="w-4 h-4" />
-          </button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-            </div>
-          ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
-            </div>
-          ) : history.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <HiCalendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-semibold">No leave history found.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {history.map(req => (
-                <div key={req.id || req._id} className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-bold text-slate-800">{req.leave_type?.name || "Leave"}</h4>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border 
-                        ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                          req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 
-                          req.status === 'cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
-                          'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                        {req.status?.replace('_', ' ').toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {fmtDate(req.start_date)} {req.start_date !== req.end_date && `– ${fmtDate(req.end_date)}`} 
-                      <span className="mx-2">•</span> 
-                      {parseFloat(req.total_days).toFixed(1)} days
-                    </p>
-                  </div>
-                  {req.reason && (
-                    <div className="text-xs text-slate-500 bg-white px-3 py-2 rounded-lg border border-slate-200 max-w-[200px] truncate">
-                      <span className="italic">"{req.reason}"</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── View Attendance Modal ────────────────────────────────────────────────────
-function ViewAttendanceModal({ employee, onClose }) {
-  const [summary, setSummary] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
-
-  useEffect(() => {
-    setLoading(true);
-    setError("");
-    const empId = employee.id || employee._id;
-    Promise.all([
-      attendanceAPI.getTeamMemberSummary(empId, month, year),
-      attendanceAPI.getTeamMemberHistory(empId, month, year)
-    ])
-      .then(([summaryRes, historyRes]) => {
-        setSummary(summaryRes.data);
-        setHistory(historyRes.data?.records || historyRes.data || []);
-      })
-      .catch(err => setError(err.message || "Failed to load attendance data."))
-      .finally(() => setLoading(false));
-  }, [employee, month, year]);
-
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-  const fmtTime = (t) => t ? new Date(t).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
-          <div>
-            <h2 className="text-base font-bold text-slate-800">Attendance Details</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{employee.name}'s attendance record.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <input 
-              type="month" 
-              value={`${year}-${String(month).padStart(2, '0')}`}
-              onChange={e => {
-                const [y, m] = e.target.value.split('-');
-                setYear(parseInt(y, 10));
-                setMonth(parseInt(m, 10));
-              }}
-              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-purple-500"
-            />
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
-              <HiX className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-            </div>
-          ) : error ? (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-emerald-600">{summary?.present_days || 0}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Present</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-rose-600">{summary?.absent_days || 0}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Absent</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-amber-500">{summary?.late_days || 0}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Late</p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-center">
-                  <p className="text-2xl font-bold text-purple-600">{summary?.total_effective_hours || "0"}</p>
-                  <p className="text-xs font-semibold text-slate-500 uppercase mt-1">Total Hours</p>
-                </div>
-              </div>
-
-              {/* History Table */}
-              <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400">
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Clock In</th>
-                      <th className="px-4 py-3">Clock Out</th>
-                      <th className="px-4 py-3">Hours</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 text-sm">
-                    {history.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-xs">No attendance records for this month.</td>
-                      </tr>
-                    ) : (
-                      history.map((record, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="px-4 py-3 font-medium text-slate-700">{fmtDate(record.date)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border 
-                              ${record.status === 'present' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                                record.status === 'absent' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
-                                record.status === 'half-day' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                                'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                              {record.status?.toUpperCase() || "—"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
-                          <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
-                          <td className="px-4 py-3 text-slate-600">{record.effective_hours || "0.00"} hrs</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Roster Page ─────────────────────────────────────────────────────────
 export default function ManagerTeamRosterPage() {
-  const [team, setTeam] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  const [editingEmployee, setEditingEmployee] = useState(null);
-  const [viewingLeaveHistory, setViewingLeaveHistory] = useState(null);
-  const [viewingAttendance, setViewingAttendance] = useState(null);
-  const [toast, setToast] = useState(null);
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
 
-  const fetchTeam = async () => {
-    setLoading(true);
-    try {
-      const res = await organizationAPI.getEmployees({ purpose: "shift_assignment" }); // Scoped to direct reports automatically
-      setTeam(Array.isArray(res.data) ? res.data : (res.data?.employees || []));
-    } catch (err) {
-      setError(err.message || "Failed to load team roster.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // The server scopes a manager's roster to their direct reports, and the app
+  // reads it once — the same people, with the same photos, as every picker.
+  const { activeRows: rows, status, error, reload } = useEmployeeDirectory();
+  const loading = status === "loading" || status === "idle";
+  const team = useMemo(() => [...rows].sort((a, b) => personName(a).localeCompare(personName(b))), [rows]);
 
-  useEffect(() => {
-    fetchTeam();
-  }, []);
+  const q = searchQuery.trim().toLowerCase();
+  // Only the roles this manager's own reports hold — usually just Employee, but
+  // a manager with managers under them gets both. Deriving it means the filter
+  // can never empty the list on its own.
+  const roleTabs = [
+    { value: "", label: `All (${team.length})` },
+    ...[...new Set(team.map((m) => String(m.role || "").toLowerCase()).filter(Boolean))].sort()
+      .map((r) => ({
+        value: r,
+        label: `${titleCaseRole(r)} (${team.filter((m) => String(m.role || "").toLowerCase() === r).length})`,
+      })),
+  ];
+  const filteredTeam = team.filter((m) => {
+    const matchesSearch = !q || [personName(m), m.email, employeeCode(m)].some((v) => String(v || "").toLowerCase().includes(q));
+    const matchesRole = !roleFilter || String(m.role || "").toLowerCase() === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
-  const showToast = (msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 5000);
+  const openMember = (m) => {
+    const id = memberId(m);
+    if (id) navigate(`/dashboard/manager/team/member/${id}`);
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
+    <>
+      <DashboardTopBar title={DICTIONARY.NAV.EMPLOYEES} />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <DashboardTopBar title="My Team Roster" />
+      <main className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto flex-1 overflow-y-auto">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{DICTIONARY.NAV.EMPLOYEES}</h1>
+          <p className="text-sm text-slate-500 mt-1">Everyone who reports to you. Open a person to see their attendance and leave, or edit their details.</p>
+        </div>
 
-        <main className="p-6 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <HiUserGroup className="text-purple-600" />
-                My Team Roster
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">View and manage your direct reports.</p>
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
+          {/* Same shape as Live Attendance: role segments left, search right. */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <FilterTabs options={roleTabs} value={roleFilter} onChange={setRoleFilter} />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="relative sm:w-64">
+                <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search member or email…"
+                  aria-label="Search your team"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              {!loading && !error && (
+                <p className="text-xs font-semibold text-slate-400 whitespace-nowrap">
+                  {filteredTeam.length} {filteredTeam.length === 1 ? "member" : "members"}
+                </p>
+              )}
             </div>
           </div>
 
-          {toast && (
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border ${toast.type === "success" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
-              {toast.type === "success" ? <HiCheckCircle className="w-5 h-5 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 shrink-0" />}
-              {toast.msg}
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100">
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl h-56 border border-slate-100 animate-pulse"></div>
-              ))}
+          {status === "error" ? (
+            <ErrorState error={error} onRetry={reload} fallback="Couldn't load your team." />
+          ) : loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {[...Array(8)].map((_, i) => <div key={i} className="bg-white rounded-[20px] h-56 border border-slate-100 animate-pulse" />)}
             </div>
           ) : team.length === 0 ? (
-            <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm">
-              <HiUserGroup className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-slate-800">No direct reports found</h3>
-              <p className="text-slate-500 text-sm mt-1">It looks like you don't have any team members assigned to you.</p>
+            <div className="py-16 text-center">
+              <HiUserGroup className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-slate-800">No one reports to you yet</h3>
+              <p className="text-slate-500 text-sm mt-1">People appear here once HR sets you as their reporting manager.</p>
+            </div>
+          ) : filteredTeam.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 font-medium">
+              <HiUserGroup className="w-12 h-12 mx-auto text-slate-200 mb-3" />
+              {searchQuery
+                ? <>No members matching &quot;{searchQuery}&quot;{roleFilter ? ` in ${titleCaseRole(roleFilter)}` : ""}</>
+                : `Nobody on your team has the ${titleCaseRole(roleFilter)} role.`}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {team.map((emp) => (
-                <div key={emp.id || emp._id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
-                  <div className="p-5 flex items-start gap-4">
-                    {emp.avatar_url ? (
-                      <img src={emp.avatar_url} alt={emp.name} className="w-14 h-14 rounded-full border-2 border-purple-100 object-cover shrink-0" />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full border-2 border-purple-100 bg-purple-50 flex items-center justify-center shrink-0">
-                        <HiUserCircle className="w-8 h-8 text-purple-300" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredTeam.map((m) => {
+                const name = personName(m);
+                const code = employeeCode(m);
+                const dept = departmentName(m);
+                const active = isActive(m);
+                return (
+                  <div
+                    key={memberId(m) || name}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Open ${name}'s profile`}
+                    onClick={() => openMember(m)}
+                    onKeyDown={(e) => openKeys(e) && (e.preventDefault(), openMember(m))}
+                    className="bg-white rounded-[20px] border border-slate-100 hover:border-purple-200 hover:shadow-md hover:-translate-y-1 focus:border-purple-300 outline-none transition-all duration-200 group cursor-pointer flex flex-col overflow-hidden shadow-sm"
+                  >
+                    <div className="p-6 flex-1 flex flex-col">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full ${active ? "bg-violet-50 text-violet-600 border border-violet-100" : "bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-violet-500" : "bg-fuchsia-500"}`} />
+                          {active ? "Active" : "Inactive"}
+                        </span>
+                        <span className={`font-mono text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 ${code ? "text-slate-500 bg-slate-100" : "text-slate-400 bg-slate-50"}`} title={code ? undefined : "No employee code on file"}>
+                          {code || "N/A"}
+                        </span>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0 pt-1">
-                      <h3 className="font-bold text-slate-900 truncate">{emp.name || "Employee"}</h3>
-                      <p className="text-purple-600 text-[11px] font-bold uppercase tracking-wider truncate mt-0.5">{emp.designation || "Member"}</p>
+
+                      <div className="flex flex-col items-center text-center">
+                        <div className="relative mb-4">
+                          <div className="w-20 h-20 rounded-full shadow-sm overflow-hidden bg-slate-50 shrink-0 ring-2 ring-purple-100 flex items-center justify-center">
+                            <GenderAvatar person={m} name={name} />
+                          </div>
+                          {active && <div className="absolute bottom-0.5 right-0.5 w-4.5 h-4.5 bg-violet-500 border-2 border-white rounded-full shadow-sm" />}
+                        </div>
+                        <h3 className="text-[17px] font-bold text-slate-900 leading-tight group-hover:text-purple-700 transition-colors px-2 truncate w-full">{name}</h3>
+                        <p className="text-xs font-semibold text-slate-400 mt-1 uppercase truncate w-full">{m.designation || m.role || "N/A"}</p>
+                        <span
+                          className={`mt-2.5 inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full text-[11px] font-semibold border ${dept ? "bg-purple-50 text-purple-700 border-purple-100" : "bg-slate-50 text-slate-400 border-slate-200"}`}
+                          title={dept || "No department assigned"}
+                        >
+                          <HiOfficeBuilding className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{dept || "No department"}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="px-5 pb-5 space-y-2 text-xs text-slate-600 flex-1">
-                    {emp.email && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlineMail className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate">{emp.email}</span>
-                      </div>
-                    )}
-                    {emp.phone_number && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlinePhone className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span>{emp.phone_number}</span>
-                      </div>
-                    )}
-                    {emp.department && (
-                      <div className="flex items-center gap-2">
-                        <HiOutlineOfficeBuilding className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate">{emp.department}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-slate-100 bg-slate-50 flex divide-x divide-slate-100">
-                    <button 
-                      onClick={() => setViewingAttendance(emp)}
-                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
-                    >
-                      <HiClock className="w-3.5 h-3.5" /> Attendance
-                    </button>
-                    <button 
-                      onClick={() => setViewingLeaveHistory(emp)}
-                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
-                    >
-                      <HiOutlineCalendar className="w-3.5 h-3.5" /> Leaves
-                    </button>
-                    <button 
-                      onClick={() => setEditingEmployee(emp)}
-                      className="flex-1 py-3 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-purple-700 transition flex items-center justify-center gap-1.5"
-                    >
-                      <HiPencil className="w-3.5 h-3.5" /> Edit
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </main>
-      </div>
-
-      {editingEmployee && (
-        <EditProfileModal 
-          employee={editingEmployee} 
-          onClose={() => setEditingEmployee(null)} 
-          onSuccess={(msg) => {
-            setEditingEmployee(null);
-            showToast(msg);
-            fetchTeam();
-          }}
-        />
-      )}
-
-      {viewingLeaveHistory && (
-        <ViewLeaveHistoryModal 
-          employee={viewingLeaveHistory}
-          onClose={() => setViewingLeaveHistory(null)}
-        />
-      )}
-
-      {viewingAttendance && (
-        <ViewAttendanceModal 
-          employee={viewingAttendance}
-          onClose={() => setViewingAttendance(null)}
-        />
-      )}
-    </div>
+        </div>
+      </main>
+    </>
   );
 }

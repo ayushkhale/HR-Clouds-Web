@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { leaveAPI } from "../../../../shared/api";
+import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
+import { noticeValue } from "../../../../shared/utils/leaveConfig";
+import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil,
-  HiCalendar, HiInformationCircle, HiRefresh,
+  HiCalendar, HiInformationCircle, HiRefresh, HiClipboardCheck,
 } from "react-icons/hi";
+import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
+import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+
+// The override dialog reuses the policy rules' own hints — each reads the same for one person.
+const POLICY = (field) => ({ surface: "leaves.policy_setup", field });
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -19,90 +27,121 @@ function Toast({ toast, onClose }) {
 }
 
 // ─── Balance Card ─────────────────────────────────────────────────────────────
+// Purple shades only.
 const CARD_COLORS = [
   { bg: "bg-purple-50", border: "border-purple-100", accent: "text-purple-700", dot: "bg-purple-500" },
-  { bg: "bg-blue-50", border: "border-blue-100", accent: "text-blue-700", dot: "bg-blue-500" },
-  { bg: "bg-emerald-50", border: "border-emerald-100", accent: "text-emerald-700", dot: "bg-emerald-500" },
-  { bg: "bg-amber-50", border: "border-amber-100", accent: "text-amber-700", dot: "bg-amber-500" },
-  { bg: "bg-rose-50", border: "border-rose-100", accent: "text-rose-700", dot: "bg-rose-500" },
-  { bg: "bg-cyan-50", border: "border-cyan-100", accent: "text-cyan-700", dot: "bg-cyan-500" },
+  { bg: "bg-violet-50", border: "border-violet-100", accent: "text-violet-700", dot: "bg-violet-500" },
+  { bg: "bg-purple-100/60", border: "border-purple-200", accent: "text-purple-800", dot: "bg-purple-600" },
+  { bg: "bg-violet-100/60", border: "border-violet-200", accent: "text-violet-800", dot: "bg-violet-600" },
 ];
 
-function BalanceCard({ balance, index }) {
+/** Up to 4 balances share one row; larger sets use a column count that divides evenly. */
+export function balanceGridCols(count) {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-1 sm:grid-cols-2";
+  if (count === 3) return "grid-cols-1 sm:grid-cols-3";
+  if (count === 4) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+  if (count % 3 === 0) return "grid-cols-1 sm:grid-cols-3";
+  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+}
+
+export function BalanceCard({ balance, index }) {
   const color = CARD_COLORS[index % CARD_COLORS.length];
   const current = parseFloat(balance.current_balance);
-  const accrued = parseFloat(balance.total_accrued);
-  const used = parseFloat(balance.total_used);
-
-  function fmt(n) {
-    return Number.isInteger(n) ? `${n}` : n.toFixed(1);
-  }
+  const earned = parseFloat(balance.total_accrued);
+  const taken = parseFloat(balance.total_used);
 
   return (
     <div className={`rounded-2xl border p-5 ${color.bg} ${color.border}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`w-2 h-2 rounded-full ${color.dot}`} />
-        <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">{balance.leave_type?.name || "Leave"}</p>
-        <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 ${color.accent}`}>
-          {balance.leave_type?.code}
-        </span>
+      {/* The name wraps, never truncates: four cards across a 14" screen cut
+          "Casual Leave" to "CASUAL L…", which named nothing. */}
+      <div className="flex items-start gap-2 mb-3 min-w-0">
+        <span className={`w-2 h-2 mt-1 rounded-full shrink-0 ${color.dot}`} />
+        <p className="flex-1 min-w-0 text-xs font-bold text-slate-600 leading-snug">{balance.leave_type?.name || "Leave"}</p>
+        {balance.leave_type?.code && (
+          <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/70 shrink-0 ${color.accent}`}>
+            {balance.leave_type.code}
+          </span>
+        )}
       </div>
-      <p className={`text-3xl font-extrabold ${color.accent} mb-1`}>{fmt(current)}</p>
-      <p className="text-xs text-slate-400 font-medium">days remaining</p>
-      <div className="mt-3 pt-3 border-t border-white/50 flex gap-4 text-xs text-slate-500">
-        <span><span className="font-semibold text-slate-700">{fmt(accrued)}</span> accrued</span>
-        <span><span className="font-semibold text-slate-700">{fmt(used)}</span> used</span>
+      <p className={`text-xl font-extrabold leading-tight ${color.accent} mb-1`}>{formatDayCount(current, { fallback: "0 Days" })}</p>
+      <p className="text-xs text-slate-500 font-medium">left</p>
+      <div className="mt-3 pt-3 border-t border-white/70 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(earned, { lower: true, fallback: "0 days" })}</span> given so far</span>
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(taken, { lower: true, fallback: "0 days" })}</span> taken</span>
       </div>
     </div>
   );
 }
 
-// ─── Override Config Modal ────────────────────────────────────────────────────
-function OverrideModal({ userId, balance, onClose, onSaved }) {
+// ─── Customise Leave Rules Modal ──────────────────────────────────────────────
+function CustomiseRulesModal({ userId, balance, onClose, onSaved }) {
+  // The balances endpoint returns NO current-config object (see backend
+  // clarification B1), so we cannot prefill the employee's real rule values.
+  // Every field therefore starts blank and only fields the HR user actually
+  // changes are sent — unsent fields keep their current server-side values, as
+  // the backend contract guarantees ("Unsent fields remain at their current
+  // values"). This prevents silently resetting accrual type / carry-forward /
+  // probation / overdraft, and avoids capping the annual quota at a mid-year
+  // partial `total_accrued`.
   const [form, setForm] = useState({
-    // Prefer the stored config quota; fall back to total_accrued only when config is unavailable.
-    assigned_annual_quota: parseFloat(balance.config?.assigned_annual_quota ?? balance.total_accrued) || "",
-    accrual_type: balance.config?.accrual_type || "upfront",
-    max_carry_forward: balance.config?.max_carry_forward ?? 0,
-    probation_restriction_days: balance.config?.probation_restriction_days ?? 0,
-    max_negative_balance: balance.config?.max_negative_balance ?? 0,
+    assigned_annual_quota: "",
+    accrual_type: "",
+    max_carry_forward: "",
+    probation_restriction_days: "",
+    max_negative_balance: "",
+    notice_mode: "",   // "" = unchanged; else unrestricted | blocked | capped
+    notice_days: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
+  function set(key, val) { setForm(f => ({ ...f, [key]: val })); setError(""); }
+
+  const isDirty = (v) => v !== "" && v !== null && v !== undefined;
+  // notice_days alone is not a change; only a chosen notice_mode is.
+  const dirtyCount = Object.entries(form)
+    .filter(([k, v]) => k !== "notice_days" && isDirty(v)).length;
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (dirtyCount === 0) {
+      setError("Change at least one field. Blank fields keep their current values.");
+      return;
+    }
+    if (form.notice_mode === "capped" && (form.notice_days === "" || parseInt(form.notice_days, 10) < 1)) {
+      setError("Enter the most days allowed during the notice period, or choose No limit / Not allowed.");
+      return;
+    }
     setLoading(true); setError("");
     const payload = {};
-    if (form.assigned_annual_quota !== "") payload.assigned_annual_quota = parseFloat(form.assigned_annual_quota) || 0;
-    payload.accrual_type = form.accrual_type;
-    payload.max_carry_forward = parseFloat(form.max_carry_forward) || 0;
-    payload.probation_restriction_days = parseInt(form.probation_restriction_days) || 0;
-    payload.max_negative_balance = parseFloat(form.max_negative_balance) || 0;
+    if (isDirty(form.assigned_annual_quota)) payload.assigned_annual_quota = parseFloat(form.assigned_annual_quota) || 0;
+    if (isDirty(form.accrual_type)) payload.accrual_type = form.accrual_type;
+    if (isDirty(form.max_carry_forward)) payload.max_carry_forward = parseFloat(form.max_carry_forward) || 0;
+    if (isDirty(form.probation_restriction_days)) payload.probation_restriction_days = parseInt(form.probation_restriction_days) || 0;
+    if (isDirty(form.max_negative_balance)) payload.max_negative_balance = parseFloat(form.max_negative_balance) || 0;
+    if (isDirty(form.notice_mode)) payload.notice_period_max_days = noticeValue(form.notice_mode, form.notice_days);
     try {
       await leaveAPI.overrideConfig(userId, balance.leave_type_id, payload);
-      onSaved("Config overridden. Balance updated automatically if applicable.");
+      onSaved("Leave rules updated for this employee. The balance was adjusted if needed.");
     } catch (err) {
-      if (err.data?.errorCode === "CONFIG_NOT_FOUND") {
-        setError("No config found for this leave type. Assign a policy first.");
-      } else {
-        setError(err.message || "Something went wrong.");
-      }
+      setError(leaveErrorMessage(err));
     } finally {
       setLoading(false);
     }
   }
 
+  const inputClass = "w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition";
+  const labelClass = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Override Config</h2>
+            <h2 className="text-base font-bold text-slate-800">Customise Leave Rules</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Customise <strong>{balance.leave_type?.name}</strong> rules for this employee only.
+              Change the <strong>{balance.leave_type?.name}</strong> rules for this employee only.
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
@@ -111,61 +150,90 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
 
-          {/* Info tip */}
-          <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-            <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
-            <span>If you increase the annual quota for an <strong>upfront</strong> policy, the balance is automatically credited immediately.</span>
+          <div className="flex items-start gap-2 text-xs text-purple-800 bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
+            <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-purple-500" />
+            <span>
+              Only the fields you fill in are changed — <strong>leave a field blank to keep it as it is</strong>.
+              If you raise the days per year for leave that is <strong>given all at once</strong>, the extra days are added straight away.
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Annual Quota (days)</label>
-              <input
-                type="number" step="0.5" min="0" max="365"
-                value={form.assigned_annual_quota}
-                onChange={e => set("assigned_annual_quota", e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-              />
+              <label className={labelClass}>Days per year</label>
+              <input type="number" step="0.5" min="0" max="365" value={form.assigned_annual_quota} onChange={e => set("assigned_annual_quota", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Accrual Type</label>
+              <label className={labelClass}>
+                How leave is given
+                {!form.accrual_type && <span className="ml-2 normal-case font-normal text-slate-400">(no change)</span>}
+              </label>
               <div className="flex gap-2 mt-1">
-                {["upfront", "monthly"].map(t => (
-                  <label key={t} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.accrual_type === t ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
-                    <input type="radio" name="accrual_type_override" value={t} checked={form.accrual_type === t} onChange={() => set("accrual_type", t)} className="sr-only" />
-                    {t === "upfront" ? "Upfront" : "Monthly"}
+                {[{ v: "upfront", l: "All at once" }, { v: "monthly", l: "Every month" }].map(t => (
+                  <label key={t.v} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.accrual_type === t.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                    <input type="radio" name="accrual_type_override" value={t.v} checked={form.accrual_type === t.v} onChange={() => set("accrual_type", t.v)} className="sr-only" />
+                    {t.l}
                   </label>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Carry Forward</label>
-              <input type="number" step="0.5" min="0" value={form.max_carry_forward} onChange={e => set("max_carry_forward", e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+              <div className="flex items-center">
+                <label className={labelClass}>Unused days kept for next year</label>
+                <FieldHelp {...POLICY("max_carry_forward")} label="days kept for next year" className="mb-1.5" overlay />
+              </div>
+              <input type="number" step="0.5" min="0" value={form.max_carry_forward} onChange={e => set("max_carry_forward", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Probation (days)</label>
-              <input type="number" step="1" min="0" value={form.probation_restriction_days} onChange={e => set("probation_restriction_days", e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+              <label className={labelClass}>Wait after joining (days)</label>
+              <input type="number" step="1" min="0" value={form.probation_restriction_days} onChange={e => set("probation_restriction_days", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Overdraft (days)</label>
-              <input type="number" step="0.5" min="0" value={form.max_negative_balance} onChange={e => set("max_negative_balance", e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition" />
+              <div className="flex items-center">
+                <label className={labelClass}>Extra days allowed (below zero)</label>
+                <FieldHelp {...POLICY("max_negative_balance")} label="extra days below zero" className="mb-1.5" overlay />
+              </div>
+              <input type="number" step="0.5" min="0" value={form.max_negative_balance} onChange={e => set("max_negative_balance", e.target.value)} placeholder="No change" className={inputClass} />
             </div>
           </div>
 
+          <div>
+            <div className="flex items-center">
+                <label className={labelClass}>Leave during notice period</label>
+                <FieldHelp {...POLICY("notice_period_max_days")} label="leave during notice period" className="mb-1.5" overlay />
+              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { v: "", l: "No change" },
+                { v: "unrestricted", l: "No limit" },
+                { v: "blocked", l: "Not allowed" },
+                { v: "capped", l: "Limited" },
+              ].map(opt => (
+                <button type="button" key={opt.v || "unchanged"} onClick={() => set("notice_mode", opt.v)}
+                  className={`py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.notice_mode === opt.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+            {form.notice_mode === "capped" && (
+              <input type="number" step="1" min="1" value={form.notice_days} onChange={e => set("notice_days", e.target.value)}
+                placeholder="Most days allowed during notice period"
+                className={`mt-2 ${inputClass}`} />
+            )}
+            <p className="text-[10px] text-slate-400 mt-1">"Not allowed" means no leave after resigning; "Limited" allows up to the number of days you enter.</p>
+          </div>
+
           <div className="flex gap-3 pt-1">
-            <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
-              {loading ? "Saving…" : "Save Override"}
+            <button type="submit" disabled={loading || dirtyCount === 0} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 rounded-xl transition">
+              {loading ? "Saving…" : dirtyCount === 0 ? "Change a field to save" : "Save changes"}
             </button>
             <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
           </div>
@@ -176,14 +244,19 @@ function OverrideModal({ userId, balance, onClose, onSaved }) {
 }
 
 // ─── Main LeaveTab Component ──────────────────────────────────────────────────
-export default function LeaveTab({ userId }) {
+const LT_CURRENT_YEAR = new Date().getFullYear();
+const LT_YEAR_OPTIONS = [LT_CURRENT_YEAR, LT_CURRENT_YEAR - 1, LT_CURRENT_YEAR - 2];
+
+export default function LeaveTab({ userId, employeeName = "" }) {
   const [balances, setBalances] = useState([]);
-  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [assigning, setAssigning] = useState(false);
-  const [confirmAssign, setConfirmAssign] = useState(false);
-  const [overrideTarget, setOverrideTarget] = useState(null);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+  const [year, setYear] = useState(LT_CURRENT_YEAR);
+  // The assign form is the shared one (shared/leaves/AssignLeavePolicyDialog),
+  // the same dialog HR gets from the org-wide Leave Requests page — here with
+  // the person already decided, so it skips its picker.
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [customiseTarget, setCustomiseTarget] = useState(null);
   const [toast, setToast] = useState(null);
 
   function showToast(message, type = "success") {
@@ -192,54 +265,27 @@ export default function LeaveTab({ userId }) {
   }
 
   const loadBalances = useCallback(async () => {
+    setBalancesLoading(true);
     try {
-      const res = await leaveAPI.getUserBalances(userId);
+      const res = await leaveAPI.getUserBalances(userId, year);
       setBalances(res.data || []);
     } catch {
       showToast("Failed to load leave balances.", "error");
-    }
-  }, [userId]);
-
-  const loadTemplates = useCallback(async () => {
-    try {
-      const res = await leaveAPI.getTemplates();
-      setTemplates(res.data || []);
-    } catch {
-      // Non-critical — don't block the UI
-    }
-  }, []);
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([loadBalances(), loadTemplates()]).finally(() => setLoading(false));
-  }, [loadBalances, loadTemplates]);
-
-  function handleAssignClick() {
-    if (!selectedTemplateId) {
-      showToast("Please select a policy template first.", "error");
-      return;
-    }
-    // Show confirmation before destructive replace of existing configs
-    setConfirmAssign(true);
-  }
-
-  async function executeAssign() {
-    setConfirmAssign(false);
-    setAssigning(true);
-    try {
-      await leaveAPI.assignPolicy(userId, { template_id: selectedTemplateId });
-      showToast("Policy assigned! Balances have been credited.");
-      setSelectedTemplateId("");
-      await loadBalances();
-    } catch (err) {
-      showToast(err.message || "Failed to assign policy.", "error");
     } finally {
-      setAssigning(false);
+      setBalancesLoading(false);
+      // The tab used to wait on the policy-template list, which the shared
+      // dialog now fetches for itself. The balances are the only thing left
+      // worth a skeleton, so they end it.
+      setLoading(false);
     }
-  }
+  }, [userId, year]);
 
-  function onOverrideSaved(msg) {
-    setOverrideTarget(null);
+  // Balances reload independently when the year changes (no full-tab skeleton
+  // after the first one — `loading` is only ever true until the first read).
+  useEffect(() => { loadBalances(); }, [loadBalances]);
+
+  function onCustomiseSaved(msg) {
+    setCustomiseTarget(null);
     showToast(msg);
     loadBalances();
   }
@@ -247,8 +293,8 @@ export default function LeaveTab({ userId }) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-32 bg-slate-100 rounded-2xl animate-pulse" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-purple-50 rounded-2xl animate-pulse" />)}
         </div>
         <div className="h-24 bg-slate-100 rounded-2xl animate-pulse" />
       </div>
@@ -262,164 +308,125 @@ export default function LeaveTab({ userId }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm font-bold text-slate-800">Leave Balances</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Current year leave wallet for this employee.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Leave days available to this employee.</p>
           </div>
-          <button onClick={loadBalances} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Refresh">
-            <HiRefresh className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <select value={year} onChange={e => setYear(Number(e.target.value))}
+              className="h-8 px-3 text-xs font-semibold border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white" title="Balance year">
+              {LT_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <button onClick={loadBalances} disabled={balancesLoading} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Refresh">
+              <HiRefresh className={`w-4 h-4 ${balancesLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
 
-        {balances.length === 0 ? (
+        {balancesLoading ? (
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-purple-50 rounded-2xl animate-pulse" />)}
+          </div>
+        ) : balances.length === 0 ? (
           <div className="px-6 py-10 flex flex-col items-center gap-2 text-center">
-            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-1">
-              <HiCalendar className="w-6 h-6 text-slate-400" />
+            <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-1">
+              <HiCalendar className="w-6 h-6 text-purple-400" />
             </div>
             <p className="text-sm font-semibold text-slate-600">No leave policy assigned</p>
-            <p className="text-xs text-slate-400">Assign a policy below to initialise this employee's leave balance.</p>
+            <p className="text-xs text-slate-400">{year === LT_CURRENT_YEAR ? "Assign a policy below to give this employee their leave days." : `No leave balances recorded for ${year}.`}</p>
           </div>
         ) : (
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={`p-6 grid gap-4 ${balanceGridCols(balances.length)}`}>
             {balances.map((b, i) => <BalanceCard key={b.id || b.leave_type_id} balance={b} index={i} />)}
           </div>
         )}
       </div>
 
-      {/* ── Section 2: Assign Policy ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-bold text-slate-800">Assign Policy</h3>
+      {/* ── Section 2: Assign Policy ──
+          One row, not a header-plus-body card. The form that used to fill the
+          body now lives in the dialog, and keeping the old two-part shell left
+          ~140px of border and padding wrapped around a single button. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-slate-800">Assign a leave policy</h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Assigns a policy template and credits leave balances via pro-rata calculation. Existing configs are replaced.
+            Gives this employee the leave days from a policy, adjusted for how much of the year is left. Any existing leave rules are replaced.
           </p>
         </div>
-        <div className="p-6 flex flex-col sm:flex-row items-start sm:items-end gap-4">
-          <div className="flex-1">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Select Policy Template</label>
-            <select
-              value={selectedTemplateId}
-              onChange={e => setSelectedTemplateId(e.target.value)}
-              className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-            >
-              <option value="">Choose a template...</option>
-              {templates.map(t => {
-                const entCount = t.entitlements?.length ?? 0;
-                return (
-                  <option key={t.id} value={t.id}>
-                    {t.name}{entCount === 0 ? " ⚠ (empty)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            {selectedTemplateId && templates.find(t => t.id === selectedTemplateId)?.entitlements?.length === 0 && (
-              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                <HiInformationCircle className="w-3.5 h-3.5" />
-                This template has no entitlements — employee will receive 0 leaves.
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleAssignClick}
-            disabled={assigning || !selectedTemplateId}
-            className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
-          >
-            {assigning ? "Assigning…" : "Assign Policy"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAssignOpen(true)}
+          className="shrink-0 self-start sm:self-auto inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition whitespace-nowrap"
+        >
+          <HiClipboardCheck className="w-4 h-4" />
+          {balances.length > 0 ? "Change policy" : "Assign a policy"}
+        </button>
       </div>
 
-      {/* ── Section 3: Override Config ── */}
+      {/* ── Section 3: Customise rules for this employee ── */}
       {balances.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800">Override Config</h3>
+            <h3 className="text-sm font-bold text-slate-800">Customise Leave Rules</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Adjust individual leave type rules for this employee only — without changing the policy template.
+              Change a leave type's rules for this employee only — the policy template stays the same for everyone else.
             </p>
           </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-50">
-                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
-                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Balance</th>
-                <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Accrued / Used</th>
-                <th className="px-6 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {balances.map((b) => {
-                const current = parseFloat(b.current_balance);
-                const accrued = parseFloat(b.total_accrued);
-                const used = parseFloat(b.total_used);
-                function fmt(n) { return Number.isInteger(n) ? `${n}` : n.toFixed(1); }
-                return (
-                  <tr key={b.leave_type_id} className="hover:bg-slate-50/40 transition-colors">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px]">
+              <thead>
+                <tr className="border-b border-slate-50">
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Type</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">Days Left</th>
+                  <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider"><HelpLabel text="Given / Taken" help={{ surface: "organization.employee_profile", field: "given_taken", size: "sm", label: "given and taken" }} /></th>
+                  <th className="px-6 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {balances.map((b) => (
+                  <tr key={b.leave_type_id} className="hover:bg-purple-50/30 transition-colors">
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{b.leave_type?.name}</span>
-                        <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{b.leave_type?.code}</span>
+                        <span className="text-sm font-semibold text-slate-800">{b.leave_type?.name || "N/A"}</span>
+                        {b.leave_type?.code && <span className="font-mono text-[10px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">{b.leave_type.code}</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm font-bold text-slate-700">{fmt(current)} days</td>
+                    <td className="px-6 py-3 text-sm font-bold text-slate-700">{formatDayCount(b.current_balance, { fallback: "0 days" })}</td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {fmt(accrued)} accrued · {fmt(used)} used
+                      {formatDayCount(b.total_accrued, { lower: true, fallback: "0 days" })} given · {formatDayCount(b.total_used, { lower: true, fallback: "0 days" })} taken
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex justify-end">
                         <button
-                          onClick={() => setOverrideTarget(b)}
+                          onClick={() => setCustomiseTarget(b)}
                           className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-lg transition"
                         >
-                          <HiPencil className="w-3.5 h-3.5" /> Override
+                          <HiPencil className="w-3.5 h-3.5" /> Customise
                         </button>
                       </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Override Modal */}
-      {overrideTarget && (
-        <OverrideModal
+      {customiseTarget && (
+        <CustomiseRulesModal
           userId={userId}
-          balance={overrideTarget}
-          onClose={() => setOverrideTarget(null)}
-          onSaved={onOverrideSaved}
+          balance={customiseTarget}
+          onClose={() => setCustomiseTarget(null)}
+          onSaved={onCustomiseSaved}
         />
       )}
 
-      {/* Assign Policy Confirmation */}
-      {confirmAssign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-800">Confirm Policy Assignment</h2>
-              <p className="text-xs text-slate-400 mt-1.5">
-                Assigning a new policy will{" "}
-                <strong className="text-amber-600">replace all existing leave configurations</strong>{" "}
-                for this employee and recalculate their balances via pro-rata math. This cannot be undone.
-              </p>
-            </div>
-            <div className="p-6 flex gap-3">
-              <button
-                onClick={executeAssign}
-                disabled={assigning}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition"
-              >
-                {assigning ? "Assigning…" : "Yes, Assign Policy"}
-              </button>
-              <button
-                onClick={() => setConfirmAssign(false)}
-                className="px-5 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+      {assignOpen && (
+        <AssignLeavePolicyDialog
+          userId={userId}
+          subjectName={employeeName}
+          onAssigned={(message) => { showToast(message); loadBalances(); }}
+          onClose={() => setAssignOpen(false)}
+        />
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />

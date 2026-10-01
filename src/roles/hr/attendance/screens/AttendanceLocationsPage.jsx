@@ -1,15 +1,26 @@
 import React, { useState, useEffect, useRef } from "react";
-import DashboardSidebar from "../../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import PageHeader from "../../../../shared/components/PageHeader";
 import { attendanceAPI } from "../../../../shared/api";
-import { HiSparkles, HiPlus, HiPencil, HiTrash, HiLocationMarker, HiX, HiSearch } from "react-icons/hi";
+import { HiSparkles, HiPlus, HiPencil, HiLocationMarker, HiX, HiSearch } from "react-icons/hi";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+
+// Best-effort default timezone for new locations. The backend defaults to UTC
+// when omitted, which silently breaks attendance geofence/clock calculations,
+// so we always send a real IANA zone (documented `timezone` field).
+const BROWSER_TZ = (() => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+  catch { return "UTC"; }
+})();
 
 function AttendanceLocationsPage() {
   const [locations, setLocations] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
-  const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
+  const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "", timezone: BROWSER_TZ });
+  const [saveError, setSaveError] = useState("");
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -22,21 +33,34 @@ function AttendanceLocationsPage() {
 
   useEffect(() => { fetchLocations(); }, []);
 
-  const fetchLocations = async () => {
+  // `silent` refreshes in place (no skeleton) once cards are already on screen.
+  const fetchLocations = async ({ silent = false } = {}) => {
+    if (!silent) setListLoading(true);
+    setListError("");
     try {
       const res = await attendanceAPI.getLocations();
-      if (res.success) setLocations(res.data || []);
-    } catch (err) { console.error(err); }
+      setLocations(Array.isArray(res?.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      setListError(err?.data?.message || err?.message || "Could not load office locations.");
+    } finally {
+      setListLoading(false);
+    }
   };
 
   const openModal = (loc = null) => {
+    setSaveError("");
     if (loc) {
       setEditingLocation(loc);
-      setForm({ name: loc.name, address: loc.address || "", latitude: String(loc.latitude), longitude: String(loc.longitude), geofence_radius_meters: loc.geofence_radius_meters || 100, city: loc.city || "", state: loc.state || "", country: loc.country || "", pincode: loc.pincode || "" });
+      setForm({ name: loc.name || "", address: loc.address || "", latitude: String(loc.latitude ?? ""), longitude: String(loc.longitude ?? ""), geofence_radius_meters: loc.geofence_radius_meters || 100, city: loc.city || "", state: loc.state || "", country: loc.country || "", pincode: loc.zip_code || loc.pincode || "", timezone: loc.timezone || BROWSER_TZ });
+      setSearchQuery(loc.address || "");
     } else {
       setEditingLocation(null);
-      setForm({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "" });
+      setForm({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "", timezone: BROWSER_TZ });
+      setSearchQuery("");
     }
+    setSuggestions([]);
+    setShowSuggestions(false);
     setShowModal(true);
   };
 
@@ -58,8 +82,11 @@ function AttendanceLocationsPage() {
       if (typeof window.L === "undefined") return;
       if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
 
-      const lat = parseFloat(form.latitude) || 28.6139;
-      const lng = parseFloat(form.longitude) || 77.209;
+      // Note: 0 is a valid coordinate, so test for finiteness rather than truthiness.
+      const parsedLat = parseFloat(form.latitude);
+      const parsedLng = parseFloat(form.longitude);
+      const lat = Number.isFinite(parsedLat) ? parsedLat : 28.6139;
+      const lng = Number.isFinite(parsedLng) ? parsedLng : 77.209;
 
       const map = window.L.map(mapRef.current).setView([lat, lng], 15);
       window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -187,17 +214,39 @@ function AttendanceLocationsPage() {
   };
 
   const handleSave = async () => {
+    setSaveError("");
+
+    const lat = parseFloat(form.latitude);
+    const lng = parseFloat(form.longitude);
+    if (!form.name?.trim()) {
+      setSaveError("Location name is required.");
+      return;
+    }
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      setSaveError("Latitude must be a number between -90 and 90.");
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setSaveError("Longitude must be a number between -180 and 180.");
+      return;
+    }
+
+    // Documented location schema: name, address, city, state, country, zip_code,
+    // timezone, is_active. Geofence lat/long/radius are sent alongside because
+    // attendance clock-in depends on them (per the org-structure API note).
     const payload = {
-      name: form.name?.toUpperCase(),
-      address: form.address?.toUpperCase(),
-      latitude: parseFloat(form.latitude),
-      longitude: parseFloat(form.longitude),
-      geofence_radius_meters: parseInt(form.geofence_radius_meters),
-      city: form.city?.toUpperCase(),
-      state: form.state?.toUpperCase(),
-      country: form.country?.toUpperCase(),
-      pincode: form.pincode,
+      name: form.name?.trim(),
+      address: form.address?.trim(),
+      latitude: lat,
+      longitude: lng,
+      geofence_radius_meters: parseInt(form.geofence_radius_meters, 10) || 100,
+      city: form.city?.trim(),
+      state: form.state?.trim(),
+      country: form.country?.trim(),
+      zip_code: form.pincode?.trim(),
+      timezone: form.timezone || BROWSER_TZ,
     };
+    setSaving(true);
     try {
       if (editingLocation) {
         await attendanceAPI.updateLocation(editingLocation.id, payload);
@@ -205,18 +254,45 @@ function AttendanceLocationsPage() {
         await attendanceAPI.createLocation(payload);
       }
       closeModal();
-      fetchLocations();
+      fetchLocations({ silent: true });
     } catch (err) {
       console.error(err);
-      alert(err.message || "Failed to save location");
+      setSaveError(err?.data?.message || err.message || "Failed to save location");
+    } finally {
+      setSaving(false);
     }
   };
 
+  // Flip the card in place. Refetching the list here swapped every card for a
+  // loading skeleton, so the whole page flashed and re-rendered on each toggle.
+  // Ids with a status request in flight. A second click before the first
+  // request settles would race it, and a failed first request could revert
+  // the second — so the toggle is locked per card until it settles.
+  const [togglingIds, setTogglingIds] = useState(() => new Set());
   const handleToggleActive = async (loc) => {
+    if (togglingIds.has(loc.id)) return;
+    setListError("");
+    const setPending = (on) => setTogglingIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(loc.id);
+      else next.delete(loc.id);
+      return next;
+    });
+    const nextActive = !loc.is_active;
+    const patch = (fields) => setLocations((prev) => prev.map((l) => (l.id === loc.id ? { ...l, ...fields } : l)));
+    setPending(true);
+    patch({ is_active: nextActive });
     try {
-      await attendanceAPI.updateLocation(loc.id, { is_active: !loc.is_active });
-      fetchLocations();
-    } catch (err) { console.error(err); }
+      const res = await attendanceAPI.updateLocation(loc.id, { is_active: nextActive });
+      const updated = res?.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : null;
+      if (updated && updated.id === loc.id) patch(updated);
+    } catch (err) {
+      console.error(err);
+      patch({ is_active: loc.is_active });
+      setListError(err?.data?.message || err?.message || "Could not update the location status.");
+    } finally {
+      setPending(false);
+    }
   };
 
   const filteredLocations = locations.filter(loc =>
@@ -224,10 +300,8 @@ function AttendanceLocationsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="hr" />
-      <div className="flex-1 flex flex-col min-w-0">
-        <DashboardTopBar title="Attendance Locations" />
+    <>
+        <DashboardTopBar title="Office Locations" />
         <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -256,12 +330,33 @@ function AttendanceLocationsPage() {
               </div>
             </div>
 
+            {listError && !listLoading && (
+              <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold flex flex-wrap items-center gap-3">
+                <span>{listError}</span>
+                <button
+                  type="button"
+                  onClick={fetchLocations}
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
             {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-              {filteredLocations.length === 0 ? (
+              {listLoading ? (
+                [...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-[20px] h-72 border border-slate-100 animate-pulse" />
+                ))
+              ) : filteredLocations.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-slate-400 font-medium">
                   <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  No locations found.
+                  {listError
+                    ? "Locations unavailable."
+                    : localSearchQuery
+                      ? `No locations matching "${localSearchQuery}"`
+                      : "No locations yet — add your first office."}
                 </div>
               ) : (
                 filteredLocations.map((loc) => (
@@ -279,10 +374,10 @@ function AttendanceLocationsPage() {
                       <div className="flex justify-between items-start mb-4">
                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${
                           loc.is_active 
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                          ? 'bg-violet-50 text-violet-600 border-violet-100' 
                           : 'bg-rose-50 text-rose-600 border-rose-100'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-violet-500' : 'bg-rose-500'}`} />
                           {loc.is_active ? 'Active' : 'Inactive'}
                         </div>
                         
@@ -311,20 +406,22 @@ function AttendanceLocationsPage() {
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Address</p>
                         <p className="text-xs font-medium text-slate-700 leading-relaxed line-clamp-2">
-                          {loc.address || "--"}
+                          {loc.address || "N/A"}
                         </p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 mt-auto">
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
-                          <p className="text-xs font-semibold text-slate-700 truncate">{loc.city ? `${loc.city}, ${loc.state}` : '--'}</p>
+                          <p className="text-xs font-semibold text-slate-700 truncate">
+                            {[loc.city, loc.state].filter(Boolean).join(", ") || "N/A"}
+                          </p>
                         </div>
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
                           <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                             <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
-                            {loc.geofence_radius_meters} meters
+                            {loc.geofence_radius_meters != null ? `${loc.geofence_radius_meters} meters` : "N/A"}
                           </p>
                         </div>
                       </div>
@@ -334,7 +431,15 @@ function AttendanceLocationsPage() {
                     {/* Footer Area for Status Toggle */}
                     <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between shrink-0">
                       <span className="text-xs font-bold text-slate-600">Location Status</span>
-                      <button onClick={() => handleToggleActive(loc)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={!!loc.is_active}
+                        aria-label={`${loc.is_active ? "Deactivate" : "Activate"} ${loc.name}`}
+                        onClick={() => handleToggleActive(loc)}
+                        disabled={togglingIds.has(loc.id)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-wait ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}
+                      >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
                       </button>
                     </div>
@@ -345,11 +450,10 @@ function AttendanceLocationsPage() {
             </div>
           </div>
         </main>
-      </div>
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeModal}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex justify-between items-center p-6 border-b border-slate-100 shrink-0">
@@ -445,7 +549,18 @@ function AttendanceLocationsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.geofence_radius_meters}m</span></label>
+                  <div className="flex items-center">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timezone</label>
+                    <FieldHelp surface="organization.location_setup" field="timezone" label="the time zone" className="mb-1.5" />
+                  </div>
+                  <input type="text" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })} placeholder="Asia/Kolkata" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs" />
+                  <p className="text-[10px] text-slate-400 mt-1">IANA zone used for attendance calculations at this location.</p>
+                </div>
+                <div>
+                  <div className="flex items-center">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Radius: <span className="text-purple-600 font-bold">{form.geofence_radius_meters}m</span></label>
+                    <FieldHelp surface="organization.location_setup" field="geofence_radius_meters" label="the clock-in radius" className="mb-1.5" />
+                  </div>
                   <input type="range" min="25" max="1000" step="25" value={form.geofence_radius_meters} onChange={e => setForm({ ...form, geofence_radius_meters: parseInt(e.target.value) })} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 shadow-inner" />
                   <div className="flex justify-between text-[10px] text-slate-400 mt-1.5"><span>25m</span><span>500m</span><span>1000m</span></div>
                 </div>
@@ -453,16 +568,21 @@ function AttendanceLocationsPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 p-6 border-t border-slate-100 shrink-0 bg-white">
+            <div className="flex flex-col sm:flex-row sm:justify-end items-stretch sm:items-center gap-3 p-6 border-t border-slate-100 shrink-0 bg-white">
+              {saveError && (
+                <div className="mr-auto text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                  {saveError}
+                </div>
+              )}
               <button onClick={closeModal} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-              <button onClick={handleSave} disabled={!form.name || !form.latitude || !form.longitude} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95">
-                {editingLocation ? "Update Location" : "Create Location"}
+              <button onClick={handleSave} disabled={saving || !form.name || !form.latitude || !form.longitude} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95">
+                {saving ? "Saving…" : editingLocation ? "Update Location" : "Create Location"}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

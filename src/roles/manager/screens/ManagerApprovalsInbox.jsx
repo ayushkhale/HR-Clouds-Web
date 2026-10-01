@@ -1,260 +1,233 @@
-import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import InboxCard from "../../../shared/components/InboxCard";
 import { attendanceAPI, leaveAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
-import { 
-  HiInboxIn, HiCheckCircle, HiXCircle, HiCheck, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText 
+import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
+import AttendanceApprovalQueue from "../../../shared/attendance/AttendanceApprovalQueue";
+import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
+import { listFrom } from "../../../shared/attendance/normalize";
+import { ATTENDANCE_EVENTS, INBOX_EVENT_KINDS, emitAttendanceChanged, useAttendanceChanged } from "../../../shared/attendance/events";
+import {
+  HiCheckCircle, HiXCircle, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
+  HiInformationCircle, HiRefresh,
 } from "react-icons/hi";
 
+// Same shape as the HR inbox: one card per queue, the chosen one opens below.
+// Attendance queues run through the shared approval queue (same dialog, remarks
+// rules and refresh behaviour as the per-type pages); leave keeps its own cards.
+const GROUP = {
+  title: "Time & leave",
+  cols: "lg:grid-cols-3 xl:grid-cols-5",
+  items: [
+    { key: "leaves", label: "Leave requests", hint: "Leave and cancellation requests", icon: HiDocumentText },
+    { key: "regularizations", label: DICTIONARY.TERMS.REGULARIZATION + "s", hint: "Missed or wrong punches to fix", icon: HiClock, queue: "regularization" },
+    { key: "overtime", label: "Overtime", hint: "Extra hours waiting for approval", icon: HiCalendar, queue: "overtime" },
+    { key: "compOffs", label: DICTIONARY.TERMS.COMP_OFF, hint: "Holiday work to credit", icon: HiGift, queue: "compoff" },
+    { key: "anomalies", label: "Attendance flags", hint: "Unusual attendance to resolve", icon: HiExclamationCircle, queue: "anomaly" },
+  ],
+};
+const ATTENDANCE_TABS = Object.fromEntries(GROUP.items.filter((i) => i.queue).map((i) => [i.key, i.queue]));
+
 function ManagerApprovalsInbox() {
-  const [activeTab, setActiveTab] = useState("regularizations");
-  const [data, setData] = useState({
-    regularizations: [],
-    overtime: [],
-    compOffs: [],
-    anomalies: [],
-    leaves: [] // If leaveAPI has getTeamPendingRequests
-  });
+  const [selectedKey, setSelectedKey] = useState("regularizations");
+  const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
-  const [actionModal, setActionModal] = useState({ isOpen: false, type: "", action: "", id: null, title: "" });
-  const [balanceModal, setBalanceModal] = useState({ isOpen: false, empName: "", balances: [], loading: false });
+  const [leaves, setLeaves] = useState([]);
+  const [leavesLoading, setLeavesLoading] = useState(true);
+  const [actionModal, setActionModal] = useState({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
   const [remarks, setRemarks] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
-
-  useEffect(() => {
-    fetchAllRequests();
-  }, []);
-
-  const fetchAndShowBalances = async (userId, empName) => {
-    setBalanceModal({ isOpen: true, empName, balances: [], loading: true });
-    try {
-      const res = await leaveAPI.getTeamMemberBalances(userId);
-      if (res.success) {
-        setBalanceModal({ isOpen: true, empName, balances: res.data || [], loading: false });
-      } else {
-        showToast(res.message || "Failed to fetch balances", "error");
-        setBalanceModal({ isOpen: false, empName: "", balances: [], loading: false });
-      }
-    } catch (err) {
-      showToast(err.message || "Failed to fetch balances", "error");
-      setBalanceModal({ isOpen: false, empName: "", balances: [], loading: false });
-    }
-  };
-
-  const fetchAllRequests = async () => {
-    setLoading(true);
-    try {
-      const [regRes, otRes, coRes, anomRes, leaveRes] = await Promise.all([
-        attendanceAPI.getManagerPendingRegularizations().catch(() => ({ success: false, data: [] })),
-        attendanceAPI.getManagerPendingOvertime().catch(() => ({ success: false, data: [] })),
-        attendanceAPI.getManagerCompOffs().catch(() => ({ success: false, data: [] })),
-        attendanceAPI.getManagerAnomalies().catch(() => ({ success: false, data: [] })),
-        leaveAPI.getTeamPendingRequests().catch(() => ({ success: false, data: [] }))
-      ]);
-
-      setData({
-        regularizations: regRes.success ? (regRes.data || []) : [],
-        overtime: otRes.success ? (otRes.data || []) : [],
-        compOffs: coRes.success ? (coRes.data || []) : [],
-        anomalies: anomRes.success ? (anomRes.data || []) : [],
-        leaves: leaveRes.success ? (leaveRes.data || []) : []
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleAction = async () => {
-    const { type, action, id } = actionModal;
-    const payload = action === "reject" ? { rejection_reason: remarks, remarks } : { remarks };
+  // A queue that fails to load shows N/A rather than a confident zero.
+  const fetchAttendanceCounts = useCallback(async () => {
+    setLoading(true);
+    const [reg, ot, co, an] = await Promise.allSettled([
+      attendanceAPI.getManagerPendingRegularizations(),
+      attendanceAPI.getManagerPendingOvertime(),
+      attendanceAPI.getManagerCompOffs(),
+      attendanceAPI.getManagerAnomalies(),
+    ]);
+    const size = (r) => (r.status === "fulfilled" ? listFrom(r.value, ["requests", "anomalies", "comp_offs", "overtime"]).length : null);
+    setCounts((c) => ({ ...c, regularizations: size(reg), overtime: size(ot), compOffs: size(co), anomalies: size(an) }));
+    setLoading(false);
+  }, []);
 
+  const fetchLeaves = useCallback(async () => {
+    setLeavesLoading(true);
     try {
-      let res;
-      if (type === "regularization") {
-        if (action === "approve") res = await attendanceAPI.approveManagerRegularization(id, payload);
-        else res = await attendanceAPI.rejectManagerRegularization(id, payload);
-      } else if (type === "overtime") {
-        if (action === "approve") res = await attendanceAPI.approveManagerOvertime(id, payload);
-        else res = await attendanceAPI.rejectManagerOvertime(id, payload);
-      } else if (type === "compOff") {
-        if (action === "approve") res = await attendanceAPI.approveManagerCompOff(id, payload);
-        else res = await attendanceAPI.rejectManagerCompOff(id, payload);
-      } else if (type === "anomaly") {
-        res = await attendanceAPI.resolveManagerAnomaly(id, payload);
-      } else if (type === "leaves") {
-        if (action === "approve") res = await leaveAPI.approveRequest(id, payload);
-        else res = await leaveAPI.rejectRequest(id, payload);
-      }
+      const res = await leaveAPI.getTeamPendingRequests();
+      const rows = res.success ? (res.data || []) : [];
+      setLeaves(rows);
+      setCounts((c) => ({ ...c, leaves: rows.length }));
+    } catch {
+      setLeaves([]);
+      setCounts((c) => ({ ...c, leaves: null }));
+    } finally {
+      setLeavesLoading(false);
+    }
+  }, []);
 
+  const refresh = useCallback(() => {
+    fetchAttendanceCounts();
+    fetchLeaves();
+  }, [fetchAttendanceCounts, fetchLeaves]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  useAttendanceChanged(INBOX_EVENT_KINDS, refresh);
+
+  // The open attendance queue reports its own length after every reload.
+  const onQueueCount = useCallback((type, n) => {
+    const key = Object.keys(ATTENDANCE_TABS).find((k) => ATTENDANCE_TABS[k] === type);
+    if (key) setCounts((c) => (c[key] === n ? c : { ...c, [key]: n }));
+  }, []);
+
+  const closeLeaveModal = () => {
+    if (submitting) return;
+    setActionModal({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
+    setRemarks("");
+  };
+
+  const handleLeaveAction = async () => {
+    const { action, id } = actionModal;
+    if (submitting) return;
+    const payload = action === "reject" ? { rejection_reason: remarks, remarks } : { remarks };
+    setSubmitting(true);
+    try {
+      const res = action === "approve" ? await leaveAPI.approveRequest(id, payload) : await leaveAPI.rejectRequest(id, payload);
       if (res && res.success) {
         showToast(`Successfully ${action === "approve" ? "approved" : "rejected"} request!`);
-        setActionModal({ isOpen: false, type: "", action: "", id: null, title: "" });
+        setActionModal({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
         setRemarks("");
-        fetchAllRequests();
+        fetchLeaves();
+        emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id, action });
       } else {
         showToast(res?.message || "Action failed", "error");
       }
     } catch (err) {
-      showToast(err.message || "Action failed", "error");
+      showToast(leaveErrorMessage(err, "Action failed"), "error");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const tabs = [
-    { id: "leaves", label: "Leaves", icon: HiDocumentText, count: data.leaves.length },
-    { id: "regularizations", label: "Regularizations", icon: HiClock, count: data.regularizations.length },
-    { id: "overtime", label: "Overtime", icon: HiCalendar, count: data.overtime.length },
-    { id: "compOffs", label: `${DICTIONARY.TERMS.COMP_OFF}s`, icon: HiGift, count: data.compOffs.length },
-    { id: "anomalies", label: "Anomalies", icon: HiExclamationCircle, count: data.anomalies.length },
-  ];
-
-  const renderActiveTabContent = () => {
-    let list = data[activeTab];
-    if (loading) return <div className="p-8 text-center text-slate-500">Loading requests...</div>;
-    if (!list || list.length === 0) return <div className="p-12 text-center text-slate-400 font-medium">No pending requests here! 🎉</div>;
-
+  const renderLeaves = () => {
+    if (leavesLoading) return <div className="p-8 text-center text-slate-500">Loading requests...</div>;
+    if (leaves.length === 0) return <div className="p-12 text-center text-slate-400 font-medium">No pending leave requests.</div>;
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-xs">
-            <tr>
-              <th className="px-6 py-4">Employee</th>
-              <th className="px-6 py-4">Details</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {list.map((item) => {
-              const empName = item.user?.profile ? `${item.user.profile.first_name} ${item.user.profile.last_name}` : (item.user?.name || "Unknown");
-              let details = "";
-              if (activeTab === "regularizations") details = `${item.date} - ${item.reason || 'No reason'}`;
-              if (activeTab === "overtime") details = `${item.date} - ${item.overtime_minutes} mins`;
-              if (activeTab === "compOffs") details = `Earned: ${item.earned_date} - ${item.worked_hours}h`;
-              if (activeTab === "anomalies") details = `Type: ${item.anomaly_type} - ${item.date}`;
-              if (activeTab === "leaves") {
-                const start = item.start_date || item.date;
-                const end = item.end_date || item.date;
-                const days = item.total_days || 1;
-                details = `${item.leave_type?.name || 'Leave'} (${days} day${days > 1 ? 's' : ''}) : ${start} to ${end}`;
-              }
-
-              return (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-primary-800">{empName}</td>
-                  <td className="px-6 py-4 font-medium">{details}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-purple-50 text-purple-600 border border-purple-100">
-                      {item.status || "Pending"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {activeTab === "leaves" && (
-                        <button 
-                          onClick={() => fetchAndShowBalances(item.user_id || item.user?.id, empName)}
-                          className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors mr-2"
-                        >
-                          View Balances
-                        </button>
-                      )}
-                      {activeTab !== "anomalies" && (
-                        <button 
-                          onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "approve", id: item.id, title: `Approve Request for ${empName}` })} 
-                          className="p-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors" title="Approve">
-                          <HiCheck className="w-4 h-4" />
-                        </button>
-                      )}
-                      {activeTab === "anomalies" && (
-                        <button 
-                          onClick={() => setActionModal({ isOpen: true, type: "anomaly", action: "approve", id: item.id, title: `Resolve Anomaly for ${empName}` })} 
-                          className="p-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-xs px-3 py-1 font-semibold" title="Resolve">
-                          Resolve
-                        </button>
-                      )}
-                      {activeTab !== "anomalies" && (
-                        <button 
-                          onClick={() => setActionModal({ isOpen: true, type: activeTab === "compOffs" ? "compOff" : activeTab, action: "reject", id: item.id, title: `Reject Request for ${empName}` })} 
-                          className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-600 rounded-lg transition-colors" title="Reject">
-                          <HiX className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="p-4 bg-slate-50/50 space-y-3">
+        {leaves.map(item => (
+          <LeaveRequestCard
+            key={item.id}
+            // The prop is `request`, not `item`: passing `item` left `request`
+            // undefined and the card threw on its first field, so the Inbox's
+            // whole Leave requests panel rendered as a blank crash.
+            request={item}
+            onApprove={(req) => {
+              const empName = leaveApplicantName(req);
+              const isCxl = req.status === "cancellation_pending";
+              setActionModal({ isOpen: true, action: "approve", id: req.id, title: isCxl ? `Approve cancellation for ${empName}` : `Approve Request for ${empName}`, isCancellation: isCxl });
+            }}
+            onReject={(req) => {
+              const empName = leaveApplicantName(req);
+              const isCxl = req.status === "cancellation_pending";
+              setActionModal({ isOpen: true, action: "reject", id: req.id, title: isCxl ? `Deny cancellation for ${empName}` : `Reject Request for ${empName}`, isCancellation: isCxl });
+            }}
+            showToast={showToast}
+          />
+        ))}
       </div>
     );
   };
 
+  const selected = GROUP.items.find((i) => i.key === selectedKey);
+  const waiting = GROUP.items.reduce((sum, i) => sum + (counts[i.key] || 0), 0);
+  const busy = loading || leavesLoading;
+
+  // Open on the first queue that has work in it. Starting on an empty queue
+  // while three others were waiting made the inbox look clear when it wasn't.
+  // This happens once, when the counts first arrive: clearing the last item
+  // in a queue must not whisk the person off to another one mid-work, and a
+  // card they pick themselves always stands.
+  const picked = useRef(false);
+  const pick = (key) => { picked.current = true; setSelectedKey(key); };
+  useEffect(() => {
+    if (picked.current || busy) return;
+    picked.current = true;
+    if ((counts[selectedKey] || 0) > 0) return;
+    const first = GROUP.items.find((i) => (counts[i.key] || 0) > 0);
+    if (first) setSelectedKey(first.key);
+  }, [counts, busy, selectedKey]);
+
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col min-w-0">
-        <DashboardTopBar title="Approvals Inbox" />
-        <main className="p-6 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Approvals Inbox</h1>
-              <p className="text-sm text-slate-500 mt-1">Review and action pending requests from your direct reports.</p>
-            </div>
+    <>
+      <DashboardTopBar title="Inbox" />
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Inbox</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {busy && !waiting ? "Checking every approval queue…" : `${waiting} item${waiting === 1 ? "" : "s"} waiting across your team.`}
+            </p>
+          </div>
+          <button type="button" onClick={refresh} disabled={busy} className="inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+            <HiRefresh className={`w-4 h-4 ${busy ? "animate-spin" : ""}`} /> Refresh
+          </button>
+        </div>
+
+        <section className="space-y-4">
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{GROUP.title}</h2>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${GROUP.cols}`}>
+            {GROUP.items.map((item) => (
+              <InboxCard key={item.key} item={item} count={counts[item.key]} loading={busy} selected={item.key === selectedKey} onSelect={pick} />
+            ))}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex overflow-x-auto border-b border-slate-100 hide-scrollbar">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${
-                    activeTab === tab.id 
-                      ? "border-purple-600 text-purple-700 bg-purple-50/50" 
-                      : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? "text-purple-600" : "text-slate-400"}`} />
-                  {tab.label}
-                  {tab.count > 0 && (
-                    <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] ${
-                      activeTab === tab.id ? "bg-purple-200 text-purple-800" : "bg-slate-100 text-slate-500"
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              ))}
+          {selected && (
+            <div key={selected.key} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+                <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center"><selected.icon className="w-4 h-4" /></span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Pending {selected.label.toLowerCase()}</h3>
+                  <p className="text-[11px] text-slate-400">{selected.queue ? "Click a row to review and decide." : "Approve or reject each request below."}</p>
+                </div>
+              </div>
+              {selected.queue
+                ? <AttendanceApprovalQueue key={selected.key} type={selected.queue} onCountChange={onQueueCount} />
+                : renderLeaves()}
             </div>
-            {renderActiveTabContent()}
-          </div>
-        </main>
-      </div>
+          )}
+        </section>
+      </main>
 
-      {/* Action Modal */}
+      {/* Leave Action Modal */}
       {actionModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-800">{actionModal.title}</h3>
-              <button onClick={() => { setActionModal({ isOpen: false, type: "", action: "", id: null, title: "" }); setRemarks(""); }} className="text-slate-400 hover:text-slate-600">
+              <button onClick={closeLeaveModal} className="text-slate-400 hover:text-slate-600">
                 <HiX className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-sm text-slate-600">
-                Are you sure you want to <strong>{actionModal.action}</strong> this request?
-              </p>
-              
+              {actionModal.isCancellation ? (
+                <div className="flex items-center gap-2 px-4 py-3 bg-fuchsia-50 border border-fuchsia-200 text-xs font-medium text-fuchsia-700 rounded-xl">
+                  <HiInformationCircle className="w-5 h-5 shrink-0" />
+                  {actionModal.action === "approve" ? "Approving this will cancel the approved leave and refund the employee's leave balance." : "Denying this will keep the approved leave active."}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Are you sure you want to <strong>{actionModal.action}</strong> this request?
+                </p>
+              )}
+
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-600">Remarks {actionModal.action === "reject" ? "(Required)" : "(Optional)"}</label>
                 <textarea
@@ -266,53 +239,17 @@ function ManagerApprovalsInbox() {
               </div>
             </div>
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button 
-                onClick={() => { setActionModal({ isOpen: false, type: "", action: "", id: null, title: "" }); setRemarks(""); }} 
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors">
+              <button onClick={closeLeaveModal} disabled={submitting} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors disabled:opacity-50">
                 Cancel
               </button>
-              <button 
-                onClick={handleAction} 
-                disabled={actionModal.action === "reject" && !remarks.trim()}
-                className={`px-4 py-2 text-sm font-bold text-white rounded-xl transition-colors ${
-                  actionModal.action === "approve" ? "bg-purple-600 hover:bg-purple-700" : "bg-rose-500 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              <button
+                onClick={handleLeaveAction}
+                disabled={submitting || (actionModal.action === "reject" && !remarks.trim())}
+                className={`px-4 py-2 text-sm font-bold text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  actionModal.action === "approve" ? "bg-purple-600 hover:bg-purple-700" : "bg-rose-500 hover:bg-rose-600"
                 }`}>
-                {actionModal.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
+                {submitting ? "Saving…" : actionModal.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Balances Modal */}
-      {balanceModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-800">Balances for {balanceModal.empName}</h3>
-              <button onClick={() => setBalanceModal({ isOpen: false, empName: "", balances: [], loading: false })} className="text-slate-400 hover:text-slate-600">
-                <HiX className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              {balanceModal.loading ? (
-                <div className="text-center py-8 text-slate-500 text-sm">Loading balances...</div>
-              ) : balanceModal.balances.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 text-sm">No leave balances found for this employee.</div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  {balanceModal.balances.map(b => (
-                    <div key={b.id || b.leave_type_id} className="p-4 rounded-xl border border-slate-100 bg-slate-50">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">{b.leave_type?.name || "Leave"}</div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-bold text-slate-800">{b.current_balance}</span>
-                        <span className="text-sm font-semibold text-slate-500">remaining</span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-1">Total Accrued: {b.total_accrued}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -325,7 +262,7 @@ function ManagerApprovalsInbox() {
           {toast.msg}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

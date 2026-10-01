@@ -3,12 +3,25 @@ import { request } from "./client.js";
 // Helper to construct query string
 const buildQuery = (params) => {
   if (!params) return "";
-  const query = Object.entries(params)
-    .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
-  return query ? `?${query}` : "";
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    // Phase 6 report filters repeat a key: department_id=a&department_id=b
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== "") query.append(key, item);
+      });
+      return;
+    }
+    query.append(key, value);
+  });
+  const text = query.toString();
+  return text ? `?${text}` : "";
 };
+
+// PAYROLL_BACKEND_GAPS_RESPONSE.md §0.2: one comma-separated `include` param.
+// Only `employee` is asked for; list screens never read the snapshots (G-6).
+const WITH_EMPLOYEE = { include: "employee" };
 
 export const payrollAPI = {
   // ─────────────────────────────────────────────────────────────────────────────
@@ -34,9 +47,24 @@ export const payrollAPI = {
   addTemplateComponent: (id, payload) => request(`/payroll/hr/structure-templates/${id}/components`, { method: "POST", body: JSON.stringify(payload) }),
   updateTemplateComponent: (id, compId, payload) => request(`/payroll/hr/structure-templates/${id}/components/${compId}`, { method: "PUT", body: JSON.stringify(payload) }),
   removeTemplateComponent: (id, compId) => request(`/payroll/hr/structure-templates/${id}/components/${compId}`, { method: "DELETE" }),
-  previewTemplate: (id, payload) => request(`/payroll/hr/structure-templates/${id}/preview`, { method: "POST", body: JSON.stringify(payload) }),
+  // `user_id` became REQUIRED on 2026-09-20: professional tax depends on the
+  // employee's work state and TDS on their declarations, so the evaluator has to
+  // know who the preview is for. It is also what makes the response carry
+  // `statutory_breakdown`, identical in shape to GET /payroll/me/salary-structure.
+  // Omitting it is a 400 from the server; the guard turns that into a message
+  // that names the actual mistake instead of a generic validation failure.
+  previewTemplate: (id, payload) => {
+    if (!payload?.user_id) {
+      return Promise.reject(new Error("Preview needs an employee to evaluate against — user_id is required."));
+    }
+    return request(`/payroll/hr/structure-templates/${id}/preview`, { method: "POST", body: JSON.stringify(payload) });
+  },
 
   // Employee Structures (HR)
+  // Every employee's active structure in one paginated list (page, limit ≤ 100),
+  // with `employee.profile` and `components` embedded. Use this for the grid;
+  // the per-employee route below is for one row after an assignment.
+  getCurrentSalaryStructures: (params) => request(`/payroll/hr/salary-structures/current${buildQuery(params)}`),
   getEmployeeStructureHistory: (userId) => request(`/payroll/hr/employees/${userId}/salary-structures`),
   getEmployeeCurrentStructure: (userId) => request(`/payroll/hr/employees/${userId}/salary-structures/current`),
   assignEmployeeStructure: (userId, payload) => request(`/payroll/hr/employees/${userId}/salary-structures`, { method: "POST", body: JSON.stringify(payload) }),
@@ -49,6 +77,9 @@ export const payrollAPI = {
   // Settings & Bank & Logs
   getSettings: () => request("/payroll/hr/settings"),
   updateSettings: (payload) => request("/payroll/hr/settings", { method: "PUT", body: JSON.stringify(payload) }),
+  // Every employee's bank account in one paginated list (page, limit ≤ 100).
+  // Use this for the verification grid; the per-employee route below is for one row's details.
+  getBankAccounts: (params) => request(`/payroll/hr/bank-accounts${buildQuery(params)}`),
   getEmployeeBankAccount: (userId) => request(`/payroll/hr/employees/${userId}/bank-account`),
   verifyEmployeeBankAccount: (userId) => request(`/payroll/hr/employees/${userId}/bank-account/verify`, { method: "POST" }),
   getAuditLogs: (params) => request(`/payroll/hr/audit-logs${buildQuery(params)}`),
@@ -56,19 +87,23 @@ export const payrollAPI = {
   // ─────────────────────────────────────────────────────────────────────────────
   // HR APIs — Engine Operations
   // ─────────────────────────────────────────────────────────────────────────────
-  getRunEligibility: () => request("/payroll/hr/runs/eligibility"),
+  getRunEligibility: (params) => request(`/payroll/hr/runs/eligibility${buildQuery(params)}`),
   createRun: (payload) => request("/payroll/hr/runs", { method: "POST", body: JSON.stringify(payload) }),
   getRuns: (params) => request(`/payroll/hr/runs${buildQuery(params)}`),
   getRun: (id) => request(`/payroll/hr/runs/${id}`),
   calculateRun: (id) => request(`/payroll/hr/runs/${id}/calculate`, { method: "POST" }),
-  getRunPreview: (id) => request(`/payroll/hr/runs/${id}/preview`),
-  getRunItems: (id, params) => request(`/payroll/hr/runs/${id}/items${buildQuery(params)}`),
-  getRunItem: (id, itemId) => request(`/payroll/hr/runs/${id}/items/${itemId}`),
+  // Gap G-2: `include=employee` embeds `employee` and `*_by_user` objects. Until
+  // the backend ships it the param is ignored and rows carry bare user_ids.
+  getRunPreview: (id) => request(`/payroll/hr/runs/${id}/preview${buildQuery(WITH_EMPLOYEE)}`),
+  getRunItems: (id, params) => request(`/payroll/hr/runs/${id}/items${buildQuery({ ...params, ...WITH_EMPLOYEE })}`),
+  getRunItem: (id, itemId) => request(`/payroll/hr/runs/${id}/items/${itemId}${buildQuery(WITH_EMPLOYEE)}`),
   excludeRunItem: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/exclude`, { method: "POST", body: JSON.stringify(payload) }),
   includeRunItem: (id, itemId) => request(`/payroll/hr/runs/${id}/items/${itemId}/include`, { method: "POST" }),
-  overrideRunItemPeriod: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/override-period`, { method: "POST", body: JSON.stringify(payload) }),
+  overrideRunItemPeriod: (id, itemId, payload) => request(`/payroll/hr/runs/${id}/items/${itemId}/period`, { method: "PATCH", body: JSON.stringify(payload) }),
   approveRun: (id) => request(`/payroll/hr/runs/${id}/approve`, { method: "POST" }),
-  cancelRun: (id) => request(`/payroll/hr/runs/${id}/cancel`, { method: "POST" }),
+  // Cancel requires `cancellation_reason` (1–1000 chars, trimmed). Only an
+  // approved, unpaid run can be cancelled.
+  cancelRun: (id, reason) => request(`/payroll/hr/runs/${id}/cancel`, { method: "POST", body: JSON.stringify({ cancellation_reason: reason }) }),
   payRun: (id) => request(`/payroll/hr/runs/${id}/pay`, { method: "POST" }),
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -77,27 +112,41 @@ export const payrollAPI = {
   getTeamSalaryStructures: () => request("/payroll/manager/team/salary-structures"),
   getTeamMemberStructureHistory: (userId) => request(`/payroll/manager/employees/${userId}/salary-structures`),
   getTeamMemberCurrentStructure: (userId) => request(`/payroll/manager/employees/${userId}/salary-structures/current`),
-  proposeTeamMemberStructure: (userId, payload) => request(`/payroll/manager/employees/${userId}/salary-structures`, { method: "POST", body: JSON.stringify(payload) }),
-  getMyProposals: () => request("/payroll/manager/salary-structures/proposals"),
-  cancelMyProposal: (id) => request(`/payroll/manager/salary-structures/proposals/${id}/cancel`, { method: "POST" }),
+  proposeTeamMemberStructure: (userId, payload) => request(`/payroll/manager/employees/${userId}/salary-structures/propose`, { method: "POST", body: JSON.stringify(payload) }),
+  getMyProposals: (params) => request(`/payroll/manager/salary-structures/proposals${buildQuery(params)}`),
+  cancelMyProposal: (id) => request(`/payroll/manager/salary-structures/${id}/cancel`, { method: "POST" }),
   
   // Manager — Runs & Payslips
-  getTeamRunSummary: (runId) => request(`/payroll/manager/runs/${runId}/summary`),
-  getTeamRunItems: (runId) => request(`/payroll/manager/runs/${runId}/items`),
+  getTeamRunSummary: (runId) => request(`/payroll/manager/runs/${runId}/team-summary`),
+  getTeamRunItems: (runId, params) => request(`/payroll/manager/runs/${runId}/team-items${buildQuery(params)}`),
   getReportPayslips: (userId) => request(`/payroll/manager/employees/${userId}/payslips`),
   getReportPayslip: (userId, runId) => request(`/payroll/manager/employees/${userId}/payslips/${runId}`),
+
+  // Manager — Reports (#187–#190). Auto-scoped to the manager's reporting line;
+  // with compensation visibility off they collapse to totals only (EC-25/EC-67).
+  getManagerPayrollRegister: (params) => request(`/payroll/manager/reports/payroll-register${buildQuery({ ...params, format: "json" })}`),
+  getManagerDepartmentDistribution: (params) => request(`/payroll/manager/reports/department-distribution${buildQuery({ ...params, format: "json" })}`),
+  getManagerDeductionSummary: (params) => request(`/payroll/manager/reports/deduction-summary${buildQuery({ ...params, format: "json" })}`),
+  getManagerComponentReport: (params) => request(`/payroll/manager/reports/components${buildQuery({ ...params, format: "json" })}`),
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Employee Self-Service APIs
   // ─────────────────────────────────────────────────────────────────────────────
   getMyCurrentStructure: () => request("/payroll/me/salary-structure"),
-  getMyStructureHistory: () => request("/payroll/me/salary-structures"),
+  getMyStructureHistory: () => request("/payroll/me/salary-structure/history"),
   getMyBankAccount: () => request("/payroll/me/bank-account"),
   upsertMyBankAccount: (payload) => request("/payroll/me/bank-account", { method: "PUT", body: JSON.stringify(payload) }),
   
   // Employee — Payslips
   getMyPayslips: () => request("/payroll/me/payslips"),
   getMyPayslip: (runId) => request(`/payroll/me/payslips/${runId}`),
+  // #192 — the financial year's month-by-month salary grid.
+  getMyAnnualStatement: (params) => request(`/payroll/me/annual-statement${buildQuery(params)}`),
+  // #218 — your own leave / comp-off encashments, newest first. Mounted at
+  // /payroll/me like every other self route (the `/payroll/self/me/...` form in
+  // the Phase 6–7 drafts was never real and 404s). `data` is a plain array, not
+  // a pagination envelope: no query params, capped at 200 rows server-side.
+  getMyEncashments: (params) => request(`/payroll/me/encashments${buildQuery(params)}`),
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Phase 3: Variable Pay (Adjustments, Bonuses, Loans & Advances) — API #57–#94
@@ -105,8 +154,8 @@ export const payrollAPI = {
 
   // HR — Adjustments (#57–#62)
   createAdjustment: (payload) => request("/payroll/hr/adjustments", { method: "POST", body: JSON.stringify(payload) }),
-  getAdjustments: (params) => request(`/payroll/hr/adjustments${buildQuery(params)}`),
-  getAdjustment: (id) => request(`/payroll/hr/adjustments/${id}`),
+  getAdjustments: (params) => request(`/payroll/hr/adjustments${buildQuery({ ...params, ...WITH_EMPLOYEE })}`),
+  getAdjustment: (id) => request(`/payroll/hr/adjustments/${id}${buildQuery(WITH_EMPLOYEE)}`),
   approveAdjustment: (id) => request(`/payroll/hr/adjustments/${id}/approve`, { method: "POST" }),
   rejectAdjustment: (id, payload) => request(`/payroll/hr/adjustments/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
   cancelAdjustment: (id) => request(`/payroll/hr/adjustments/${id}/cancel`, { method: "POST" }),
@@ -123,7 +172,7 @@ export const payrollAPI = {
   updateBonusRule: (id, payload) => request(`/payroll/hr/bonus-rules/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   approveBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}/approve`, { method: "POST" }),
   rejectBonusRule: (id, payload) => request(`/payroll/hr/bonus-rules/${id}/reject`, { method: "POST", body: JSON.stringify(payload) }),
-  previewBonusRuleImpact: (id) => request(`/payroll/hr/bonus-rules/${id}/preview-impact`, { method: "POST" }),
+  previewBonusRuleImpact: (id) => request(`/payroll/hr/bonus-rules/${id}/preview-impact${buildQuery(WITH_EMPLOYEE)}`, { method: "POST" }),
   applyBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}/apply`, { method: "POST" }),
   cancelBonusRule: (id) => request(`/payroll/hr/bonus-rules/${id}/cancel`, { method: "POST" }),
 
@@ -203,25 +252,240 @@ export const payrollAPI = {
   recordMyDeclarationProofs: (payload, params) => request(`/payroll/me/tax/declarations/proofs${buildQuery(params)}`, { method: "PUT", body: JSON.stringify(payload) }),
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Phase 5: Reimbursements & Benefits
+  // Phase 5: Reimbursements, Benefits & Documents — API #128–#166
+  // Contract: phase5_api_analysis.md / api_registry.md (see PAYROLL_PHASE5_FRONTEND_PLAN.md §0)
   // ─────────────────────────────────────────────────────────────────────────────
-  getBenefitPlans: () => request("/payroll/hr/benefit-plans"),
+
+  // HR — Reimbursement categories (#128–#132)
+  createReimbursementCategory: (payload) => request("/payroll/hr/reimbursements/categories", { method: "POST", body: JSON.stringify(payload) }),
+  getReimbursementCategories: (params) => request(`/payroll/hr/reimbursements/categories${buildQuery(params)}`),
+  getReimbursementCategory: (id) => request(`/payroll/hr/reimbursements/categories/${id}`),
+  updateReimbursementCategory: (id, payload) => request(`/payroll/hr/reimbursements/categories/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deactivateReimbursementCategory: (id) => request(`/payroll/hr/reimbursements/categories/${id}`, { method: "DELETE" }),
+
+  // HR — Claims queue (#133–#136)
+  getReimbursementClaims: (params) => request(`/payroll/hr/reimbursements/claims${buildQuery(params)}`),
+  getReimbursementClaim: (id) => request(`/payroll/hr/reimbursements/claims/${id}`),
+  approveReimbursementClaim: (id, payload) => request(`/payroll/hr/reimbursements/claims/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
+  rejectReimbursementClaim: (id, reason) => request(`/payroll/hr/reimbursements/claims/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
+
+  // HR — Documents (#137, #147)
+  getAttachmentViewUrl: (attachmentId, params) => request(`/payroll/hr/attachments/${attachmentId}/view-url${buildQuery(params)}`),
+  attachForm16PartA: (userId, financialYear, payload) => request(`/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}/part-a/attachment`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // HR — Benefit plans & enrollments (#138–#146)
   createBenefitPlan: (payload) => request("/payroll/hr/benefit-plans", { method: "POST", body: JSON.stringify(payload) }),
-  getReimbursementClaims: (params) => request(`/payroll/hr/reimbursements${buildQuery(params)}`),
-  processReimbursementClaim: (id, payload) => request(`/payroll/hr/reimbursements/${id}/process`, { method: "POST", body: JSON.stringify(payload) }),
-  
-  getTeamReimbursementClaims: (params) => request(`/payroll/manager/reimbursements${buildQuery(params)}`),
-  approveTeamReimbursementClaim: (id, payload) => request(`/payroll/manager/reimbursements/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
-  
-  getMyReimbursementClaims: () => request("/payroll/me/reimbursements"),
-  submitReimbursementClaim: (payload) => request("/payroll/me/reimbursements", { method: "POST", body: JSON.stringify(payload) }),
-  getMyBenefitPlans: () => request("/payroll/me/benefit-plans"),
-  enrollBenefitPlan: (id, payload) => request(`/payroll/me/benefit-plans/${id}/enroll`, { method: "POST", body: JSON.stringify(payload) }),
+  getBenefitPlans: (params) => request(`/payroll/hr/benefit-plans${buildQuery(params)}`),
+  getBenefitPlan: (id) => request(`/payroll/hr/benefit-plans/${id}`),
+  updateBenefitPlan: (id, payload) => request(`/payroll/hr/benefit-plans/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deactivateBenefitPlan: (id) => request(`/payroll/hr/benefit-plans/${id}`, { method: "DELETE" }),
+  enrollInBenefitPlan: (planId, payload) => request(`/payroll/hr/benefit-plans/${planId}/enrollments`, { method: "POST", body: JSON.stringify(payload) }),
+  getBenefitPlanEnrollments: (planId, params) => request(`/payroll/hr/benefit-plans/${planId}/enrollments${buildQuery(params)}`),
+  getEmployeeBenefitEnrollments: (userId, params) => request(`/payroll/hr/employees/${userId}/benefit-enrollments${buildQuery(params)}`),
+  endEmployeeBenefitEnrollment: (userId, enrollmentId, payload) => request(`/payroll/hr/employees/${userId}/benefit-enrollments/${enrollmentId}/end`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // Manager — Team claims & benefits (#148–#153)
+  getTeamReimbursementClaims: (params) => request(`/payroll/manager/reimbursements/claims${buildQuery(params)}`),
+  getTeamReimbursementClaim: (id) => request(`/payroll/manager/reimbursements/claims/${id}`),
+  approveTeamReimbursementClaim: (id, payload) => request(`/payroll/manager/reimbursements/claims/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),
+  rejectTeamReimbursementClaim: (id, reason) => request(`/payroll/manager/reimbursements/claims/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
+  getTeamAttachmentViewUrl: (attachmentId, params) => request(`/payroll/manager/attachments/${attachmentId}/view-url${buildQuery(params)}`),
+  getTeamBenefitEnrollments: (params) => request(`/payroll/manager/team/benefit-enrollments${buildQuery(params)}`),
+
+  // Employee Self-Service — Claims, documents & benefits (#154–#166)
+  getMyReimbursementCategories: () => request("/payroll/me/reimbursements/categories"),
+  createMyReimbursementClaim: (payload) => request("/payroll/me/reimbursements/claims", { method: "POST", body: JSON.stringify(payload) }),
+  getMyReimbursementClaims: (params) => request(`/payroll/me/reimbursements/claims${buildQuery(params)}`),
+  getMyReimbursementClaim: (id) => request(`/payroll/me/reimbursements/claims/${id}`),
+  replaceMyReimbursementClaim: (id, payload) => request(`/payroll/me/reimbursements/claims/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  submitMyReimbursementClaim: (id) => request(`/payroll/me/reimbursements/claims/${id}/submit`, { method: "POST" }),
+  cancelMyReimbursementClaim: (id, reason) => request(`/payroll/me/reimbursements/claims/${id}/cancel`, { method: "POST", body: JSON.stringify(reason ? { cancellation_reason: reason } : {}) }),
+  requestClaimReceiptUpload: (claimId, itemId, payload) => request(`/payroll/me/reimbursements/claims/${claimId}/items/${itemId}/attachments`, { method: "POST", body: JSON.stringify(payload) }),
+  requestDeclarationProofUpload: (itemId, payload) => request(`/payroll/me/tax/declarations/items/${itemId}/attachments`, { method: "POST", body: JSON.stringify(payload) }),
+  confirmMyAttachment: (attachmentId) => request(`/payroll/me/attachments/${attachmentId}/confirm`, { method: "POST" }),
+  deleteMyAttachment: (attachmentId) => request(`/payroll/me/attachments/${attachmentId}`, { method: "DELETE" }),
+  getMyAttachmentViewUrl: (attachmentId, params) => request(`/payroll/me/attachments/${attachmentId}/view-url${buildQuery(params)}`),
+  getMyBenefits: () => request("/payroll/me/benefits"),
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Phase 6: Reports & Delivery
+  // Phase 6: Payslips, Reports, Exports & Bank Advice — API #167–#194
+  // Contract: md_payrolls/phases/phase6_api_analysis.md + phase6_implementation_plan.md §6.
+  //
+  // The binary endpoints (PDF, CSV, ZIP) are NOT here: `request()` always parses
+  // JSON. They are fetched through `payrollFiles` below with downloadFile().
   // ─────────────────────────────────────────────────────────────────────────────
-  getPayrollRegisters: (params) => request(`/payroll/hr/reports/registers${buildQuery(params)}`),
-  exportPayrollRegister: (params) => request(`/payroll/hr/reports/registers/export${buildQuery(params)}`),
-  exportNEFTAdvice: (runId) => request(`/payroll/hr/reports/neft/${runId}/export`)
+
+  // HR — Payslips (#167–#169, #171–#173, #175–#176)
+  getRunPayslips: (runId, params) => request(`/payroll/hr/runs/${runId}/payslips${buildQuery(params)}`),
+  getEmployeePayslipHistory: (userId, params) => request(`/payroll/hr/employees/${userId}/payslips${buildQuery(params)}`),
+  getEmployeePayslip: (userId, runId, params) => request(`/payroll/hr/employees/${userId}/payslips/${runId}${buildQuery(params)}`),
+  publishRunPayslips: (runId, payload) => request(`/payroll/hr/runs/${runId}/payslips/publish`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  backfillRunPayslips: (runId, payload) => request(`/payroll/hr/runs/${runId}/payslips/backfill`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  reissuePayslip: (payslipId, payload) => request(`/payroll/hr/payslips/${payslipId}/reissue`, { method: "POST", body: JSON.stringify(payload) }),
+  dispatchRunPayslips: (runId, payload) => request(`/payroll/hr/runs/${runId}/payslips/dispatch`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  getRunDispatchStatus: (runId) => request(`/payroll/hr/runs/${runId}/payslips/dispatch-status`),
+
+  // HR — Reports (#177–#180). `format=json` previews on screen; csv/pdf download.
+  getPayrollRegister: (params) => request(`/payroll/hr/reports/payroll-register${buildQuery({ ...params, format: "json" })}`),
+  getDepartmentDistribution: (params) => request(`/payroll/hr/reports/department-distribution${buildQuery({ ...params, format: "json" })}`),
+  getDeductionSummary: (params) => request(`/payroll/hr/reports/deduction-summary${buildQuery({ ...params, format: "json" })}`),
+  getComponentReport: (params) => request(`/payroll/hr/reports/components${buildQuery({ ...params, format: "json" })}`),
+
+  // HR — Export audit trail (#182) and the FY salary statement (#183)
+  getExports: (params) => request(`/payroll/hr/exports${buildQuery(params)}`),
+  getEmployeeAnnualStatement: (userId, params) => request(`/payroll/hr/employees/${userId}/annual-statement${buildQuery(params)}`),
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Phase 7: Exits & Final Settlement, Arrears, Encashments, Automation
+  // (#195–#218). Tenant plane only — no admin / super-admin.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // HR — Exits (#195–#199). One live exit per employee; a second is 409.
+  createExit: (payload) => request("/payroll/hr/exits", { method: "POST", body: JSON.stringify(payload) }),
+  getExits: (params) => request(`/payroll/hr/exits${buildQuery(params)}`),
+  getExit: (id) => request(`/payroll/hr/exits/${id}`),
+  // PATCH, not PUT: every field is optional and an empty body is 422 NO_CHANGES.
+  correctExit: (id, payload) => request(`/payroll/hr/exits/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  // #199 names the field `cancellation_reason`; a bare `reason` is a 400
+  // ("cancellation_reason" is required), so the key is fixed here, not by the page.
+  cancelExit: (id, reason) => request(`/payroll/hr/exits/${id}/cancel`, { method: "POST", body: JSON.stringify({ cancellation_reason: reason }) }),
+
+  // HR — Full & final settlement (#200–#202).
+  // Preview persists NOTHING; prepare writes adjustments and debits leave
+  // wallets; reset is the exact inverse and needs a reason.
+  getSettlementPreview: (id, params) => request(`/payroll/hr/exits/${id}/settlement-preview${buildQuery(params)}`),
+  prepareSettlement: (id, payload) => request(`/payroll/hr/exits/${id}/prepare-settlement`, { method: "POST", body: JSON.stringify(payload || {}) }),
+  resetSettlement: (id, payload) => request(`/payroll/hr/exits/${id}/settlement/reset`, { method: "POST", body: JSON.stringify(payload) }),
+
+  // HR — Arrears (#203–#205). Drift is read-only; reconcile commits.
+  getArrearDrift: (params) => request(`/payroll/hr/arrears/drift${buildQuery(params)}`),
+  reconcileArrears: (payload) => request("/payroll/hr/arrears/reconcile", { method: "POST", body: JSON.stringify(payload) }),
+  getArrears: (params) => request(`/payroll/hr/arrears${buildQuery(params)}`),
+
+  // HR — Encashments (#206–#211).
+  createEncashment: (userId, payload) => request(`/payroll/hr/employees/${userId}/encashments`, { method: "POST", body: JSON.stringify(payload) }),
+  getEncashments: (params) => request(`/payroll/hr/encashments${buildQuery(params)}`),
+  getEncashment: (id) => request(`/payroll/hr/encashments/${id}`),
+  approveEncashment: (id) => request(`/payroll/hr/encashments/${id}/approve`, { method: "POST" }),
+  // #210 requires `rejection_reason` (not `reason`), like every other reject.
+  rejectEncashment: (id, reason) => request(`/payroll/hr/encashments/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
+  // #211 takes an optional `cancellation_reason` (1–1000) since 29 Sep 2026 (R-4);
+  // it is stored on the row and in the audit log. Before that the spec had no
+  // body, so the reason HR typed was thrown away.
+  // Trimmed: a blank reason is sent as no reason, not as "   " (which fails the 1–1000 rule).
+  cancelEncashment: (id, reason) => {
+    const text = String(reason ?? "").trim();
+    return request(`/payroll/hr/encashments/${id}/cancel`, { method: "POST", body: JSON.stringify(text ? { cancellation_reason: text } : {}) });
+  },
+
+  // HR — Manual triggers for the four background jobs (#212–#215). All are
+  // org-scoped and idempotent: running one twice does not double-apply.
+  // The background jobs with their cron schedules and status (backend_api_updates_2026_09_22 §1).
+  getJobs: () => request("/payroll/hr/jobs"),
+  runCalendarReminders: () => request("/payroll/hr/jobs/calendar-reminders/run", { method: "POST" }),
+  runAutoDraft: () => request("/payroll/hr/jobs/auto-draft/run", { method: "POST" }),
+  runRunSweeper: () => request("/payroll/hr/jobs/run-sweeper/run", { method: "POST" }),
+  runAttachmentSweeper: () => request("/payroll/hr/jobs/attachment-sweeper/run", { method: "POST" }),
+
+  // ── HR — Payslip PDF render queue (PDF Generation Phase 3, #219 / #220) ─────
+  //
+  // Both are HR-only. Since the HTML-only migration (30 Sep 2026) there is one
+  // engine for every organisation, so they are offered to everyone;
+  // `pdf_render_engine` (setting #87) is inert and `engine` always reads "html".
+  //
+  // #219 WITH a `run_id` is a whole-run call and answers `503
+  // PDF_BULK_GENERATION_DISABLED` while ops has bulk generation switched off;
+  // without one it still drains the queue (shared/pdf/bulkGeneration.js).
+  //
+  // Neither endpoint renders anything itself: #219 asks the server to work
+  // through its queue now instead of waiting for the quarter-hourly cron, and
+  // #220 is a pure count. Both are safe to repeat; #220 is safe to poll.
+  /**
+   * #219 Prepare payslip PDFs now. `{ run_id }` is optional — with it, that
+   * run's released payslips are queued first and then the queue is worked
+   * through; without it, whatever is already queued is worked through.
+   *
+   * Answers `200` with `{ engine, enqueued, claimed, done, failed, remaining }`;
+   * `engine` is always "html" now and `engine_html_orgs` counts every org
+   * drained. All zeros is a success ("nothing waiting"), NOT an error.
+   *
+   * Fully idempotent: two HR users pressing it at once divide the work rather
+   * than rendering anything twice.
+   */
+  runPayslipRender: (payload) =>
+    request("/payroll/hr/jobs/payslip-render/run", { method: "POST", body: JSON.stringify(payload || {}) }),
+  /**
+   * #220 How far along one run's payslip PDFs are:
+   * `{ run_id, engine, total, ready, pending: { queued, claimed }, failed,
+   * uncacheable, will_stream, batch }`.
+   *
+   * `will_stream` is the only field a caller should branch on: it means
+   * `ready + uncacheable === total`, i.e. #174 will now hand back a complete ZIP
+   * instead of a `202`. Computing that from the other counts client-side would
+   * miss `uncacheable` (held and pre-snapshot payslips, which never cache and
+   * are rendered inline) and poll for ever.
+   *
+   * `batch_id` scopes the `batch` block to one async bulk request; without it
+   * `batch` is null. A missing or cross-org run is the same `404 RUN_NOT_FOUND`
+   * as every other run endpoint.
+   */
+  getPayslipRenderStatus: (runId, params) =>
+    request(`/payroll/hr/runs/${runId}/payslips/render-status${buildQuery(params)}`),
+  /**
+   * #221 How the payslip render queue is doing — PDF Generation Phase 5. HR
+   * only. `?window_hours` is 1–168 and defaults to 24; anything else is a 400.
+   *
+   * The payroll twin of documents' #151, field for field, with
+   * `scope: "payslip"` — both are read through `queueHealthOf()` in
+   * shared/pdf/renderHealthMeta.js so the two readouts stay identical.
+   *
+   * Scoped to payslips server-side: payroll can never see the letter queue and
+   * documents can never see this one. It carries counts and timestamps only —
+   * no employee, no run, no storage key, no error text.
+   *
+   * Offered to every organisation now that there is one engine. A server from
+   * before Phase 5 answers 404 — hide it, don't report it as a failure.
+   */
+  getPayslipQueueHealth: (params) =>
+    request(`/payroll/hr/jobs/payslip-render/health${buildQuery(params)}`),
+
+  // Manager — Encashments (#216–#217). Amounts are masked unless the manager
+  // has compensation visibility (EC-25).
+  proposeEncashment: (userId, payload) => request(`/payroll/manager/employees/${userId}/encashments`, { method: "POST", body: JSON.stringify(payload) }),
+  getTeamEncashments: (params) => request(`/payroll/manager/encashments${buildQuery(params)}`),
+};
+
+/**
+ * Paths for the binary Phase 6 endpoints (PDF · CSV · ZIP). Pass one to
+ * `downloadFile()` from shared/utils/download.js — every response is
+ * `Content-Disposition: attachment`, and every download writes an audit row.
+ */
+export const payrollFiles = {
+  // HR
+  hrPayslipPdf: (userId, runId) => `/payroll/hr/employees/${userId}/payslips/${runId}/pdf`,          // #170
+  hrRunPayslipsZip: (runId) => `/payroll/hr/runs/${runId}/payslips/download`,                        // #174
+  hrReport: (reportKey) => `/payroll/hr/reports/${reportKey}`,                                       // #177–#180
+  hrBankAdvice: (runId) => `/payroll/hr/runs/${runId}/bank-advice`,                                  // #181 — THE bank upload file
+  // #223 — a printable, signed covering copy of #181: same rows, account numbers
+  // masked. Never a replacement for the CSV. 409 RUN_NOT_PAID / MISSING_BANK_ACCOUNTS
+  // like the CSV, plus 422 EXPORT_TOO_LARGE above 2,000 people (the CSV has no cap).
+  hrBankAdvicePdf: (runId) => `/payroll/hr/runs/${runId}/bank-advice/pdf`,
+  // #224 — Full & Final settlement statement for one exit. PROVISIONAL while the
+  // exit is `prepared`, FINAL once `settled`; 409 SETTLEMENT_NOT_PREPARED before
+  // that, 409 EXIT_CANCELLED for a cancelled exit. Not stored — drawn per download.
+  hrFnfStatementPdf: (exitId) => `/payroll/hr/exits/${exitId}/settlement-statement/pdf`,
+  // #222 — the #118 statutory summary as a landscape PDF. A challan-preparation
+  // worksheet, NOT an ECR / ESI return / 24Q filing file. `financialYear` like "2025-26".
+  hrStatutorySummaryPdf: (financialYear) => `/payroll/hr/tax/financial-years/${encodeURIComponent(financialYear)}/statutory-summary/pdf`,
+  hrAnnualStatementPdf: (userId) => `/payroll/hr/employees/${userId}/annual-statement/pdf`,          // #184
+  hrForm16Pdf: (userId, financialYear) => `/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}/pdf`, // #185
+
+  // Manager
+  managerPayslipPdf: (userId, runId) => `/payroll/manager/employees/${userId}/payslips/${runId}/pdf`, // #186
+  managerReport: (reportKey) => `/payroll/manager/reports/${reportKey}`,                              // #187–#190
+
+  // Self
+  myPayslipPdf: (runId) => `/payroll/me/payslips/${runId}/pdf`,                                       // #191
+  myAnnualStatementPdf: () => "/payroll/me/annual-statement/pdf",                                     // #193
+  myForm16Pdf: (financialYear) => `/payroll/me/tax/form16/${encodeURIComponent(financialYear)}/pdf`,  // #194
 };

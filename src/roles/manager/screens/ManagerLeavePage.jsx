@@ -1,20 +1,24 @@
 import React, { useState, useEffect, useCallback } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../shared/api";
+import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
+import { formatDayCount } from "../../../shared/utils/formatUtils";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiCalendar,
-  HiUserCircle, HiClock, HiBan, HiThumbUp, HiThumbDown,
-  HiInformationCircle, HiDocumentText,
+  HiCheckCircle, HiExclamationCircle, HiX, HiCalendar, HiChevronLeft, HiChevronRight,
 } from "react-icons/hi";
+import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
+
+const HISTORY_LIMIT = 20;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
   if (!toast) return null;
   const ok = toast.type === "success";
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-      {ok ? <HiCheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-red-500 shrink-0" />}
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold animate-in fade-in slide-in-from-top-2 ${ok ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
       <span>{toast.message}</span>
       <button onClick={onClose}><HiX className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
     </div>
@@ -28,8 +32,7 @@ function RejectModal({ request, onClose, onRejected }) {
   const [error, setError] = useState("");
 
   const isCancellation = request.status === "cancellation_pending";
-  const applicant = request.applicant;
-  const name = applicant ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() || applicant.email : "Employee";
+  const name = leaveApplicantName(request);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -50,7 +53,7 @@ function RejectModal({ request, onClose, onRejected }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -69,13 +72,13 @@ function RejectModal({ request, onClose, onRejected }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Rejection Reason <span className="text-red-400">*</span>
+              Rejection Reason <span className="text-rose-400">*</span>
             </label>
             <textarea
               value={reason}
@@ -88,7 +91,7 @@ function RejectModal({ request, onClose, onRejected }) {
             <p className="text-[10px] text-slate-400 mt-1 text-right">{reason.length}/1000</p>
           </div>
           <div className="flex gap-3">
-            <button type="submit" disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
+            <button type="submit" disabled={loading} className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
               {loading ? "Submitting…" : (isCancellation ? "Deny Cancellation" : "Confirm Reject")}
             </button>
             <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
@@ -99,136 +102,13 @@ function RejectModal({ request, onClose, onRejected }) {
   );
 }
 
-// ─── Leave Request Card ───────────────────────────────────────────────────────
-function LeaveRequestCard({ request, onApprove, onReject, approving, showToast }) {
-  const applicant = request.applicant;
-  const name = applicant ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() || applicant.email : "Employee";
-  const leaveTypeName = request.leave_type?.name || "Leave";
-
-  function fmtDate(d) {
-    if (!d) return "—";
-    return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-  }
-
-  const isCancellationPending = request.status === "cancellation_pending";
-
-  return (
-    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${isCancellationPending ? "border-orange-200" : "border-slate-100"}`}>
-      {/* Cancellation banner */}
-      {isCancellationPending && (
-        <div className="flex items-center gap-2 px-5 py-2.5 bg-orange-50 border-b border-orange-200 text-xs font-semibold text-orange-700">
-          <HiInformationCircle className="w-4 h-4" />
-          This employee is requesting to cancel a leave they already took. Approving will refund their balance.
-        </div>
-      )}
-
-      <div className="p-5 sm:p-6">
-        <div className="flex items-start gap-4">
-          {/* Avatar / Icon */}
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-            <HiUserCircle className="w-6 h-6 text-purple-400" />
-          </div>
-
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <p className="text-sm font-bold text-slate-800">{name}</p>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isCancellationPending ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
-                {isCancellationPending ? "Cancellation Pending" : "Pending Approval"}
-              </span>
-            </div>
-            {applicant?.email && (
-              <p className="text-xs text-slate-400 mb-3 truncate">{applicant.email}</p>
-            )}
-
-            {/* Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
-                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Leave Type</p>
-                <p className="text-xs font-bold text-slate-700">{leaveTypeName}</p>
-              </div>
-              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
-                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Dates</p>
-                <p className="text-xs font-bold text-slate-700">
-                  {fmtDate(request.start_date)}
-                  {request.start_date !== request.end_date && <> – {fmtDate(request.end_date)}</>}
-                </p>
-              </div>
-              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
-                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Duration</p>
-                <p className="text-xs font-bold text-slate-700">
-                  {parseFloat(request.total_days).toFixed(1)} days
-                  {request.is_half_day && <span className="ml-1 text-violet-600">({request.half_day_type === "first_half" ? "1st half" : "2nd half"})</span>}
-                </p>
-                {parseFloat(request.unpaid_days || 0) > 0 && (
-                  <p className="text-[10px] mt-0.5">
-                    <span className="text-emerald-600 font-semibold">{parseFloat(request.paid_days || 0).toFixed(1)} paid</span>
-                    {" · "}
-                    <span className="text-rose-500 font-semibold">{parseFloat(request.unpaid_days).toFixed(1)} LWP</span>
-                  </p>
-                )}
-              </div>
-              <div className="bg-slate-50 rounded-xl px-3 py-2.5">
-                <p className="text-[10px] text-slate-400 font-semibold mb-0.5">Applied On</p>
-                <p className="text-xs font-bold text-slate-700">{fmtDate(request.created_at || request.requested_at)}</p>
-              </div>
-            </div>
-
-            {request.reason && (
-              <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5">
-                <HiInformationCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-                <span className="italic">"{request.reason}"</span>
-              </div>
-            )}
-            {request.document_url && (
-              <div className="mt-2">
-                <a
-                  href={request.document_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-3 py-1.5 rounded-lg transition"
-                >
-                  <HiDocumentText className="w-3.5 h-3.5" />
-                  View Supporting Document
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="mt-5 flex gap-3 justify-end">
-          <button
-            onClick={() => onReject(request)}
-            disabled={approving === request.id}
-            className="flex items-center gap-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl transition disabled:opacity-50"
-          >
-            <HiThumbDown className="w-4 h-4" />
-            Reject
-          </button>
-          <button
-            onClick={() => onApprove(request.id)}
-            disabled={approving === request.id}
-            className="flex items-center gap-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 rounded-xl transition disabled:opacity-50 shadow-sm shadow-emerald-200"
-          >
-            {approving === request.id ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <HiThumbUp className="w-4 h-4" />
-            )}
-            {approving === request.id ? "Approving…" : (isCancellationPending ? "Approve Cancellation" : "Approve")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManagerLeavePage() {
   const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState([]);
   const [historyRequests, setHistoryRequests] = useState([]);
+  const [historyStatus, setHistoryStatus] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -246,17 +126,22 @@ export default function ManagerLeavePage() {
         const res = await leaveAPI.getTeamPendingRequests();
         setRequests(res.data || []);
       } else {
-        const res = await leaveAPI.getTeamRequests();
+        const params = { page: historyPage, limit: HISTORY_LIMIT };
+        if (historyStatus) params.status = historyStatus;
+        const res = await leaveAPI.getTeamRequests(params);
         setHistoryRequests(res.data || []);
       }
-    } catch {
-      showToast("Failed to load leave requests.", "error");
+    } catch (err) {
+      showToast(leaveErrorMessage(err, "Failed to load leave requests."), "error");
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, historyStatus, historyPage]);
 
   useEffect(() => { loadRequests(); }, [loadRequests]);
+
+  // Changing the status filter resets to page 1 in one update so loadRequests fires once.
+  function changeHistoryStatus(v) { setHistoryStatus(v); setHistoryPage(1); }
 
   async function handleApprove(id) {
     setApproving(id);
@@ -264,12 +149,13 @@ export default function ManagerLeavePage() {
       await leaveAPI.approveRequest(id);
       showToast("Leave request approved.");
       setRequests(prev => prev.filter(r => r.id !== id));
+      emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id, action: "approve" });
     } catch (err) {
       if (err.status === 403) {
         showToast("You don't have authority to approve this request.", "error");
       } else {
         // Surface conflict messages (employee present, balance exceeded)
-        showToast(err.message || "Failed to approve request.", "error");
+        showToast(leaveErrorMessage(err, "Failed to approve request."), "error");
       }
     } finally {
       setApproving(null);
@@ -284,17 +170,16 @@ export default function ManagerLeavePage() {
     setRejectTarget(null);
     showToast(msg);
     setRequests(prev => prev.filter(r => r.id !== rejectTarget?.id));
+    emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id: rejectTarget?.id, action: "reject" });
   }
 
   const pendingCount = requests.filter(r => r.status === "pending").length;
   const cancellationCount = requests.filter(r => r.status === "cancellation_pending").length;
 
   return (
-    <div className="flex min-h-screen bg-[#F8F7FB] font-sans text-[#1F2937]">
-      <DashboardSidebar role="manager" />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <>
         <DashboardTopBar title="Leave Requests" />
-        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
+        <main className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 max-w-7xl mx-auto w-full">
 
           {/* Page Header */}
           <div className="flex items-start justify-between mb-8">
@@ -327,18 +212,34 @@ export default function ManagerLeavePage() {
               {/* Summary pills */}
             <div className="flex gap-2 shrink-0">
               {pendingCount > 0 && (
-                <span className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span className="flex items-center gap-1.5 text-xs font-bold bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 px-3 py-1.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500" />
                   {pendingCount} pending
                 </span>
               )}
               {cancellationCount > 0 && (
-                <span className="flex items-center gap-1.5 text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                <span className="flex items-center gap-1.5 text-xs font-bold bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 px-3 py-1.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500" />
                   {cancellationCount} cancellation{cancellationCount !== 1 ? "s" : ""}
                 </span>
               )}
               </div>
+            </div>
+          )}
+
+          {/* History filters */}
+          {activeTab === "history" && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+              <select value={historyStatus} onChange={e => changeHistoryStatus(e.target.value)}
+                className="px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="cancellation_pending">Cancellation Pending</option>
+                <option value="terminated_cancelled">Terminated Cancelled</option>
+              </select>
             </div>
           )}
 
@@ -349,28 +250,20 @@ export default function ManagerLeavePage() {
                 <div key={i} className="h-44 bg-white rounded-2xl border border-slate-100 animate-pulse" />
               ))}
             </div>
-          ) : requests.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
-              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
-                <HiCheckCircle className="w-7 h-7 text-emerald-400" />
-              </div>
-              <p className="text-sm font-semibold text-slate-600">All caught up!</p>
-              <p className="text-xs text-slate-400">No pending leave requests from your team.</p>
-            </div>
           ) : activeTab === "history" ? (
-            historyRequests.length === 0 ? (
+            <>
+            {historyRequests.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
                 <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center">
                   <HiCalendar className="w-7 h-7 text-slate-400" />
                 </div>
                 <p className="text-sm font-semibold text-slate-600">No History Found</p>
-                <p className="text-xs text-slate-400">Your team doesn't have any past leave requests.</p>
+                <p className="text-xs text-slate-400">{historyStatus ? "No requests match this status filter." : "Your team doesn't have any past leave requests."}</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {historyRequests.map(req => {
-                  const applicant = req.applicant;
-                  const name = applicant ? `${applicant.first_name || ""} ${applicant.last_name || ""}`.trim() || applicant.email : "Employee";
+                  const name = leaveApplicantName(req);
                   return (
                     <div key={req.id} className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
@@ -379,10 +272,10 @@ export default function ManagerLeavePage() {
                           <span className="text-slate-300">•</span>
                           <span className="text-sm font-semibold text-slate-600">{req.leave_type?.name || "Leave"}</span>
                           <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full border 
-                            ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                              req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 
+                            ${req.status === 'approved' ? 'bg-violet-50 text-violet-700 border-violet-200' : 
+                              req.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
                               req.status === 'cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
-                              'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                              'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'}`}>
                             {req.status?.replace('_', ' ').toUpperCase()}
                           </span>
                         </div>
@@ -390,33 +283,59 @@ export default function ManagerLeavePage() {
                           {new Date(req.start_date).toLocaleDateString()} 
                           {req.start_date !== req.end_date && ` – ${new Date(req.end_date).toLocaleDateString()}`}
                           <span className="mx-2">•</span> 
-                          {parseFloat(req.total_days).toFixed(1)} days
+                          {formatDayCount(req.total_days, { lower: true })}
                         </p>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            )
+            )}
+            {(historyPage > 1 || historyRequests.length >= HISTORY_LIMIT) && (
+              <div className="flex items-center justify-between mt-6">
+                <p className="text-xs text-slate-400">Page {historyPage}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    <HiChevronLeft className="w-4 h-4" /> Prev
+                  </button>
+                  <button onClick={() => setHistoryPage(p => p + 1)} disabled={historyRequests.length < HISTORY_LIMIT}
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    Next <HiChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
+          ) : requests.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 flex flex-col items-center gap-3 text-center">
+              <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center">
+                <HiCheckCircle className="w-7 h-7 text-violet-400" />
+              </div>
+              <p className="text-sm font-semibold text-slate-600">All caught up!</p>
+              <p className="text-xs text-slate-400">No pending leave requests from your team.</p>
+            </div>
           ) : (
             <div className="space-y-8">
               {/* ── Pending Approval ── */}
               {requests.filter(r => r.status === "pending").length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="w-2 h-2 rounded-full bg-fuchsia-500" />
                     <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                       Pending Approval ({requests.filter(r => r.status === "pending").length})
                     </h2>
+                    {/* Explains every card's "Pay" tile once, here, rather than on each card. */}
+                    <FieldHelp surface="leaves.approval" field="paid_split" ariaLabel="What do paid and unpaid days mean?" label="paid and unpaid days" size="sm" className="-ml-1.5" />
                   </div>
                   <div className="space-y-4">
                     {requests.filter(r => r.status === "pending").map(r => (
                       <LeaveRequestCard
                         key={r.id}
                         request={r}
-                        onApprove={handleApprove}
+                        onApprove={(req) => handleApprove(req.id)}
                         onReject={handleRejectClick}
-                        approving={approving}
+                        busy={approving === r.id}
                         showToast={showToast}
                       />
                     ))}
@@ -427,7 +346,7 @@ export default function ManagerLeavePage() {
               {requests.filter(r => r.status === "cancellation_pending").length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="w-2 h-2 rounded-full bg-fuchsia-500" />
                     <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                       Cancellation Requests ({requests.filter(r => r.status === "cancellation_pending").length})
                     </h2>
@@ -437,9 +356,9 @@ export default function ManagerLeavePage() {
                       <LeaveRequestCard
                         key={r.id}
                         request={r}
-                        onApprove={handleApprove}
+                        onApprove={(req) => handleApprove(req.id)}
                         onReject={handleRejectClick}
-                        approving={approving}
+                        busy={approving === r.id}
                         showToast={showToast}
                       />
                     ))}
@@ -449,7 +368,6 @@ export default function ManagerLeavePage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* Reject Modal */}
       {rejectTarget && (
@@ -461,6 +379,6 @@ export default function ManagerLeavePage() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DashboardSidebar from "../../../shared/components/DashboardSidebar";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
@@ -145,10 +144,7 @@ function BiometricDevicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F7FB] flex font-sans text-slate-800">
-      <DashboardSidebar role={user?.role || "hr"} />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <>
         <DashboardTopBar title="Biometric Devices" subtitle="Manage organizational hardware & mappings" />
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
@@ -222,7 +218,7 @@ function BiometricDevicesPage() {
                             {device.ip_address || "N/A"}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${device.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${device.status === 'active' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                               {device.status === 'active' ? <HiStatusOnline className="w-3.5 h-3.5" /> : <HiStatusOffline className="w-3.5 h-3.5" />}
                               {device.status === 'active' ? 'Online' : 'Offline'}
                             </span>
@@ -267,11 +263,10 @@ function BiometricDevicesPage() {
 
           </div>
         </div>
-      </div>
 
       {/* Device Modal */}
       {showDeviceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -291,7 +286,7 @@ function BiometricDevicesPage() {
             <div className="p-6 overflow-y-auto">
               <form id="deviceForm" onSubmit={handleSaveDevice} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Device Name <span className="text-red-400">*</span></label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Device Name <span className="text-rose-400">*</span></label>
                   <input
                     type="text"
                     value={deviceName}
@@ -346,7 +341,7 @@ function BiometricDevicesPage() {
 
       {/* Mappings Modal */}
       {showMappingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <div>
@@ -445,7 +440,7 @@ function BiometricDevicesPage() {
         </div>
       )}
 
-    </div>
+    </>
   );
 }
 
