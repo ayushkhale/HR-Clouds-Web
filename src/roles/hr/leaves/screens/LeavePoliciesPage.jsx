@@ -6,9 +6,11 @@ import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
-  HiExclamation,
+  HiExclamation, HiUserAdd,
 } from "react-icons/hi";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 
 const help = (field, extra) => ({ surface: "leaves.policy_setup", field, ...extra });
 const TH = "px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider";
@@ -358,7 +360,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
 }
 
 // ─── Policy Card ──────────────────────────────────────────────────────────────
-function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEntitlement, onEditEntitlement, onDeleteEntitlement, showToast }) {
+function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEntitlement, onEditEntitlement, onDeleteEntitlement, onAssign, showToast }) {
   const [expanded, setExpanded] = useState(false);
   const [entitlementModal, setEntitlementModal] = useState(null); // null | "create" | entitlement obj
 
@@ -402,6 +404,16 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setEntitlementModal("create")} className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-lg transition">
             <HiPlus className="w-3.5 h-3.5" /> Add Quota
+          </button>
+          {/* Assigning a policy with no quotas would give the person no leave at
+              all, so it waits until there is something to give. */}
+          <button
+            onClick={() => onAssign(policy)}
+            disabled={entitlements.length === 0}
+            title={entitlements.length === 0 ? "Add a quota before assigning this policy" : `Assign ${policy.name} to an employee`}
+            className="flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <HiUserAdd className="w-3.5 h-3.5" /> Assign
           </button>
           <button onClick={() => onEditPolicy(policy)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit policy">
             <HiPencil className="w-4 h-4" />
@@ -500,6 +512,10 @@ export default function LeavePoliciesPage() {
   const [loading, setLoading] = useState(true);
   const [policyModal, setPolicyModal] = useState(null); // null | "create" | template obj
   const [toast, setToast] = useState(null);
+  // The policy being given to someone from here (shared AssignLeavePolicyDialog,
+  // the same form Leave Requests and the profile's Leave tab use).
+  const [assigning, setAssigning] = useState(null);
+  const { activeRows: employees, status: employeesStatus } = useEmployeeDirectory();
 
   function showToast(message, type = "success") {
     setToast({ message, type });
@@ -551,7 +567,7 @@ export default function LeavePoliciesPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Leave Policies" help={help("page", { label: "the Leave Policies page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">
-                Create policy templates and configure leave quotas. Assign templates to employees in their profile.
+                Create a policy, add its leave quotas, then assign it to the people it covers.
               </p>
             </div>
             <button
@@ -593,6 +609,7 @@ export default function LeavePoliciesPage() {
                   onAddEntitlement={loadData}
                   onEditEntitlement={loadData}
                   onDeleteEntitlement={loadData}
+                  onAssign={setAssigning}
                   showToast={showToast}
                 />
               ))}
@@ -606,6 +623,16 @@ export default function LeavePoliciesPage() {
           editPolicy={policyModal === "create" ? null : policyModal}
           onClose={() => setPolicyModal(null)}
           onSaved={onPolicySaved}
+        />
+      )}
+
+      {assigning && (
+        <AssignLeavePolicyDialog
+          templateId={assigning.id}
+          people={employees}
+          peopleLoading={employeesStatus === "loading" || employeesStatus === "idle"}
+          onAssigned={(message) => showToast(message)}
+          onClose={() => setAssigning(null)}
         />
       )}
 

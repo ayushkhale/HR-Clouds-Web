@@ -1331,7 +1331,7 @@
         },
         "page": {
           "tier": "onboarding",
-          "hint": "A policy bundles leave quotas: how many days of each leave type, and how they are given. Each person gets one from their profile; their balances come from it.",
+          "hint": "A policy bundles leave quotas: how many days of each leave type, and how they are given. Assign one to each person from here; their balances come from it.",
           "askMaya": {
             "enabled": true,
             "question": "What is a leave policy, and how does it decide each employee’s leave balances?"
@@ -3141,7 +3141,7 @@
     },
     "attendance.roster": {
       "kind": "data",
-      "description": "HR — Time & Leave › Shift Management (AttendanceRosterPage): `page` beside the h1. The assign dialog explains its own fields.",
+      "description": "HR — Setup › Time › Shift Management (AttendanceRosterPage): `page` beside the h1. The assign dialog (AssignShiftDialog, also opened from Work Shifts) explains its own fields.",
       "workspaces": [
         "hr"
       ],
