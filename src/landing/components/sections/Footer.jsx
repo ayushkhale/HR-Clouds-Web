@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { FaFacebookF, FaTwitter, FaLinkedinIn, FaInstagram, FaYoutube, FaArrowRight } from "react-icons/fa";
 import { FiSend } from "react-icons/fi";
-import hrcloudsLogo from "../../../assets/logo2.png";
 import { COMPANY } from "../../../shared/config/company";
 import { Reveal } from "../../../shared/motion";
 
@@ -70,10 +69,10 @@ function Footer() {
           {/* Brand Info (Span 2 cols on lg) */}
           <Reveal variant="riseSmall" className="lg:col-span-2 space-y-6">
             <Link to="/" className="inline-block">
-              <img 
-                src={hrcloudsLogo} 
-                alt="HR Clouds" 
-                className="h-14 sm:h-16 w-auto object-contain brightness-0 invert" 
+              <img
+                src="/logocolorwhite.png"
+                alt="HR Clouds"
+                className="h-14 sm:h-16 w-auto object-contain"
               />
             </Link>
             <p className="text-gray-300 text-base leading-relaxed max-w-md font-light">
