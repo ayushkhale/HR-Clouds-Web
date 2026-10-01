@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import {
   HiXMark, HiPaperAirplane,
   HiArrowPath, HiChevronRight, HiStop,
-  HiArrowsPointingOut, HiArrowsPointingIn, HiMicrophone
+  HiArrowsPointingOut, HiArrowsPointingIn, HiMicrophone, HiLanguage
 } from 'react-icons/hi2';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -12,11 +12,15 @@ import { useMayaVisibility } from '../hooks/useMayaVisibility';
 import { MAYA_ASK_EVENT, consumePendingQuestion, registerMaya } from '../maya/mayaBridge';
 import { mayaLayerFor } from '../fieldHelp/fieldHelpLayer';
 import { useSpeechToText, VOICE_LANGS, defaultVoiceLang } from '../maya/useSpeechToText';
+import { mayaInstructions, INSTRUCTION_RESERVE } from '../maya/mayaInstructions';
 
-// Per-viewer convenience only; a blocked or empty store falls back to the default.
+// Maya's language: what the mic listens for AND what she answers in (the
+// answer line is added silently on send — mayaInstructions.js). Per-viewer
+// convenience only; a blocked or empty store falls back to the default.
 const VOICE_LANG_KEY = 'hrc.maya.voiceLang';
 const LISTENING_HINT = {
   'en-IN': 'Listening… speak your question',
+  'hi-IN': 'सुन रही हूँ… अपना सवाल बोलिए',
   hinglish: 'Sun rahi hoon… apna sawaal boliye',
 };
 const readVoiceLang = () => {
@@ -120,7 +124,9 @@ const ChatbotWidget = () => {
   const w             = config?.widget || {};
   const welcomeMsg    = w.welcomeMessage || "Hi there! I'm Maya, your HR assistant. Ask me anything about HR Clouds — policies, payroll, leave, and more.";
   const placeholder   = w.placeholder   || 'Ask Maya anything…';
-  const maxLen        = config?.limits?.maxQueryLength || 1000;
+  // What the person may type: Maya's live limit minus room for the silent
+  // instructions, so a full-length question still fits once they are added.
+  const maxLen        = Math.max(100, (config?.limits?.maxQueryLength || 1000) - INSTRUCTION_RESERVE);
   const suggestedQs   = Array.isArray(w.suggestedQuestions) && w.suggestedQuestions.length > 0
     ? w.suggestedQuestions : [];
 
@@ -129,7 +135,14 @@ const ChatbotWidget = () => {
 
   // Voice typing: fills the input as the person speaks, never sends
   // (useSpeechToText.js). Left out entirely where the browser can't do it.
-  const onSpokenText = useCallback((text) => setInputValue(text.slice(0, maxLen)), [maxLen]);
+  // True while the box holds a question that came from an ⓘ "Ask Maya" link —
+  // it adds "give an example" on send. Editing keeps it; emptying the box or
+  // dictating a new question ends it (they are asking their own now).
+  const fromHintRef = useRef(false);
+  const onSpokenText = useCallback((text) => {
+    fromHintRef.current = false;
+    setInputValue(text.slice(0, maxLen));
+  }, [maxLen]);
   const [voiceLang, setVoiceLang] = useState(readVoiceLang);
   const speech = useSpeechToText(onSpokenText, voiceLang);
   const { stop: stopListening, cancel: cancelListening } = speech;
@@ -176,6 +189,7 @@ const ChatbotWidget = () => {
       if (!ask) return;
       stopListening(); // or speech would overwrite the question just placed
       setInputValue(ask.question.slice(0, maxLen));
+      fromHintRef.current = true;
       setIsOpen(true);
       setRaised(mayaLayerFor(ask.layer));
       pendingFocusRef.current = "now";
@@ -257,7 +271,10 @@ const ChatbotWidget = () => {
     e?.preventDefault();
     if (!inputValue.trim() || busy) return;
     cancelListening(); // a late result would otherwise refill the cleared box
-    sendMessage(inputValue.trim());
+    sendMessage(inputValue.trim(), {
+      instructions: mayaInstructions({ fromHint: fromHintRef.current, lang: voiceLang }),
+    });
+    fromHintRef.current = false;
     setInputValue('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -378,7 +395,7 @@ const ChatbotWidget = () => {
                   </p>
                   <div className="space-y-2 pl-9">
                     {suggestedQs.map((q, i) => (
-                      <button key={i} onClick={() => !busy && sendMessage(q)} disabled={busy}
+                      <button key={i} onClick={() => !busy && sendMessage(q, { instructions: mayaInstructions({ lang: voiceLang }) })} disabled={busy}
                         className="w-full text-left flex items-center justify-between px-4 py-3 rounded-xl text-sm bg-white border border-slate-200
                           text-slate-700 hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700
                           transition-all shadow-sm group disabled:opacity-50 disabled:cursor-not-allowed">
@@ -461,7 +478,12 @@ const ChatbotWidget = () => {
             <textarea
               ref={textareaRef}
               value={inputValue}
-              onChange={e => { setInputValue(e.target.value.slice(0, maxLen)); if (speech.error) speech.clearError(); }}
+              onChange={e => {
+                const next = e.target.value.slice(0, maxLen);
+                if (!next.trim()) fromHintRef.current = false; // emptied: their own question now
+                setInputValue(next);
+                if (speech.error) speech.clearError();
+              }}
               onKeyDown={handleKeyDown}
               placeholder={busy ? 'Maya is responding…' : speech.listening ? LISTENING_HINT[voiceLang] || LISTENING_HINT['en-IN'] : placeholder}
               rows={1}
@@ -503,21 +525,21 @@ const ChatbotWidget = () => {
           {speech.listening && (
             <p className="sr-only" aria-live="polite">Listening. Speak your question, then tap the microphone to stop.</p>
           )}
-          {(speech.supported || inputValue.length > 0) && (
+          {/* Always shown: it sets the language Maya ANSWERS in, so a browser
+              without voice typing (Firefox) still needs it. */}
             <div className="flex items-center justify-between gap-3 mt-2 min-h-[26px]">
-              {speech.supported ? (
-                <div className="inline-flex items-center rounded-lg bg-slate-100 p-0.5" role="radiogroup" aria-label="Voice input language">
-                  <HiMicrophone className="w-3.5 h-3.5 mx-1.5 text-slate-400" aria-hidden="true" />
-                  {VOICE_LANGS.map((l) => (
-                    <button key={l.value} type="button" role="radio" aria-checked={voiceLang === l.value}
-                      onClick={() => pickVoiceLang(l.value)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
-                        ${voiceLang === l.value ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-              ) : <span />}
+              <div className="inline-flex items-center rounded-lg bg-slate-100 p-0.5" role="radiogroup" aria-label="Maya’s language">
+                <HiLanguage className="w-3.5 h-3.5 mx-1.5 text-slate-400" aria-hidden="true" />
+                {VOICE_LANGS.map((l) => (
+                  <button key={l.value} type="button" role="radio" aria-checked={voiceLang === l.value}
+                    onClick={() => pickVoiceLang(l.value)}
+                    title={`Maya answers in ${l.value === 'en-IN' ? 'English' : l.value === 'hi-IN' ? 'Hindi' : 'Hinglish'}`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
+                      ${voiceLang === l.value ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
               {speech.listening ? (
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700">
                   <span className="relative flex w-2 h-2" aria-hidden="true">
@@ -532,7 +554,6 @@ const ChatbotWidget = () => {
                 </span>
               )}
             </div>
-          )}
         </div>
       </div>
 
