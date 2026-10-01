@@ -14,6 +14,7 @@ import {
 } from "../../shared/config/plans";
 import { readPlanIntent, clearPlanIntent } from "../../shared/config/planIntent";
 import { INDUSTRY_OPTIONS } from "../../shared/organization/orgProfileMeta";
+import { ENV } from "../../config/env";
 
 // Shared with Edit company details, so both offer the same industries.
 const INDUSTRIES = INDUSTRY_OPTIONS;
@@ -158,8 +159,13 @@ function RegisterOrgPage() {
       return;
     }
 
+    if (!ENV.RAZORPAY_KEY_ID) {
+      setError("Payment gateway is temporarily unavailable (Key not configured). Please contact support.");
+      return;
+    }
+
     const options = {
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      key: ENV.RAZORPAY_KEY_ID,
       amount: order.amount,
       currency: order.currency || "INR",
       name: "HR Clouds",

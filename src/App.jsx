@@ -7,6 +7,7 @@ import { EmployeeDirectoryProvider } from "./shared/contexts/EmployeeDirectoryCo
 import { SidebarProvider } from "./shared/contexts/SidebarContext";
 import { GlobalAlertProvider } from "./shared/components/GlobalAlertProvider";
 import AppRoutes from "./routes/AppRoutes";
+import { ENV } from "./config/env";
 
 // Maya sits on every page but is closed on arrival, and she pulls in a whole
 // markdown renderer to display answers. Loading her lazily keeps react-markdown
@@ -16,7 +17,7 @@ const ChatbotWidget = lazy(() => import("./shared/components/ChatbotWidget"));
 function App() {
   return (
     <GlobalAlertProvider>
-      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <GoogleOAuthProvider clientId={ENV.GOOGLE_CLIENT_ID}>
         <AuthContextProvider>
           {/* The organisation's people, read once per session and shared by
               every dropdown, avatar and name lookup. Inside the auth provider

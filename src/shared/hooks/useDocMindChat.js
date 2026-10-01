@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { uuid } from '../utils/uuid';
+import { ENV } from '../../config/env';
 
-const API_URL = import.meta.env.VITE_DOCMIND_API_URL || 'https://api.codewithrishi.fun/api/public';
-const API_KEY = import.meta.env.VITE_DOCMIND_API_KEY;
+const API_URL = ENV.DOCMIND_API_URL;
+const API_KEY = ENV.DOCMIND_API_KEY;
 
 // Without a key every request fails, so nothing should route questions to Maya
 // (the field-help "Ask Maya" link reads this through the widget).
@@ -62,6 +63,11 @@ export function useDocMindChat() {
   // Initialization
   useEffect(() => {
     const initChat = async () => {
+      if (!API_KEY) {
+        setIsInitialized(true);
+        return;
+      }
+
       try {
         const res = await fetch(`${API_URL}/config`, {
           headers: { 'X-Api-Key': API_KEY }

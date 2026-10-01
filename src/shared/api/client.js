@@ -2,19 +2,9 @@
 // client.js — Core network client for HR Clouds
 // All domain API modules import `request` and `tokenHelper` from here.
 // ─────────────────────────────────────────────────────────────────────────────
+import { ENV } from "../../config/env";
 
-// Fail at boot, not at the first API call. A blank screen with a clear
-// console error beats a deployed app that 404s against `undefined/auth/login`.
-const BASE_URL = (() => {
-  const url = import.meta.env.VITE_API_BASE_URL;
-  if (!url) {
-    throw new Error(
-      "Missing build-time config: VITE_API_BASE_URL. " +
-      "Set it in .env.development / .env.production or pass it as an env var during build."
-    );
-  }
-  return url.replace(/\/+$/, "");
-})();
+const BASE_URL = ENV.API_BASE_URL;
 
 // Binary downloads (payslip PDFs, report CSVs, bank advice, ZIPs) bypass
 // `request()` because it always parses JSON — they need the same base URL.
@@ -134,9 +124,10 @@ export async function request(endpoint, options = {}) {
     signal: options.signal || controller.signal,
   };
 
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   let response;
   try {
-    response = await fetch(`${BASE_URL}${endpoint}`, config);
+    response = await fetch(`${BASE_URL}${path}`, config);
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === "AbortError") {
