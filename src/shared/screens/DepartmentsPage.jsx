@@ -5,19 +5,61 @@
 // and edits, a manager only reads (create/update are HR-only endpoints, so the
 // manager plane has them as null and the buttons are absent, not broken).
 // Sits under Setup › Organisation in both sidebars.
+//
+// THE HEAD IS A MEMBER OF THE DEPARTMENT THEY HEAD (backend change
+// 2026-10-02, `md_organization/3_org_structure_api.md` §4). Before it, naming a
+// head only set a flag: the head stayed outside their own department, so the
+// department reported zero members and could be switched off while it still
+// had a head, and every department-keyed roster omitted them. Three things
+// follow for this screen, and all three are easy to undo by accident:
+//
+//  · A CANDIDATE WHO IS ALREADY IN ANOTHER DEPARTMENT CANNOT SIMPLY BE
+//    APPOINTED — the server refuses with `409 HOD_IN_OTHER_DEPARTMENT` rather
+//    than relocating them, because moving someone has to move their reporting
+//    lines and their old department's headship too. The picker says so on the
+//    option itself and offers the transfer, so the 409 is the backstop and not
+//    the way the user finds out.
+//
+//  · SWITCHING A DEPARTMENT OFF CAN NOW FAIL with `409 DEPARTMENT_IN_USE` for
+//    a department that looked empty, because its head always counted for
+//    nothing and now counts as one. That is not a regression to work around.
+//
+//  · Errors go through `organizationErrorMessage`, never `err.message` — these
+//    three codes each need a sentence saying what to do next, and the server's
+//    own text does not give one (CLAUDE.md §6).
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { organizationAPI } from "../api";
 import { DEPARTMENT_PLANES } from "../organization/departmentPlanes";
 import { canBeHOD } from "../auth/permissions";
+import { organizationErrorCode, organizationErrorMessage } from "../utils/organizationErrors";
 import DashboardTopBar from "../components/DashboardTopBar";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import {
-  HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
+  HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser,
+  HiSwitchHorizontal, HiExclamationCircle
 } from "react-icons/hi";
 import { PersonSelect, toPersonOption } from "../components/PersonPicker";
 import { useEmployeeDirectory } from "../contexts/EmployeeDirectoryContext";
+
+const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+const personId = (p) => p?.user_id || p?.id || null;
+
+/**
+ * Where a candidate for head currently sits: `free` (in no department), `here`
+ * (already in this one) or `elsewhere`. Only `elsewhere` is a problem, and only
+ * because the server will refuse it.
+ *
+ * `department_id` is the key, never the `department` name — the name is a
+ * denormalized label that the 2026-10-02 repair migration rewrites and nulls,
+ * and keying on it is the original bug.
+ */
+const candidateHome = (person, departmentId) => {
+  const home = person?.department_id;
+  if (!home) return "free";
+  return sameId(home, departmentId) ? "here" : "elsewhere";
+};
 
 function DepartmentsPage({ viewer = "hr" }) {
   const plane = DEPARTMENT_PLANES[viewer] || DEPARTMENT_PLANES.hr;
@@ -42,6 +84,9 @@ function DepartmentsPage({ viewer = "hr" }) {
   const [headOfDepartmentId, setHeadOfDepartmentId] = useState("");
   const [isActive, setIsActive] = useState(true);
 
+  // Set when the server refuses a head who sits in another department; holds
+  // the name so the offer to move them can say who.
+  const [blockedHod, setBlockedHod] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
@@ -90,6 +135,7 @@ function DepartmentsPage({ viewer = "hr" }) {
     setHeadOfDepartmentId("");
     setIsActive(true);
     setResult({ type: "", message: "" });
+    setBlockedHod(null);
     setShowModal(true);
   };
 
@@ -102,6 +148,7 @@ function DepartmentsPage({ viewer = "hr" }) {
     setHeadOfDepartmentId(dept.head_of_department_id || "");
     setIsActive(dept.is_active !== undefined ? dept.is_active : true);
     setResult({ type: "", message: "" });
+    setBlockedHod(null);
     setShowModal(true);
   };
 
@@ -127,6 +174,19 @@ function DepartmentsPage({ viewer = "hr" }) {
         }
       }
 
+      // Switching one off is the path that changed: its head counts as a member
+      // now, so a department that reported nobody can still refuse. Asking
+      // first means the refusal is expected rather than surprising.
+      if (isEditing && !isActive && editingDept?.is_active !== false) {
+        const ok = await window.confirm(
+          `Switch ${name || "this department"} off?\n\nEveryone still in it — including its head — has to be moved to another department first, or this won’t go through.`
+        );
+        if (!ok) {
+          setLoading(false);
+          return;
+        }
+      }
+
       const payload = {
         name,
         description,
@@ -149,7 +209,26 @@ function DepartmentsPage({ viewer = "hr" }) {
         setShowModal(false);
       }, 1500);
     } catch (err) {
-      setResult({ type: "error", message: err.message || "Operation failed." });
+      const code = organizationErrorCode(err);
+      // The roster this picker reads can be up to five minutes old, so the
+      // server is the authority on where someone sits. When it refuses, offer
+      // the move rather than leaving the user to work out what to do with
+      // "this person belongs to another department".
+      if (code === "HOD_IN_OTHER_DEPARTMENT") {
+        setBlockedHod({ id: headOfDepartmentId, name: hodName(headOfDepartmentId) });
+        // The footer is where the user just clicked Save; the explanation and
+        // the offer to move them render mid-form, which on a short screen is
+        // above the fold. Blanking this left a refused save looking like
+        // nothing happened at all.
+        setResult({
+          type: "error",
+          message: `Not saved — ${hodName(headOfDepartmentId)} has to be moved into this department first. See the note above.`,
+        });
+      } else {
+        // The code rides along so DEPARTMENT_IN_USE can offer the member list —
+        // "move them out first" is only actionable if you can see who they are.
+        setResult({ type: "error", code, message: organizationErrorMessage(err, "Couldn't save the department.") });
+      }
     } finally {
       setLoading(false);
     }
@@ -170,14 +249,35 @@ function DepartmentsPage({ viewer = "hr" }) {
     : null;
   const hasExistingHod = Boolean(editingDept?.head_of_department_id);
   const eligibleHods = employees.filter((emp) => canBeHOD(emp.role));
-  const hodOptions = (headOfDepartmentId && !eligibleHods.some(
-    (e) => String(e.user_id || e.id) === String(headOfDepartmentId)
-  ))
+  const withCurrent = (headOfDepartmentId && !eligibleHods.some((e) => sameId(personId(e), headOfDepartmentId)))
     ? [
         ...eligibleHods,
-        ...employees.filter((e) => String(e.user_id || e.id) === String(headOfDepartmentId)),
+        ...employees.filter((e) => sameId(personId(e), headOfDepartmentId)),
       ]
     : eligibleHods;
+
+  // People who can simply be appointed come first; the rest are kept, listed
+  // and labelled rather than hidden — hiding them would read as "this manager
+  // isn't allowed to lead a department", which is not what is true. Each
+  // option's own line says where they are and that they need moving.
+  const hodOptions = [...withCurrent].sort((a, b) => {
+    const rank = (p) => (candidateHome(p, editingId) === "elsewhere" ? 1 : 0);
+    return rank(a) - rank(b);
+  });
+  const hodName = (id) => {
+    const person = withCurrent.find((e) => sameId(personId(e), id));
+    return person?.name || "This person";
+  };
+  // Where the person currently chosen sits, and the department they'd leave.
+  const chosen = headOfDepartmentId ? withCurrent.find((e) => sameId(personId(e), headOfDepartmentId)) : null;
+  const chosenHome = chosen ? candidateHome(chosen, editingId) : null;
+  const chosenHomeName = chosenHome === "elsewhere"
+    ? departments.find((d) => sameId(d.id || d._id, chosen.department_id))?.name || "another department"
+    : "";
+  // Already their department → appointing them is a plain no-op on membership,
+  // so there is nothing to warn about. Only `elsewhere` blocks.
+  const hodNeedsMove = chosenHome === "elsewhere";
+  const moveTarget = blockedHod || (hodNeedsMove ? { id: headOfDepartmentId, name: chosen?.name } : null);
 
   return (
     <>
@@ -384,9 +484,16 @@ function DepartmentsPage({ viewer = "hr" }) {
                   <FieldHelp surface="organization.invite" field="is_hod" label="head of department" className="mb-1.5" />
                 </div>
                 <PersonSelect
-                  people={hodOptions.map((emp) => ({ ...toPersonOption(emp), sub: [String(emp.role || "").toUpperCase(), toPersonOption(emp).sub].filter(Boolean).join(" · ") }))}
+                  people={hodOptions.map((emp) => {
+                    const option = toPersonOption(emp);
+                    // The option's own line carries the obstacle, so it is
+                    // visible while choosing rather than after submitting.
+                    const home = candidateHome(emp, editingId);
+                    const where = home === "elsewhere" ? "Needs moving first" : home === "here" ? "Already in this department" : "";
+                    return { ...option, sub: [String(emp.role || "").toUpperCase(), where, option.sub].filter(Boolean).join(" · ") };
+                  })}
                   value={headOfDepartmentId}
-                  onChange={(id) => setHeadOfDepartmentId(id)}
+                  onChange={(id) => { setHeadOfDepartmentId(id); setBlockedHod(null); }}
                   placeholder="Select head of department"
                   emptyText="No managers or HR found."
                 />
@@ -399,6 +506,49 @@ function DepartmentsPage({ viewer = "hr" }) {
                   <p className="text-[11px] text-fuchsia-600 font-medium mt-1">
                     No Managers or HR Admins available to assign.
                   </p>
+                )}
+
+                {/* Two ways to get here: the chosen person is in another
+                    department according to the roster we hold, or the server
+                    said so when we tried. Same obstacle, same offer — and the
+                    move itself belongs on their profile, where the form that
+                    handles their reporting lines and their old department's
+                    headship already lives. */}
+                {moveTarget && (
+                  <div className="mt-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <HiExclamationCircle className="w-4 h-4 text-fuchsia-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-fuchsia-800">
+                          {moveTarget.name || "This person"} is already in {chosenHomeName || "another department"}
+                        </p>
+                        <p className="text-[11px] text-fuchsia-700 mt-1 leading-relaxed">
+                          Someone can only head the department they belong to. Moving them takes their reporting lines
+                          with them, and hands over their old department if they head it — so it happens on their own
+                          profile, in one step.
+                        </p>
+                        {/* On CREATE there is no department to move them into
+                            yet, so offering the transfer would send someone to
+                            a form whose target doesn't exist. Save it
+                            head-less first; the Edit button then has somewhere
+                            real to point. */}
+                        {isEditing ? (
+                          plane.memberPath && moveTarget.id && (
+                            <Link
+                              to={`${plane.memberPath(moveTarget.id)}?tab=department`}
+                              className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-fuchsia-800 bg-white border border-fuchsia-200 hover:bg-fuchsia-100 px-3 py-1.5 rounded-lg transition"
+                            >
+                              <HiSwitchHorizontal className="w-3.5 h-3.5" /> Move {moveTarget.name || "them"} to {name || "this department"}
+                            </Link>
+                          )
+                        ) : (
+                          <p className="text-[11px] font-semibold text-fuchsia-800 mt-2">
+                            Create {name || "the department"} without a head first, then move them into it and make them its head.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -427,9 +577,18 @@ function DepartmentsPage({ viewer = "hr" }) {
               </div>
 
               {result.message && (
-                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${result.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
+                <div className={`p-3 rounded-xl text-xs font-semibold flex flex-wrap items-center gap-2 ${result.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
                   {result.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
-                  {result.message}
+                  <span className="min-w-0">{result.message}</span>
+                  {/* Newly reachable: the head counts as a member now, so a
+                      department that reported nobody can refuse to switch off.
+                      The list of who is still in it is the only useful next
+                      step, so link straight to it. */}
+                  {result.code === "DEPARTMENT_IN_USE" && editingId && (
+                    <Link to={plane.detailPath(editingId)} className="ml-auto shrink-0 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 transition">
+                      See who’s in it
+                    </Link>
+                  )}
                 </div>
               )}
 

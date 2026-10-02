@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { organizationAPI } from "../api";
 import GenderAvatar from "../components/GenderAvatar";
+import { departmentName } from "../attendance/normalize";
 import { 
   HiOutlineSearch, 
   HiOutlineMail, 
@@ -35,12 +36,15 @@ export default function DirectoryPage() {
     }
   }
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.designation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.department?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // `department` arrives as a name, as a `{ name }` object, or as null since
+  // the 2026-10-02 repair migration started clearing labels it couldn't
+  // reconcile. `departmentName()` reads all three; `?.toLowerCase()` guarded
+  // only the null and threw on the object.
+  const filteredEmployees = employees.filter((emp) => {
+    const q = searchQuery.toLowerCase();
+    return [emp.name, emp.email, emp.designation, departmentName(emp)]
+      .some((field) => String(field || "").toLowerCase().includes(q));
+  });
 
   return (
     <>
@@ -113,13 +117,18 @@ export default function DirectoryPage() {
                   
                   <div className="pt-14 pb-6 px-6 text-center">
                     <h3 className="font-bold text-slate-900 text-lg">{emp.name || 'Unknown'}</h3>
-                    <p className="text-purple-600 text-sm font-semibold mt-0.5">{emp.designation || 'Team Member'}</p>
+                    {/* Not "Team Member": a job title nobody typed reads as fact, and a
+                        creator HR's designation is now genuinely blank rather than
+                        the invented "HR Administrator". */}
+                    <p className={`text-sm font-semibold mt-0.5 ${emp.designation ? "text-purple-600" : "text-slate-400"}`}>
+                      {emp.designation || 'No job title yet'}
+                    </p>
                     
                     <div className="mt-5 space-y-2.5 text-left bg-slate-50 rounded-xl p-4">
-                      {emp.department && (
+                      {departmentName(emp) && (
                         <div className="flex items-center gap-2.5 text-xs text-slate-600">
                           <HiOutlineOfficeBuilding className="text-slate-400 w-4 h-4 shrink-0" />
-                          <span className="truncate" title={emp.department}>{emp.department}</span>
+                          <span className="truncate" title={departmentName(emp)}>{departmentName(emp)}</span>
                         </div>
                       )}
                       

@@ -30,6 +30,28 @@ const LEAVE_ERROR_MESSAGES = {
   // Assignment & override
   EMPLOYEE_NOT_FOUND: "That employee could not be found.",
   CONFIG_NOT_FOUND: "No configuration exists for this leave type. Assign a policy to this employee first.",
+  TEMPLATE_EMPTY: "This policy has no leave types in it yet, so it would give them no leave at all. Add a quota to the policy first.",
+  TEMPLATE_IN_USE: "People are still on this policy. Move them to another one before deleting it.",
+  NO_JOINING_DATE: "There's no joining date on file for this person, so their leave days can't be worked out. Add it on their profile, then try again.",
+  EMPLOYEE_INACTIVE: "This person has been deactivated, so a leave policy can't be assigned to them.",
+  EFFECTIVE_DATE_NOT_SUPPORTED: "A policy can only start today for now. Scheduling one for a future date isn't available yet.",
+
+  // Ending an assignment
+  ASSIGNMENT_NOT_FOUND: "This leave policy assignment no longer exists. Refresh the list.",
+  ASSIGNMENT_ALREADY_ENDED: "This policy has already been given an end date.",
+  ASSIGNMENT_HAS_LEAVES_AFTER_END: "There is leave booked after that date. Cancel or reject it first, then set the end date.",
+  EFFECTIVE_TO_IN_PAST: "The last day has to be today or later.",
+  INVALID_DATE: "That date can't be used. Check the day, month and year.",
+  LEAVE_CONFIG_ENDED: "This person's leave policy ended before that date, so no leave can be taken then.",
+
+  // Reverting a customisation
+  NO_POLICY_DEFAULT: "This person's leave was set up before policies were tracked, so there's nothing to go back to. Assign a policy to them first.",
+
+  // Assigning to many people at once
+  BULK_LIMIT_EXCEEDED: "Too many people in one go. Narrow the selection and try again.",
+  PREVIEW_STALE: "Something changed while you were checking the list. Preview it again to see the current picture.",
+  TARGETING_REQUIRED: "Choose who this is for, or pick everyone in the organisation.",
+  INVALID_TARGETING: "One of the departments or locations you chose no longer exists. Refresh and pick again.",
 
   // Application enforcement (Phase 6 — confirm exact codes via B5)
   DOCUMENT_REQUIRED: "A supporting document is required for this many days of this leave type. Attach a document link and resubmit.",

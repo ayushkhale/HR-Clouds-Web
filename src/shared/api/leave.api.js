@@ -9,6 +9,36 @@
 
 import { request } from "./client.js";
 
+// Path params are URI-encoded: a hand-edited /employees/:userId URL must never
+// change which endpoint is called.
+const seg = (value) => encodeURIComponent(String(value ?? ""));
+
+const post = (path, payload) =>
+  request(path, payload === undefined ? { method: "POST" } : { method: "POST", body: JSON.stringify(payload) });
+const del = (path) => request(path, { method: "DELETE" });
+
+/**
+ * GET /leaves/assignments REJECTS an unknown query key with 400 VALIDATION_ERROR
+ * (md_updates/phase7_api_analysis.md §1), so filters are allow-listed here
+ * rather than passed through: a typo would blank the screen instead of being
+ * ignored. Never send `org_id`.
+ */
+const ASSIGNMENT_FILTERS = ["template_id", "coverage", "has_overrides", "department_id", "role", "q", "page", "limit"];
+
+function filterQuery(params, allowed) {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (!allowed.includes(key)) {
+      if (import.meta.env?.DEV) console.warn(`[leaveAPI] "${key}" is not a supported filter here and was not sent.`);
+      return;
+    }
+    search.append(key, String(value));
+  });
+  const str = search.toString();
+  return str ? `?${str}` : "";
+}
+
 export const leaveAPI = {
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -55,6 +85,7 @@ export const leaveAPI = {
   //    Template containers that hold entitlement quotas per leave type
   /**
    * GET /leaves/templates
+   * Each template carries `assigned_user_count` — how many people are on it.
    */
   getTemplates: () => request("/leaves/templates"),
 
@@ -75,7 +106,8 @@ export const leaveAPI = {
 
   /**
    * DELETE /leaves/templates/:id
-   * Hard delete — cascades to all child entitlements.
+   * Hard delete — cascades to all child entitlements. Refused with
+   * 409 TEMPLATE_IN_USE (details.assigned_user_count) while anyone is on it.
    * @param {string} id
    */
   deleteTemplate: (id) =>
@@ -121,9 +153,21 @@ export const leaveAPI = {
   //    Assign a template to an employee, override individual configs
   /**
    * POST /leaves/users/:userId/assign-policy
-   * Assigns a template to an employee. Side effect: pro-rata credits balance ledger.
+   * Assigns a template to an employee. Side effect: pro-rata credits the balance
+   * ledger from 1 January, or from their joining date if they joined this year.
+   * Taken leave is NEVER reset.
+   *
+   * Reply carries `data: { assignment_id, outcome, types_added, types_removed,
+   * types_updated, overrides_replaced }`. `outcome: "unchanged"` means they were
+   * already on this policy and nothing was written — custom rules are kept.
+   *
+   * Errors: 400 TEMPLATE_EMPTY, 400 NO_JOINING_DATE, 409 EMPLOYEE_INACTIVE,
+   * 400 EFFECTIVE_DATE_NOT_SUPPORTED.
    * @param {string} userId
-   * @param {Object} payload - { template_id }
+   * @param {Object} payload - { template_id, effective_from? } — `effective_from`
+   *   must be TODAY (IST). Future dating is not implemented, so callers omit it
+   *   and let the server date it rather than offering a picker that only has one
+   *   legal value.
    */
   assignPolicy: (userId, payload) =>
     request(`/leaves/users/${userId}/assign-policy`, {
@@ -137,6 +181,7 @@ export const leaveAPI = {
    * Side effect: if upfront accrual and quota increases, balance is auto-credited.
    * @param {string} userId
    * @param {string} leaveTypeId - the leave_type ID (not config ID)
+   * Reply now also carries `overridden_fields` — which fields differ from the policy.
    * @param {Object} payload - { assigned_annual_quota?, accrual_type?, max_carry_forward?, probation_restriction_days?, max_negative_balance? }
    */
   overrideConfig: (userId, leaveTypeId, payload) =>
@@ -144,6 +189,97 @@ export const leaveAPI = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  /**
+   * DELETE /leaves/users/:userId/configs/:leaveTypeId
+   * Puts one leave type back to the policy's own rules, undoing a customisation.
+   * Adjusts the balance the same way the PUT does.
+   * Outcomes: `data.outcome` is "reverted", or "unchanged" when nothing was customised.
+   * Errors: 409 NO_POLICY_DEFAULT (assigned before policies were tracked), 404 CONFIG_NOT_FOUND.
+   * @param {string} userId
+   * @param {string} leaveTypeId
+   */
+  revertUserConfig: (userId, leaveTypeId) =>
+    del(`/leaves/users/${seg(userId)}/configs/${seg(leaveTypeId)}`),
+
+  // ── HR › Assignment Ledger (who is on which policy) ────────────────────
+  //    Phase 7. Before it the backend only copied a template's values onto a
+  //    person and kept no record of WHICH policy they were on; these endpoints
+  //    read that new record. `hr` only — admin / super-admin are platform
+  //    accounts with no organisation and are refused.
+  /**
+   * GET /leaves/assignments
+   * One row per active member, INCLUDING people with no policy
+   * (`coverage: "none"`, `assignment: null`) — those are the rows HR opens this
+   * screen for, so they are never filtered out by default.
+   * @param {Object} params - { template_id?, coverage?: "on_policy"|"legacy"|"none",
+   *   has_overrides?, department_id?, role?, q?, page?, limit? } — limit max 100.
+   */
+  getAssignments: (params = {}) =>
+    request(`/leaves/assignments${filterQuery(params, ASSIGNMENT_FILTERS)}`),
+
+  /**
+   * GET /leaves/assignments/summary
+   * The coverage tiles in one request: { on_policy, legacy, unassigned, with_overrides, templates[] }.
+   */
+  getAssignmentSummary: () => request("/leaves/assignments/summary"),
+
+  /**
+   * GET /leaves/users/:userId/leave-config
+   * One person's rules per leave type, each with three value sets: `effective`
+   * (what applies now), `policy_default` (what Revert restores) and
+   * `template_current` (what the template says today — it differs when the
+   * template was edited after this person was assigned, because editing a
+   * template does not move people already on it).
+   * Legacy configs return null for policy_default / template_current / the
+   * override flags: that reads "assigned before policies were tracked", never
+   * "no rules".
+   * @param {string} userId
+   */
+  getUserLeaveConfig: (userId) => request(`/leaves/users/${seg(userId)}/leave-config`),
+
+  /**
+   * GET /leaves/users/:userId/assignments
+   * One person's assignment history, newest first, ended ones included (max 100).
+   * @param {string} userId
+   */
+  getUserAssignments: (userId) => request(`/leaves/users/${seg(userId)}/assignments`),
+
+  /**
+   * POST /leaves/assignments/preview — writes NOTHING.
+   * Returns { matched, cap, over_cap, preview_token, unchanged[], changing[], blocked[] }.
+   * Send the `preview_token` on to bulkAssignPolicy; anything changed in between
+   * is a 409 PREVIEW_STALE.
+   * @param {Object} payload - { template_id, target_departments?, target_locations?,
+   *   target_employment_types?, target_job_statuses?, included_users?, excluded_users?,
+   *   scope?: "selection"|"all" } — `scope: "all"` is REQUIRED when every array is
+   *   empty, otherwise 400 TARGETING_REQUIRED.
+   */
+  previewBulkAssign: (payload) => post("/leaves/assignments/preview", payload),
+
+  /**
+   * POST /leaves/assignments/bulk
+   * One person per transaction, so partial success is real: HTTP 200 carries
+   * { assigned[], skipped[], failed[] } and the UI must report per person.
+   * Cap 200 people (400 BULK_LIMIT_EXCEEDED with details.cap). Retry-safe —
+   * people already done come back as `skipped`.
+   * @param {Object} payload - the preview body plus `preview_token`.
+   */
+  bulkAssignPolicy: (payload) => post("/leaves/assignments/bulk", payload),
+
+  /**
+   * POST /leaves/assignments/:id/end
+   * Balances are left exactly as they are; no leave can be applied for after
+   * `effective_to` (inclusive) and monthly accrual stops.
+   * Errors: 409 ASSIGNMENT_HAS_LEAVES_AFTER_END (details.request_ids must be
+   * cancelled or rejected first), 409 ASSIGNMENT_ALREADY_ENDED,
+   * 400 EFFECTIVE_TO_IN_PAST, 400 INVALID_DATE, 404 ASSIGNMENT_NOT_FOUND.
+   * There is deliberately NO delete: a started assignment's balances are already
+   * written and cannot be honestly reversed.
+   * @param {string} id
+   * @param {Object} payload - { effective_to: "YYYY-MM-DD", reason? }
+   */
+  endAssignment: (id, payload) => post(`/leaves/assignments/${seg(id)}/end`, payload),
 
   // ── HR › Employee Balances ─────────────────────────────────────────────────
   //    View any employee's leave balance ledger

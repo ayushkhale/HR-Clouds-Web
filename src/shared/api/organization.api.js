@@ -172,6 +172,20 @@ export const organizationAPI = {
 
   // ── HR › Departments ───────────────────────────────────────────────────────
   //    Create and manage organizational departments
+  //
+  //    THE HEAD IS NOW A MEMBER OF THE DEPARTMENT THEY HEAD (changed
+  //    2026-10-02, `md_organization/3_org_structure_api.md` §4). Assigning a
+  //    head writes `department_id` on them when they have none; a candidate who
+  //    already belongs to a DIFFERENT department is refused with
+  //    `409 HOD_IN_OTHER_DEPARTMENT` rather than silently relocated, because
+  //    moving someone has to move their reporting lines and their old
+  //    department's headship too — `transferDepartment()` with
+  //    `is_new_hod: true` does both atomically.
+  //
+  //    Second-order effect worth knowing before you touch the deactivate path:
+  //    because the head now counts as a member, `updateDepartment` with
+  //    `is_active: false` can return `409 DEPARTMENT_IN_USE` for a department
+  //    that reported zero members before.
   getDepartments(params = {}) {
     const query = new URLSearchParams(params).toString();
     return request(`/organizations/departments${query ? `?${query}` : ""}`);
@@ -204,6 +218,62 @@ export const organizationAPI = {
   },
   updateLocation(id, payload) {
     return request(`/organizations/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
+
+  // ── HR › My Own Job Profile (fill-once) ───────────────────────────────────
+  //    Contract: `md_organization/4_org_employee_api.md` §11. HR only — a
+  //    manager or employee gets 403, so the UI is hidden for them rather than
+  //    offered and refused.
+  //
+  //    These exist because the org CREATOR is provisioned before the org has
+  //    any structure: no joining date, department, location, designation,
+  //    employment type, work mode, gender or marital status. Every other writer
+  //    of those fields (§5 transfer, §10 hr-fields) refuses a self-edit, and the
+  //    creator is normally the only HR — so nobody could fill them, and that one
+  //    blank joining date is enough to keep them out of leave assignment
+  //    (NO_JOINING_DATE) and out of every payroll run.
+  /**
+   * What is still blank on the caller's own job profile, and whether the org has
+   * the structure needed to fill it.
+   * GET /organizations/me/setup-status
+   * @returns `{ is_complete, missing_fields, locked_fields, current_values,
+   *             org_structure: { locations_count, departments_count,
+   *                              can_set_location, can_set_department } }`
+   */
+  getMySetupStatus() {
+    return request("/organizations/me/setup-status");
+  },
+
+  /**
+   * Fill blanks on the caller's own job profile. **Fill-once per field.**
+   * PATCH /organizations/me/job-profile
+   *
+   * Three rules the caller must have already applied — build the body with
+   * `jobProfileBody()` (`shared/organization/profileSetupMeta.js`) and they are:
+   *  · send ONLY the fields being filled; `null` and `""` are rejected outright,
+   *    so a key you have no value for is omitted, never nulled;
+   *  · never send a key listed in `locked_fields` — the SQL guard is
+   *    `WHERE column IS NULL`, so the second write loses with
+   *    `409 FIELD_ALREADY_SET` rather than silently overwriting;
+   *  · `reason` is not a field on its own — a body carrying only `reason` is a
+   *    400.
+   *
+   * Anything outside the eight fields (`employee_code`, `job_status`, `dob`,
+   * addresses…) is silently stripped server-side, so a stray key fails quietly
+   * instead of erroring — which is exactly why the body is built from a
+   * whitelist rather than from form state.
+   *
+   * @param {Object} payload `{ joining_date?, department_id?, location_id?,
+   *   designation?, employment_type?, work_mode?, gender?, marital_status?,
+   *   reason? }`
+   * @returns `{ profile, changes, setup_status }` — `setup_status` is recomputed
+   *   after the write, so the wizard advances on it without a second GET.
+   */
+  updateMyJobProfile(payload) {
+    return request("/organizations/me/job-profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
   },
 
 

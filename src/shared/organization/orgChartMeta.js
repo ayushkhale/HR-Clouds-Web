@@ -65,7 +65,12 @@ const DEPARTMENT_TONES = [
 ];
 const NO_DEPARTMENT_TONE = { dot: "bg-slate-300", chip: "bg-slate-50 text-slate-600 border-slate-200", active: "bg-slate-700 text-white border-slate-700" };
 
-/** Stable tone per department name (the same department is the same colour on every screen). */
+/**
+ * Stable tone per department (the same department is the same colour on every
+ * screen). Hashed from the NAME on purpose, unlike the grouping key below: a
+ * colour has to agree with the one the same department gets on screens that
+ * only ever receive its name, and an id would make the two disagree.
+ */
 export function departmentTone(name) {
   if (!name) return NO_DEPARTMENT_TONE;
   let h = 0;
@@ -73,9 +78,33 @@ export function departmentTone(name) {
   return DEPARTMENT_TONES[h % DEPARTMENT_TONES.length];
 }
 
-/** Key for the "no department" filter — never a real department name. */
+/** Key for the "no department" filter — never a real department id. */
 export const NO_DEPARTMENT = "__none__";
-export const departmentKeyOf = (node) => node?.department || NO_DEPARTMENT;
+
+/**
+ * Which department a node is filtered under. `department_id`, NOT the name:
+ * the hierarchy payload carries both and documents both as nullable, and the
+ * name is a denormalized copy that the 2026-10-02 repair migration rewrites
+ * where it can resolve the real department and nulls where it cannot. Keying
+ * on the name split one department into two chips whenever two members
+ * disagreed about its spelling, and merged two same-named departments into one.
+ *
+ * The name is still the fallback when a node carries no id — see the body for
+ * why that is not the same as folding those nodes into "No department".
+ */
+export const departmentKeyOf = (node) => {
+  if (node?.department_id) return String(node.department_id);
+  // A name with no id is a member whose department could not be reconciled to
+  // any department row. It still gets its own group rather than being folded
+  // into "No department", for two reasons: before migration 00067 runs EVERY
+  // node looks like this, and collapsing them all would silently delete the
+  // filter strip on a server that simply hasn't migrated yet; and after it
+  // runs, a ghost that survived is genuinely a separate group from "nobody
+  // has a department here". The id wins whenever there is one, so a mixed
+  // state degrades to two visible groups rather than one wrong one
+  // (CLAUDE.md §7).
+  return node?.department || NO_DEPARTMENT;
+};
 
 const clean = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
@@ -117,6 +146,7 @@ export function buildOrgIndex(data) {
       employee_code: clean(raw?.employee_code),
       designation: clean(raw?.designation),
       department: clean(raw?.department),
+      department_id: clean(raw?.department_id),
       work_location: clean(raw?.work_location),
       parentId,
       // A root that still names somebody above it: that person is no longer active.
@@ -130,9 +160,6 @@ export function buildOrgIndex(data) {
     depth = Math.max(depth, level + 1);
     roleCounts[role] += 1;
     if (node.formerManager) formerManagerCount += 1;
-    const deptKey = departmentKeyOf(node);
-    deptCounts.set(deptKey, (deptCounts.get(deptKey) || 0) + 1);
-
     const kids = Array.isArray(raw?.children) ? raw.children : [];
     kids.forEach((child, i) => {
       const c = visit(child, id, level + 1, `${id}:${i}`);
@@ -148,8 +175,23 @@ export function buildOrgIndex(data) {
   const rawRoots = Array.isArray(data?.roots) ? data.roots : [];
   const roots = rawRoots.map((r, i) => visit(r, null, 0, `root:${i}`)).filter(Boolean);
 
+  // The label is taken from the first node seen in each department, because the
+  // key is usually an id and an id never reaches the screen (CLAUDE.md §4). A
+  // department whose every member lost its name reads "No department name",
+  // never a UUID and never an empty chip.
+  const deptNames = new Map();
+  for (const node of flat) {
+    const key = departmentKeyOf(node);
+    deptCounts.set(key, (deptCounts.get(key) || 0) + 1);
+    if (key !== NO_DEPARTMENT && node.department && !deptNames.has(key)) deptNames.set(key, node.department);
+  }
+
   const departments = [...deptCounts.entries()]
-    .map(([key, count]) => ({ key, name: key === NO_DEPARTMENT ? "No department" : key, count }))
+    .map(([key, count]) => ({
+      key,
+      name: key === NO_DEPARTMENT ? "No department" : deptNames.get(key) || "No department name",
+      count,
+    }))
     .sort((a, b) => (a.key === NO_DEPARTMENT) - (b.key === NO_DEPARTMENT) || b.count - a.count || a.name.localeCompare(b.name));
 
   return {

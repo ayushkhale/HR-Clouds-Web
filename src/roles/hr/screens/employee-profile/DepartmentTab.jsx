@@ -23,8 +23,27 @@ const sameText = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Stri
 const reportsTo = (row) => row?.reporting_person ?? row?.reporting_person_id ?? row?.reporting_person_details?.user_id ?? null;
 
 const ALL_DEPTS = "__all__";
+const NO_DEPT_KEY = "__none__";
 const NO_DEPT = "No department";
-const teamDeptOf = (member) => String(member?.department || "").trim() || NO_DEPT;
+
+// THE KEY IS `department_id`, THE NAME IS ONLY A LABEL. `department` is a
+// denormalized copy of the name: the 2026-10-02 repair migration rewrites it
+// where it can resolve a real department and nulls it where it cannot, so two
+// rows in the same department can disagree about its name and a row in no
+// department can still carry one. Grouping on the string is the bug that
+// migration exists to clear up — one chip would split in two, or two
+// departments with the same name would merge into one.
+//
+// The name is the FALLBACK, not a shortcut: before migration 00067 runs, every
+// roster row carries a name and no id, and folding those into "No department"
+// would collapse the whole strip to a single chip — which this screen then
+// hides, because it only shows the filter for more than one. Same rule as
+// `departmentKeyOf` in shared/organization/orgChartMeta.js; change both or
+// neither.
+const teamDeptKeyOf = (member) => {
+  if (member?.department_id) return String(member.department_id);
+  return String(member?.department || "").trim() || NO_DEPT_KEY;
+};
 
 function PersonTile({ name, subtitle, person, badge }) {
   return (
@@ -84,22 +103,36 @@ export default function DepartmentTab({ employee, userId, employeeRole, onTransf
     [state.roster, userId],
   );
   // One chip per department the team spans — a manager can head more than one.
+  // Each chip is keyed by id and labelled from the departments list, so the
+  // label is the department's real name even when a member's own copy of it is
+  // stale or missing.
   const teamDepts = useMemo(() => {
     const counts = new Map();
     for (const m of team) {
-      const name = teamDeptOf(m);
-      counts.set(name, (counts.get(name) || 0) + 1);
+      const key = teamDeptKeyOf(m);
+      counts.set(key, (counts.get(key) || 0) + 1);
     }
     return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => (a.name === NO_DEPT) - (b.name === NO_DEPT) || a.name.localeCompare(b.name));
-  }, [team]);
+      .map(([key, count]) => ({
+        key,
+        count,
+        name: key === NO_DEPT_KEY
+          ? NO_DEPT
+          : state.departments.find((d) => sameId(d.id || d._id, key))?.name
+            // The departments list failed or doesn't carry it; the member's own
+            // label is the only name available, and a chip with no name at all
+            // would read as a bug.
+            || team.find((m) => teamDeptKeyOf(m) === key)?.department
+            || NO_DEPT,
+      }))
+      .sort((a, b) => (a.key === NO_DEPT_KEY) - (b.key === NO_DEPT_KEY) || a.name.localeCompare(b.name));
+  }, [team, state.departments]);
   // Drop a stale choice (e.g. after the team reloads without that department).
-  const activeDept = teamDepts.some((d) => d.name === deptFilter) ? deptFilter : ALL_DEPTS;
+  const activeDept = teamDepts.some((d) => d.key === deptFilter) ? deptFilter : ALL_DEPTS;
 
   const filteredTeam = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return team.filter((m) => (activeDept === ALL_DEPTS || teamDeptOf(m) === activeDept)
+    return team.filter((m) => (activeDept === ALL_DEPTS || teamDeptKeyOf(m) === activeDept)
       && (!q || [m.name, m.designation, m.department, m.email, m.employee_code].some((v) => String(v || "").toLowerCase().includes(q))));
   }, [team, query, activeDept]);
 
@@ -188,14 +221,17 @@ export default function DepartmentTab({ employee, userId, employeeRole, onTransf
             <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
               {teamDepts.length > 1 && (
                 <div role="group" aria-label="Filter team by department" className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-white border border-slate-200">
-                  {[{ name: ALL_DEPTS, label: "All", count: team.length }, ...teamDepts.map((d) => ({ ...d, label: d.name }))].map(({ name, label, count }) => {
-                    const active = activeDept === name;
+                  {/* `key` is the department id (or the no-department
+                      sentinel) and `label` is its name — two separate things
+                      since the name stopped being trustworthy as an identity. */}
+                  {[{ key: ALL_DEPTS, label: "All", count: team.length }, ...teamDepts.map((d) => ({ ...d, label: d.name }))].map(({ key, label, count }) => {
+                    const active = activeDept === key;
                     return (
                       <button
-                        key={name}
+                        key={key}
                         type="button"
                         aria-pressed={active}
-                        onClick={() => setDeptFilter(name)}
+                        onClick={() => setDeptFilter(key)}
                         className={`inline-flex items-center gap-1.5 max-w-[11rem] px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-purple-50 hover:text-purple-700"}`}
                       >
                         <span className="truncate" title={label}>{label}</span>
@@ -254,7 +290,12 @@ export default function DepartmentTab({ employee, userId, employeeRole, onTransf
                       />
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pl-14 text-[11px] font-semibold text-slate-500">
                         {member.employee_code && <span className="font-mono text-slate-600">#{member.employee_code}</span>}
-                        {member.department && !sameText(member.department, deptName) && (
+                        {/* "This one sits somewhere else" is a question about
+                            identity, so it is decided on the id when both rows
+                            have one and only falls back to comparing names. */}
+                        {member.department && (department?.id
+                          ? !sameId(member.department_id, department.id)
+                          : !sameText(member.department, deptName)) && (
                           <span className="inline-flex items-center gap-1"><HiOfficeBuilding className="w-3.5 h-3.5 text-purple-500" />{member.department}</span>
                         )}
                         {member.email && <span className="inline-flex items-center gap-1 min-w-0"><HiMail className="w-3.5 h-3.5 text-purple-500 shrink-0" /><span className="truncate">{member.email}</span></span>}

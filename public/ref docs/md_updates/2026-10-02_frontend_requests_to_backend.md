@@ -95,3 +95,44 @@ columns — `fnf_encashment_max_days`, `compoff_encashment_max_days_per_fy`,
 `fnf_encashment_component_id`, `fnf_notice_recovery_component_id`,
 `compoff_encashment_component_id` — since clearing a cap that was previously set
 has no other representation.
+
+---
+
+## L-1 · No way to list who is on which leave policy (Medium, Leave)
+
+> **Expanded.** This item is the short version. The full ask — the screen we want
+> to build, and every endpoint it needs, mirrored off the attendance assignment
+> contract — is in **`2026-10-02_leave_assignment_api_request.md`**. Read that one
+> if you are picking this up.
+
+**Context.** Setup › Leave now has a **Leave Assignment** page, so giving a leave
+policy out sits beside the policies themselves instead of three navigations away
+inside one employee's profile.
+
+**What is missing.** There is no bulk read of leave assignments or per-user leave
+configs. The only reads are:
+
+| Endpoint | Scope |
+|---|---|
+| `GET /leaves/users/:userId/balances` (#3) | one employee |
+| `GET /leaves/team/member/:userId/balances` (#6) | one team member |
+
+Attendance has `GET /attendance/assignments`, which is why Shift Management can
+show a table of who works which shift, with the schedule, the effective dates and
+the state in every row. The leave equivalent would be one request per employee —
+which the frontend does not do — so the new page lists the people from the
+employee directory and reads one person's setup when HR opens them. HR therefore
+cannot see at a glance **who has no policy at all**, which is the question the
+page would most like to answer.
+
+> **Ask:** a list endpoint for leave policy assignments — ideally
+> `GET /leaves/assignments` returning, per user, the template they are on
+> (`template_id`, `template_name`), when it was assigned, and whether any of
+> their leave types have been overridden. Pagination like #8, HR-scoped.
+> Even `{ user_id, template_name }` pairs would be enough: the directory
+> supplies names and roles, and the page already has a column waiting for it.
+
+**Meanwhile:** the people list carries name, role, department and designation
+from the roster, and a "no leave policy assigned" state is shown once a person is
+opened. **Frontend ready:** the left-hand list takes a policy column the day the
+endpoint exists; nothing else changes.

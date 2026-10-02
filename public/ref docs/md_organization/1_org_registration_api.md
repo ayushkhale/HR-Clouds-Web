@@ -3,7 +3,7 @@
 **Base URL:** `/api/v1/organizations/register`  
 
 > **Note:** The specific function and ORM method names (e.g., `Organization.create()`) used in the internal execution flows are conceptual/dummy names intended to clearly illustrate the business logic. The internal execution logic, database interactions, transactions, side-effects, and validations described are strictly accurate and verified against the actual codebase.
-**Source of Truth:** `organization.routes.js`, `organization.controller.js`, `organization.service.js`  
+**Source of Truth:** `onboarding.routes.js`, `onboarding.controller.js`, `organization.service.js`  
 **Last Verified:** August 21, 2026
 
 ---
@@ -76,7 +76,9 @@ POST /api/v1/organizations/register/initiate
    - Creates active `organization_subscriptions` record.
    - Finds the `hr` role ID and assigns it to the user via `user_roles`.
    - Generates a random HR employee code (`HR-XXXXXX`).
-   - Creates an `hr_profiles` record for the user.
+   - Creates an `hr_profiles` record for the user carrying **only** that employee code, plus an
+     org-scoped copy of their global `user_profiles` row (name / phone / avatar).
+     No job fields are invented (see "Creator job fields" below).
    - Generates a new JWT with `role=hr` and `orgId=newOrg.id`.
    - Blacklists the old JWT in Redis.
    - Commits transaction and returns new tokens.
@@ -84,6 +86,26 @@ POST /api/v1/organizations/register/initiate
    - Calls Razorpay API to create an order for the plan amount.
    - Creates a `transactions` record (status = `pending`) storing the order ID and plan metadata.
    - Commits transaction and returns the Razorpay order ID to the frontend.
+
+### Creator job fields (changed 2026-10-02)
+
+The creator's `hr_profiles` row is provisioned with `employee_code` only. It previously also wrote
+`department: 'Human Resources'` and `designation: 'HR Administrator'`, which was wrong on both
+counts: a brand-new org has **no** `organization_departments` rows, so the department name pointed
+at nothing while `department_id` stayed NULL — and `department_id` is the canonical key every
+roster, filter, count, report and bonus-rule candidate list groups by, so the creator was skipped
+by all of them while the UI displayed a department nobody could select.
+
+`joining_date` is **not** auto-filled from the registration date either: it is fill-once and drives
+payroll proration, leave accrual, tenure and the attendance series floor, so a guessed value would
+be unfixable through any endpoint.
+
+The creator completes these fields themselves, after creating their first location and department:
+
+- `GET /api/v1/organizations/me/setup-status` — what is still blank.
+- `PATCH /api/v1/organizations/me/job-profile` — fill it (fill-once per field).
+
+Both are documented in `4_org_employee_api.md` §"HR self-setup".
 
 ### Database Operations
 
@@ -145,6 +167,9 @@ POST /api/v1/organizations/register/initiate
 
 - **If Free:** Replace the `accessToken` and `refreshToken` in local storage. Update global state role to `hr`. Navigate to HR Dashboard.
 - **If Paid:** Do NOT navigate. Open the Razorpay Checkout Modal using the returned `razorpay_order.id` and `amount`.
+- **Either way (new 2026-10-02):** the creator's job profile is intentionally empty. Call
+  `GET /api/v1/organizations/me/setup-status` right after landing on the dashboard and run the
+  first-run setup wizard while `is_complete` is `false`.
 
 ---
 
@@ -202,7 +227,7 @@ POST /api/v1/organizations/register/verify-payment
 4. **Invalid Signature Handling:** If signature fails, log to `payment_audits` and throw 400.
 5. **Idempotent Update:** Attempt to update transaction status to `success` _only if_ current status is `pending`. If affected rows = 0, check if it was already updated by a concurrent request.
 6. **Activate Organization:** Start DB transaction. Fetch org, update status to `active`.
-7. **Assign HR Role:** Fetch `hr` role ID. If user doesn't have it, assign it via `user_roles` and create `hr_profiles`.
+7. **Assign HR Role:** Fetch `hr` role ID. If user doesn't have it, assign it via `user_roles` and create `hr_profiles` (employee code only — same provisioning as the free branch; see "Creator job fields" in §1).
 8. **Create Subscription:** Create `organization_subscriptions` linking the org, plan, and transaction. Deactivate any prior active subscriptions.
 9. **Issue Tokens:** Generate new JWTs with `role=hr` and `orgId=org.id`.
 10. **Revoke Old Token:** Blacklist the old `guest` JWT in Redis.

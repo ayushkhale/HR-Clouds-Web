@@ -109,6 +109,7 @@ const BiometricDevicesPage = lazy(() => import("../roles/hr/screens/BiometricDev
 const LeaveTypesPage = lazy(() => import("../roles/hr/leaves/screens/LeaveTypesPage"));
 const LeavePoliciesPage = lazy(() => import("../roles/hr/leaves/screens/LeavePoliciesPage"));
 const LeaveAutomationPage = lazy(() => import("../roles/hr/leaves/screens/LeaveAutomationPage"));
+const LeaveAssignmentPage = lazy(() => import("../roles/hr/leaves/screens/LeaveAssignmentPage"));
 const HRLeaveRequestsPage = lazy(() => import("../roles/hr/leaves/screens/HRLeaveRequestsPage"));
 const LeaveDashboard = lazy(() => import("../roles/employee/screens/LeaveDashboard"));
 const ManagerLeavePage = lazy(() => import("../roles/manager/screens/ManagerLeavePage"));
@@ -337,6 +338,9 @@ function AppRoutes() {
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
+        {/* HR only: every Phase 7 assignment endpoint is hr-only, so a manager
+            gets no entry at all rather than a page that 403s (§2). */}
+        <Route path="/dashboard/hr/leaves/assignments" element={<LeaveAssignmentPage />} />
         <Route path="/dashboard/hr/leaves/automation" element={<LeaveAutomationPage />} />
 
         {/* HR payroll */}

@@ -6,6 +6,7 @@ import DashboardTopBar from "../components/DashboardTopBar";
 import { useMayaVisibility } from "../hooks/useMayaVisibility";
 import GenderAvatar from "../components/GenderAvatar";
 import AvatarUploadDialog from "../organization/AvatarUploadDialog";
+import ProfileSetupCard from "../organization/ProfileSetupCard";
 import { fmtDate, ymdOnly } from "../attendance/dates";
 import { humanize } from "../attendance/enums";
 
@@ -294,9 +295,17 @@ function MyProfilePage() {
 
         // Read-only: a date reads "3 Mar 2002", not the column's "2002-03-03",
         // and the two enum columns read as words, not "female" / "single".
+        //
+        // `department` is last because it is the one field here that can arrive
+        // as EITHER a name or a `{ name }` object — the header block below
+        // already allows for both. Rendering the object would throw ("objects
+        // are not valid as a React child") and take the whole page with it,
+        // which matters more since the 2026-10-02 repair migration started
+        // rewriting and nulling this column.
         const shown = !value ? value
             : field.type === "date" ? fmtDate(ymdOnly(value), { day: "numeric", month: "short", year: "numeric" }, value)
             : field.key === "gender" || field.key === "marital_status" ? humanize(value)
+            : typeof value === "object" ? (value.name || "")
             : value;
         return (
             <p className="text-[15px] font-medium text-slate-800 truncate">
@@ -517,6 +526,18 @@ function MyProfilePage() {
 
                             {/* Information Sections */}
                             <div className="flex flex-col gap-6">
+                                {/* Above Organization Details on purpose: those six
+                                    fields are all locked, and for an HR whose record
+                                    was never filled in they read "N/A" with no way to
+                                    act — which is the whole defect being fixed. The
+                                    card renders nothing for anyone else, and nothing
+                                    once the record is complete, so this screen is
+                                    unchanged for the manager and employee who also
+                                    mount it (CLAUDE.md §2). Not dismissible here. */}
+                                <ProfileSetupCard
+                                    dismissible={false}
+                                    onToast={(message) => { setNotice({ type: "success", message }); fetchProfile({ silent: true }); }}
+                                />
                                 {renderFieldGroup("Personal Information", PERSONAL_FIELDS)}
                                 {renderFieldGroup("Organization Details", ORG_FIELDS)}
                                 {renderFieldGroup("Address", ADDRESS_FIELDS)}
