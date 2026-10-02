@@ -1,8 +1,8 @@
 # Organization Structure APIs
 
 **Base URL:** `/api/v1/organizations`  
-**Source of Truth:** `organization.routes.js`, `organization.controller.js`, `organization.service.js`, `organization.repository.js`  
-**Last Verified:** August 21, 2026
+**Source of Truth:** `location.routes.js`, `department.routes.js`, `location.controller.js`, `department.controller.js`, `organization.service.js`, `organization.repository.js`  
+**Last Verified:** September 6, 2026
 
 > **Note:** The specific function and ORM method names (e.g., `Organization.create()`) used in the internal execution flows are conceptual/dummy names intended to clearly illustrate the business logic. The internal execution logic, database interactions, transactions, side-effects, and validations described are strictly accurate and verified against the actual codebase.
 
@@ -69,6 +69,7 @@ HTTP 201 Created
 - **Creates:** `organization_locations` table.
   - **Data:** `{ org_id: req.user.orgId, ...payload }`
 - **Transactions**: No transaction required as it's a single table insert.
+- **Uniqueness (migration 00042):** location `name` is unique per organization, case-insensitively (`(org_id, lower(name))`). A duplicate name returns `409 LOCATION_NAME_EXISTS`.
 
 ### Response Structure
 **201 Created**
@@ -163,6 +164,7 @@ HTTP 200 OK
 ### Database Operations
 - **Updates**: `organization_locations`.
 - **Query**: `UPDATE organization_locations SET ... WHERE id = :id AND org_id = :orgId` (Tenant isolation enforced).
+- **Uniqueness (migration 00042):** renaming to a name already used by another location in the same org returns `409 LOCATION_NAME_EXISTS` (case-insensitive).
 
 ### What Can Break If This API Changes?
 - **Geofencing**: If a location's lat/long or timezone fields are added/modified here, it directly impacts the Attendance Clock-In geofence calculations.
@@ -220,31 +222,55 @@ OrganizationController.handlePostDepartment()
         ↓
 OrganizationService.createDepartment()
         ↓
-(If HOD provided) checkUserRole(hr or manager)
+BEGIN TRANSACTION
         ↓
-OrganizationRepository.createDepartment()
+(If HOD provided) _assertValidHod() — active member, not a plain employee
         ↓
-Database Insert (organization_departments)
+(If location) checkLocationBelongsToOrg()
+        ↓
+OrganizationRepository.createDepartment(head_of_department_id: null)  ← created head-less first
+        ↓
+(If HOD provided) transferDepartmentHead()  ← sets department_head flag, JOINS the head to this
+                                              department (department_id + name), adopts department
+                                              orphans, creates reporting mappings
+        ↓
+getDepartmentById() — refreshed object
+        ↓
+COMMIT TRANSACTION
         ↓
 HTTP 201 Created
 ```
 
 ### Every Function Called
-**Function**: `createDepartment(orgId, payload)`
+**Function**: `createDepartment(actorUser, payload)`
 - **File**: `src/modules/organization/services/organization.service.js`
-- **Purpose**: Creates the department while validating HOD rules.
-- **Input**: Org ID, Department Payload.
-- **Database interaction**: Reads `user_roles` to verify HOD eligibility. Creates `organization_departments`.
-- **Failure behavior**: Throws 400 if an employee is assigned as HOD.
+- **Purpose**: Creates the department while validating HOD rules, in one transaction.
+- **Input**: Actor user, Department Payload.
+- **Database interaction**: Reads `user_roles` (HOD eligibility) and `organization_locations` (location belongs to org). Creates `organization_departments`; when a head is supplied, routes it through the single HOD path so the profile flag, orphan adoption and reporting mappings all happen exactly as they do on update.
+- **Failure behavior**: Throws `400 INVALID_HOD_ROLE` if an employee is assigned as HOD, `404 USER_NOT_FOUND` if the HOD is not an active member, `404 LOCATION_NOT_FOUND` if the location is not in the org, `409 DEPARTMENT_NAME_EXISTS` on a duplicate name. The whole thing rolls back on any failure.
 
 ### Database Operations
-- **Read:** `user_roles` (to verify the HOD belongs to the org and is a Manager/HR).
-- **Create:** `organization_departments`.
+- **Transactions:** Yes — a single `sequelize.transaction()` wraps the create, the HOD assignment, orphan adoption and mapping creation. A department created **with** a head now behaves identically to one where the head is assigned a moment later.
+- **Read:** `user_roles` (HOD eligibility), `organization_locations` (belongs-to-org).
+- **Create:** `organization_departments`, and (when a head is supplied) `user_reporting_mappings` + role-profile flag updates via `transferDepartmentHead`.
+- **Uniqueness (migration 00042):** department `name` is unique per organization, case-insensitively (`(org_id, lower(name))`) → `409 DEPARTMENT_NAME_EXISTS` on a duplicate.
 
 ### Critical Invariants
 - An `employee` role cannot be assigned as `head_of_department_id`.
+- A department created with a head is fully wired (flag + orphan adoption + mappings), not just a bare row.
+- **The head is a member of the department they head (changed 2026-10-02).** Assigning a head now
+  writes `department_id` + the denormalized `department` name on that user's role profile when they
+  have none. Previously only the `department_head` boolean was set, so a head stayed outside their
+  own department: `countProfilesInDepartment()` reported 0 members for a headed department (which
+  let it be deactivated) and every `department_id`-keyed roster, filter and report omitted its head.
+  A candidate who already belongs to a **different** department is refused with
+  `409 HOD_IN_OTHER_DEPARTMENT` instead of being silently relocated — move them first with
+  `PUT /organizations/users/:id/department-transfer` (`is_new_hod: true` does both atomically).
+  A candidate with no role-profile row at all is `404 HOD_PROFILE_NOT_FOUND`.
 
 ### Response Structure
+Returns the **full department object** (the refreshed record), not just id/name.
+
 **201 Created**
 ```json
 {
@@ -335,30 +361,23 @@ OrganizationController.handlePutDepartment()
         ↓
 OrganizationService.updateDepartment()
         ↓
-Detect HOD Change?
- ├── NO:
- │    ↓
- │    OrganizationRepository.updateDepartment()
- │    ↓
- │    HTTP 200 OK
- │
- └── YES:
-      ↓
-      BEGIN TRANSACTION
-      ↓
-      OrganizationRepository.updateDepartment(new HOD)
-      ↓
-      UserProfile.update(new HOD, department_head = true)
-      ↓
-      UserProfile.update(old HOD, department_head = false)
-      ↓
-      UserReportingMappingRepository.transferReportingLines(old_hod, new_hod, dept_id)
-      ↓
-      Update all subordinates -> manager mappings
-      ↓
-      COMMIT TRANSACTION
-      ↓
-      HTTP 200 OK
+BEGIN TRANSACTION   ← the head change AND the field update are now ONE atomic unit
+        ↓
+(If is_active -> false) countProfilesInDepartment(); reject 409 DEPARTMENT_IN_USE if members attached
+        ↓
+(If head_of_department_id present)
+      _assertValidHod(new HOD)  (skipped when clearing to null)
+      transferDepartmentHead()  ← department_head flag + orphan adoption + reporting-line transfer
+        ↓
+(If location_id) checkLocationBelongsToOrg()
+        ↓
+(If any remaining fields) OrganizationRepository.updateDepartment()
+        ↓
+getDepartmentById()  ← refreshed object
+        ↓
+COMMIT TRANSACTION
+        ↓
+HTTP 200 OK  (returns the department object)
 ```
 
 ### Every Function Called
@@ -376,31 +395,60 @@ Detect HOD Change?
 graph TD
     A[Update Department API] --> B[Org Controller]
     B --> C[Org Service]
-    C --> D{Is HOD Changed?}
-    D -- No --> E[Update DB]
-    D -- Yes --> F[Begin Transaction]
-    F --> G[Update Department HOD]
-    F --> H[Update User Profiles]
-    F --> I[Transfer Reporting Mappings]
-    I --> J[Commit Transaction]
+    C --> F[Begin Transaction]
+    F --> G{Deactivating?}
+    G -- Yes, members attached --> X[409 DEPARTMENT_IN_USE, rollback]
+    G -- No --> H{HOD changed?}
+    H -- Yes --> I[transferDepartmentHead: flags + reporting lines]
+    H -- No --> J[Update remaining fields]
+    I --> J
+    J --> K[getDepartmentById, refreshed]
+    K --> L[Commit Transaction]
 ```
 
 ### Database Operations
-- **Transactions:** Yes. The HOD transfer is wrapped in a strict transaction (`sequelize.transaction()`). If the mapping transfer fails, the department's HOD does not change.
+- **Transactions:** Yes — a **single** `sequelize.transaction()` now wraps the deactivation guard, the HOD transfer AND the remaining field update. Previously `transferDepartmentHead` opened and committed its own transaction and the field update ran in a second, separate one; a failure in between could leave the head changed but the name/location not, with no rollback. Now either all of it lands or none of it does.
 - **Update:** `organization_departments`, `user_reporting_mappings`, `manager_profiles`/`hr_profiles`/`employee_profiles`.
+- **Deactivation guard (S25):** setting `is_active: false` while role profiles still point at the department (a non-zero `department_id` count across the three profile tables) is rejected with `409 DEPARTMENT_IN_USE` and the attached-member count — HR must reassign or transfer those members first.
+- **Name uniqueness (migration 00042):** renaming to a name already used by another department in the same org returns `409 DEPARTMENT_NAME_EXISTS` (case-insensitive, enforced by a unique index on `(org_id, lower(name))`).
 
 ### Side Effects
 - **Reporting Lines:** The entire hierarchy under this department is re-wired instantly. Managers and HR dashboards will immediately reflect the new team structure, and any future attendance approvals will route to the new HOD.
 
 ### Response Structure
+**Always returns the department object**, even when only the head changed — previously an HOD-only update returned `{ success: true }` with no `data`, forcing the frontend into a follow-up GET.
+
 **200 OK**
 ```json
 {
   "success": true,
-  "message": "Department updated successfully"
+  "message": "Department updated successfully",
+  "data": {
+    "id": "uuid-v4",
+    "name": "Engineering (Updated)",
+    "location_id": "loc-uuid-v4",
+    "head_of_department_id": "new-manager-uuid-v4",
+    "is_active": true
+  }
 }
 ```
+
+### Error Flow
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `INVALID_HOD_ROLE` | New HOD is a plain employee (not a manager/hr). |
+| 404 | `USER_NOT_FOUND` | New HOD is not an active member of this org. |
+| 404 | `LOCATION_NOT_FOUND` | New `location_id` does not belong to this org. |
+| 404 | `HOD_PROFILE_NOT_FOUND` | New HOD is a member but has no role-profile row. |
+| 409 | `DEPARTMENT_IN_USE` | Tried to deactivate a department that still has members assigned. |
+| 409 | `DEPARTMENT_NAME_EXISTS` | Renamed to a name already used by another department in the org. |
+| 409 | `HOD_IN_OTHER_DEPARTMENT` | New HOD already belongs to another department — transfer them in first. |
 
 ### Frontend Integration
 - **When to call**: When an HR Admin saves changes in the Department Edit modal.
 - **UI UX**: If the HOD is being changed, the frontend should show a warning prompt: "This will transfer all direct reports to the new Head of Department. Continue?"
+- **UI UX (new 2026-10-02)**: the HOD picker should prefer candidates whose `department_id` is empty
+  or already this department. Picking a manager/HR who belongs to another department now returns
+  `409 HOD_IN_OTHER_DEPARTMENT`; offer the department-transfer flow (`is_new_hod: true`) instead of
+  surfacing a raw error. Note that a newly assigned head is now counted as a member of the
+  department, so `DEPARTMENT_IN_USE` can appear for a department that looked empty before.

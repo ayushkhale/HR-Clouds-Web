@@ -1918,10 +1918,10 @@
         },
         "is_hod": {
           "tier": "onboarding",
-          "hint": "Makes this person the head of the department. Employees in it then report to them unless someone else is chosen.",
+          "hint": "Makes them head of that department when they accept, and puts them in it. People in the department report to them unless someone else is chosen.",
           "askMaya": {
             "enabled": true,
-            "question": "What does a head of department do in HR Clouds, and who reports to them?"
+            "question": "What does a head of department do in HR Clouds, and when does someone become one?"
           }
         },
         "job_status": {
@@ -3427,6 +3427,63 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens to an employee's leave balance and their future leave when their leave policy is given an end date?"
+          }
+        }
+      }
+    },
+    "organization.profile_setup": {
+      "kind": "form",
+      "description": "An HR filling in their own job profile (md_organization/4_org_employee_api.md §11). The person who registers an organisation is created before it has any offices or departments, so their record starts blank and nobody else can fill it. Every field is fill-once, which is why the help says where each one lands rather than how to pick a value. HR only: the endpoints are 403 for everyone else.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Your own staff details. Each can be set only once, because payroll, leave and your length of service are all worked out from them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can I only set my own job details once, and who can correct them afterwards?"
+          }
+        },
+        "joining_date": {
+          "tier": "onboarding",
+          "hint": "Your first day. Until it is here you cannot be given a leave policy and payroll leaves you out, so it has to be the real date.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does my joining date decide about my leave and my pay?"
+          }
+        },
+        "department_id": {
+          "tier": "onboarding",
+          "hint": "Puts you in that department's rosters, reports and approvals. It does not make you its head or change who you report to.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What changes for me when I join a department, and does it affect who I report to?"
+          }
+        },
+        "employment_type": {
+          "tier": "onboarding",
+          "hint": "Full-time, part-time, contract or intern. Leave policies and some pay rules can apply to one of these and not the others.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does employment type change someone's leave and pay?"
+          }
+        },
+        "work_mode": {
+          "tier": "onboarding",
+          "hint": "Where you usually work. Attendance uses it to decide whether you are expected to check in at an office.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does work mode affect the way attendance is recorded?"
+          }
+        },
+        "marital_status": {
+          "tier": "onboarding",
+          "hint": "Some leave types are only open to people of a given marital status, so this decides whether those apply to you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which kinds of leave depend on marital status?"
           }
         }
       }

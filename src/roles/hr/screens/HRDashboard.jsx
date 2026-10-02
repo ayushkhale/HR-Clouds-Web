@@ -19,10 +19,11 @@ import { employeeCode, initials, listFrom, num, personName, unwrap } from "../..
 import { fmtDate, fmtMinutes, fmtTime, monthLabel, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { WORK_MODES, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
-import { EmptyState, ErrorState, FilterTabs, LoadingRows } from "../../../shared/attendance/ui";
+import { EmptyState, ErrorState, FilterTabs, LoadingRows, Toast, useToast } from "../../../shared/attendance/ui";
 import { greetingFor } from "../../../shared/utils/greeting";
 import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
+import ProfileSetupCard from "../../../shared/organization/ProfileSetupCard";
 
 const LIVE_REFRESH_MS = 60_000;
 const MODE_COLORS = { office: "#7C3AED", remote: "#818CF8", field: "#D946EF", hybrid: "#C4B5FD" };
@@ -171,6 +172,7 @@ function DepartmentSummaryCard({ className = "" }) {
 
 function HRDashboard() {
   const { user } = useAuth();
+  const { toast, showToast, clearToast } = useToast();
   const now = new Date();
   // Local date passed explicitly: the server's default "today" is IST (§8.6).
   // Evaluated on every call, so the 60s poll rolls over at local midnight.
@@ -241,6 +243,13 @@ function HRDashboard() {
           subtitle="Monitor live attendance, rules, shift management and holidays."
           image="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312"
         />
+
+        {/* Directly under the greeting, and above the day's numbers: this is the
+            first screen after registering an organisation, and the card is how
+            the creator finds out their own record was left blank. It renders
+            nothing once setup is complete, which is every login after the
+            first — so it costs the usual dashboard nothing. */}
+        <ProfileSetupCard onToast={showToast} />
 
         {/* Left half: my punch card over the month's trend. Right half: today's
             live numbers, stretched to the height of both. This mirrors the
@@ -360,6 +369,7 @@ function HRDashboard() {
           <AttendanceDirectory />
         </div>
       </main>
+      <Toast toast={toast} onClose={clearToast} />
     </>
   );
 }

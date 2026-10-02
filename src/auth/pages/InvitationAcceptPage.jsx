@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { clearOrgEmployeesCache } from "../../shared/utils/orgEmployees";
 import { organizationAPI, tokenHelper } from "../../shared/api";
 import { HiEye, HiEyeOff, HiCheck, HiExclamationCircle } from "react-icons/hi";
 import OrgLogo from "../../shared/components/OrgLogo";
@@ -85,6 +86,15 @@ function InvitationAcceptPage() {
       }
 
       await organizationAPI.acceptInvitation(payload, inviteData?.is_new_user);
+      // Accepting can change the organisation's shape, not just add a person:
+      // an HR invited as head of a department takes the headship, joins that
+      // department, inherits the previous head's reporting lines and adopts
+      // the department's report-less members — all on accept, never at invite
+      // time. An EXISTING user accepting (is_new_user false) is already signed
+      // in and holding a roster copy that is now wrong in several places, so
+      // drop it; a brand-new user has nothing cached yet and this is a no-op
+      // for them.
+      clearOrgEmployeesCache();
       setPageState("success");
     } catch (err) {
       setFormError(err.message || "Failed to accept invitation. Please try again.");

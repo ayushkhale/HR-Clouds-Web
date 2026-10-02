@@ -314,6 +314,15 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
 
     try {
       const payload = { email, role };
+      // Only sent when true, and that is deliberate. The server writes
+      // `!!make_hod` on every manager/HR invite as of 2026-10-02, so omitting
+      // it writes false — which is what CLEARS a stale intent left by an
+      // earlier invitation that lapsed. Sending nothing is the safe default;
+      // re-adding an explicit `make_hod: false` here would change nothing.
+      //
+      // Both guards are load-bearing: `role: "employee"` is 400 INVALID_HOD_ROLE
+      // and a missing department is 400 MISSING_DEPARTMENT_FOR_HOD. The effect
+      // below keeps the toggle itself in step with both.
       if (makeHod && (role === "manager" || role === "hr") && department) payload.make_hod = true;
       if (name) payload.name = name;
       if (empId) payload.emp_id = empId;
@@ -573,6 +582,24 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                           <option value="false">No</option>
                           <option value="true">Yes (Assign as HOD)</option>
                         </select>
+                        {/* The headship is STAGED now and applied when they
+                            accept, so the department is not left headless by an
+                            invitation nobody takes up. Said out loud, because
+                            "Yes" otherwise reads as "done". */}
+                        {makeHod && (role === "manager" || role === "hr") && department ? (
+                          <p className="text-[11px] text-purple-600 font-medium mt-1">
+                            They become head of {departments.find((d) => (d.id || d._id) === department)?.name || "this department"} when
+                            they accept — until then it keeps the head it has, and they join the department at the same moment.
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {role === "employee"
+                              ? "Only managers and HR admins can head a department."
+                              : !department
+                                ? "Pick a department first."
+                                : "Leave this as No unless they’re taking over the department."}
+                          </p>
+                        )}
                       </div>
     
                       {/* Reporting Person (Shifted to next grid position) */}

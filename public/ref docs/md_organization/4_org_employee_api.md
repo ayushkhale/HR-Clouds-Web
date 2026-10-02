@@ -1,8 +1,8 @@
 # Organization Employee APIs
 
 **Base URL:** `/api/v1/organizations/employees`  
-**Source of Truth:** `organization.routes.js`, `organization.controller.js`, `organization.service.js`  
-**Last Verified:** August 21, 2026
+**Source of Truth:** `employee.routes.js`, `employee.controller.js`, `organization.service.js`  
+**Last Verified:** September 6, 2026
 
 > **Note:** The specific function and ORM method names (e.g., `Organization.create()`) used in the internal execution flows are conceptual/dummy names intended to clearly illustrate the business logic. The internal execution logic, database interactions, transactions, side-effects, and validations described are strictly accurate and verified against the actual codebase.
 
@@ -24,24 +24,27 @@ GET /api/v1/organizations/employees
 
 ### Request Structure
 **Query Parameters:**
-- `purpose`: String. Required (for HR/Admin). Determines the shape of the returned data.
-  - Allowed values: `all_manager_list`, `all_hr_list`, `all_employee_list`, `shift_assignment`, `emp_report`, `general`.
-- `include_inactive`: Boolean. Optional (default false).
-- `search`: String. Optional.
-- `department_id`: UUID. Optional.
+- `purpose`: String. **Required.** Determines the shape of the returned data.
+  - Allowed values: `all_manager_list`, `all_hr_list`, `all_employee_list`, `shift_assignment`, `emp_report`. (No `general` — an unknown value is rejected with `400`.)
+- `include_inactive`: Boolean. Optional (default `false`).
+- `search`: String. Optional. Max 150 chars. Case-insensitive `ILIKE` across identifier/email, first/last/display name, employee_code, and designation.
+- `department_id`: UUIDv4. Optional. Matched across the employee/manager/hr profile that the user actually holds.
+- `page`: Integer ≥ 1. Optional (default `1`).
+- `limit`: Integer 1–100. Optional (default `20`).
 
 ### Internal Working
-1. Fetch all `user_roles` for the `orgId`. Includes eager-loaded `user` and all 3 role profiles (employee, manager, hr) plus department and location relations.
-2. **Hierarchy-Scoping (New):** For Managers, the results are strictly hierarchy-scoped server-side. Managers get only their direct reports with a roster-safe projection (PAN/UAN/addresses/DOB/personal_email/marital_status stripped), regardless of the `purpose` param they send. HR/admin behavior unchanged.
-3. Iterate through records and map them to a unified `employeeData` object.
-4. **Deduplication:** Use a Map keyed by `user_id`. If a user has multiple roles (e.g., HR and Employee), the map prioritizes keeping the highest role (`manager` > `hr` > `employee`).
-5. **Purpose Filtering/Mapping (HR/Admin only):**
-   - `all_*_list`: Filters by the requested role and returns a slimmed-down object (name, email, contact, role, department, designation, avatar, work_location, is_active).
-   - `shift_assignment`: Returns only data relevant for scheduling (name, email, role, department, work_mode, work_location).
-   - `emp_report`: Returns the fully hydrated object with all 30+ fields (pan, uan, addresses, etc.).
+1. **Scope resolution (server-side):** the caller's data scope is resolved from `user_reporting_mappings`, not denormalized `reporting_person` fields. HR/admin/super-admin resolve to a global scope (whole org); a manager resolves to their accessible `user_ids`. An empty manager scope short-circuits to an empty page **before** any query runs.
+2. **Filtering & pagination are pushed into SQL.** `search`, `department_id`, the manager's `user_ids` scope, and the role filter implied by `all_{manager,hr,employee}_list` all become `WHERE` conditions, and the DB applies `LIMIT`/`OFFSET`. This is why the `pagination.total` count is exact for the filtered set — filtering a fetched page would under-count. Ordering is deterministic (`created_at ASC, id ASC`) so pages never overlap or skip rows.
+3. **`include_inactive`:** the `user` join is a LEFT JOIN. By default only `status = 'active'` accounts are returned; `include_inactive=true` **surfaces suspended accounts** (previously an inner join dropped them entirely, so HR could not see a suspended user even when asking for inactives).
+4. **Deduplication by `user_id`** is a no-op safety net: the unique `(org_id, user_id)` index means a user holds exactly one role row per org, so this never drops a legitimate row and cannot shorten a page.
+5. **Hierarchy-scoped projection:** a manager always receives the roster-safe view (PAN/UAN/addresses/DOB/personal_email/marital_status stripped), regardless of the `purpose` they send. HR/admin behavior is unchanged.
+6. **Purpose Filtering/Mapping (global approvers only):**
+   - `all_*_list`: filtered by the requested role in SQL; returns a slim object (name, email, contact, role, department, designation, avatar, work_location, is_active).
+   - `shift_assignment`: returns only scheduling fields (name, email, role, department, work_mode, work_location).
+   - `emp_report`: returns the fully hydrated object with all 30+ fields (pan, uan, addresses, etc.).
 
 ### Response Structure
-**200 OK** (Example for `shift_assignment`)
+**200 OK** (Example for `shift_assignment`) — now a paginated envelope (`data` + `pagination`):
 ```json
 {
   "success": true,
@@ -56,7 +59,8 @@ GET /api/v1/organizations/employees
       "work_mode": "hybrid",
       "work_location": "Headquarters"
     }
-  ]
+  ],
+  "pagination": { "total": 137, "page": 1, "limit": 20, "total_pages": 7 }
 }
 ```
 
@@ -429,14 +433,275 @@ Updates the logged-in user's own personal fields. Implements a strict whitelist,
 ## 9. Get Employee Directory
 
 ### Business Purpose
-Fetches a public-safe employee directory. Deliberately omits sensitive fields (addresses, PAN/UAN, DOB, personal_email, marital_status) and only returns name, email, avatar, role, department, designation, and work_location.
+Fetches a public-safe, org-wide colleague directory. **Every member may look up every other _active_ member** — it is deliberately NOT hierarchy-scoped, which is only safe because the projection is public-safe: it omits addresses, PAN/UAN, DOB, personal_email, and marital_status, returning only name, email, avatar, role, department, designation, and work_location. This is a dedicated method (not a `purpose` on Get Employees) precisely so the hierarchy short-circuit there can never leak the roster projection to a plain employee.
 
 ### Endpoint Contract
 - **Method:** `GET`
 - **Full Endpoint:** `/api/v1/organizations/directory`
 - **Authentication:** Required. Bearer token.
-- **Authorization:** All org roles.
+- **Authorization:** All org roles (employee, manager, hr, admin, super-admin).
 
 ### Request Structure
-**Body:** None.
+**Query Parameters** (validated; unknown keys are stripped):
+- `search`: String. Optional. Max 150 chars. Same case-insensitive `ILIKE` matching as Get Employees.
+- `department_id`: UUIDv4. Optional.
+- `page`: Integer ≥ 1. Optional (default `1`).
+- `limit`: Integer 1–100. Optional (default `20`).
 
+There is no `purpose` (the directory has one fixed projection) and no `include_inactive` (a directory only ever lists currently-active members — `includeInactive` is forced `false` at the DB layer, with a belt-and-suspenders `is_active` guard dropping any suspended account).
+
+### Response Structure
+**200 OK** — paginated envelope (`data` + `pagination`):
+```json
+{
+  "success": true,
+  "message": "Directory fetched successfully",
+  "data": [
+    {
+      "user_id": "uuid-1",
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "avatar_url": "https://...",
+      "role": "employee",
+      "department": "Engineering",
+      "designation": "Backend Dev",
+      "work_location": "Headquarters"
+    }
+  ],
+  "pagination": { "total": 137, "page": 1, "limit": 20, "total_pages": 7 }
+}
+```
+
+
+---
+
+## 10. Update HR-Owned Employee Fields
+
+### Business Purpose
+Lets HR correct the fields that the personal-profile edits (§6, §8) deliberately exclude because leave depends on them:
+- `gender` and `marital_status` gate gender- or marital-status-restricted leave types;
+- `joining_date` drives leave pro-rata. Leave assignment refuses to guess it.
+
+Before this endpoint, a gender set wrongly at invite could not be corrected by anyone, and a joining date missing at invite could never be added.
+
+### Endpoint Contract
+- **Method:** `PATCH`
+- **Full Endpoint:** `/api/v1/organizations/employees/:id/hr-fields`
+- **Authentication:** Required. Bearer token.
+- **Authorization:** `hr` only (`HR_ONLY`). Not on yourself.
+
+**Path Parameter:** `id` (UUIDv4) - The `user_id`.
+**Body:**
+```json
+{
+  "gender": "male",
+  "marital_status": "married",
+  "joining_date": "2022-05-16",
+  "reason": "Gender was selected wrongly on the invitation"
+}
+```
+
+**Validation:**
+- `gender`: `male` · `female` · `other` · `prefer_not_to_say` · `null`. These match the profile column and the leave-type `allowed_genders` vocabulary.
+- `marital_status`: string ≤ 50 or `null`.
+- `joining_date`: `YYYY-MM-DD`, a real date. **Fill-once:** accepted only while the profile has no joining date. Changing an existing one would move payroll proration and tenure, so it is refused.
+- `reason`: required, 3–500 characters.
+- At least one of `gender`, `marital_status` or `joining_date` must be sent. Any other key is stripped.
+
+### Complete Internal Execution Flow
+```text
+PATCH /api/v1/organizations/employees/:id/hr-fields
+        ↓
+AuthMiddleware.authenticate()
+        ↓
+AuthMiddleware.requireActiveOrg
+        ↓
+AuthMiddleware.authorize(['hr'])
+        ↓
+EmployeeController.handleUpdateHrOwnedFields()   (UUID check + Joi)
+        ↓
+OrganizationService.updateHrOwnedFields()
+        ↓
+OrganizationRepository.getEmployeeById()          (membership role → role profile)
+        ↓
+OrganizationRepository.updateRoleProfileFields()  (only changed fields; joining_date guarded on IS NULL)
+        ↓
+[ORG_AUDIT] log line (actor, target, reason, old → new)
+        ↓
+OrganizationService.getEmployeeById()
+        ↓
+HTTP 200 OK
+```
+
+### Internal Working
+- **Self-edit:** an HR user editing their own record is refused (`SELF_EDIT_NOT_ALLOWED`); otherwise HR could grant themselves gender-gated leave.
+- **Which table:** the write goes to the role profile of the member's **membership role**.
+- **No-op values:** a value equal to the stored one is not written and does not appear in `changes`.
+- **Concurrent fill:** the `joining_date` write carries a `joining_date IS NULL` guard. A concurrent fill that wins first makes this request fail with the same `409`, so it never silently overwrites.
+- **Pending leave:** pending requests are not re-validated against the new gender or marital status. Future applications use the new values.
+- **Audit:** the organization module has no audit table, so the change is recorded as a structured `[ORG_AUDIT]` log line carrying the reason.
+
+### Database Operations
+- **Read:** `user_roles` + `users` + role profiles (`getEmployeeById`).
+- **Update:** the role-profile table for the member's role, `UPDATE … SET <changed fields> WHERE org_id = :orgId AND user_id = :id [AND joining_date IS NULL]`.
+
+### Response Structure
+**200 OK**
+```json
+{
+  "success": true,
+  "message": "Employee HR fields updated successfully",
+  "data": {
+    "user_id": "…", "name": "…", "gender": "male", "marital_status": "married", "joining_date": "2022-05-16",
+    "…": "the same employee detail as GET /employees/:id",
+    "changes": { "gender": { "from": "female", "to": "male" }, "joining_date": { "from": null, "to": "2022-05-16" } }
+  }
+}
+```
+
+**Errors:**
+
+| HTTP | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Missing `reason`, no field to change, or a bad value |
+| 400 | `INVALID_ID_FORMAT` | `id` is not a UUID |
+| 400 | `SELF_EDIT_NOT_ALLOWED` | HR editing their own record |
+| 404 | `EMPLOYEE_NOT_FOUND` | Unknown member |
+| 404 | `PROFILE_NOT_FOUND` | The member has no role profile |
+| 409 | `JOINING_DATE_ALREADY_SET` | A joining date is already on file |
+
+---
+
+## 11. HR Self-Setup: Setup Status & Job Profile Completion
+
+### Business Purpose
+The organization creator is provisioned **before** the org has any structure: at registration there
+are no locations and no departments, so their `hr_profiles` row carries an employee code and
+nothing else — no `joining_date`, `department_id`, `location_id`, `designation`,
+`employment_type`, `work_mode`, `gender` or `marital_status`. Every endpoint that can write those
+fields on a member (§5 department transfer, §10 hr-fields) refuses a self-edit, and the creator is
+normally the only HR in the org — so nobody could fill them. The practical damage of the blanks:
+
+| Blank field | What breaks |
+|---|---|
+| `joining_date` | Leave policy assignment refuses the member (`NO_JOINING_DATE`); payroll excludes them (`joining_date_missing`); bonus tenure skips them; payslips / annual statements / experience letters print an empty DOJ; the attendance series loses its lower bound |
+| `department_id` | Department rosters, filters, reports, department-scoped bonus rules and `countProfilesInDepartment()` all skip them |
+| `location_id` | No work location on the profile; attendance geofence has nothing to resolve |
+| `gender` / `marital_status` | Gender- and marital-status-gated leave types cannot be evaluated |
+
+These two endpoints close that gap for the HR plane without weakening the self-edit bans: they only
+ever **fill a blank**.
+
+### 11.1 `GET /api/v1/organizations/me/setup-status`
+
+- **Authentication:** Required. Bearer token.
+- **Authorization:** `hr` only (`HR_ONLY`). Managers and employees have these fields set by HR.
+- **Body:** none.
+
+**200 OK**
+```json
+{
+  "success": true,
+  "message": "Setup status fetched successfully",
+  "data": {
+    "is_complete": false,
+    "missing_fields": ["joining_date", "department_id", "location_id", "designation", "employment_type", "work_mode", "gender", "marital_status"],
+    "locked_fields": [],
+    "current_values": {
+      "joining_date": null, "department_id": null, "location_id": null, "designation": null,
+      "employment_type": null, "work_mode": null, "gender": null, "marital_status": null
+    },
+    "org_structure": {
+      "locations_count": 0,
+      "departments_count": 0,
+      "can_set_location": false,
+      "can_set_department": false
+    }
+  }
+}
+```
+
+**Field notes**
+- `missing_fields` — still blank (SQL `NULL`), therefore writable through §11.2. This is the exact
+  condition the fill-once write is guarded on, so anything listed here is accepted by §11.2.
+- `locked_fields` — already on file. Sending one to §11.2 is a `409 FIELD_ALREADY_SET`; a real
+  correction goes through §10 (gender / marital_status / joining_date) or §5 (department).
+- `org_structure.can_set_location` / `can_set_department` — `false` means the org has no **active**
+  location / department yet, so the wizard must send the user to create one first
+  (`POST /organizations/locations`, `POST /organizations/departments`).
+- This is a **soft gate**: nothing else in the API is blocked on `is_complete`.
+
+### 11.2 `PATCH /api/v1/organizations/me/job-profile`
+
+- **Authentication:** Required. Bearer token.
+- **Authorization:** `hr` only (`HR_ONLY`).
+- **Body:** at least one of the eight fields (`reason` alone is rejected).
+
+```json
+{
+  "joining_date": "2024-04-01",
+  "department_id": "41fd3123-076b-4380-a6e4-95d3a3cf78a4",
+  "location_id": "6b84a9f5-aaa7-4800-bf73-0f4238cec4c2",
+  "designation": "Founder & Head of People",
+  "employment_type": "full_time",
+  "work_mode": "on-site",
+  "gender": "male",
+  "marital_status": "married",
+  "reason": "First-run setup after registration"
+}
+```
+
+**Validation**
+- `joining_date`: `YYYY-MM-DD`, a real calendar date, not in the future (one day of slack past UTC
+  today for orgs ahead of UTC), not before `1950-01-01`.
+- `department_id` / `location_id`: UUIDv4, must belong to **this** org and be active.
+- `designation`: 2–150 characters.
+- `employment_type`: `full_time` · `part_time` · `contract` · `intern`.
+- `work_mode`: `on-site` · `remote` · `hybrid` · `field`.
+- `gender`: `male` · `female` · `other` · `prefer_not_to_say`.
+- `marital_status`: string ≤ 50.
+- `reason`: optional, 3–500 characters, recorded in the audit log.
+- `null` / `""` are rejected for every field — this endpoint fills blanks, it never clears a value.
+- Any other key (`employee_code`, `job_status`, `pan_number`, `reporting_person`, …) is stripped.
+
+**Semantics**
+- **Fill-once per field.** The write is guarded in SQL on "the column is still NULL", so a retried
+  or duplicated request, and two concurrent requests, cannot both land — the loser gets
+  `409 FIELD_ALREADY_SET`.
+- Fields may be filled across several calls; a `department_id` offered later is still cross-checked
+  against a `location_id` filled earlier (`400 LOCATION_MISMATCH`).
+- Writing `department_id` also refreshes the denormalized `department` name (and `location_id`
+  refreshes `work_location`), which is what clears a stale `'Human Resources'` / `'General'` label.
+- **Reporting lines and HOD-ship are NOT touched.** Joining a department does not make the caller
+  report to its head, and does not make them its head — those stay with §5 and the department
+  endpoints.
+- Audited: `[ORG_AUDIT] {"action":"employee.job_profile.self_completed", …, "changes":{…}}`.
+
+**200 OK**
+```json
+{
+  "success": true,
+  "message": "Job profile updated successfully",
+  "data": {
+    "profile": { "…": "the same shape as GET /organizations/me" },
+    "changes": {
+      "joining_date": { "from": null, "to": "2024-04-01" },
+      "department_id": { "from": null, "to": "41fd3123-…" },
+      "department": { "from": "Human Resources", "to": "HR Department" }
+    },
+    "setup_status": { "…": "the same shape as §11.1, recomputed after the write" }
+  }
+}
+```
+
+**Errors**
+
+| HTTP | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | No real field sent, bad enum, malformed/future/too-old `joining_date`, non-UUID id, `null`/`""` |
+| 400 | `LOCATION_MISMATCH` | The department sits at a different location than the one in the payload or already on file |
+| 400 | `DEPARTMENT_INACTIVE` / `LOCATION_INACTIVE` | The target row is deactivated |
+| 403 | `FORBIDDEN` | Caller is not `hr` |
+| 404 | `PROFILE_NOT_FOUND` | No membership, or no role-profile row for the caller |
+| 404 | `DEPARTMENT_NOT_FOUND` / `LOCATION_NOT_FOUND` | The id does not belong to this org |
+| 409 | `FIELD_ALREADY_SET` | One or more named fields already hold a value (message lists them), or a concurrent fill won the race |
