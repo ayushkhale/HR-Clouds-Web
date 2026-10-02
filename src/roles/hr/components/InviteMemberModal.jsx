@@ -451,11 +451,18 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender <span className="text-rose-400">*</span></label>
+                        <div className="flex items-center">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Gender <span className="text-rose-400">*</span></label>
+                          <FieldHelp surface="organization.invite" field="gender" label="gender" className="mb-1.5" overlay />
+                        </div>
                         <select value={gender} onChange={(e) => setGender(e.target.value)} required className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all">
                           <option value="">---Select---</option>
                           {GENDER_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
                         </select>
+                        {/* Neither profile endpoint accepts `gender` — it is
+                            stripped from both PATCHes — so this is the only
+                            place it can ever be set. */}
+                        <p className="text-[10px] text-slate-400 mt-1">Set once, here. It can’t be changed from the profile afterwards.</p>
                       </div>
                     </div>
                   </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
-import { canAccessWorkspace, dashboardPathForRole } from "../shared/auth/permissions";
+import { canAccessWorkspace, dashboardPathForRole, workspaceForRole } from "../shared/auth/permissions";
 import Skeleton from "../shared/components/Skeleton";
 
 // Landing Layout & Pages
@@ -13,7 +13,10 @@ import PricingPage from "../landing/pages/Pricing";
 import Contact from "../landing/pages/Contact";
 import PrivacyPolicy from "../landing/pages/legal/PrivacyPolicy";
 import TermsOfService from "../landing/pages/legal/TermsOfService";
-import CookiePolicy from "../landing/pages/legal/CookiePolicy";
+// File is BrowserStoragePolicy.jsx, not CookiePolicy.jsx: ad and cookie-banner
+// blockers match "cookie" in the dev-server module URL and blocked this import,
+// which took the whole router (and so the whole app) down in `npm run dev`.
+import CookiePolicy from "../landing/pages/legal/BrowserStoragePolicy";
 import StatutoryGuidelines from "../landing/pages/legal/StatutoryGuidelines";
 
 // Auth Layout & Pages
@@ -63,6 +66,7 @@ import SelectOrgPage from "../auth/pages/SelectOrgPage";
    these is now its own chunk, fetched when its route is first visited.
 ──────────────────────────────────────────────────────────────────────── */
 const DashboardLayout = lazy(() => import("../shared/layouts/DashboardLayout"));
+const NotFoundPage = lazy(() => import("../shared/screens/NotFoundPage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
@@ -72,8 +76,8 @@ const HRInboxPage = lazy(() => import("../roles/hr/screens/HRInboxPage"));
 const EmployeesPage = lazy(() => import("../roles/hr/screens/EmployeesPage"));
 const InvitesPage = lazy(() => import("../roles/hr/screens/InvitesPage"));
 const EmployeeProfilePage = lazy(() => import("../roles/hr/screens/EmployeeProfilePage"));
-const DepartmentsPage = lazy(() => import("../roles/hr/screens/DepartmentsPage"));
-const DepartmentDetailPage = lazy(() => import("../roles/hr/screens/DepartmentDetailPage"));
+const DepartmentsPage = lazy(() => import("../shared/screens/DepartmentsPage"));
+const DepartmentDetailPage = lazy(() => import("../shared/screens/DepartmentDetailPage"));
 const EmployeeDashboard = lazy(() => import("../roles/employee/screens/EmployeeDashboard"));
 const EmployeeAttendancePage = lazy(() => import("../roles/employee/screens/EmployeeAttendancePage"));
 const AttendanceRegularizationsPage = lazy(() => import("../roles/employee/screens/AttendanceRegularizationsPage"));
@@ -177,9 +181,19 @@ const ManagerLetterProposalsPage = lazy(() => import("../roles/manager/documents
 const TeamCompliancePage = lazy(() => import("../roles/manager/documents/screens/TeamCompliancePage"));
 const TeamRequestsPage = lazy(() => import("../roles/manager/documents/screens/TeamRequestsPage"));
 
-function CatchAll() {
-  const { isAuthenticated } = useAuth();
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
+/* ─── 404 ────────────────────────────────────────────────────────────────────
+   An unknown address shows the "missing page report" instead of silently
+   bouncing home (which used to hide broken links). It is a standalone page
+   with no sidebar for everyone; a signed-in member of an organisation gets a
+   search over their own workspace's pages and a way back to their own
+   dashboard, worked out from their role, never from the URL they mistyped.
+   Visitors and guests search the public site.
+──────────────────────────────────────────────────────────────────────────── */
+function NotFoundRoute() {
+  const { isAuthenticated, isLoading, role } = useAuth();
+  if (isLoading) return <Skeleton type="app" />;
+  const workspace = workspaceForRole(role);
+  return <NotFoundPage signedIn={isAuthenticated && Boolean(workspace) && workspace !== "guest"} />;
 }
 
 /* ─── Protected Route ────────────────────────────────────────────────────────
@@ -224,12 +238,14 @@ function ProtectedRoute({ children, workspace }) {
     return <Navigate to={loginPathFrom(location)} replace />;
   }
 
-  // Role dimension: keep signed-in users out of workspaces their role can't use
-  // (e.g. an employee manually navigating to /dashboard/hr/*).
-  // Only gate when the role is actually known — an unexpected/role-less token
-  // would otherwise bounce to /dashboard and sit there forever. The backend
-  // still authorizes every request, so failing open here is safe.
-  if (workspace && role && !canAccessWorkspace(role, workspace)) {
+  // Role dimension: one role, one workspace (permissions.js). HR typing
+  // /dashboard/employee/* or following a stray link there is sent home to
+  // /dashboard/hr, never rendered the employee shell. This fails CLOSED: it
+  // used to skip the check when the role was unknown ("the backend authorises
+  // every request anyway"), but the self-service endpoints accept every tenant
+  // role, so the backend does not stop a wrong-workspace render. An unknown
+  // role goes to /dashboard, which says so instead of spinning.
+  if (workspace && !canAccessWorkspace(role, workspace)) {
     return <Navigate to={dashboardPathForRole(role)} replace />;
   }
 
@@ -274,8 +290,9 @@ function AppRoutes() {
       </Route>
 
       {/* ─── ONBOARDING & SETUP WORKSPACE (Step 2) ─── */}
-      <Route path="/onboarding" element={<GuestDashboard />} />
-      <Route path="/setup-organization" element={<GuestDashboard />} />
+      {/* Guest-only: a member of an organisation is sent to their own workspace. */}
+      <Route path="/onboarding" element={<ProtectedRoute workspace="guest"><GuestDashboard /></ProtectedRoute>} />
+      <Route path="/setup-organization" element={<ProtectedRoute workspace="guest"><GuestDashboard /></ProtectedRoute>} />
       <Route path="/register-organization" element={<RegisterOrgPage />} />
 
       {/* ─── INVITATION ACCEPTANCE (standalone layout) ─── */}
@@ -283,7 +300,7 @@ function AppRoutes() {
 
       {/* ─── STANDALONE DASHBOARDS (no sidebar shell) ─── */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/dashboard/guest" element={<ProtectedRoute><GuestDashboard /></ProtectedRoute>} />
+      <Route path="/dashboard/guest" element={<ProtectedRoute workspace="guest"><GuestDashboard /></ProtectedRoute>} />
 
       {/* ─── HR WORKSPACE ───
          The layout renders the sidebar once for the whole group, so navigating
@@ -479,7 +496,7 @@ function AppRoutes() {
       </Route>
 
       {/* ─── CATCH-ALL ─── */}
-      <Route path="*" element={<CatchAll />} />
+      <Route path="*" element={<NotFoundRoute />} />
     </Routes>
     </Suspense>
     </>

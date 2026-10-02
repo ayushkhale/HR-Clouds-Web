@@ -8,6 +8,12 @@
 //     (that payload is keyed by department NAME, not id — matched on name)
 //   · its office                   → GET /organizations/locations
 // Anything a source doesn't answer reads N/A rather than a made-up zero.
+//
+// Shared by HR and the manager through `viewer` (DEPARTMENT_PLANES). For a
+// manager: no Edit (HR-only write), no attendance tiles (#61 is hr/admin, so it
+// is never called), and the roster read is scoped to their own reports — so
+// "Members" becomes "Your team here" rather than pretending to be the whole
+// department, and a profile link appears only for someone on their team.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,14 +22,15 @@ import {
   HiArrowLeft, HiCalendar, HiCheckCircle, HiClock, HiExclamationCircle, HiGlobeAlt, HiLocationMarker,
   HiOutlineOfficeBuilding, HiPencil, HiRefresh, HiSearch, HiUser, HiUserGroup, HiUsers,
 } from "react-icons/hi";
-import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import { attendanceAPI, organizationAPI } from "../../../shared/api";
-import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
-import { ErrorState, PersonCell } from "../../../shared/attendance/ui";
-import { fmtDate, todayYMD } from "../../../shared/attendance/dates";
-import { humanize } from "../../../shared/attendance/enums";
-import { roleLabel } from "../../../shared/auth/permissions";
-import { personName } from "../../../shared/attendance/normalize";
+import DashboardTopBar from "../components/DashboardTopBar";
+import { organizationAPI } from "../api";
+import { DEPARTMENT_PLANES } from "../organization/departmentPlanes";
+import { fetchAllOrgEmployees } from "../utils/orgEmployees";
+import { ErrorState, PersonCell } from "../attendance/ui";
+import { fmtDate, todayYMD } from "../attendance/dates";
+import { humanize } from "../attendance/enums";
+import { roleLabel } from "../auth/permissions";
+import { personName } from "../attendance/normalize";
 
 const CARD = "bg-white rounded-2xl border border-slate-100 shadow-xs";
 const TH = "px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wide text-left";
@@ -54,7 +61,9 @@ function Row({ icon: Icon, label, children }) {
   );
 }
 
-export default function DepartmentDetailPage() {
+export default function DepartmentDetailPage({ viewer = "hr" }) {
+  const plane = DEPARTMENT_PLANES[viewer] || DEPARTMENT_PLANES.hr;
+  const isTeamView = plane.rosterIsTeam;
   const { departmentId } = useParams();
   const navigate = useNavigate();
   const [state, setState] = useState({ loading: true, error: null, departments: [], members: [], locations: [], attendance: null });
@@ -66,7 +75,8 @@ export default function DepartmentDetailPage() {
       organizationAPI.getDepartments(),
       fetchAllOrgEmployees({ includeInactive: true }),
       organizationAPI.getLocations(),
-      attendanceAPI.getDepartmentSummary(todayYMD()),
+      // HR-only (#61): a manager's plane has no summary, so it is never called.
+      plane.todaySummary ? plane.todaySummary(todayYMD()) : Promise.resolve(null),
     ]);
     setState({
       loading: false,
@@ -77,7 +87,18 @@ export default function DepartmentDetailPage() {
       locations: locRes.status === "fulfilled" && Array.isArray(locRes.value?.data) ? locRes.value.data : [],
       attendance: attRes.status === "fulfilled" ? (attRes.value?.data ?? null) : null,
     });
-  }, []);
+  }, [plane]);
+
+  // A profile the viewer may open: HR opens anyone; a manager only someone in
+  // their own roster (their reports), so the head of another team is plain text.
+  const profilePath = useCallback(
+    (userId) => {
+      if (!userId) return null;
+      if (isTeamView && !state.members.some((m) => m.user_id === userId)) return null;
+      return plane.memberPath(userId);
+    },
+    [isTeamView, plane, state.members],
+  );
 
   useEffect(() => { load(); }, [load]);
 
@@ -131,7 +152,7 @@ export default function DepartmentDetailPage() {
     <>
       <DashboardTopBar title="Departments" />
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
-        <Link to="/dashboard/hr/departments" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-purple-700">
+        <Link to={plane.listPath} className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-purple-700">
           <HiArrowLeft className="w-4 h-4" /> All departments
         </Link>
 
@@ -174,18 +195,26 @@ export default function DepartmentDetailPage() {
                 <button type="button" onClick={load} className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition">
                   <HiRefresh className="w-4 h-4" /> Refresh
                 </button>
-                <button type="button" onClick={() => navigate(`/dashboard/hr/departments?edit=${dept.id}`)} className="inline-flex items-center gap-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl transition">
-                  <HiPencil className="w-4 h-4" /> Edit department
-                </button>
+                {plane.update && (
+                  <button type="button" onClick={() => navigate(`${plane.listPath}?edit=${dept.id}`)} className="inline-flex items-center gap-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl transition">
+                    <HiPencil className="w-4 h-4" /> Edit department
+                  </button>
+                )}
               </div>
             </section>
 
             {/* ── Headline numbers ───────────────────────────────────────── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <Tile icon={HiUsers} label={`Members${activeCount !== members.length ? ` · ${activeCount} active` : ""}`} value={members.length} tone="purple" />
-              <Tile icon={HiCheckCircle} label="Present today" value={stats ? stats.final_present_count ?? stats.present ?? 0 : "N/A"} />
-              <Tile icon={HiCalendar} label="On leave today" value={stats ? stats.on_leave ?? 0 : "N/A"} tone="fuchsia" />
-              <Tile icon={HiClock} label="Attendance today" value={stats?.attendance_percentage == null ? "N/A" : `${Math.round(stats.attendance_percentage)}%`} />
+            {/* The three attendance tiles exist only where the plane can read
+                today's summary; a manager sees their head-count alone. */}
+            <div className={`grid gap-4 ${plane.todaySummary ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"}`}>
+              <Tile icon={HiUsers} label={`${isTeamView ? "Your team here" : "Members"}${activeCount !== members.length ? ` · ${activeCount} active` : ""}`} value={members.length} tone="purple" />
+              {plane.todaySummary && (
+                <>
+                  <Tile icon={HiCheckCircle} label="Present today" value={stats ? stats.final_present_count ?? stats.present ?? 0 : "N/A"} />
+                  <Tile icon={HiCalendar} label="On leave today" value={stats ? stats.on_leave ?? 0 : "N/A"} tone="fuchsia" />
+                  <Tile icon={HiClock} label="Attendance today" value={stats?.attendance_percentage == null ? "N/A" : `${Math.round(stats.attendance_percentage)}%`} />
+                </>
+              )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -194,13 +223,19 @@ export default function DepartmentDetailPage() {
                 <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><HiUser className="w-4 h-4 text-purple-500" /> Head of department</h2>
                 {headEntity ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => dept.head_of_department_id && navigate(`/dashboard/hr/employees/${dept.head_of_department_id}`)}
-                      className="w-full text-left rounded-xl border border-slate-100 p-3 hover:border-purple-200 hover:bg-purple-50/30 transition"
-                    >
-                      <PersonCell entity={headEntity} secondary={headEntity.designation} size="lg" />
-                    </button>
+                    {profilePath(dept.head_of_department_id) ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(profilePath(dept.head_of_department_id))}
+                        className="w-full text-left rounded-xl border border-slate-100 p-3 hover:border-purple-200 hover:bg-purple-50/30 transition"
+                      >
+                        <PersonCell entity={headEntity} secondary={headEntity.designation} size="lg" />
+                      </button>
+                    ) : (
+                      <div className="rounded-xl border border-slate-100 p-3">
+                        <PersonCell entity={headEntity} secondary={headEntity.designation} size="lg" />
+                      </div>
+                    )}
                     <div className="mt-2">
                       <Row label="Work email">{value(headEntity.email || headEntity.identifier)}</Row>
                       <Row label="Role">{headEntity.role ? roleLabel(headEntity.role) : "N/A"}</Row>
@@ -208,7 +243,9 @@ export default function DepartmentDetailPage() {
                     </div>
                   </>
                 ) : (
-                  <p className="text-xs text-slate-400 py-6 text-center">No head assigned. Use Edit department to name one.</p>
+                  <p className="text-xs text-slate-400 py-6 text-center">
+                    {plane.update ? "No head assigned. Use Edit department to name one." : "No head has been assigned yet."}
+                  </p>
                 )}
               </section>
 
@@ -255,9 +292,11 @@ export default function DepartmentDetailPage() {
             <section className={`${CARD} overflow-hidden`}>
               <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-800">Members</h2>
+                  <h2 className="text-sm font-bold text-slate-800">{isTeamView ? "Your team in this department" : "Members"}</h2>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {members.length === 0 ? "Nobody is in this department yet." : `${filtered.length} of ${members.length} shown · click a row to open the profile`}
+                    {members.length === 0
+                      ? (isTeamView ? "Nobody on your team is in this department." : "Nobody is in this department yet.")
+                      : `${filtered.length} of ${members.length} shown · click a row to open the profile`}
                   </p>
                 </div>
                 {members.length > 0 && (
@@ -277,7 +316,9 @@ export default function DepartmentDetailPage() {
 
               {filtered.length === 0 ? (
                 <p className="py-12 text-center text-sm text-slate-400">
-                  {members.length === 0 ? "Transfer someone here from their profile to get started." : `No member matches “${query}”.`}
+                  {members.length === 0
+                    ? (isTeamView ? "People you manage appear here when they belong to this department." : "Transfer someone here from their profile to get started.")
+                    : `No member matches “${query}”.`}
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -300,8 +341,8 @@ export default function DepartmentDetailPage() {
                           tabIndex={0}
                           role="button"
                           aria-label={`Open ${m.name}`}
-                          onClick={() => navigate(`/dashboard/hr/employees/${m.user_id}`)}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/dashboard/hr/employees/${m.user_id}`); } }}
+                          onClick={() => navigate(plane.memberPath(m.user_id))}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(plane.memberPath(m.user_id)); } }}
                           className="border-b border-slate-50 last:border-0 hover:bg-purple-50/30 cursor-pointer outline-none focus:bg-purple-50/40"
                         >
                           <td className="px-5 py-3">

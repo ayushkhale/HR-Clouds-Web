@@ -12,6 +12,7 @@ import { fmtHours } from "../../../../shared/attendance/dates";
 import { HiClipboardList, HiPlus, HiX, HiPencil, HiBadgeCheck, HiInformationCircle, HiClock, HiPause, HiExclamationCircle, HiLightningBolt, HiRefresh } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+import ApplyPolicyToShiftsDialog from "../components/ApplyPolicyToShiftsDialog";
 
 const days = (n) => `${n} ${Number(n) === 1 ? "day" : "days"}`;
 // "7.00" → "7h": nine columns have to fit a 14" laptop, and "7.00 hrs / 4.00 hrs"
@@ -306,6 +307,8 @@ export default function AttendancePoliciesPage() {
   const [deactivating, setDeactivating] = useState(null);
   const { toast, showToast, clearToast } = useToast();
   const [preview, setPreview] = useState(null); // { policy, loading }
+  // The policy whose shifts are being chosen (ApplyPolicyToShiftsDialog).
+  const [applying, setApplying] = useState(null);
 
   // Show the row immediately, then swap in the full record.
   async function openPreview(policy) {
@@ -375,7 +378,7 @@ export default function AttendancePoliciesPage() {
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Attendance Policies" help={help("page", { label: "the Attendance Policies page" })} /></h1>
-            <p className="text-sm text-slate-500 mt-1">Manage how attendance is calculated. Link policies to shift templates.</p>
+            <p className="text-sm text-slate-500 mt-1">Set how attendance is judged, then apply each policy to the shifts it covers.</p>
           </div>
           <button onClick={() => setModal("create")} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm shadow-purple-200 transition">
             <HiPlus className="w-4 h-4" />
@@ -449,6 +452,11 @@ export default function AttendancePoliciesPage() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2 justify-end">
+                            {p.is_active && (
+                              <button onClick={() => setApplying(p)} className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition whitespace-nowrap" title={`Choose which shifts follow ${p.name}`}>
+                                <HiClock className="w-4 h-4" /> Apply to shifts
+                              </button>
+                            )}
                             <button onClick={() => handleEditClick(p)} disabled={editLoading === p.id} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Edit policy" aria-label={`Edit ${p.name}`}>
                               {editLoading === p.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
                             </button>
@@ -490,9 +498,16 @@ export default function AttendancePoliciesPage() {
                 {p.is_active && (
                   <button onClick={() => { setPreview(null); handleDeactivate(p); }} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition">Deactivate</button>
                 )}
-                <button onClick={() => { setPreview(null); handleEditClick(p); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                <button onClick={() => { setPreview(null); handleEditClick(p); }} className={p.is_active
+                  ? "px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2"
+                  : "px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200"}>
                   <HiPencil className="w-4 h-4" /> Edit policy
                 </button>
+                {p.is_active && (
+                  <button onClick={() => { setPreview(null); setApplying(p); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                    <HiClock className="w-4 h-4" /> Apply to shifts
+                  </button>
+                )}
               </>
             }
           >
@@ -551,6 +566,15 @@ export default function AttendancePoliciesPage() {
           </DetailDialog>
         );
       })()}
+
+      {applying && (
+        <ApplyPolicyToShiftsDialog
+          policy={applying}
+          policies={policies}
+          onClose={() => setApplying(null)}
+          onSaved={(msg) => { setApplying(null); showToast(msg); }}
+        />
+      )}
 
       <Toast toast={toast} onClose={clearToast} />
     </>

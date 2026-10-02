@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
@@ -10,7 +10,7 @@ import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { num, unwrap } from "../../../shared/attendance/normalize";
 import { addDaysYMD as addDays, fmtDate, fmtHours, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
-import { MY_PAY_PATHS, workspaceFromPath } from "../../../shared/attendance/paths";
+import { useMyPayPaths } from "../../../shared/attendance/paths";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { CompOffDetailDialog } from "../../../shared/attendance/SelfRecordDialogs";
@@ -24,7 +24,7 @@ const creditDays = (r) => r.days_earned ?? r.credit_days ?? r.days ?? r.comp_off
 const expiryDate = (r) => ymdOnly(r.expiry_date || r.expires_on || r.expires_at || r.valid_until);
 
 function EmployeeCompOffsPage() {
-  const { pathname } = useLocation();
+  const myLeavesPath = useMyPayPaths().leaves;
   const [status, setStatus] = useState("");
   const [summary, setSummary] = useState({ data: null, loading: true, error: null });
   const [selected, setSelected] = useState(null);
@@ -68,7 +68,6 @@ function EmployeeCompOffsPage() {
   const showCredit = list.items.some((r) => creditDays(r) != null);
   const today = todayYMD();
   // Every workspace has its own My Leaves now, so the link stays inside it.
-  const myLeavesPath = (MY_PAY_PATHS[workspaceFromPath(pathname)] || MY_PAY_PATHS.employee).leaves;
 
   return (
     <>

@@ -6,9 +6,11 @@ import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
-  HiExclamation,
+  HiExclamation, HiUserAdd,
 } from "react-icons/hi";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 
 const help = (field, extra) => ({ surface: "leaves.policy_setup", field, ...extra });
 const TH = "px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider";
@@ -214,8 +216,8 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit Entitlement" : "Add Entitlement"}</h2>
             <p className="text-xs text-slate-400 mt-0.5">Define the annual quota and rules for this leave type.</p>
@@ -224,15 +226,18 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
             <HiX className="w-4 h-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Wide and gridded on purpose: nine rules read at a glance here,
+              where the old narrow column made HR scroll to see what was set. */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 grid sm:grid-cols-2 gap-x-6 gap-y-5">
           {error && (
-            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+            <div className="sm:col-span-2 flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
               <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
             </div>
           )}
 
           {/* Leave Type */}
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               Leave Type <span className="text-rose-400">*</span>
               {isEdit && <span className="ml-2 text-[10px] text-fuchsia-500 normal-case font-semibold">(Immutable — cannot change)</span>}
@@ -253,8 +258,9 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
             )}
           </div>
 
-          {/* Quota + Accrual Type */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Quota + Accrual Type — `contents` lifts the pair into the form's
+              own grid instead of nesting a second grid inside one column. */}
+          <div className="contents">
             <div>
               <div className="flex items-center">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
@@ -288,7 +294,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
           </div>
 
           {/* Carry Forward + Probation */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="contents">
             <div>
               <div className="flex items-center">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Unused Days Kept For Next Year</label>
@@ -343,12 +349,15 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
             onDaysChange={v => set("notice_days", v)}
           />
 
-          <div className="flex gap-3 pt-1">
-            <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
-              {loading ? "Saving…" : isEdit ? "Update Entitlement" : "Add Entitlement"}
-            </button>
-            <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+          </div>
+
+          {/* Pinned footer: the actions stay put however tall the rules get. */}
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-white transition">
               Cancel
+            </button>
+            <button type="submit" disabled={loading} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition shadow-md shadow-purple-200">
+              {loading ? "Saving…" : isEdit ? "Update Entitlement" : "Add Entitlement"}
             </button>
           </div>
         </form>
@@ -358,7 +367,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
 }
 
 // ─── Policy Card ──────────────────────────────────────────────────────────────
-function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEntitlement, onEditEntitlement, onDeleteEntitlement, showToast }) {
+function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEntitlement, onEditEntitlement, onDeleteEntitlement, onAssign, showToast }) {
   const [expanded, setExpanded] = useState(false);
   const [entitlementModal, setEntitlementModal] = useState(null); // null | "create" | entitlement obj
 
@@ -402,6 +411,16 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setEntitlementModal("create")} className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-lg transition">
             <HiPlus className="w-3.5 h-3.5" /> Add Quota
+          </button>
+          {/* Assigning a policy with no quotas would give the person no leave at
+              all, so it waits until there is something to give. */}
+          <button
+            onClick={() => onAssign(policy)}
+            disabled={entitlements.length === 0}
+            title={entitlements.length === 0 ? "Add a quota before assigning this policy" : `Assign ${policy.name} to an employee`}
+            className="flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <HiUserAdd className="w-3.5 h-3.5" /> Assign
           </button>
           <button onClick={() => onEditPolicy(policy)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit policy">
             <HiPencil className="w-4 h-4" />
@@ -500,6 +519,10 @@ export default function LeavePoliciesPage() {
   const [loading, setLoading] = useState(true);
   const [policyModal, setPolicyModal] = useState(null); // null | "create" | template obj
   const [toast, setToast] = useState(null);
+  // The policy being given to someone from here (shared AssignLeavePolicyDialog,
+  // the same form Leave Requests and the profile's Leave tab use).
+  const [assigning, setAssigning] = useState(null);
+  const { activeRows: employees, status: employeesStatus } = useEmployeeDirectory();
 
   function showToast(message, type = "success") {
     setToast({ message, type });
@@ -551,7 +574,7 @@ export default function LeavePoliciesPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Leave Policies" help={help("page", { label: "the Leave Policies page" })} /></h1>
               <p className="text-sm text-slate-500 mt-1">
-                Create policy templates and configure leave quotas. Assign templates to employees in their profile.
+                Create a policy, add its leave quotas, then assign it to the people it covers.
               </p>
             </div>
             <button
@@ -593,6 +616,7 @@ export default function LeavePoliciesPage() {
                   onAddEntitlement={loadData}
                   onEditEntitlement={loadData}
                   onDeleteEntitlement={loadData}
+                  onAssign={setAssigning}
                   showToast={showToast}
                 />
               ))}
@@ -606,6 +630,16 @@ export default function LeavePoliciesPage() {
           editPolicy={policyModal === "create" ? null : policyModal}
           onClose={() => setPolicyModal(null)}
           onSaved={onPolicySaved}
+        />
+      )}
+
+      {assigning && (
+        <AssignLeavePolicyDialog
+          templateId={assigning.id}
+          people={employees}
+          peopleLoading={employeesStatus === "loading" || employeesStatus === "idle"}
+          onAssigned={(message) => showToast(message)}
+          onClose={() => setAssigning(null)}
         />
       )}
 

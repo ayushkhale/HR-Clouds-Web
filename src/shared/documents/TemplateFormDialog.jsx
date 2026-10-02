@@ -33,6 +33,9 @@ import {
   templateOf, templateTicketOf,
 } from "./templateMeta";
 import { FIELD, FileDropField, LABEL, PRIMARY_BTN, SECONDARY_BTN, SwitchRow } from "./ui";
+import FieldHelp from "../fieldHelp/FieldHelp";
+
+const help = (field, label) => ({ surface: "documents.form_template", field, label });
 
 const STAGES = [
   { key: "save", label: "Saving the form's details" },
@@ -198,7 +201,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label={heading} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label={heading} className={`bg-white rounded-2xl shadow-2xl w-full ${editing ? "max-w-3xl" : "max-w-5xl"} max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200`}>
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100">
           <div className="flex items-start gap-3 min-w-0">
             <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
@@ -212,8 +215,11 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
           <button type="button" onClick={onClose} disabled={busy} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg disabled:opacity-40" aria-label="Close"><HiX className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-6 py-5 space-y-5 overflow-y-auto">
-          <div>
+        {/* Two columns on a wide screen, like the document-type dialog: what
+            the form IS on the left, where it LIVES and what happens to it on
+            the right. Six stacked fields used to need a scroll to reach Save. */}
+        <div className="px-6 py-5 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-5 items-start">
+          <div className="lg:col-span-2">
             <label htmlFor="tpl-title" className={LABEL}>What is this form called?</label>
             <input
               id="tpl-title" type="text" value={form.title} maxLength={TEMPLATE_TITLE_MAX} disabled={busy}
@@ -225,7 +231,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
               : <p className="text-[10px] text-slate-400 mt-1">Put the year in the name if the form changes every year — it makes replaced versions easy to tell apart.</p>}
           </div>
 
-          <div>
+          <div className={editing ? "lg:col-span-2" : undefined}>
             <label htmlFor="tpl-desc" className={LABEL}>When should people use it? <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
             <textarea
               id="tpl-desc" rows={3} value={form.description} maxLength={TEMPLATE_DESCRIPTION_MAX} disabled={busy}
@@ -240,7 +246,10 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
 
           {!editing && (
             <div>
-              <label htmlFor="tpl-type" className={LABEL}>File it under <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+              <div className="flex items-center">
+                <label htmlFor="tpl-type" className={LABEL}>File it under <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
+                <FieldHelp {...help("document_type_id", "the document type this form is filed under")} className="mb-2" />
+              </div>
               <select id="tpl-type" value={form.document_type_id} disabled={busy} onChange={(e) => set("document_type_id", e.target.value)} className={FIELD}>
                 <option value="">No particular type</option>
                 {types.map((t) => <option key={t.id} value={t.id}>{t.name}{t.group ? ` · ${groupLabel(t.group)}` : ""}</option>)}
@@ -254,8 +263,11 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
           )}
 
           {/* Where the form lives. Fixed once the draft exists. */}
-          <div>
-            <span className={LABEL}>Where is the form?</span>
+          <div className="lg:col-span-2">
+            <div className="flex items-center">
+              <span className={LABEL}>Where is the form?</span>
+              <FieldHelp {...help("storage_backend", "where the form is kept")} className="mb-2" />
+            </div>
             {backendLocked ? (
               <p className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
                 {reference ? <HiLink className="w-4 h-4 text-purple-500 shrink-0 mt-px" /> : <HiCloud className="w-4 h-4 text-purple-500 shrink-0 mt-px" />}
@@ -282,7 +294,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
           </div>
 
           {reference ? (
-            <div>
+            <div className="lg:col-span-2">
               <label htmlFor="tpl-url" className={LABEL}>Link to the form</label>
               <input
                 id="tpl-url" type="url" value={form.reference_url} maxLength={TEMPLATE_REFERENCE_URL_MAX} disabled={busy}
@@ -294,7 +306,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
                 : <p className="text-[10px] text-slate-400 mt-1">Nothing is stored here, so if the page moves the link stops working. For a form that matters, upload a copy instead.</p>}
             </div>
           ) : (
-            <div>
+            <div className="lg:col-span-2">
               <span className={LABEL}>
                 The form file {fileOptional && <span className="normal-case font-semibold text-slate-400">(optional{fileAlreadyThere ? " — there's one already" : ""})</span>}
               </span>
@@ -312,7 +324,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-200 px-4">
+          <div className="lg:col-span-2 rounded-xl border border-slate-200 px-4">
             <SwitchRow
               title="Employees can find this form"
               description="On, it appears in everyone's Forms &amp; Templates. Off, it stays in HR's list — useful for a form only HR fills in on somebody's behalf."
@@ -323,7 +335,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
           </div>
 
           {stage && (
-            <ol className="rounded-xl border border-purple-100 bg-purple-50/40 px-4 py-3 space-y-2" aria-live="polite">
+            <ol className="lg:col-span-2 rounded-xl border border-purple-100 bg-purple-50/40 px-4 py-3 space-y-2" aria-live="polite">
               {STAGES.filter((s) => s.key === "save" || !!file).map((s) => {
                 const order = STAGES.findIndex((x) => x.key === stage);
                 const idx = STAGES.findIndex((x) => x.key === s.key);
@@ -342,7 +354,7 @@ export default function TemplateFormDialog({ mode = "create", template = null, t
           )}
 
           {error && (
-            <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700" role="alert">
+            <div className="lg:col-span-2 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700" role="alert">
               <HiInformationCircle className="w-4 h-4 shrink-0 mt-px" />
               <span>{error}</span>
             </div>

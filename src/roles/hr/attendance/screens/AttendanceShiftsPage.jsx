@@ -8,6 +8,7 @@ import { listFrom, unwrap } from "../../../../shared/attendance/normalize";
 import { todayYMD, ymdOnly, fmtDate } from "../../../../shared/attendance/dates";
 import { emitAttendanceChanged, ATTENDANCE_EVENTS } from "../../../../shared/attendance/events";
 import { ErrorState, FieldError, InlineAlert, Spinner, Toast, useToast } from "../../../../shared/attendance/ui";
+import AssignShiftDialog from "../components/AssignShiftDialog";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import {
   HiBan,
@@ -19,6 +20,7 @@ import {
   HiPencil,
   HiRefresh,
   HiInformationCircle,
+  HiUserAdd,
 } from "react-icons/hi";
 import TimeField from "../../../../shared/components/TimeField";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
@@ -451,6 +453,8 @@ export default function AttendanceShiftsPage() {
   const [deletingRotation, setDeletingRotation] = useState(null);
   const { toast, showToast, clearToast } = useToast();
   const [preview, setPreview] = useState(null);
+  // The shift being handed to people from this screen (AssignShiftDialog).
+  const [assignShift, setAssignShift] = useState(null);
   // Deactivated shifts stay in GET /shifts for good, so they're hidden by default.
   const [showInactive, setShowInactive] = useState(false);
 
@@ -656,6 +660,12 @@ export default function AttendanceShiftsPage() {
                             {/* A deactivated shift can't be edited or switched back on (PUT → SHIFT_DEACTIVATED). */}
                             {s.is_active ? (
                               <div className="flex items-center justify-end gap-2">
+                                {/* The next step after creating a shift is giving it
+                                    to people, so it is a labelled action here rather
+                                    than a trip to Shift Management. */}
+                                <button onClick={() => setAssignShift(s)} className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition" title={`Assign ${s.name} to people`}>
+                                  <HiUserAdd className="w-4 h-4" /> Assign
+                                </button>
                                 <button onClick={() => handleEditShift(s)} disabled={editShiftLoading === s.id} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition disabled:opacity-50" title="Edit shift" aria-label={`Edit ${s.name}`}>
                                   {editShiftLoading === s.id ? <Spinner className="w-4 h-4 text-purple-600" /> : <HiPencil className="w-4 h-4" />}
                                 </button>
@@ -774,8 +784,11 @@ export default function AttendanceShiftsPage() {
                 <button onClick={() => handleDeactivateShift(p)} disabled={deactivating === p.id} className="sm:mr-auto px-4 py-2.5 text-sm font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50">
                   {deactivating === p.id ? <Spinner className="w-4 h-4" /> : <HiBan className="w-4 h-4" />} Deactivate
                 </button>
-                <button onClick={() => { const s = p; setPreview(null); handleEditShift(s); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                <button onClick={() => { const s = p; setPreview(null); handleEditShift(s); }} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
                   <HiPencil className="w-4 h-4" /> Edit shift
+                </button>
+                <button onClick={() => { const s = p; setPreview(null); setAssignShift(s); }} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                  <HiUserAdd className="w-4 h-4" /> Assign to people
                 </button>
               </>
             ) : (
@@ -806,6 +819,14 @@ export default function AttendanceShiftsPage() {
           </DetailDialog>
         );
       })()}
+
+      {assignShift && (
+        <AssignShiftDialog
+          initialShiftId={assignShift.id}
+          onClose={() => setAssignShift(null)}
+          onSaved={(msg) => { setAssignShift(null); showToast(`${msg} It now shows in Shift Management.`); }}
+        />
+      )}
 
       <Toast toast={toast} onClose={clearToast} />
     </>

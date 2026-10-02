@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useCurrentWorkspace } from "../attendance/paths";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { HiDocumentText, HiOutlineFolder, HiCheckCircle, HiExclamation, HiChevronLeft, HiChevronRight, HiSearch } from "react-icons/hi";
 import { attendanceAPI } from "../api";
 import docsData from "../data/docs.json";
 
 function DocumentsPage() {
-  const { role: authRole } = useAuth();
-  const location = useLocation();
-
-  let currentRole = "employee";
-  if (location.pathname.includes("/dashboard/hr") || authRole === "hr") {
-    currentRole = "hr";
-  } else if (location.pathname.includes("/dashboard/manager") || authRole === "manager") {
-    currentRole = "manager";
-  }
+  // Which help content to show: the signed-in user's own workspace
+  // (useCurrentWorkspace). This used to test the URL and the raw role, so an
+  // admin fell through to the employee content.
+  const workspace = useCurrentWorkspace();
+  const currentRole = workspace === "hr" || workspace === "manager" ? workspace : "employee";
 
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(false);

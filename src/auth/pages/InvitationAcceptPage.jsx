@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { organizationAPI, tokenHelper } from "../../shared/api";
 import { HiEye, HiEyeOff, HiCheck, HiExclamationCircle } from "react-icons/hi";
+import OrgLogo from "../../shared/components/OrgLogo";
 
 function InvitationAcceptPage() {
   const navigate = useNavigate();
@@ -105,11 +106,10 @@ function InvitationAcceptPage() {
         <div className="text-center">
           <div className="flex justify-center mb-6 relative">
              <div className="absolute inset-0 bg-rose-100/50 rounded-full blur-2xl max-w-[120px] mx-auto"></div>
-             <img 
-               src="https://cdn3d.iconscout.com/3d/premium/thumb/something-went-wrong-3d-icon-png-download-13356832.png" 
-               alt="Invalid Invitation" 
-               className="w-32 h-32 object-contain relative z-10 drop-shadow-xl"
-             />
+             {/* An in-app icon, not a hotlinked CDN image that can fail to load. */}
+             <span className="relative z-10 w-24 h-24 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center" role="img" aria-label="Invalid invitation">
+               <HiExclamationCircle className="w-12 h-12 text-rose-500" aria-hidden="true" />
+             </span>
           </div>
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Link Expired or Invalid</h1>
           <p className="text-sm text-slate-500 mb-8 leading-relaxed max-w-xs mx-auto">
@@ -169,11 +169,12 @@ function InvitationAcceptPage() {
   return (
     <PageWrapper>
       <div className="text-center mb-6">
-        <img 
-          src={inviteData?.org_logo || "https://cdn.prod.website-files.com/6418f5bfe5bc0a8254109c28/667e99d3ee6daa0951a4c1b7_Mini%20Guide%20Teamorga.webp"} 
-          alt={inviteData?.org_name || "Organization"} 
-          className="w-16 h-16 rounded-2xl object-cover mx-auto mb-4 shadow-sm border border-gray-100" 
-        />
+        {/* The org's logo, else its initials. This used to fall back to another
+            company's hotlinked artwork with no error handling, so a missing or
+            blocked logo showed a broken image to every newly invited person. */}
+        <div className="flex justify-center mb-4">
+          <OrgLogo logo={inviteData?.org_logo} name={inviteData?.org_name} className="w-16 h-16 rounded-2xl shadow-sm" textClassName="text-xl" />
+        </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-1">
           {inviteData?.org_name ? `Join ${inviteData.org_name}` : "Accept Invitation"}
         </h1>

@@ -28,6 +28,8 @@ const CALCULATION_LABEL = {
   balancing: "Balancing (the remainder)",
 };
 export const calculationLabel = (code) => CALCULATION_LABEL[code] || prettifyCode(code);
+/** The calculation codes the API accepts, so a rule copied off a component can be trusted. */
+export const CALCULATION_TYPES = Object.keys(CALCULATION_LABEL);
 
 export const toCount = (value) => {
   const n = Number(value);

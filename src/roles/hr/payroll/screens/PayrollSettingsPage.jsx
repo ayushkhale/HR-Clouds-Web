@@ -1,12 +1,42 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PayrollSettingsPage.jsx — The organisation-wide payroll rules (registry
+// #22/#23): unpaid days, rounding, who approves what, payslip delivery, and how
+// a leaver's last payment is worked out.
+//
+// Three things shape this screen.
+//
+// · It is READ far more often than it is changed, so it answers "what are we
+//   on?" before it offers to change anything: a four-tile summary at the top,
+//   and a folded card that still shows what its group is currently set to.
+//
+// · The PUT is a PARTIAL update and this page only ever sends what HR actually
+//   changed (see settingsMeta.js). Sending the whole object used to fail the
+//   entire save with a VALIDATION_ERROR on fnf_encashment_max_days, because the
+//   nullable Phase 7 keys were defaulted into the form as "" and that one was
+//   never even rendered. An emptied nullable box now goes out as null, and an
+//   untouched key is not sent at all.
+//
+// · A key the server never returned is NOT offered (serverKnows). An unknown
+//   field doesn't fail quietly — it fails the whole request — so a setting this
+//   backend lacks stays off the screen rather than breaking every other one.
+//
+// Phase 7 key names were verified against the live backend on 2026-09-20 and do
+// NOT match the phase-7 analysis doc; see the note inside loadSettings.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI } from "../../../../shared/api";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiCog, HiChevronDown } from "react-icons/hi";
+import { leaveAPI, payrollAPI } from "../../../../shared/api";
+import {
+  HiCheckCircle, HiExclamationCircle, HiX, HiChevronDown, HiCalculator, HiUserGroup,
+  HiShieldCheck, HiReceiptRefund, HiMail, HiDocumentDownload, HiLogout, HiSwitchHorizontal,
+} from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
-import { PDF_CACHE_NUMBERS, hasPdfCacheSettings, pdfNumberProblem, withoutInertPdfSettings } from "../pdfRenderMeta";
+import { PDF_CACHE_NUMBERS, hasPdfCacheSettings, pdfNumberProblem } from "../pdfRenderMeta";
 import { useBulkGenerationPaused } from "../../../../shared/pdf/bulkGeneration";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+import { blankRequiredNumber, settingsPatch } from "../settingsMeta";
 
 const help = (field, label) => ({ surface: "payroll.settings", field, label });
 
@@ -25,27 +55,40 @@ function Toast({ toast, onClose }) {
 const fieldCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none";
 const labelCls = "block text-[11px] font-bold text-slate-500 uppercase mb-2";
 
-/** A titled block of settings. The chevron folds it so a long page reads as a list of groups. */
-function Section({ title, blurb, children, defaultOpen = true }) {
+/**
+ * One group of settings, as its own card.
+ *
+ * It used to be a heading with a fold inside one giant card, and a page of
+ * twelve of them read as one wall: nothing said where a group ended, and
+ * folding one left a hole in the middle of the two-column grid. A card per
+ * group carries its own icon, its purpose in a line, and — while it is folded —
+ * a summary of what it is currently set to, so HR can check the rules without
+ * opening everything.
+ */
+function Section({ title, blurb, icon: Icon, summary, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div>
+    <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 text-left border-b border-slate-100 pb-2 group"
+        className="w-full flex items-start gap-3 text-left group"
       >
-        <h3 className="text-base font-bold text-slate-800 group-hover:text-purple-700 transition-colors">{title}</h3>
-        <HiChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        {Icon && (
+          <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <Icon className="w-5 h-5" />
+          </span>
+        )}
+        <span className="flex-1 min-w-0">
+          <span className="block text-base font-bold text-slate-800 group-hover:text-purple-700 transition-colors">{title}</span>
+          {blurb && <span className="block text-xs text-slate-500 mt-1 leading-relaxed">{blurb}</span>}
+          {!open && summary && <span className="block text-[11px] font-semibold text-purple-700 mt-2 leading-relaxed">{summary}</span>}
+        </span>
+        <HiChevronDown className={`w-4 h-4 mt-2 text-slate-400 group-hover:text-purple-600 transition-transform duration-200 shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && (
-        <>
-          {blurb && <p className="text-xs text-slate-500 mt-2 mb-4 leading-relaxed">{blurb}</p>}
-          <div className={blurb ? "" : "mt-4"}>{children}</div>
-        </>
-      )}
-    </div>
+      {open && <div className="mt-5">{children}</div>}
+    </section>
   );
 }
 
@@ -62,6 +105,106 @@ function Check({ checked, onChange, title, hint, help }) {
   );
   // overlay: drawn in the gutter beside the row, so the hint text keeps its wrap.
   return help ? <div className="flex items-start">{box}<FieldHelp {...help} overlay /></div> : box;
+}
+
+/**
+ * The salary line a payout or a recovery is made through.
+ *
+ * Only offered when the server actually stores the key: this page sends the
+ * settings HR changed, and a key this backend has never heard of fails the
+ * whole save, not just that field.
+ */
+function ComponentPick({ label, value, onChange, components, hint, emptyLabel = "Not set", className = "sm:col-span-2" }) {
+  return (
+    <div className={className}>
+      <label className={labelCls}>{label}</label>
+      <select value={value || ""} onChange={(e) => onChange(e.target.value)} className={fieldCls}>
+        <option value="">{emptyLabel}</option>
+        {components.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ""}</option>)}
+      </select>
+      {hint && <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * The leave types a payout covers, as toggles over the org's real types.
+ *
+ * The setting is stored as a list of short CODES. Typing them by hand meant
+ * knowing them by heart, and a typo saved silently and paid out nothing. If the
+ * types can't be read, the plain code box comes back rather than an empty list.
+ */
+function LeaveTypePicker({ codes, types, onChange, help }) {
+  // A type with no code can't be stored in this setting, so it isn't offered —
+  // a toggle for it would save an empty string into the list.
+  const options = (types || []).filter((t) => String(t?.code || "").trim());
+  const chosen = (codes || []).map((c) => String(c).toUpperCase());
+  const toggle = (code) => {
+    const up = String(code).toUpperCase();
+    onChange(chosen.includes(up) ? chosen.filter((c) => c !== up) : [...chosen, up]);
+  };
+  // A saved code with no active leave type behind it — the type was renamed,
+  // deactivated or typed in by hand before this was a picker. It still counts at
+  // settlement time, so it is shown rather than hidden: a setting nobody can see
+  // is one nobody can fix.
+  const orphans = chosen.filter((c) => !options.some((t) => String(t.code).toUpperCase() === c));
+  return (
+    <div>
+      <div className="flex items-center">
+        <label className={labelCls}>Leave types paid out</label>
+        {help ? <FieldHelp {...help} className="mb-2" /> : null}
+      </div>
+      {options.length === 0 ? (
+        <>
+          <input
+            type="text"
+            value={chosen.join(", ")}
+            onChange={(e) => onChange(e.target.value.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean))}
+            placeholder="EL"
+            className={fieldCls}
+          />
+          <p className="text-xs text-slate-400 mt-1.5">Short codes, separated by commas — for example EL, PL.</p>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {options.map((t) => {
+              const code = String(t.code).toUpperCase();
+              const on = chosen.includes(code);
+              return (
+                <button
+                  key={t.id || code}
+                  type="button"
+                  onClick={() => toggle(code)}
+                  aria-pressed={on}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${on ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}
+                >
+                  {t.name || code}
+                </button>
+              );
+            })}
+            {orphans.map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => toggle(code)}
+                aria-pressed
+                title="No active leave type uses this code any more. Click to remove it."
+                className="px-3 py-1.5 rounded-xl border border-fuchsia-300 bg-fuchsia-50 text-xs font-bold text-fuchsia-700 transition hover:border-fuchsia-400"
+              >
+                {code} · not in use
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            {chosen.length === 0
+              ? "Nothing is paid out until you pick at least one."
+              : "Only these are paid out; every other balance is lost on the last day."}
+          </p>
+        </>
+      )}
+    </div>
+  );
 }
 
 function Pick({ label, value, onChange, options, hint, help }) {
@@ -102,6 +245,48 @@ function Num({ label, value, onChange, min, max, hint, suffix, problem }) {
 
 // The two rate bases and the three divisors are shared by final settlement and
 // comp-off, and mean the same thing in both places.
+// What each stored value means in a sentence, for the summary strip and the
+// folded cards. Settings are read far more often than they are changed, so the
+// page answers "what are we on?" before it offers to change anything.
+const LOP_SAID = {
+  calendar_days: "a calendar day’s pay",
+  standard_working_days: "a working day’s pay",
+  fixed_30: "a thirtieth of the month",
+};
+const ROUNDING_SAID = {
+  nearest_rupee: "Nearest rupee",
+  two_decimals: "Exact, to the paisa",
+};
+
+/** The four rules HR checks most, shown without opening anything. */
+function GlanceStrip({ settings }) {
+  const tiles = [
+    { label: "One unpaid day costs", value: LOP_SAID[settings.lop_basis] || "Not set" },
+    { label: "Amounts rounded to", value: ROUNDING_SAID[settings.rounding_policy] || "Not set" },
+    {
+      label: "Payslips",
+      value: settings.payslip_auto_publish === false ? "Held for a final check" : "Out on approval",
+      note: settings.payslip_auto_email ? "and emailed" : "no email sent",
+    },
+    {
+      label: "When someone leaves",
+      value: settings.fnf_leave_encashment_enabled ? "Unused leave paid out" : "No leave payout",
+      note: settings.fnf_notice_recovery_enabled ? "short notice recovered" : "short notice not recovered",
+    },
+  ];
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      {tiles.map((t) => (
+        <div key={t.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3.5">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.label}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1 leading-snug">{t.value}</p>
+          {t.note && <p className="text-[11px] text-slate-400 mt-0.5">{t.note}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const RATE_BASIS = [
   { value: "basic", label: "Basic salary" },
   { value: "gross", label: "Gross salary" },
@@ -120,9 +305,21 @@ export default function PayrollSettingsPage() {
   // The last saved value of benefit charging, so a confirm only fires when it
   // is switched from off to on.
   const benefitsWereOn = useRef(false);
+  // The settings EXACTLY as the server last returned them. Everything the page
+  // sends is a diff against this, so a default the user never touched is never
+  // written and a key this backend lacks is never invented (see settingsMeta).
+  const [saved, setSaved] = useState(null);
+  // The defaulted form exactly as it was loaded, for Discard.
+  const loadedForm = useRef(null);
+  // Nullable Phase 7 keys are only offered when the server actually stores them.
+  const serverKnows = useCallback((key) => !!saved && key in saved, [saved]);
+  // Leave types, so the payout list is picked rather than typed as codes.
+  const [leaveTypes, setLeaveTypes] = useState([]);
   // Deduction components, for the "recover short notice through" picker.
   // A settlement cannot be prepared until one is chosen (#201).
   const [deductionComponents, setDeductionComponents] = useState([]);
+  // Earning components, for the "pay it through" pickers on the two payouts.
+  const [earningComponents, setEarningComponents] = useState([]);
 
   // Shorthands for the Phase 7 sections: `set7` reads safely before load and
   // `upd` merges one key without repeating the spread at every call site.
@@ -184,7 +381,7 @@ export default function PayrollSettingsPage() {
         fnf_encashment_rate_basis: "basic",
         fnf_encashment_divisor: "fixed_30",
         fnf_encashment_component_id: "",
-        fnf_encashment_max_days: "",
+        fnf_encashment_max_days: "",       // blank = no cap; sent as null, never ""
         fnf_loan_recovery_mode: "manual",
         compoff_encashment_enabled: false,
         compoff_encashment_rate_basis: "basic",
@@ -196,6 +393,8 @@ export default function PayrollSettingsPage() {
         if (loaded[k] === undefined || loaded[k] === null) loaded[k] = v;
       });
       benefitsWereOn.current = !!loaded.benefit_deductions_enabled;
+      setSaved(res.data || {});
+      loadedForm.current = loaded;
       // Payslip-cache settings (#88–#90): NOT defaulted into the form. A key the
       // server never sent must not be sent back, because this page PUTs the
       // whole settings object and an unknown field would fail the entire save.
@@ -209,6 +408,18 @@ export default function PayrollSettingsPage() {
 
   useEffect(() => { loadSettings(); }, [loadSettings]);
 
+  // The payout list used to be typed in as comma-separated codes, which meant
+  // knowing them by heart and getting no warning for a typo. Active types only:
+  // a payout can't be set up against a type nobody can take.
+  useEffect(() => {
+    let cancelled = false;
+    leaveAPI.getLeaveTypes({ include_inactive: false })
+      .then((res) => { if (!cancelled) setLeaveTypes(res?.data?.records || res?.data || []); })
+      // Falls back to the plain code boxes below; the rest of the page is fine.
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     payrollAPI.getComponents({ is_active: true })
@@ -216,6 +427,7 @@ export default function PayrollSettingsPage() {
         if (cancelled) return;
         const rows = res.data?.records || res.data || [];
         setDeductionComponents(rows.filter((c) => c.component_type === "deduction"));
+        setEarningComponents(rows.filter((c) => c.component_type !== "deduction"));
       })
       // The picker degrades to "Not set"; the rest of the page still works.
       .catch(() => {});
@@ -234,16 +446,41 @@ export default function PayrollSettingsPage() {
     )
     : {};
 
+  // What is waiting to be saved. Also what gets sent: the PUT is a partial
+  // update, so an untouched setting is left out entirely — which is what stops
+  // a blank cap going out as "" and failing the whole save.
+  const pending = settings && saved ? settingsPatch(settings, saved) : {};
+  const changeCount = Object.keys(pending).length;
+  // A number box the server stores as NOT NULL, left empty. settingsPatch won't
+  // send it either way, so without this the box would quietly snap back to the
+  // old value on the next read.
+  const blankNumber = blankRequiredNumber(settings);
+
+  // Back to the form as it was loaded — including the client-side defaults for
+  // the keys this backend doesn't store, which `saved` alone would not restore.
+  const discardChanges = () => {
+    if (loadedForm.current) setSettings(loadedForm.current);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (saving) return;
 
-    const firstPdfProblem = Object.keys(pdfProblems)[0];
+    if (blankNumber) {
+      showToast(`${blankNumber}: enter a number of days.`, "error");
+      return;
+    }
+
+    const firstPdfProblem = Object.keys(pdfProblems).find((key) => key in pending);
     if (firstPdfProblem) {
       showToast(`${PDF_CACHE_NUMBERS[firstPdfProblem].label}: ${pdfProblems[firstPdfProblem]}`, "error");
       return;
     }
 
+    if (changeCount === 0) {
+      showToast("Nothing has changed yet.", "error");
+      return;
+    }
     // Turning benefit charging on starts deductions on the next calculation.
     if (settings.benefit_deductions_enabled && !benefitsWereOn.current) {
       const ok = await window.confirm("Every active benefit enrollment will be charged from the next payroll calculation. Check the benefit totals on the Payroll Runs readiness panel first.");
@@ -251,13 +488,19 @@ export default function PayrollSettingsPage() {
     }
     setSaving(true);
     try {
-      // `pdf_render_engine` is still returned by the read but is inert and will
-      // be dropped server-side; it is stripped here so this save keeps working
-      // the day the column goes.
-      const res = await payrollAPI.updateSettings(withoutInertPdfSettings(settings));
-      const saved = res?.data ?? settings;
-      benefitsWereOn.current = !!saved.benefit_deductions_enabled;
-      showToast("Payroll settings updated successfully");
+      // Only the changed keys. `pdf_render_engine` and emptied cache numbers are
+      // stripped inside settingsPatch, so this save keeps working the day those
+      // inert columns go.
+      const res = await payrollAPI.updateSettings(pending);
+      const next = { ...(saved || {}), ...pending, ...(res?.data || {}) };
+      setSaved(next);
+      // The response carries the stored values, so a box the user emptied on a
+      // NOT NULL setting fills back in rather than looking like it saved blank.
+      const merged = { ...settings, ...(res?.data || {}) };
+      loadedForm.current = merged;
+      setSettings(merged);
+      benefitsWereOn.current = !!next.benefit_deductions_enabled;
+      showToast(`Saved — ${changeCount === 1 ? "1 setting" : `${changeCount} settings`} updated.`);
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to update settings"), "error");
     } finally {
@@ -274,15 +517,30 @@ export default function PayrollSettingsPage() {
             <h1 className="text-2xl font-bold text-slate-900">
               <HelpLabel text="Payroll Settings" help={help("page", "the Payroll Settings page")} />
             </h1>
-            <p className="text-sm text-slate-500 mt-1">Configure global payroll policies, unpaid-day rules, and manager authorities.</p>
+            <p className="text-sm text-slate-500 mt-1">The rules every payroll run follows: how pay is worked out, who signs off what, when payslips go out, and what happens when somebody leaves.</p>
           </div>
 
-          {loading ? <Skeleton type="card" /> : (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
-              <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-10 gap-y-8 items-start">
+          {loading ? <Skeleton type="card" /> : !settings ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+              <p className="text-sm font-bold text-slate-700">Couldn’t load the payroll settings.</p>
+              <p className="text-xs text-slate-500 mt-1">Nothing has been changed. Try again in a moment.</p>
+              <button type="button" onClick={loadSettings} className="mt-4 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition">
+                Try again
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <GlanceStrip settings={settings} />
+              {/* A card per group, each one closing over its own rules. Folding
+                  one no longer leaves a hole in the middle of the grid. */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
                 {/* General Settings */}
-                <Section title="Calculation Policies">
+                <Section
+                  title="How pay is worked out"
+                  icon={HiCalculator}
+                  blurb="The two rules behind every amount on a payslip: what a day off without pay costs, and how figures are rounded."
+                  summary={`${LOP_SAID[settings.lop_basis] || "Not set"} per unpaid day · ${ROUNDING_SAID[settings.rounding_policy] || "Not set"}`}
+                >
                   <div className="grid sm:grid-cols-2 gap-6">
                     <div>
                       <div className="flex items-center">
@@ -290,27 +548,32 @@ export default function PayrollSettingsPage() {
                         <FieldHelp surface="payroll.settings" field="lop_basis" label="what an unpaid day costs" className="mb-2" />
                       </div>
                       <select value={settings.lop_basis} onChange={e => setSettings({...settings, lop_basis: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                        <option value="calendar_days">Calendar Days in Month</option>
-                        <option value="standard_working_days">Standard Working Days in Month</option>
-                        <option value="fixed_30">Fixed 30 Days</option>
+                        <option value="calendar_days">The days in that month</option>
+                        <option value="standard_working_days">That month’s working days</option>
+                        <option value="fixed_30">Always 30 days</option>
                       </select>
-                      <p className="text-xs text-slate-400 mt-1.5">Determines the per-day rate for Loss of Pay.</p>
+                      <p className="text-xs text-slate-400 mt-1.5">Sets what one day without pay costs the employee.</p>
                     </div>
                     <div>
                       <div className="flex items-center">
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Rounding Policy</label>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Rounding</label>
                         <FieldHelp {...help("rounding_policy", "the rounding policy")} className="mb-2" />
                       </div>
                       <select value={settings.rounding_policy} onChange={e => setSettings({...settings, rounding_policy: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
-                        <option value="nearest_rupee">Nearest Rupee</option>
-                        <option value="two_decimals">Two Decimals (Paise)</option>
+                        <option value="nearest_rupee">Nearest rupee</option>
+                        <option value="two_decimals">Exact, to the paisa</option>
                       </select>
                     </div>
                   </div>
                 </Section>
 
                 {/* Manager Permissions */}
-                <Section title="Manager Permissions">
+                <Section
+                  title="What managers may do"
+                  icon={HiUserGroup}
+                  blurb="How much of their team’s pay a manager can see, and whether their proposals need HR behind them."
+                  summary={`${settings.manager_can_view_team_compensation ? "Can see team pay" : "Cannot see team pay"} · ${settings.manager_direct_compensation_authority ? "changes apply without HR" : "HR approves changes"}`}
+                >
                   <div className="space-y-4">
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input type="checkbox" checked={settings.manager_can_view_team_compensation} onChange={e => setSettings({...settings, manager_can_view_team_compensation: e.target.checked})} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
@@ -333,7 +596,12 @@ export default function PayrollSettingsPage() {
                 </Section>
 
                 {/* HR Approvals */}
-                <Section title="HR Approval Policies">
+                <Section
+                  title="HR approvals"
+                  icon={HiShieldCheck}
+                  blurb="Whether one HR admin can both propose and approve a pay change."
+                  summary={settings.payroll_require_separate_checker ? "A second HR admin must approve" : "One HR admin can approve their own change"}
+                >
                   <div className="space-y-4">
                     <div className="flex items-start">
                       <label className="flex items-start gap-3 cursor-pointer group">
@@ -349,7 +617,12 @@ export default function PayrollSettingsPage() {
                 </Section>
 
                 {/* Reimbursements & Benefits */}
-                <Section title="Reimbursements & Benefits">
+                <Section
+                  title="Claims & benefits"
+                  icon={HiReceiptRefund}
+                  blurb="Who signs off an expense claim, how far ahead an approved claim may be paid, and whether benefit enrolments are charged in payroll."
+                  summary={`${Number(settings.reimbursement_approval_levels) === 1 ? "HR approves claims" : "Manager, then HR"} · ${settings.benefit_deductions_enabled ? "benefits charged" : "benefits not charged"}`}
+                >
                   <div className="space-y-6">
                     <div className="grid sm:grid-cols-2 gap-6">
                       <div>
@@ -394,7 +667,12 @@ export default function PayrollSettingsPage() {
                 </Section>
 
                 {/* Payslip delivery */}
-                <Section title="Payslip Delivery">
+                <Section
+                  title="Payslip delivery"
+                  icon={HiMail}
+                  blurb="When employees get to see a payslip, and whether they are told by email."
+                  summary={`${settings.payslip_auto_publish === false ? "Held back until you release them" : "Released when a run is approved"} · ${settings.payslip_auto_email ? "email sent" : "no email"}`}
+                >
                   <div className="space-y-4">
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input type="checkbox" checked={settings.payslip_auto_publish !== false} onChange={e => setSettings({ ...settings, payslip_auto_publish: e.target.checked })} className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
@@ -418,7 +696,9 @@ export default function PayrollSettingsPage() {
                 {showPdfCache && (
                   <Section
                     title="Payslip PDFs"
+                    icon={HiDocumentDownload}
                     blurb="Payslips, annual salary statements and Form 16 are all made the same way. Released payslips are kept ready after the first download, so the next one is instant."
+                    summary={settings.payslip_prerender_on_publish === false ? "Prepared the first time somebody downloads one" : "Prepared as soon as a run is released"}
                     defaultOpen={false}
                   >
                     <div className="space-y-5">
@@ -467,11 +747,14 @@ export default function PayrollSettingsPage() {
                 {/* ── Phase 7 · Final settlement (registry #55) ───────────── */}
                 <Section
                   title="When someone leaves"
+                  icon={HiLogout}
                   blurb="Used to work out the last payment for anyone who leaves — short notice recovered, unused leave paid out, and any outstanding loan settled."
+                  summary={`${settings.fnf_notice_recovery_enabled ? "Short notice recovered" : "Short notice not recovered"} · ${settings.fnf_leave_encashment_enabled ? "unused leave paid out" : "no leave payout"} · notice ${Number(settings.fnf_default_notice_period_days) || 0} days`}
                 >
                   <div className="grid sm:grid-cols-2 gap-6">
                     <Num label="Standard notice period" value={set7.fnf_default_notice_period_days} min={0} max={365} suffix="days"
                       onChange={(v) => upd({ fnf_default_notice_period_days: v })}
+                      problem={blankNumber ? "Enter a number of days — this one can’t be left empty." : ""}
                       hint="Used when an exit doesn't specify its own notice period." />
                     <Pick label="Recover short notice from" value={set7.fnf_notice_recovery_rate_basis} options={RATE_BASIS} help={help("fnf_notice_recovery_rate_basis", "the daily rate basis")}
                       onChange={(v) => upd({ fnf_notice_recovery_rate_basis: v })}
@@ -481,16 +764,14 @@ export default function PayrollSettingsPage() {
                         title="Recover pay for notice that wasn't served"
                         hint="While this is off, leaving early costs the employee nothing, whatever the exit says." />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className={labelCls}>Component used to recover short notice</label>
-                      <select value={set7.fnf_notice_recovery_component_id || ""} onChange={(e) => upd({ fnf_notice_recovery_component_id: e.target.value })} className={fieldCls}>
-                        <option value="">Not set — settlements will be refused</option>
-                        {deductionComponents.map((c) => <option key={c.id} value={c.id}>{c.name}{c.component_code ? ` (${c.component_code})` : ""}</option>)}
-                      </select>
-                      <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                        The deduction line short notice is charged through. A settlement can&apos;t be prepared until this is chosen.
-                      </p>
-                    </div>
+                    <ComponentPick
+                      label="Short notice is charged through"
+                      value={set7.fnf_notice_recovery_component_id}
+                      onChange={(v) => upd({ fnf_notice_recovery_component_id: v })}
+                      components={deductionComponents}
+                      emptyLabel="Not set — settlements will be refused"
+                      hint="The deduction line it appears on. A settlement can’t be prepared until this is chosen."
+                    />
                     <Pick label="Outstanding loans" value={set7.fnf_loan_recovery_mode}
                       options={[
                         // The server's own values, confirmed live — not the
@@ -507,21 +788,35 @@ export default function PayrollSettingsPage() {
                       hint="Their remaining balance in the leave types below is converted to cash on the final payment." />
                     {set7.fnf_leave_encashment_enabled && (
                       <div className="grid sm:grid-cols-2 gap-6 pl-7">
-                        <div>
-                          <div className="flex items-center">
-                            <label className={labelCls}>Leave types paid out</label>
-                            <FieldHelp {...help("fnf_encashment_leave_type_codes", "the leave types paid out")} className="mb-2" />
-                          </div>
-                          <input type="text" value={(set7.fnf_encashment_leave_type_codes || []).join(", ")}
-                            onChange={(e) => upd({ fnf_encashment_leave_type_codes: e.target.value.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) })}
-                            placeholder="EL" className={fieldCls} />
-                          <p className="text-xs text-slate-400 mt-1.5">Short codes, separated by commas — for example EL, PL.</p>
-                        </div>
+                        <LeaveTypePicker
+                          codes={set7.fnf_encashment_leave_type_codes}
+                          types={leaveTypes}
+                          onChange={(codes) => upd({ fnf_encashment_leave_type_codes: codes })}
+                          help={help("fnf_encashment_leave_type_codes", "the leave types paid out")}
+                        />
                         <Pick label="Work the daily rate from" value={set7.fnf_encashment_rate_basis} options={RATE_BASIS}
                           onChange={(v) => upd({ fnf_encashment_rate_basis: v })} />
                         <Pick label="Divide the monthly salary by" value={set7.fnf_encashment_divisor} options={DIVISOR_BASIS}
                           onChange={(v) => upd({ fnf_encashment_divisor: v })}
                           hint="Turns a monthly salary into a per-day amount." />
+                        {/* The cap the server validates. It was never drawn
+                            here, so nobody could see — let alone clear — the
+                            blank value that was failing every save. */}
+                        {serverKnows("fnf_encashment_max_days") && (
+                          <Num label="Most days paid out per person" value={set7.fnf_encashment_max_days} min={0} max={365} suffix="days"
+                            onChange={(v) => upd({ fnf_encashment_max_days: v })}
+                            hint="Anything above this is not paid out. Leave it blank for no limit." />
+                        )}
+                        {serverKnows("fnf_encashment_component_id") && (
+                          <ComponentPick
+                            label="Paid through"
+                            value={set7.fnf_encashment_component_id}
+                            onChange={(v) => upd({ fnf_encashment_component_id: v })}
+                            components={earningComponents}
+                            emptyLabel="Not set — nothing will be paid out"
+                            hint="The earning line the payout appears on, on the final payslip."
+                          />
+                        )}
                       </div>
                     )}
                   </div>
@@ -530,7 +825,9 @@ export default function PayrollSettingsPage() {
                 {/* ── Phase 7 · Comp-off encashment (registry #57) ──────────── */}
                 <Section
                   title="Cashing out earned leave"
+                  icon={HiSwitchHorizontal}
                   blurb="Earned leave is credited for working on an off day. With this on, a manager can propose paying those days out as cash instead, and HR approves."
+                  summary={settings.compoff_encashment_enabled ? "Allowed, with HR approval" : "Not allowed"}
                 >
                   <div className="space-y-4">
                     <Check checked={set7.compoff_encashment_enabled} onChange={(v) => upd({ compoff_encashment_enabled: v })}
@@ -544,7 +841,18 @@ export default function PayrollSettingsPage() {
                           onChange={(v) => upd({ compoff_encashment_divisor: v })} />
                         <Num label="Most days per person, per year" value={set7.compoff_encashment_max_days_per_fy} min={0} max={365} suffix="days"
                           onChange={(v) => upd({ compoff_encashment_max_days_per_fy: v })}
-                          hint="Requests above this are refused." />
+                          hint="Requests above this are refused. Leave it blank for no limit." />
+                        {serverKnows("compoff_encashment_component_id") && (
+                          <ComponentPick
+                            label="Paid through"
+                            value={set7.compoff_encashment_component_id}
+                            onChange={(v) => upd({ compoff_encashment_component_id: v })}
+                            components={earningComponents}
+                            className=""
+                            emptyLabel="Not set — cash-outs can’t be paid"
+                            hint="The earning line a cash-out appears on in that month’s payslip."
+                          />
+                        )}
                       </div>
                     )}
                   </div>
@@ -557,15 +865,31 @@ export default function PayrollSettingsPage() {
                     silently dropped, so the jobs are run from the Automation
                     page instead until the backend adds them. */}
 
-                </div>
+              </div>
 
-                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end">
-                  <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50">
-                    {saving ? "Saving..." : "Save Settings"}
-                  </button>
-                </div>
-              </form>
-            </div>
+              {/* The bar follows the page: these cards are tall, and the Save
+                  button used to be a scroll away from whatever was just changed.
+                  It also says how much is waiting, because only the changed
+                  settings are sent. */}
+              <div className="sticky bottom-0 z-10 mt-6 -mx-6 sm:-mx-8 px-6 sm:px-8 py-4 border-t border-slate-200 bg-white/95 backdrop-blur-sm flex flex-wrap items-center gap-3">
+                <p className={`text-xs font-bold flex-1 min-w-[12rem] ${changeCount > 0 ? "text-purple-700" : "text-slate-400"}`}>
+                  {changeCount === 0
+                    ? "Everything on this page is saved."
+                    : `${changeCount === 1 ? "1 setting" : `${changeCount} settings`} changed — not saved yet.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={discardChanges}
+                  disabled={saving || changeCount === 0}
+                  className="px-5 py-2.5 rounded-xl font-semibold text-sm text-slate-600 border border-slate-200 hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Discard changes
+                </button>
+                <button type="submit" disabled={saving || changeCount === 0} className="px-6 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {saving ? "Saving..." : "Save Settings"}
+                </button>
+              </div>
+            </form>
           )}
         </main>
 

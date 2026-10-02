@@ -143,14 +143,18 @@ export function useDocMindChat() {
     sessionIdRef.current = uuid(); // Fresh session
   }, [stopStreaming]);
 
-  const sendMessage = useCallback(async (query) => {
+  // `instructions` (shared/maya/mayaInstructions.js) are appended to the query
+  // that goes to the server ONLY. The user's bubble and the history keep what
+  // they wrote, so a hidden line is never shown and never re-sent as history.
+  const sendMessage = useCallback(async (query, { instructions = '' } = {}) => {
     if (!query.trim() || isLoading || isStreaming) return;
 
     const currentQuery = query.trim();
+    const sentQuery = instructions ? `${currentQuery}\n\n${instructions}` : currentQuery;
 
     // Check limits from ref (always up to date, no closure issues)
     const maxLength = limitsRef.current?.maxQueryLength || 1000;
-    if (currentQuery.length > maxLength) {
+    if (sentQuery.length > maxLength) {
       setError(`Query exceeds maximum length of ${maxLength} characters.`);
       return;
     }
@@ -201,7 +205,7 @@ export function useDocMindChat() {
           'X-Api-Key': API_KEY
         },
         body: JSON.stringify({
-          query: currentQuery,
+          query: sentQuery,
           stream: true,
           sessionId: sessionIdRef.current,
           history: historyPayload

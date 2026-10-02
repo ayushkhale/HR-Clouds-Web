@@ -3,14 +3,20 @@ import { Outlet } from "react-router-dom";
 import DashboardSidebar from "../components/DashboardSidebar";
 import { useAuth } from "../contexts/AuthContext";
 import { WorkspaceContext } from "../contexts/WorkspaceContext";
+import { workspaceForRole } from "../auth/permissions";
 
 // Renders the sidebar once for a whole route group so navigating between pages
 // in the group keeps its scroll position and expanded nav sections. It also
 // tells the pages which workspace they're mounted in (WorkspaceContext): the
 // same self-service screen runs under all three prefixes.
+//
+// The shared pages (/dashboard/profile, /directory, /documents) pass no `role`,
+// so the workspace comes from the signed-in role through workspaceForRole —
+// never the raw role: "admin"/"super-admin" are not workspaces, and the
+// sidebar used to fall through to the EMPLOYEE menu for them.
 function DashboardLayout({ role }) {
   const { role: authRole } = useAuth();
-  const resolvedRole = role || authRole || "guest";
+  const resolvedRole = role || workspaceForRole(authRole) || "guest";
 
   return (
     <WorkspaceContext.Provider value={resolvedRole}>

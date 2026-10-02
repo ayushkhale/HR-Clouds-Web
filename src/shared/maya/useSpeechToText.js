@@ -19,8 +19,10 @@
 //   Hinglish, so "Hinglish" listens in Hindi (which hears both languages) and
 //   rewrites the Devanagari into Roman letters with English HR words spelled
 //   in English (hinglish.js) — "mera leave balance kitna hai". Plain Hindi
-//   (Devanagari) was offered and removed on 2026-10-01: English and Hinglish
-//   only, which is also what Maya's English documents match best.
+//   (Devanagari) was removed on 2026-10-01 and brought back on 2026-10-02 by
+//   user decision: three languages, English · हिन्दी · Hinglish. Don't remove
+//   it again on the grounds that Maya's documents are English — the language
+//   is now also the ANSWER language (mayaInstructions.js), not just the mic's.
 // • stop() vs cancel(): stop() lets the browser deliver the last words it
 //   heard (tapping the mic off). cancel() discards them — used on Send, or the
 //   late result would write the question back into the just-cleared input.
@@ -51,6 +53,8 @@ const FALLBACK = "Voice typing stopped unexpectedly. Try again, or type your que
  */
 export const VOICE_LANGS = [
   { value: "en-IN", label: "English", listen: "en-IN" },
+  // Hindi keeps what it hears in Devanagari; only Hinglish rewrites it.
+  { value: "hi-IN", label: "हिन्दी", listen: "hi-IN" },
   { value: "hinglish", label: "Hinglish", listen: "hi-IN", write: toHinglish },
 ];
 const voiceLangOf = (value) => VOICE_LANGS.find((l) => l.value === value) || VOICE_LANGS[0];

@@ -2,10 +2,12 @@
 // leaves/AssignLeavePolicyDialog.jsx — Give one employee the leave days from a
 // policy template (POST /leaves/users/:userId/assign-policy).
 //
-// One dialog, two callers: the employee profile's Leave tab, where the person is
-// already decided, and the org-wide Leave Requests page, where they are not.
-// That is the only difference between them, and it is a prop — a second copy of
-// this form would drift from the first within a release (CLAUDE.md §2).
+// One dialog, three callers: the employee profile's Leave tab, where the person
+// is already decided; the org-wide Leave Requests page, where they are not; and
+// Setup › Leave Policies, where the POLICY is decided and HR picks the person
+// (`templateId`). Those presets are the only differences, and they are props —
+// a second copy of this form would drift from the first within a release
+// (CLAUDE.md §2).
 //
 // It is a FORM, so it is not a DetailDialog (§3): wide-ish, gridded, pinned
 // footer, nothing to scroll past.
@@ -58,15 +60,16 @@ const HAVE = { LOADING: "loading", NONE: "none", SOME: "some", FAILED: "failed",
  * @param {(message: string, userId: string) => void} props.onAssigned
  * @param {() => void} props.onClose
  * @param {string} [props.zIndex]          raise it over a host dialog (§3 stacking)
+ * @param {string} [props.templateId]      preselected policy (Setup › Leave Policies)
  */
 export default function AssignLeavePolicyDialog({
   userId = "", subjectName = "", people = [], peopleLoading = false,
-  onAssigned, onClose, zIndex = "z-[170]",
+  onAssigned, onClose, zIndex = "z-[170]", templateId: initialTemplateId = "",
 }) {
   const fixedSubject = !!userId;
   const [subject, setSubject] = useState(userId);
   const [subjectLabel, setSubjectLabel] = useState(subjectName);
-  const [templateId, setTemplateId] = useState("");
+  const [templateId, setTemplateId] = useState(initialTemplateId);
   const [templates, setTemplates] = useState({ rows: [], loading: true, error: null });
   const [have, setHave] = useState({ state: userId ? HAVE.LOADING : HAVE.IDLE, rows: [] });
   const [confirming, setConfirming] = useState(false);

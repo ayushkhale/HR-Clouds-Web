@@ -231,15 +231,20 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiCog,
           defaultCollapsed: true,
           items: [
+            // Departments first: they exist before anyone is invited into one.
             group("Organisation", HiOfficeBuilding, [
+              link("Departments", `${H}/departments`, HiOfficeBuilding, { nested: true }),
               link("Office Locations", `${H}/attendance/locations`, HiLocationMarker),
             ]),
-            // Which days are working days, then the hours on them, then the
-            // rules applied to those hours, then what working an off day earns.
+            // Which days are working days, then the hours on them and who works
+            // them, then the rules applied to those hours, then what working an
+            // off day earns. Shift Management (who works which shift) sits right
+            // after Work Shifts: handing shifts out is setup, not a daily queue.
             group("Time", HiClock, [
               link("Weekly Offs", `${H}/attendance/weekly-offs`, HiTemplate),
               link("Holidays", `${H}/attendance/holidays`, HiCalendar),
               link("Work Shifts", `${H}/attendance/shifts`, HiClock),
+              link("Shift Management", `${H}/attendance/roster`, HiUserGroup),
               link("Attendance Policies", `${H}/attendance/policies`, HiClipboardList),
               link(`${COMP_OFF} Policies`, `${H}/attendance/comp-off-policies`, HiGift),
             ]),
@@ -272,11 +277,9 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         {
-          // Departments exist before anyone is invited into one.
           title: "PEOPLE",
           icon: HiUserGroup,
           items: [
-            link("Departments", `${H}/departments`, HiOfficeBuilding),
             link("Invites", `${H}/invites`, HiMail),
             link(DICTIONARY.NAV.EMPLOYEES, `${H}/employees`, HiUserGroup, { nested: true }),
           ],
@@ -286,7 +289,6 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiClock,
           items: [
             link("Live Attendance", `${H}/attendance/directory`, HiClock),
-            link("Shift Management", `${H}/attendance/roster`, HiCalendar),
             link("Leave Requests", `${H}/leaves/requests`, HiInboxIn),
             link(`${REGULARIZATION}s`, `${H}/attendance/regularizations`, HiClipboardList),
             link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift),

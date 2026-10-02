@@ -1,16 +1,27 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// DepartmentsPage — every department in the organisation, as cards that open
+// DepartmentDetailPage. Shared by HR and the manager (CLAUDE.md §2): `viewer`
+// picks the DEPARTMENT_PLANES adapter, which decides what is offered — HR adds
+// and edits, a manager only reads (create/update are HR-only endpoints, so the
+// manager plane has them as null and the buttons are absent, not broken).
+// Sits under Setup › Organisation in both sidebars.
+// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { organizationAPI } from "../../../shared/api";
-import { canBeHOD } from "../../../shared/auth/permissions";
-import DashboardTopBar from "../../../shared/components/DashboardTopBar";
-import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
+import { organizationAPI } from "../api";
+import { DEPARTMENT_PLANES } from "../organization/departmentPlanes";
+import { canBeHOD } from "../auth/permissions";
+import DashboardTopBar from "../components/DashboardTopBar";
+import FieldHelp from "../fieldHelp/FieldHelp";
 import {
   HiOutlineOfficeBuilding, HiSearch, HiPlus, HiX, HiCheckCircle, HiPencil, HiLocationMarker, HiUser
 } from "react-icons/hi";
-import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
-import { useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
+import { PersonSelect, toPersonOption } from "../components/PersonPicker";
+import { useEmployeeDirectory } from "../contexts/EmployeeDirectoryContext";
 
-function DepartmentsPage() {
+function DepartmentsPage({ viewer = "hr" }) {
+  const plane = DEPARTMENT_PLANES[viewer] || DEPARTMENT_PLANES.hr;
+  const canEdit = Boolean(plane.update);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [departments, setDepartments] = useState([]);
@@ -46,7 +57,7 @@ function DepartmentsPage() {
     const editId = searchParams.get("edit");
     if (!editId || departments.length === 0) return;
     const target = departments.find((d) => (d.id || d._id) === editId);
-    if (target) openEditModal(target);
+    if (target && canEdit) openEditModal(target);
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, departments]);
@@ -125,10 +136,10 @@ function DepartmentsPage() {
       if (headOfDepartmentId) payload.head_of_department_id = headOfDepartmentId;
 
       if (isEditing) {
-        await organizationAPI.updateDepartment(editingId, payload);
+        await plane.update(editingId, payload);
         setResult({ type: "success", message: "Department updated successfully!" });
       } else {
-        await organizationAPI.createDepartment(payload);
+        await plane.create(payload);
         setResult({ type: "success", message: "Department created successfully!" });
       }
 
@@ -176,15 +187,21 @@ function DepartmentsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Departments</h1>
-              <p className="text-sm text-slate-500 mt-1">Manage organizational departments and assignments.</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {canEdit
+                  ? "Manage organizational departments and assignments."
+                  : "Every department in the organisation, who heads it and where it sits."}
+              </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
-            >
-              <HiPlus className="w-4 h-4" />
-              Add Department
-            </button>
+            {plane.create && (
+              <button
+                onClick={openAddModal}
+                className="px-5 py-2.5 bg-[#6D28D9] hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer flex-shrink-0"
+              >
+                <HiPlus className="w-4 h-4" />
+                Add Department
+              </button>
+            )}
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
@@ -226,7 +243,7 @@ function DepartmentsPage() {
                     ? "Departments unavailable."
                     : searchQuery
                       ? `No departments matching "${searchQuery}"`
-                      : "No departments yet — add your first one."}
+                      : canEdit ? "No departments yet — add your first one." : "No departments have been set up yet."}
                 </div>
               ) : (
                 filteredDepartments.map((dept) => {
@@ -237,7 +254,7 @@ function DepartmentsPage() {
                     || (employees.find(e => e.user_id === dept.head_of_department_id || e.id === dept.head_of_department_id) || dept.head_of_department)?.name;
 
                   const deptId = dept.id || dept._id;
-                  const open = () => navigate(`/dashboard/hr/departments/${deptId}`);
+                  const open = () => navigate(plane.detailPath(deptId));
 
                   return (
                     <div
@@ -279,14 +296,16 @@ function DepartmentsPage() {
                               </h3>
                             </div>
                           </div>
-                          <button
-                            title="Edit department"
-                            aria-label={`Edit ${dept.name}`}
-                            onClick={(e) => { e.stopPropagation(); openEditModal(dept); }}
-                            className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-purple-600 bg-white hover:bg-purple-50 rounded-xl transition-all shadow-xs border border-slate-100 hover:shadow-sm"
-                          >
-                            <HiPencil className="w-3.5 h-3.5" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              title="Edit department"
+                              aria-label={`Edit ${dept.name}`}
+                              onClick={(e) => { e.stopPropagation(); openEditModal(dept); }}
+                              className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-purple-600 bg-white hover:bg-purple-50 rounded-xl transition-all shadow-xs border border-slate-100 hover:shadow-sm"
+                            >
+                              <HiPencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
  
                         {/* Description */}

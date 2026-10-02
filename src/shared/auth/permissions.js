@@ -85,30 +85,63 @@ export function canBeHOD(role) {
 }
 export const canBeReportingManager = canBeHOD;
 
-// ── Route access tiers ───────────────────────────────────────────────────────
-// Each dashboard workspace maps to the set of roles allowed to render it.
-export const WORKSPACE_ROLES = {
-  hr: ["super-admin", "admin", "hr"],
-  manager: ["super-admin", "admin", "hr", "manager"],
-  employee: ["super-admin", "admin", "hr", "manager", "employee"],
+// ── Workspaces: one role, one workspace ──────────────────────────────────────
+// Every signed-in role has exactly ONE workspace, and the route gate admits a
+// role to that workspace and no other. HR never renders /dashboard/manager/* or
+// /dashboard/employee/*, a manager never renders /dashboard/employee/*.
+//
+// This used to be cumulative (HR listed in the manager and employee workspaces,
+// "because HR can do everything an employee can"). That let an HR user land in
+// the employee workspace from a stray link (My Profile → organisation name went
+// to /dashboard/employee/company) and then walk its tabs, because the
+// self-service endpoints behind them accept any tenant role. Things HR does for
+// themselves are already mounted inside the HR workspace (SELF_SERVICE_BASE,
+// MY_PAY_PATHS, MY_DOCUMENT_PATHS, ORG_PATHS in shared/attendance/paths.js) —
+// a missing self-service page is fixed by mounting it there, never by widening
+// this gate. CLAUDE.md §2 records the rule.
+export const WORKSPACES = ["hr", "manager", "employee", "guest"];
+
+const WORKSPACE_OF_ROLE = {
+  "super-admin": "hr",
+  admin: "hr",
+  hr: "hr",
+  manager: "manager",
+  employee: "employee",
+  guest: "guest",
 };
 
-/** Is `role` allowed inside the given workspace ("hr" | "manager" | "employee")? */
-export function canAccessWorkspace(role, workspace) {
-  const allowed = WORKSPACE_ROLES[workspace];
-  if (!allowed) return true; // shared pages — any authenticated user
-  return allowed.includes(normalizeRole(role));
+/** The one workspace a role belongs to, or null for a role the app doesn't know. */
+export function workspaceForRole(role) {
+  return WORKSPACE_OF_ROLE[normalizeRole(role)] || null;
 }
+
+/**
+ * May `role` render `workspace`? Exact match only. Anything that isn't a
+ * workspace (the shared /dashboard/profile-style pages) is open to any
+ * signed-in user. An unknown role is refused: the gate fails closed.
+ */
+export function canAccessWorkspace(role, workspace) {
+  if (!WORKSPACES.includes(workspace)) return true;
+  const own = workspaceForRole(role);
+  return own !== null && own === workspace;
+}
+
+// ── API capability tiers (NOT route access) ─────────────────────────────────
+// Which roles the backend lets call an endpoint family. These are cumulative on
+// purpose — HR may punch in like anyone — and decide whether a control is
+// offered inside a page. They must never decide which workspace renders.
+const ORG_MEMBER_ROLES = ["super-admin", "admin", "hr", "manager", "employee"];
+const TEAM_LEAD_ROLES = ["super-admin", "admin", "hr", "manager"];
 
 // ── Attendance capability helpers (mirror backend route authorisation) ─────
 /** Self-service attendance (punch, history, regularization…) — all org roles. */
 export function canSelfServeAttendance(role) {
-  return WORKSPACE_ROLES.employee.includes(normalizeRole(role));
+  return ORG_MEMBER_ROLES.includes(normalizeRole(role));
 }
 
 /** Team attendance reads and approvals (hierarchy-scoped server-side). */
 export function canManageTeamAttendance(role) {
-  return WORKSPACE_ROLES.manager.includes(normalizeRole(role));
+  return TEAM_LEAD_ROLES.includes(normalizeRole(role));
 }
 
 /** Attendance configuration: policies, shifts, holidays, locks, reports. */
@@ -116,20 +149,12 @@ export function canConfigureAttendance(role) {
   return isHRAdmin(role);
 }
 
-/** Role-based home dashboard path (kept in sync with AuthContext.getDashboardPath). */
+/**
+ * Role-based home dashboard path. The only copy: AuthContext.getDashboardPath
+ * delegates here (a second switch in AuthContext once forgot admin/super-admin
+ * and left them on the /dashboard spinner). "/dashboard" means "no workspace".
+ */
 export function dashboardPathForRole(role) {
-  switch (normalizeRole(role)) {
-    case "super-admin":
-    case "admin":
-    case "hr":
-      return "/dashboard/hr";
-    case "manager":
-      return "/dashboard/manager";
-    case "employee":
-      return "/dashboard/employee";
-    case "guest":
-      return "/dashboard/guest";
-    default:
-      return "/dashboard";
-  }
+  const workspace = workspaceForRole(role);
+  return workspace ? `/dashboard/${workspace}` : "/dashboard";
 }
