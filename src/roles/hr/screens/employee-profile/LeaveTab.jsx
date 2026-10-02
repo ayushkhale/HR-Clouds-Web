@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { leaveAPI } from "../../../../shared/api";
-import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
-import { noticeValue } from "../../../../shared/utils/leaveConfig";
+import { fmtDate, ymdOnly } from "../../../../shared/attendance/dates";
 import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPencil,
-  HiCalendar, HiInformationCircle, HiRefresh, HiClipboardCheck,
+  HiCalendar, HiRefresh, HiClipboardCheck,
 } from "react-icons/hi";
 import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
-import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
-
-// The override dialog reuses the policy rules' own hints — each reads the same for one person.
-const POLICY = (field) => ({ surface: "leaves.policy_setup", field });
+import CustomiseLeaveRulesDialog from "../../../../shared/leaves/CustomiseLeaveRulesDialog";
+import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ toast, onClose }) {
@@ -74,175 +71,6 @@ export function BalanceCard({ balance, index }) {
   );
 }
 
-// ─── Customise Leave Rules Modal ──────────────────────────────────────────────
-function CustomiseRulesModal({ userId, balance, onClose, onSaved }) {
-  // The balances endpoint returns NO current-config object (see backend
-  // clarification B1), so we cannot prefill the employee's real rule values.
-  // Every field therefore starts blank and only fields the HR user actually
-  // changes are sent — unsent fields keep their current server-side values, as
-  // the backend contract guarantees ("Unsent fields remain at their current
-  // values"). This prevents silently resetting accrual type / carry-forward /
-  // probation / overdraft, and avoids capping the annual quota at a mid-year
-  // partial `total_accrued`.
-  const [form, setForm] = useState({
-    assigned_annual_quota: "",
-    accrual_type: "",
-    max_carry_forward: "",
-    probation_restriction_days: "",
-    max_negative_balance: "",
-    notice_mode: "",   // "" = unchanged; else unrestricted | blocked | capped
-    notice_days: "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  function set(key, val) { setForm(f => ({ ...f, [key]: val })); setError(""); }
-
-  const isDirty = (v) => v !== "" && v !== null && v !== undefined;
-  // notice_days alone is not a change; only a chosen notice_mode is.
-  const dirtyCount = Object.entries(form)
-    .filter(([k, v]) => k !== "notice_days" && isDirty(v)).length;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (dirtyCount === 0) {
-      setError("Change at least one field. Blank fields keep their current values.");
-      return;
-    }
-    if (form.notice_mode === "capped" && (form.notice_days === "" || parseInt(form.notice_days, 10) < 1)) {
-      setError("Enter the most days allowed during the notice period, or choose No limit / Not allowed.");
-      return;
-    }
-    setLoading(true); setError("");
-    const payload = {};
-    if (isDirty(form.assigned_annual_quota)) payload.assigned_annual_quota = parseFloat(form.assigned_annual_quota) || 0;
-    if (isDirty(form.accrual_type)) payload.accrual_type = form.accrual_type;
-    if (isDirty(form.max_carry_forward)) payload.max_carry_forward = parseFloat(form.max_carry_forward) || 0;
-    if (isDirty(form.probation_restriction_days)) payload.probation_restriction_days = parseInt(form.probation_restriction_days) || 0;
-    if (isDirty(form.max_negative_balance)) payload.max_negative_balance = parseFloat(form.max_negative_balance) || 0;
-    if (isDirty(form.notice_mode)) payload.notice_period_max_days = noticeValue(form.notice_mode, form.notice_days);
-    try {
-      await leaveAPI.overrideConfig(userId, balance.leave_type_id, payload);
-      onSaved("Leave rules updated for this employee. The balance was adjusted if needed.");
-    } catch (err) {
-      setError(leaveErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const inputClass = "w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition";
-  const labelClass = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <div>
-            <h2 className="text-base font-bold text-slate-800">Customise Leave Rules</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Change the <strong>{balance.leave_type?.name}</strong> rules for this employee only.
-            </p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400">
-            <HiX className="w-4 h-4" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {error && (
-            <div className="flex items-start gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-              <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5" />{error}
-            </div>
-          )}
-
-          <div className="flex items-start gap-2 text-xs text-purple-800 bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
-            <HiInformationCircle className="w-4 h-4 shrink-0 mt-0.5 text-purple-500" />
-            <span>
-              Only the fields you fill in are changed — <strong>leave a field blank to keep it as it is</strong>.
-              If you raise the days per year for leave that is <strong>given all at once</strong>, the extra days are added straight away.
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Days per year</label>
-              <input type="number" step="0.5" min="0" max="365" value={form.assigned_annual_quota} onChange={e => set("assigned_annual_quota", e.target.value)} placeholder="No change" className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>
-                How leave is given
-                {!form.accrual_type && <span className="ml-2 normal-case font-normal text-slate-400">(no change)</span>}
-              </label>
-              <div className="flex gap-2 mt-1">
-                {[{ v: "upfront", l: "All at once" }, { v: "monthly", l: "Every month" }].map(t => (
-                  <label key={t.v} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.accrual_type === t.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
-                    <input type="radio" name="accrual_type_override" value={t.v} checked={form.accrual_type === t.v} onChange={() => set("accrual_type", t.v)} className="sr-only" />
-                    {t.l}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <div className="flex items-center">
-                <label className={labelClass}>Unused days kept for next year</label>
-                <FieldHelp {...POLICY("max_carry_forward")} label="days kept for next year" className="mb-1.5" overlay />
-              </div>
-              <input type="number" step="0.5" min="0" value={form.max_carry_forward} onChange={e => set("max_carry_forward", e.target.value)} placeholder="No change" className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Wait after joining (days)</label>
-              <input type="number" step="1" min="0" value={form.probation_restriction_days} onChange={e => set("probation_restriction_days", e.target.value)} placeholder="No change" className={inputClass} />
-            </div>
-            <div>
-              <div className="flex items-center">
-                <label className={labelClass}>Extra days allowed (below zero)</label>
-                <FieldHelp {...POLICY("max_negative_balance")} label="extra days below zero" className="mb-1.5" overlay />
-              </div>
-              <input type="number" step="0.5" min="0" value={form.max_negative_balance} onChange={e => set("max_negative_balance", e.target.value)} placeholder="No change" className={inputClass} />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center">
-                <label className={labelClass}>Leave during notice period</label>
-                <FieldHelp {...POLICY("notice_period_max_days")} label="leave during notice period" className="mb-1.5" overlay />
-              </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { v: "", l: "No change" },
-                { v: "unrestricted", l: "No limit" },
-                { v: "blocked", l: "Not allowed" },
-                { v: "capped", l: "Limited" },
-              ].map(opt => (
-                <button type="button" key={opt.v || "unchanged"} onClick={() => set("notice_mode", opt.v)}
-                  className={`py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition ${form.notice_mode === opt.v ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-purple-300"}`}>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
-            {form.notice_mode === "capped" && (
-              <input type="number" step="1" min="1" value={form.notice_days} onChange={e => set("notice_days", e.target.value)}
-                placeholder="Most days allowed during notice period"
-                className={`mt-2 ${inputClass}`} />
-            )}
-            <p className="text-[10px] text-slate-400 mt-1">"Not allowed" means no leave after resigning; "Limited" allows up to the number of days you enter.</p>
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button type="submit" disabled={loading || dirtyCount === 0} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 rounded-xl transition">
-              {loading ? "Saving…" : dirtyCount === 0 ? "Change a field to save" : "Save changes"}
-            </button>
-            <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main LeaveTab Component ──────────────────────────────────────────────────
 const LT_CURRENT_YEAR = new Date().getFullYear();
 const LT_YEAR_OPTIONS = [LT_CURRENT_YEAR, LT_CURRENT_YEAR - 1, LT_CURRENT_YEAR - 2];
@@ -258,6 +86,12 @@ export default function LeaveTab({ userId, employeeName = "" }) {
   const [assignOpen, setAssignOpen] = useState(false);
   const [customiseTarget, setCustomiseTarget] = useState(null);
   const [toast, setToast] = useState(null);
+  // Which policy they are on, and the three value sets behind each leave type
+  // (what applies now, what the policy says, what the template says today).
+  // A failed read is kept apart from "no policy": the first invites a retry, the
+  // second invites assigning one, and showing the wrong one is how somebody
+  // assigns over rules that were there all along (CLAUDE.md §7).
+  const [config, setConfig] = useState({ status: "loading", assignment: null, types: [] });
 
   function showToast(message, type = "success") {
     setToast({ message, type });
@@ -280,14 +114,43 @@ export default function LeaveTab({ userId, employeeName = "" }) {
     }
   }, [userId, year]);
 
+  const loadConfig = useCallback(async () => {
+    setConfig({ status: "loading", assignment: null, types: [] });
+    try {
+      const res = await leaveAPI.getUserLeaveConfig(userId);
+      const data = res?.data ?? {};
+      setConfig({ status: "ok", assignment: data.assignment || null, types: Array.isArray(data.types) ? data.types : [] });
+    } catch {
+      setConfig({ status: "error", assignment: null, types: [] });
+    }
+  }, [userId]);
+
   // Balances reload independently when the year changes (no full-tab skeleton
   // after the first one — `loading` is only ever true until the first read).
   useEffect(() => { loadBalances(); }, [loadBalances]);
+  // The config is not year-scoped, so it is read once per person.
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
   function onCustomiseSaved(msg) {
     setCustomiseTarget(null);
     showToast(msg);
     loadBalances();
+    loadConfig();
+  }
+
+  /** The config row behind a balance row — the Customise dialog's prefill. */
+  const typeFor = (leaveTypeId) => config.types.find((t) => t.leave_type_id === leaveTypeId) || null;
+
+  /**
+   * Why Customise can't be used on a balance row, or "" when it can. A balance
+   * with no live config is normal, not a glitch: a leave type the current policy
+   * lacks stops applying but keeps whatever was left in it.
+   */
+  function customiseBlockedBecause(leaveTypeId) {
+    if (config.status === "loading") return "Loading their current rules…";
+    if (config.status === "error") return "Couldn’t load their current rules";
+    if (!typeFor(leaveTypeId)) return "This leave isn’t part of their policy any more — only the days left are kept";
+    return "";
   }
 
   if (loading) {
@@ -301,8 +164,32 @@ export default function LeaveTab({ userId, employeeName = "" }) {
     );
   }
 
+  const assignment = config.assignment;
+  const policyLine = config.status === "loading" ? "Checking which policy they’re on…"
+    : config.status === "error" ? "Couldn’t load which policy they’re on."
+      : assignment?.legacy ? "On a leave policy, but which one was never recorded. Assign one to track it."
+        : assignment?.template?.name
+          ? `On ${assignment.template.name}${assignment.effective_from ? ` since ${fmtDate(ymdOnly(assignment.effective_from))}` : ""}${assignment.effective_to ? `, until ${fmtDate(ymdOnly(assignment.effective_to))}` : ""}`
+          : "No leave policy assigned, so they can’t apply for leave yet.";
+  const policyTone = config.status === "error" ? "text-rose-700"
+    : config.status === "ok" && !assignment ? "text-fuchsia-700" : "text-slate-700";
+
   return (
     <div className="space-y-6">
+      {/* ── Which policy they are on. The tab used to show balances with no way
+          to tell where they came from, so a wrong quota had no explanation. ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 flex items-center gap-3">
+        <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+          <HiClipboardCheck className="w-5 h-5" />
+        </span>
+        <div className="min-w-0">
+          <p className={`text-sm font-bold ${policyTone}`}>{policyLine}</p>
+          {config.status === "ok" && assignment?.assigned_by?.name && (
+            <p className="text-xs text-slate-400 mt-0.5">Set up by {assignment.assigned_by.name}</p>
+          )}
+        </div>
+      </div>
+
       {/* ── Section 1: Balance Cards ── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -395,9 +282,15 @@ export default function LeaveTab({ userId, employeeName = "" }) {
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex justify-end">
+                        {/* Held back until the rules have actually been read:
+                            the form prefills from them, and an empty form would
+                            silently reset whatever it didn’t show. A disabled
+                            button always says why. */}
                         <button
-                          onClick={() => setCustomiseTarget(b)}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-lg transition"
+                          onClick={() => setCustomiseTarget(typeFor(b.leave_type_id))}
+                          disabled={!!customiseBlockedBecause(b.leave_type_id)}
+                          title={customiseBlockedBecause(b.leave_type_id) || undefined}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <HiPencil className="w-3.5 h-3.5" /> Customise
                         </button>
@@ -412,11 +305,18 @@ export default function LeaveTab({ userId, employeeName = "" }) {
       )}
 
       {customiseTarget && (
-        <CustomiseRulesModal
+        <CustomiseLeaveRulesDialog
           userId={userId}
-          balance={customiseTarget}
+          leaveTypeId={customiseTarget.leave_type_id}
+          leaveTypeName={customiseTarget.leave_type?.name || "This leave"}
+          subjectName={employeeName}
+          effective={customiseTarget.effective}
+          policyDefault={customiseTarget.policy_default}
+          templateCurrent={customiseTarget.template_current}
+          overriddenFields={customiseTarget.overridden_fields || []}
           onClose={() => setCustomiseTarget(null)}
           onSaved={onCustomiseSaved}
+          zIndex="z-50"
         />
       )}
 
@@ -424,7 +324,7 @@ export default function LeaveTab({ userId, employeeName = "" }) {
         <AssignLeavePolicyDialog
           userId={userId}
           subjectName={employeeName}
-          onAssigned={(message) => { showToast(message); loadBalances(); }}
+          onAssigned={(message) => { showToast(message); loadBalances(); loadConfig(); }}
           onClose={() => setAssignOpen(false)}
         />
       )}

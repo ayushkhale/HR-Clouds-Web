@@ -2308,6 +2308,14 @@
             "enabled": true,
             "question": "When someone is given a leave policy part-way through the year, how are their leave days worked out, and what happens to days they had already been given?"
           }
+        },
+        "scope": {
+          "tier": "onboarding",
+          "hint": "One person, or everyone matching a department, location, employment type or stage. You see exactly who is affected before anything is written.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should HR check before giving a whole department the same leave policy at once?"
+          }
         }
       }
     },
@@ -3370,6 +3378,55 @@
           "askMaya": {
             "enabled": true,
             "question": "When should a company form be uploaded and kept in the portal rather than linked to an external website?"
+          }
+        }
+      }
+    },
+    "leaves.assignment": {
+      "kind": "data",
+      "description": "HR → Setup → Leave → Leave Assignment (LeaveAssignmentPage): who is on which leave policy, who is on none. `page` beside the h1, `coverage` and `state` on their columns, `override_count` on the Custom Rules column and its tile, `effective_to` in the End dialog. The record inspector reuses leaves.policy_setup for the entitlement fields — do not write a second set of hints for the same concepts.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Everyone in the organisation and the leave policy each one is on. Assigning a policy replaces the rules a person has and works their year out again.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does assigning a leave policy to someone actually change for them, and what happens to leave they have already taken?"
+          }
+        },
+        "coverage": {
+          "tier": "onboarding",
+          "hint": "On a policy means their days come from one. Not recorded means they have leave but we never recorded which. No policy means they cannot apply at all.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why might an employee have leave rules without a leave policy recorded against them, and does that need fixing?"
+          }
+        },
+        "state": {
+          "tier": "onboarding",
+          "hint": "Ongoing means the policy applies now. Upcoming means it starts later. Ended means a last day was set, so no leave can be taken after it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does ending someone's leave policy do to the leave they have left, and when would HR do it?"
+          }
+        },
+        "override_count": {
+          "tier": "onboarding",
+          "hint": "How many kinds of leave were changed for this person on their own. Editing the policy will not move them — those rules stay until you undo them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When should an employee's leave rules differ from their policy, and how do those differences get undone?"
+          }
+        },
+        "effective_to": {
+          "tier": "onboarding",
+          "hint": "The last day this policy applies, that day included. Balances are kept as they are, no leave can be applied for after it, and monthly leave stops being added.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to an employee's leave balance and their future leave when their leave policy is given an end date?"
           }
         }
       }

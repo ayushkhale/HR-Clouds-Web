@@ -251,6 +251,7 @@ function DashboardSidebar({ role = "guest" }) {
             group("Leave", HiCalendar, [
               link("Leave Types", `${H}/leaves/types`, HiClipboardList),
               link("Leave Policies", `${H}/leaves/policies`, HiTemplate),
+              link("Leave Assignment", `${H}/leaves/assignments`, HiClipboardCheck),
               link("Leave Automation", `${H}/leaves/automation`, HiLightningBolt),
             ]),
             // Components are the building blocks, templates assemble them, and

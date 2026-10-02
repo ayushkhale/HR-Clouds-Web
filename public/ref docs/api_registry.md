@@ -214,6 +214,21 @@ This matrix provides a comprehensive mapping of every API endpoint in the system
 | 4 | `/api/v1/leaves/my-balances` | GET | Yes | `all` | hr, manager, employee | Fetches the logged-in employee's own leave wallet. | `leave_self.routes.js` | `leave_self.controller.js` | `leave_balance.service.js` | [ ✅ ] | [ ] | [ ] |
 | 5 | `/api/v1/leaves/my-leave-types` | GET | Yes | `all` | hr, manager, employee | Fetches the leave types applicable to the logged-in employee (apply-form catalog with their per-user config). | `leave_self.routes.js` | `leave_self.controller.js` | `leave_balance.service.js` | [ ✅ ] | [ ] | [ ] |
 
+## Leave Module - Policy Assignment Ledger & Coverage (Phase 7)
+
+*Requires Feature Flag: `leave.access`. Every route is **`hr` only** — `admin` / `super-admin` are platform roles with no organisation and get a `403`. Needs migration 00066 on the server.*
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | `/api/v1/leaves/assignments` | GET | Yes | `hr` | hr | Coverage roster: one row per active member, including people with no policy (`coverage: "none"`). | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 2 | `/api/v1/leaves/assignments/summary` | GET | Yes | `hr` | hr | The coverage tiles in one request: on_policy, legacy, unassigned, with_overrides, templates[]. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 3 | `/api/v1/leaves/users/:userId/leave-config` | GET | Yes | `hr` | hr | One member's effective rules per leave type, with `policy_default` and `template_current` beside each. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 4 | `/api/v1/leaves/users/:userId/assignments` | GET | Yes | `hr` | hr | One member's assignment history, newest first, ended ones included. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 5 | `/api/v1/leaves/assignments/preview` | POST | Yes | `hr` | hr | Dry run for a bulk assignment — writes nothing, returns unchanged / changing / blocked and a `preview_token`. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 6 | `/api/v1/leaves/assignments/bulk` | POST | Yes | `hr` | hr | Assigns a policy to up to 200 people, one transaction each; HTTP 200 with assigned / skipped / failed. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 7 | `/api/v1/leaves/assignments/:id/end` | POST | Yes | `hr` | hr | Sets the last day a policy applies. Balances are kept; accrual stops. No delete exists. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+| 8 | `/api/v1/leaves/users/:userId/configs/:leaveTypeId` | DELETE | Yes | `hr` | hr | Reverts one leave type to the policy default, undoing a per-person customisation. | `leave_admin.routes.js` | `leave_admin.controller.js` | `leave_assignment.service.js` | [ ] | [ ✅ ] | [ ] |
+
 ## Leave Module - Employee Application (Phase 3)
 
 *Requires Feature Flag: `leave.access`*

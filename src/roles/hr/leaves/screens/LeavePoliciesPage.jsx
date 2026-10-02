@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import { noticeModeOf, noticeValue } from "../../../../shared/utils/leaveConfig";
+import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
 import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
@@ -372,6 +373,9 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
   const [entitlementModal, setEntitlementModal] = useState(null); // null | "create" | entitlement obj
 
   const entitlements = policy.entitlements || [];
+  // How many people are on this policy. Absent on a server without the
+  // assignment ledger, and an absent key is a hidden feature, not a zero (§7).
+  const assignedCount = policy.assigned_user_count;
 
   function onEntitlementSaved(msg) {
     setEntitlementModal(null);
@@ -404,7 +408,17 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
           <div className="min-w-0">
             <p className="text-sm font-bold text-slate-800 truncate">{policy.name}</p>
             {policy.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{policy.description}</p>}
-            <p className="text-[10px] text-slate-400 mt-1 font-medium">{entitlements.length} entitlement{entitlements.length !== 1 ? "s" : ""}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+              {entitlements.length} entitlement{entitlements.length !== 1 ? "s" : ""}
+              {assignedCount !== undefined && (
+                <>
+                  {" · "}
+                  <span className={assignedCount > 0 ? "text-purple-600 font-bold" : undefined}>
+                    {assignedCount === 0 ? "nobody on it yet" : `${assignedCount} ${assignedCount === 1 ? "person" : "people"} on it`}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
           {expanded ? <HiChevronDown className="w-5 h-5 text-slate-400 shrink-0" /> : <HiChevronRight className="w-5 h-5 text-slate-400 shrink-0" />}
         </button>
@@ -554,13 +568,27 @@ export default function LeavePoliciesPage() {
   }
 
   async function handleDeletePolicy(policy) {
-    if (!(await window.confirm(`Delete policy "${policy.name}"? All its leave types will be removed, and assigned employees will lose these leave rules.`))) return;
+    // The server refuses this outright while anyone is on the policy
+    // (409 TEMPLATE_IN_USE), so the question is only worth asking when nobody is.
+    const on = policy.assigned_user_count;
+    if (on > 0) {
+      showToast(`${on} ${on === 1 ? "person is" : "people are"} on “${policy.name}” — move them to another policy first, from Leave Assignment.`, "error");
+      return;
+    }
+    if (!(await window.confirm(`Delete policy “${policy.name}”? All its leave types will be removed, and anyone still on it would lose these leave rules.`))) return;
     try {
       await leaveAPI.deleteTemplate(policy.id);
-      showToast(`Policy "${policy.name}" deleted.`);
+      showToast(`Policy “${policy.name}” deleted.`);
       loadData();
     } catch (err) {
-      showToast(err.message || "Failed to delete.", "error");
+      // Somebody was assigned between the read and the delete.
+      const inUse = err?.data?.details?.assigned_user_count;
+      showToast(
+        inUse > 0
+          ? `${inUse} ${inUse === 1 ? "person is" : "people are"} on this policy — move them first, from Leave Assignment.`
+          : leaveErrorMessage(err, "Couldn’t delete this policy."),
+        "error",
+      );
     }
   }
 
