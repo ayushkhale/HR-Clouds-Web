@@ -13,7 +13,7 @@ import {
   componentMeta, budgetFromPreview, estimateBudget, rowAnnual, estimateLine, moYr, buildSuggestions,
 } from "../ctcBudget";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
-import { calculationLabel } from "../runMeta";
+import { CALCULATION_TYPES, calculationLabel } from "../runMeta";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 // Org employee rows carry `user_id`; payroll rows carry `id`. Accept either.
@@ -444,6 +444,42 @@ export default function PayrollTemplatesPage() {
 
   const addFormRef = useRef(null);
 
+  // A component is in a template at most once (the API rejects a second copy),
+  // so one that is already on this template is not offered again. The currently
+  // chosen one stays in the list, or the select would blank itself while the
+  // form still held its id.
+  const usedComponentIds = new Set(
+    (managingTemplate?.components || []).map((c) => c.component_id || c.salary_component?.id).filter(Boolean),
+  );
+  const selectableComponents = components.filter(
+    (c) => !usedComponentIds.has(c.id) || c.id === componentFormData.component_id,
+  );
+
+  // Picking a component carries its own rule across: every component already
+  // says how it is worked out and from what, and HR was retyping that here on
+  // every line. It is a starting point, not a lock — both fields stay editable,
+  // because a template may deliberately differ from the component's default.
+  const templateHasBalancing = (managingTemplate?.components || []).some((c) => c.calculation_type === "balancing");
+  const chooseComponent = (id) => {
+    const def = components.find((c) => c.id === id);
+    if (!def) {
+      setComponentFormData({ component_id: id, calculation_type: "flat", value: "" });
+      return;
+    }
+    // A template takes one balancing line. Carrying a component's own
+    // "balancing" across into a template that already has one would prefill a
+    // row the API is certain to reject, so that one falls back to a flat amount
+    // for HR to fill in.
+    const own = CALCULATION_TYPES.includes(def.calculation_type) ? def.calculation_type : "flat";
+    const calc = own === "balancing" && templateHasBalancing ? "flat" : own;
+    const ownValue = Number(def.value);
+    setComponentFormData({
+      component_id: id,
+      calculation_type: calc,
+      value: calc === "balancing" || !Number.isFinite(ownValue) ? "" : String(ownValue),
+    });
+  };
+
   // Suggestions only prefill (or ask to confirm a removal); HR reviews and saves as usual.
   const applySuggestion = (s) => {
     if (s.kind === "remove") {
@@ -576,7 +612,7 @@ export default function PayrollTemplatesPage() {
 
       {isComponentModalOpen && managingTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-bold text-slate-800">Manage Components</h2>
@@ -596,9 +632,11 @@ export default function PayrollTemplatesPage() {
               onSuggestion={applySuggestion}
             />
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* The list and the form side by side: adding a line is a decision
+                about the lines already there, so both stay on screen. */}
+            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
               {/* Existing Components */}
-              <div>
+              <div className="lg:col-span-3 min-w-0">
                 <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Current Components ({managingTemplate.components?.length || 0})</h3>
                 <div className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
                   <table className="w-full text-left text-sm">
@@ -675,17 +713,20 @@ export default function PayrollTemplatesPage() {
               </div>
 
               {/* Add New Component Form */}
-              <div className="pt-6 border-t border-slate-100">
+              <div className="lg:col-span-2 min-w-0 rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
                 <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Add Component</h3>
-                <form ref={addFormRef} onSubmit={(e) => handleAddComponent(e, addBalancingFill)} className="grid grid-cols-12 gap-4 items-end">
-                  <div className="col-span-12 md:col-span-5">
+                <form ref={addFormRef} onSubmit={(e) => handleAddComponent(e, addBalancingFill)} className="grid grid-cols-2 gap-x-4 gap-y-4">
+                  <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Select Component</label>
-                    <select required value={componentFormData.component_id} onChange={e => setComponentFormData({...componentFormData, component_id: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-purple-400 outline-none">
-                      <option value="">-- Choose --</option>
-                      {components.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+                    <select required value={componentFormData.component_id} onChange={e => chooseComponent(e.target.value)} disabled={selectableComponents.length === 0} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-purple-400 outline-none disabled:bg-slate-100 disabled:text-slate-400">
+                      <option value="">{selectableComponents.length === 0 ? "Every component is already on this template" : "-- Choose --"}</option>
+                      {selectableComponents.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
                     </select>
+                    {componentFormData.component_id
+                      ? <p className="text-[10px] text-slate-400 mt-1">Filled in from this component&apos;s own setup — change either field to make this template differ.</p>
+                      : <p className="text-[10px] text-slate-400 mt-1">Choosing one fills in how it is worked out and its value; you can still change both.</p>}
                   </div>
-                  <div className="col-span-6 md:col-span-4">
+                  <div>
                     <div className="flex items-center">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Calculation</label>
                       <FieldHelp surface="payroll.structure_template" field="calculation_type" label="how this line is worked out" className="mb-1.5" size="sm" overlay />
@@ -698,7 +739,7 @@ export default function PayrollTemplatesPage() {
                       <option value="balancing">Balancing Figure</option>
                     </select>
                   </div>
-                  <div className="col-span-6 md:col-span-3">
+                  <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Value</label>
                     {componentFormData.calculation_type === 'balancing' ? (
                       <input type="text" readOnly tabIndex={-1} value={addBalancingFill != null ? formatINR(addBalancingFill) : ""} placeholder="Auto"
@@ -709,13 +750,13 @@ export default function PayrollTemplatesPage() {
                     )}
                   </div>
                   {draftHint && (
-                    <p className={`col-span-12 -mt-1 flex items-center gap-1.5 text-xs font-semibold tabular-nums ${draftHint.tone}`}>
-                      {draftHint.tone === "text-rose-600" && <HiExclamationCircle className="w-4 h-4 shrink-0" />}
+                    <p className={`col-span-2 -mt-1 flex items-start gap-1.5 text-xs font-semibold tabular-nums ${draftHint.tone}`}>
+                      {draftHint.tone === "text-rose-600" && <HiExclamationCircle className="w-4 h-4 shrink-0 mt-px" />}
                       {draftHint.text}
                     </p>
                   )}
-                  <div className="col-span-12 mt-2">
-                    <button type="submit" className="w-full px-4 py-2 bg-purple-600 text-white font-bold text-sm rounded-lg hover:bg-purple-700 transition">Add to Template</button>
+                  <div className="col-span-2">
+                    <button type="submit" disabled={selectableComponents.length === 0} className="w-full px-4 py-2 bg-purple-600 text-white font-bold text-sm rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed">Add to Template</button>
                   </div>
                 </form>
               </div>

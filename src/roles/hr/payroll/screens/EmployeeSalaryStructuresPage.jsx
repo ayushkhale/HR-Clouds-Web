@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI } from "../../../../shared/api";
+import { organizationAPI, payrollAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
@@ -17,6 +17,7 @@ import CtcMoneyFlow from "../CtcMoneyFlow";
 import { prettifyCode } from "../runMeta";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
+import { roleLabel } from "../../../../shared/auth/permissions";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 const REVISION = (field) => ({ surface: "payroll.salary_revision", field });
@@ -78,6 +79,22 @@ async function fetchAllCurrentStructures() {
 }
 const userName = (u) => u?.name || u?.display_name || [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() || u?.identifier || "Unknown";
 const userDept = (u) => u?.department || u?.department_name || "N/A";
+const userDesignation = (u) => (typeof u?.designation === "string" ? u.designation.trim() : "");
+
+/**
+ * Who heads a department, as a set of user ids.
+ *
+ * An employee row says nothing about this — `head_of_department_id` lives on the
+ * department — so the only way to mark a HOD is to read the departments once and
+ * match. Worth the one request: which template to put somebody on depends on
+ * seniority, and "Manager - heads a department" answers that where a name alone
+ * does not. A failed read simply leaves the pills off.
+ */
+const hodIdsFrom = (departments) =>
+  new Set((Array.isArray(departments) ? departments : [])
+    .map((d) => d?.head_of_department_id)
+    .filter(Boolean)
+    .map(String));
 
 // ── Revision history (all statuses — HR needs the full audit picture, #17) ──
 //
@@ -279,7 +296,7 @@ function HistoryModal({ user, onClose, showToast, nameOf }) {
 }
 
 // ── Assign / revise, with preview-before-commit (#15, #16, #18) ────────────
-function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose, onDone, showToast }) {
+function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod = false, onClose, onDone, showToast }) {
   const [current, setCurrent] = useState(undefined); // undefined = loading, null = none
   const hasCurrent = !!current;
   // #18 enriches this read with the live PF / ESI / PT / TDS split, so HR can
@@ -457,7 +474,11 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, onClose
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-800">{hasCurrent ? "Revise salary" : "Assign salary"}</h2>
-            <p className="text-xs text-slate-500">{userName(user)}</p>
+            <p className="text-xs text-slate-500">
+              {[userName(user), roleLabel(user?.role), userDesignation(user), isHod ? "heads a department" : ""]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition"><HiX className="w-5 h-5" /></button>
         </div>
@@ -656,6 +677,7 @@ export default function EmployeeSalaryStructuresPage() {
   const [templates, setTemplates] = useState([]);
   const [statutoryConfig, setStatutoryConfig] = useState(null);
   const [componentFlags, setComponentFlags] = useState({});
+  const [hodIds, setHodIds] = useState(() => new Set());
   const [ctcByUser, setCtcByUser] = useState({}); // userId -> current structure (or null)
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -689,7 +711,7 @@ export default function EmployeeSalaryStructuresPage() {
     setLoading(true);
     // The roster names everyone (including people with no structure yet), the
     // bulk list carries the CTCs. Either can fail without blanking the screen.
-    const [listRes, tplRes, ctcRes, cfgRes, compRes] = await Promise.allSettled([
+    const [listRes, tplRes, ctcRes, cfgRes, compRes, deptRes] = await Promise.allSettled([
       fetchAllOrgEmployees({ includeInactive: false }), // current employees only
       payrollAPI.getTemplates(),
       fetchAllCurrentStructures(),
@@ -697,9 +719,16 @@ export default function EmployeeSalaryStructuresPage() {
       // the rates, and which components count towards the PF / ESI wage.
       payrollAPI.getStatutoryConfig(),
       payrollAPI.getComponents({ is_active: true }),
+      // Marks the people who head a department; see hodIdsFrom.
+      organizationAPI.getDepartments(),
     ]);
     if (reqId !== loadReq.current) return;
 
+    setHodIds(hodIdsFrom(
+      deptRes.status === "fulfilled"
+        ? deptRes.value?.data?.departments || deptRes.value?.data?.records || deptRes.value?.data || []
+        : [],
+    ));
     setStatutoryConfig(cfgRes.status === "fulfilled" ? cfgRes.value.data || null : null);
     setComponentFlags(componentFlagsByCode(
       compRes.status === "fulfilled" ? compRes.value.data?.records || compRes.value.data || [] : [],
@@ -739,10 +768,11 @@ export default function EmployeeSalaryStructuresPage() {
         {loading ? <Skeleton type="table" rows={6} /> : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[720px]">
+              <table className="w-full text-left text-sm min-w-[860px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                     <th className="px-6 py-4">Employee</th>
+                    <th className="px-6 py-4">Role</th>
                     <th className="px-6 py-4">Department</th>
                     <th className="px-6 py-4 text-right"><HelpLabel text="Current CTC" help={{ ...REVISION("annual_ctc"), size: "sm" }} /></th>
                     <th className="px-6 py-4"><HelpLabel text="Effective from" help={{ ...REVISION("effective_from"), size: "sm" }} /></th>
@@ -760,6 +790,19 @@ export default function EmployeeSalaryStructuresPage() {
                         <td className="px-6 py-4">
                           <p className="font-bold text-slate-800">{userName(user)}</p>
                           {user.email && <p className="text-xs text-slate-400">{user.email}</p>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-[10px] font-bold uppercase tracking-wider text-purple-700">
+                              {roleLabel(user.role) || "Employee"}
+                            </span>
+                            {hodIds.has(String(userId(user))) && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-[10px] font-bold uppercase tracking-wider text-fuchsia-700" title="Heads a department">
+                                Head of dept
+                              </span>
+                            )}
+                          </div>
+                          {userDesignation(user) && <p className="text-xs text-slate-500 mt-1">{userDesignation(user)}</p>}
                         </td>
                         <td className="px-6 py-4 text-slate-600">{userDept(user)}</td>
                         <td className="px-6 py-4 text-right tabular-nums">
@@ -786,7 +829,7 @@ export default function EmployeeSalaryStructuresPage() {
                     );
                   })}
                   {employees.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No employees found.</td></tr>
+                    <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No employees found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -803,6 +846,7 @@ export default function EmployeeSalaryStructuresPage() {
           templates={templates}
           statutoryConfig={statutoryConfig}
           componentFlags={componentFlags}
+          isHod={hodIds.has(String(userId(assignUser)))}
           showToast={showToast}
           onClose={() => setAssignUser(null)}
           onDone={() => { const assigned = assignUser; setAssignUser(null); refreshOne(assigned); }}

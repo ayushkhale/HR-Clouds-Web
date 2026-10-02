@@ -1231,7 +1231,7 @@
     },
     "payroll.settings": {
       "kind": "form",
-      "description": "HR — Setup › Payroll Settings. Almost every switch on this screen already carries its own explanation line, so only the unpaid-day divisor is helped here. Phase 5 (onboarding tier): `page` beside the h1, rounding, the two approval switches whose own lines use jargon (Tier A/B, segregation of duties), short-notice recovery and its rate basis (once, on the first of the three rate-basis selects), and the leave types paid out at exit. Section titles sit inside fold buttons, so they get none.",
+      "description": "HR — Setup › Payroll Settings. Most switches carry their own explanation line, so only the unpaid-day divisor is helped outside the onboarding tier. Phase 5 (onboarding tier): `page` beside the h1, rounding, the two approval switches whose own lines use jargon (Tier A/B, segregation of duties), short-notice recovery and its rate basis (once, on the first of the three rate-basis selects), and the leave types paid out at exit. Added 2026-10-02 with the fields themselves: the leave-payout cap (`fnf_encashment_max_days`) and the earning line a payout is made through (`fnf_encashment_component_id`); the comp-off copy of that picker reuses the concept and gets none. Section titles sit inside fold buttons, so they get none.",
       "workspaces": [
         "hr"
       ],
@@ -1293,10 +1293,26 @@
         },
         "fnf_encashment_leave_type_codes": {
           "tier": "onboarding",
-          "hint": "Only the leave types listed here are paid out when someone leaves; their other balances are not. Use the codes set in Leave Types.",
+          "hint": "Only the leave types ticked here are paid out when somebody leaves. Every other balance ends on their last day.",
           "askMaya": {
             "enabled": true,
             "question": "Which kinds of leave are usually paid out when an employee leaves?"
+          }
+        },
+        "fnf_encashment_max_days": {
+          "tier": "onboarding",
+          "hint": "The most days of leave anybody can be paid for when they leave, however much they have left. Blank means no limit.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do companies cap how many days of unused leave are paid out when an employee leaves?"
+          }
+        },
+        "fnf_encashment_component_id": {
+          "tier": "onboarding",
+          "hint": "The earning line a leave payout is shown on in the final payslip. Until one is chosen, nothing can be paid out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does a leave payout need its own salary component instead of being added to basic pay?"
           }
         }
       }
@@ -1880,7 +1896,7 @@
     },
     "organization.invite": {
       "kind": "form",
-      "description": "HR — People › Invites, the invite dialog (InviteMemberModal). The role decides what the person can see of everyone else, and nothing on the form says so. Phase 5 (onboarding tier): the invite dialog’s employee code, head-of-department, job status, employment type, joining date, PAN and UAN, and `status` on the Invites list’s Status column.",
+      "description": "HR — People › Invites, the invite dialog (InviteMemberModal). The role decides what the person can see of everyone else, and nothing on the form says so. Phase 5 (onboarding tier): the invite dialog’s employee code, head-of-department, job status, employment type, joining date, PAN and UAN, and `status` on the Invites list’s Status column. `gender` was added 2026-10-02: it gates leave eligibility and no profile endpoint accepts it afterwards, so the invite is the only chance to set it.",
       "workspaces": [
         "hr"
       ],
@@ -1954,6 +1970,14 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens when an invitation expires or is revoked, and how do I invite someone again?"
+          }
+        },
+        "gender": {
+          "tier": "onboarding",
+          "hint": "Decides the leave types this person is eligible for, and it can’t be changed from their profile later — only here, now.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does an employee’s gender affect which leave types they can apply for?"
           }
         }
       }
@@ -3321,6 +3345,31 @@
           "askMaya": {
             "enabled": true,
             "question": "How are document emails sent, and how can I check whether one went out?"
+          }
+        }
+      }
+    },
+    "documents.form_template": {
+      "kind": "form",
+      "description": "HR — Setup › Form Templates › the new / edit / replace form dialog (shared TemplateFormDialog). The name, description and file are ordinary fields and get nothing; the two that are ours — which document type it is filed under, and whether the file lives here or at a link — are helped. The visibility switch explains itself in its own description.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "document_type_id": {
+          "tier": "onboarding",
+          "hint": "Groups the form with documents of that kind — and hides it from employees if that type is hidden from them. Most blank forms need none.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does filing a blank form under a document type change for the people who download it?"
+          }
+        },
+        "storage_backend": {
+          "tier": "onboarding",
+          "hint": "Keep the file here, or point at a page elsewhere. A link stops working if that page moves, and this choice can’t be changed afterwards.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When should a company form be uploaded and kept in the portal rather than linked to an external website?"
           }
         }
       }
