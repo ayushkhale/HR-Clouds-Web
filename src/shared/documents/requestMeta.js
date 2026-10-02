@@ -149,6 +149,18 @@ export const CANCEL_REASON_MAX = 500;
 /** #81 raises at most this many in one go (CHECKLIST_BULK_MAX). */
 export const CHECKLIST_BULK_MAX = 50;
 
+// ── Bulk requests across many people (#240 / #241) ───────────────────────────
+// The unit of work is the cross product user_ids × document_type_ids. All three
+// caps are the server's; the one that bites is the pair ceiling, because every
+// pair is a request row, an audit entry and an email. Enforced client-side so
+// the person is told before the round trip (letter change record 2026-10-03 §2).
+export const BULK_REQUEST_MAX_USERS = 200;
+export const BULK_REQUEST_MAX_TYPES = 10;
+export const BULK_REQUEST_MAX_PAIRS = 500;
+
+/** How many requests a chosen set of people × types would attempt. */
+export const bulkRequestPairs = (userCount, typeCount) => Number(userCount || 0) * Number(typeCount || 0);
+
 // ── Checklist item state ────────────────────────────────────────────────────
 // Priority order is the server's (`classifyChecklistItem`): expired outranks
 // satisfied, so a document past its date never reads as complete.
@@ -242,6 +254,60 @@ export function bulkResultOf(res) {
     created: Array.isArray(data.created) ? data.created : [],
     skipped: Array.isArray(data.skipped) ? data.skipped : [],
   };
+}
+
+/**
+ * The ledger #240 / #241 always answers (`201`, even with `created: []`).
+ *
+ * `summary` is trusted for the headline counts and `pairs` (what was attempted);
+ * the three lists carry the per-pair detail. Everything is defended so a screen
+ * never has to guard each field. `created + skipped + failed === summary.pairs`
+ * holds on the server, but the counts are read from `summary` directly rather
+ * than recomputed, so a mismatch surfaces as the server reported it.
+ */
+export function bulkRequestResultOf(res) {
+  const data = res?.data ?? res ?? {};
+  const s = data.summary || {};
+  const created = Array.isArray(data.created) ? data.created : [];
+  const skipped = Array.isArray(data.skipped) ? data.skipped : [];
+  const failed = Array.isArray(data.failed) ? data.failed : [];
+  const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  return {
+    summary: {
+      users: num(s.users, 0),
+      documentTypes: num(s.document_types, 0),
+      pairs: num(s.pairs, created.length + skipped.length + failed.length),
+      created: num(s.created, created.length),
+      skipped: num(s.skipped, skipped.length),
+      failed: num(s.failed, failed.length),
+    },
+    dueOn: data.due_on || "",
+    created,
+    skipped,
+    failed,
+  };
+}
+
+// Why a pair was skipped (#240 §2.3) → plain copy. A skip is never a failure:
+// the batch succeeded, this one pair just didn't need a request.
+const BULK_SKIP_REASONS = {
+  user_not_found: "No longer an active employee",
+  document_already_present: "Already on file",
+  already_requested: "Already requested",
+  document_type_inactive: "Document type was switched off",
+};
+
+export const bulkSkipReasonLabel = (reason) => BULK_SKIP_REASONS[reason] || humanizeCode(reason) || "Skipped";
+
+/** One line summarising a bulk-request ledger, for the toast and the result header. */
+export function bulkRequestSummaryLine({ summary }) {
+  const { created, skipped, failed } = summary;
+  if (!created && !skipped && !failed) return "Nothing to ask for.";
+  const parts = [];
+  if (created) parts.push(`Asked for ${created} ${created === 1 ? "document" : "documents"}`);
+  if (skipped) parts.push(`${skipped} skipped`);
+  if (failed) parts.push(`${failed} couldn’t be sent`);
+  return `${parts.join(" · ")}.`;
 }
 
 /** A sentence for what #81 just did. */

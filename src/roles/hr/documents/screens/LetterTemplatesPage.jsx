@@ -44,8 +44,9 @@ import { rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import LetterPreviewDialog from "../../../../shared/documents/LetterPreviewDialog";
 import LetterTemplateConfigDialog from "../../../../shared/documents/LetterTemplateConfigDialog";
 import {
-  brandingOf, canConfigureLetter, letterAudience, letterPurpose, letterStateMeta,
-  letterConfigOf, letterTemplateOf, letterTemplatesOf, letterTitle, letterheadGaps, previewUsesSavedFields,
+  brandingOf, canConfigureLetter, letterAudience, letterCannotIssue, letterPurpose, letterStateMeta,
+  letterConfigOf, letterTemplateOf, letterTemplatesOf, letterTitle, letterTypeResultOf, letterheadGaps,
+  LETTER_ISSUANCE_BLOCKED_NOTE, previewUsesSavedFields,
 } from "../../../../shared/documents/letterMeta";
 
 const BRANDING_PATH = "/dashboard/hr/documents/letterhead";
@@ -121,6 +122,9 @@ export default function LetterTemplatesPage() {
     enabled: state.rows.filter((r) => r.is_enabled && !r.is_orphaned).length,
     disabled: state.rows.filter((r) => !r.is_enabled && !r.is_orphaned).length,
     withdrawn: state.rows.filter((r) => r.is_orphaned).length,
+    // Switched on, but their document type isn't live — they will 409 at issue
+    // (letter change record 2026-10-03 §1.4). Healed by a re-save (§1.5).
+    cannotIssue: state.rows.filter(letterCannotIssue).length,
   }), [state.rows]);
 
   const visible = useMemo(() => {
@@ -134,8 +138,17 @@ export default function LetterTemplatesPage() {
     [letterhead],
   );
 
-  /** #137 answers with the saved config, so only the one row changes. */
-  const applySaved = (code, config, note) => {
+  /**
+   * #137 answers with the saved config AND, since the 2026-10-03 change, the
+   * `document_type` activation block — so only the one row changes, and its
+   * "can be issued?" state updates in place without a re-read.
+   *
+   * `typeResult` is null when the letter was switched OFF (nothing was touched —
+   * switching off never deactivates the type, §1.2), so `document_type_active`
+   * is only ever written from a present block. `warn` is raised when the save
+   * succeeded but the type couldn't be activated (an ops problem, §1.3).
+   */
+  const applySaved = (code, config, note, typeResult = null, { warn = false } = {}) => {
     setConfiguring(null);
     setState((s) => ({
       ...s,
@@ -144,22 +157,31 @@ export default function LetterTemplatesPage() {
         is_enabled: !!config?.is_enabled,
         pinned_version: config?.pinned_version ?? null,
         has_saved_fields: Object.keys(config?.saved_fields || {}).length > 0,
+        ...(typeResult ? {
+          document_type_active: typeResult.isActive,
+          document_type_code: typeResult.code || row.document_type_code || null,
+        } : {}),
       } : row)),
     }));
-    if (note) showToast(note);
+    if (note) showToast(note, warn ? "error" : "success");
   };
 
   /**
-   * Switch a letter on in one click (#137 `is_enabled: true`) — the second of
-   * the two steps a new letter needs (the other is activating its document
-   * type; letter change record §5).
+   * Switch a letter on in one click (#137 `is_enabled: true`). Since the
+   * 2026-10-03 change this is a SINGLE step: enabling the letter also activates
+   * the org document type it files into, in the same transaction — so the old
+   * "now go and switch its type on too" caveat is gone.
+   *
+   * The same call heals a row that is already on but shows "can’t be issued yet"
+   * (§1.5): re-sending `is_enabled: true` is idempotent and returns
+   * `already_active` when nothing was needed. So the "Fix" action reuses it.
    *
    * #137 REPLACES the stored config, so the current one is read first (#136)
    * and echoed back: sending `is_enabled` alone could wipe saved wording or
    * unpin a version.
    */
   const [enabling, setEnabling] = useState("");
-  const switchOn = async (row) => {
+  const enableLetter = async (row, { heal = false } = {}) => {
     if (enabling) return;
     setEnabling(row.code);
     try {
@@ -169,8 +191,14 @@ export default function LetterTemplatesPage() {
         saved_fields: config?.saved_fields || {},
         pinned_version: config?.pinned_version ?? null,
       });
-      applySaved(row.code, letterConfigOf(res) || { ...config, is_enabled: true },
-        `${letterTitle(row)} is switched on. If its kind of document isn’t switched on in Document Types yet, do that too before issuing it.`);
+      const typeResult = letterTypeResultOf(res);
+      const blocked = typeResult && !typeResult.isActive;
+      const note = blocked
+        ? `Saved. ${LETTER_ISSUANCE_BLOCKED_NOTE}`
+        : heal
+          ? `“${letterTitle(row)}” can be issued again.`
+          : `“${letterTitle(row)}” is switched on and ready to issue.`;
+      applySaved(row.code, letterConfigOf(res) || { ...config, is_enabled: true }, note, typeResult, { warn: !!blocked });
     } catch (err) {
       showToast(letterErrorMessage(err, "Couldn’t switch this letter on."), "error");
     } finally {
@@ -250,6 +278,18 @@ export default function LetterTemplatesPage() {
           </p>
         )}
 
+        {counts.cannotIssue > 0 && (
+          <p className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 leading-relaxed" role="status">
+            <HiExclamation className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+            <span>
+              <span className="font-bold">
+                {counts.cannotIssue === 1 ? "One switched-on letter can’t be issued yet." : `${counts.cannotIssue} switched-on letters can’t be issued yet.`}
+              </span>{" "}
+              The kind of document {counts.cannotIssue === 1 ? "it files" : "they file"} into isn’t active. Use <span className="font-semibold">Fix</span> on {counts.cannotIssue === 1 ? "the row" : "each row"} below to put {counts.cannotIssue === 1 ? "it" : "them"} right; if that doesn’t clear it, your administrator needs to set the document type up.
+            </span>
+          </p>
+        )}
+
         {counts.withdrawn > 0 && (
           <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 leading-relaxed">
             {counts.withdrawn === 1 ? "One letter you had set up is" : `${counts.withdrawn} letters you had set up are`} no longer offered by the platform. {counts.withdrawn === 1 ? "It is" : "They are"} still listed below, with your wording kept, but {counts.withdrawn === 1 ? "it" : "they"} can’t be prepared or previewed.
@@ -289,6 +329,7 @@ export default function LetterTemplatesPage() {
                     {visible.map((row) => {
                       const openable = canConfigureLetter(row);
                       const meta = letterStateMeta(row);
+                      const cannotIssue = letterCannotIssue(row);
                       // A withdrawn letter opens nothing and can't be drawn, so
                       // it gets a plain hover rather than the row-open props —
                       // which would promise a dialog that answers 404.
@@ -313,7 +354,20 @@ export default function LetterTemplatesPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-3.5"><StateBadge row={row} /></td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <StateBadge row={row} />
+                              {cannotIssue && (
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold whitespace-nowrap ${TONE_CLASSES.rose}`}
+                                  title={LETTER_ISSUANCE_BLOCKED_NOTE}
+                                >
+                                  <HiExclamation className="w-3 h-3" aria-hidden="true" />
+                                  Can’t be issued yet
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-5 py-3.5 text-xs text-slate-600">
                             {row.has_saved_fields ? (
                               <span className="font-semibold text-slate-700">Saved</span>
@@ -325,7 +379,18 @@ export default function LetterTemplatesPage() {
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
-                              {row.is_enabled && !row.is_orphaned && !rendererOff && (
+                              {/* A letter that will 409 at issue (its type isn't
+                                  active) offers Fix, not Issue — a button that
+                                  fails isn't an action (§3). Fix re-saves, which
+                                  re-activates the type (§1.5). */}
+                              {cannotIssue ? (
+                                <button
+                                  type="button" onClick={() => enableLetter(row, { heal: true })} disabled={!!enabling}
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1.5 rounded-lg disabled:opacity-50"
+                                >
+                                  <HiBadgeCheck className="w-3.5 h-3.5" /> {enabling === row.code ? "Fixing…" : "Fix"}
+                                </button>
+                              ) : row.is_enabled && !row.is_orphaned && !rendererOff && (
                                 <Link
                                   to={`${LETTERS_PATH}?issue=${encodeURIComponent(row.code)}`}
                                   className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-50 px-2 py-1.5 rounded-lg"
@@ -335,7 +400,7 @@ export default function LetterTemplatesPage() {
                               )}
                               {openable && !row.is_enabled && (
                                 <button
-                                  type="button" onClick={() => switchOn(row)} disabled={!!enabling}
+                                  type="button" onClick={() => enableLetter(row)} disabled={!!enabling}
                                   className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-50 px-2 py-1.5 rounded-lg disabled:opacity-50"
                                 >
                                   <HiBadgeCheck className="w-3.5 h-3.5" /> {enabling === row.code ? "Switching on…" : "Switch on"}
@@ -373,7 +438,7 @@ export default function LetterTemplatesPage() {
         <LetterTemplateConfigDialog
           row={configuring}
           api={documentsAPI}
-          onSaved={(config, note) => applySaved(configuring.code, config, note)}
+          onSaved={(config, note, typeResult, opts) => applySaved(configuring.code, config, note, typeResult, opts)}
           onClose={() => setConfiguring(null)}
         />
       )}

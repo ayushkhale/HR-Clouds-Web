@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  HiCheckCircle, HiClipboardList, HiClock, HiExclamationCircle, HiExternalLink, HiRefresh, HiX,
+  HiCheckCircle, HiClipboardList, HiClock, HiExclamationCircle, HiExternalLink, HiRefresh, HiUserGroup, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { documentsAPI } from "../../../../shared/api";
@@ -28,6 +28,7 @@ import { Toast, useToast } from "../../../../shared/attendance/ui";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import RequestsTable from "../../../../shared/documents/RequestsTable";
 import RequestDocumentDialog from "../../../../shared/documents/RequestDocumentDialog";
+import BulkRequestDocumentsDialog from "../../../../shared/documents/BulkRequestDocumentsDialog";
 import DocumentRequestDetailDialog from "../../../../shared/documents/DocumentRequestDetailDialog";
 import DocumentUploadDialog from "../../../../shared/documents/DocumentUploadDialog";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
@@ -80,6 +81,7 @@ export default function DocumentRequestsPage() {
   const [tallies, setTallies] = useState({});
   const [detail, setDetail] = useState(null);
   const [asking, setAsking] = useState(null); // { userId }
+  const [bulkAsking, setBulkAsking] = useState(false); // the many-people dialog
   const [uploading, setUploading] = useState(null); // { userId, presetTypeId, presetTitle, askedFor }
 
   const query = useMemo(() => ({
@@ -186,6 +188,15 @@ export default function DocumentRequestsPage() {
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
             <button type="button" onClick={refresh} disabled={state.loading} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh" title="Refresh">
               <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkAsking(true)}
+              disabled={uploadTypes.length === 0}
+              title={uploadTypes.length === 0 ? "Activate a document type first." : undefined}
+              className={SECONDARY_BTN}
+            >
+              <HiUserGroup className="w-4 h-4" /> Ask many people
             </button>
             <button
               type="button"
@@ -307,6 +318,21 @@ export default function DocumentRequestsPage() {
           }}
           onOpenExisting={(id) => { setAsking(null); setDetail({ id }); }}
           onClose={() => setAsking(null)}
+        />
+      )}
+
+      {bulkAsking && (
+        <BulkRequestDocumentsDialog
+          create={(body) => plane.bulkCreate(body)}
+          people={people}
+          peopleStatus={peopleStatus}
+          types={uploadTypes}
+          index={index}
+          nameOf={nameOf}
+          defaultDueDays={requestDueDays}
+          viewer="hr"
+          onDone={refresh}
+          onClose={() => setBulkAsking(false)}
         />
       )}
 

@@ -126,6 +126,9 @@ export const DOCUMENT_ERROR_MESSAGES = {
   DOCUMENT_ALREADY_PRESENT: "This person already has a valid document of this kind on file, so there's nothing to ask for. Open their file to see it, or ask them to replace it if it needs updating.",
   DUPLICATE_REQUEST: "This document has already been asked for and the request is still open. Open that request instead of raising a second one.",
   NOTHING_TO_REQUEST: "There's nothing outstanding on this checklist, so there's nothing to ask for.",
+  // #240 / #241 bulk: the cross product of people × kinds is over the cap.
+  // `bulkTooLargeDetail` reads the numbers so the message can name the ceiling.
+  REQUEST_BULK_TOO_LARGE: "That's more requests than can be sent at once. Choose fewer people or fewer kinds of document — up to 500 requests in one go — and send the rest after.",
   TYPE_NOT_REQUESTABLE: "Managers can't ask for this kind of document — only HR can. Ask your HR team to request it.",
   // Also the answer when a signed-in HR or admin account has no employee
   // record of its own — see isNoEmployeeRecord below, which reads it as a fact
@@ -352,6 +355,28 @@ export function duplicateRequestId(err) {
 
 /** A live document of this type already exists, so there is nothing to ask for. */
 export const isDocumentAlreadyPresent = (err) => documentErrorCode(err) === "DOCUMENT_ALREADY_PRESENT";
+
+/**
+ * #240 / #241 refused the whole call because the cross product of people × kinds
+ * is over the cap. `details` carries the numbers, so the message can name what
+ * was asked and the ceiling, or null for any other error.
+ */
+export function bulkRequestTooLargeDetail(err) {
+  if (documentErrorCode(err) !== "REQUEST_BULK_TOO_LARGE") return null;
+  const d = err?.data?.details || {};
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  return {
+    users: num(d.users),
+    documentTypes: num(d.document_types),
+    pairs: num(d.pairs),
+    maxUsers: num(d.max_users),
+    maxDocumentTypes: num(d.max_document_types),
+    maxPairs: num(d.max_pairs),
+  };
+}
+
+/** A document request was refused because the type is org-plane, not employee (§2.8). */
+export const isTypePlaneMismatch = (err) => documentErrorCode(err) === "DOCUMENT_TYPE_PLANE_MISMATCH";
 
 /** #81 refused because the checklist has nothing outstanding — good news, not an error. */
 export const isNothingToRequest = (err) => documentErrorCode(err) === "NOTHING_TO_REQUEST";
