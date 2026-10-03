@@ -44,9 +44,11 @@ import {
   bulkRequestTooLargeDetail, documentErrorCode, documentErrorMessage, isOutOfScope, isTypeNotRequestable,
 } from "../utils/documentErrors";
 import { groupLabel } from "./documentMeta";
+import { refreshEmployeeDirectory } from "../contexts/EmployeeDirectoryContext";
 import {
   BULK_REQUEST_MAX_PAIRS, BULK_REQUEST_MAX_TYPES, BULK_REQUEST_MAX_USERS, bulkRequestPairs,
-  bulkRequestResultOf, bulkRequestSummaryLine, bulkSkipReasonLabel, REQUEST_DUE_MAX_DAYS, REQUEST_NOTE_MAX,
+  bulkRequestResultOf, bulkRequestSummaryLine, bulkSkipReasonLabel, hasStaleRosterSkip,
+  REQUEST_DUE_MAX_DAYS, REQUEST_NOTE_MAX,
 } from "./requestMeta";
 import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 
@@ -155,6 +157,10 @@ export default function BulkRequestDocumentsDialog({
       };
       const res = bulkRequestResultOf(await create(body));
       setResult(res);
+      // Somebody in the list isn't an active employee any more, so the roster
+      // this browser holds is stale and the picker would keep offering them.
+      // Re-read it (§7) rather than leaving the next batch to skip them too.
+      if (hasStaleRosterSkip(res)) refreshEmployeeDirectory();
       onDone?.(res);
     } catch (err) {
       const detail = bulkRequestTooLargeDetail(err);
@@ -245,6 +251,11 @@ export default function BulkRequestDocumentsDialog({
                     </li>
                   ))}
                 </ul>
+                {hasStaleRosterSkip(result) && (
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                    Anyone shown as no longer an active employee had already left or been switched off. The list of people has been refreshed, so they won’t be offered next time.
+                  </p>
+                )}
               </section>
             )}
 

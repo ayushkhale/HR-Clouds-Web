@@ -299,6 +299,16 @@ const BULK_SKIP_REASONS = {
 
 export const bulkSkipReasonLabel = (reason) => BULK_SKIP_REASONS[reason] || humanizeCode(reason) || "Skipped";
 
+/**
+ * The batch named somebody the server doesn't hold as an active employee.
+ *
+ * That means the roster this browser is holding is out of date — they were
+ * deactivated or removed after it was read — so the picker would go on offering
+ * them. The answer is to re-read the directory (§7), not to explain it away.
+ */
+export const hasStaleRosterSkip = (result) =>
+  (result?.skipped || []).some((row) => row?.reason === "user_not_found");
+
 /** One line summarising a bulk-request ledger, for the toast and the result header. */
 export function bulkRequestSummaryLine({ summary }) {
   const { created, skipped, failed } = summary;

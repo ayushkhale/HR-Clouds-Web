@@ -195,6 +195,25 @@ export default function OrgDocumentFormDialog({
   ].some((a) => a.length > TARGET_ARRAY_MAX);
   const overlap = form.included_users.filter((id) => form.excluded_users.includes(id));
 
+  /**
+   * Who the audience boxes may offer: current employees, plus anybody this draft
+   * ALREADY names.
+   *
+   * Both halves matter. The server refuses an inactive member outright (400
+   * TARGET_USER_UNKNOWN, "no longer an active member of this organisation"), so
+   * offering a leaver is offering a refusal. But a draft saved before somebody
+   * left still carries their id, and dropping them from the list would turn
+   * their chip into "Selected person" with no way to understand or remove it —
+   * so an already-picked leaver stays visible (and removable) while never being
+   * offered to anyone new.
+   */
+  const audiencePeople = useMemo(
+    () => people.filter((p) => p.active !== false
+      || form.included_users.includes(p.id)
+      || form.excluded_users.includes(p.id)),
+    [people, form.included_users, form.excluded_users],
+  );
+
   const problems = {
     type: !form.document_type_id ? "Choose what kind of document this is." : "",
     title: title.length < 3 ? "Give the document a title (at least 3 characters)." : title.length > 200 ? "Keep the title under 200 characters." : "",
@@ -727,8 +746,9 @@ export default function OrgDocumentFormDialog({
                   <div>
                     <label className={LABEL} htmlFor="org-included">Only these people <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
                     <PersonMultiSelect
-                      id="org-included" people={people} value={form.included_users}
+                      id="org-included" people={audiencePeople} value={form.included_users}
                       onChange={(v) => set("included_users", v)} max={TARGET_ARRAY_MAX}
+                      unknownLabel="Former employee"
                       placeholder="Anyone who matches above" loading={peopleLoading} disabled={locked}
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Narrows it further — they still have to match the boxes above.</p>
@@ -736,8 +756,9 @@ export default function OrgDocumentFormDialog({
                   <div>
                     <label className={LABEL} htmlFor="org-excluded">Except these people <span className="normal-case font-semibold text-slate-400">(optional)</span></label>
                     <PersonMultiSelect
-                      id="org-excluded" people={people} value={form.excluded_users}
+                      id="org-excluded" people={audiencePeople} value={form.excluded_users}
                       onChange={(v) => set("excluded_users", v)} max={TARGET_ARRAY_MAX}
+                      unknownLabel="Former employee"
                       placeholder="Nobody" loading={peopleLoading} disabled={locked}
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Always wins, whatever else matches.</p>

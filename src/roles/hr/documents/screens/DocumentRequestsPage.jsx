@@ -73,7 +73,15 @@ export default function DocumentRequestsPage() {
   const { types, uploadTypes, index } = useDocumentTypes("hr");
   // Only so the request dialog can say what "leave the date blank" means.
   const { requestDueDays } = useDocumentSettings();
-  const { rows: people, nameOf, status: peopleStatus } = useEmployeeDirectory();
+  // Two different people lists, deliberately, and mixing them up is the trap:
+  //   `people` keeps leavers — it names historical rows and fills the FILTER
+  //     above the list, where a cancelled request from somebody who has since
+  //     left must still be findable.
+  //   `directory.activeOptions` is what the two "ask for a document" pickers
+  //     get. A request can only be raised against a current employee: #80
+  //     answers 404 USER_NOT_FOUND and #240 drops the pair into `skipped` with
+  //     `user_not_found`, which looked like a silent failure (2026-10-03).
+  const { rows: people, directory, nameOf, status: peopleStatus } = useEmployeeDirectory();
   const { toast, showToast, clearToast } = useToast();
 
   const [page, setPage] = useState(1);
@@ -304,7 +312,7 @@ export default function DocumentRequestsPage() {
 
       {asking && (
         <AskDialog
-          people={people}
+          people={directory.activeOptions}
           peopleLoading={peopleStatus === "loading"}
           initialUserId={asking.userId}
           nameOf={nameOf}
@@ -324,7 +332,7 @@ export default function DocumentRequestsPage() {
       {bulkAsking && (
         <BulkRequestDocumentsDialog
           create={(body) => plane.bulkCreate(body)}
-          people={people}
+          people={directory.activeOptions}
           peopleStatus={peopleStatus}
           types={uploadTypes}
           index={index}

@@ -37,10 +37,11 @@ src/shared/
   utils/ contexts/ hooks/ motion/ layouts/ config/ data/
 ```
 
-**Never put "cookie", "ads", "advert", "tracking" or "consent" in a source file
-name.** `npm run dev` serves each module at its file path, ad/cookie-banner
+**Never put "cookie", "ads", "advert", "tracking", "consent" or "privacy" in a
+source file name.** `npm run dev` serves each module at its file path, ad/privacy
 blockers drop those URLs, and one blocked static import blanks the whole app
-(`legal/CookiePolicy.jsx` did, 2026-10-01 — it is `BrowserStoragePolicy.jsx` now).
+(`legal/CookiePolicy.jsx` did, 2026-10-01 — it is `BrowserStoragePolicy.jsx` now;
+`legal/PrivacyPolicy.jsx` did, 2026-10-03 — it is `DataHandlingPolicy.jsx` now).
 
 One role → `roles/<role>/`. Two or more → `shared/`, taking a `viewer`/`plane` prop
 rather than branching on the URL. Domain knowledge (labels, state machines, enum maps,

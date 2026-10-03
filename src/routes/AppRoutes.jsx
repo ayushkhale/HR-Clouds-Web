@@ -11,7 +11,11 @@ import About from "../landing/pages/About";
 import Services from "../landing/pages/Services";
 import PricingPage from "../landing/pages/Pricing";
 import Contact from "../landing/pages/Contact";
-import PrivacyPolicy from "../landing/pages/legal/PrivacyPolicy";
+// File is DataHandlingPolicy.jsx, not PrivacyPolicy.jsx: ad and privacy blockers
+// match "privacy" in the dev-server module URL and blocked this import, which
+// took the whole router (and so the whole app) down in `npm run dev` — the same
+// failure the cookie policy hit below.
+import PrivacyPolicy from "../landing/pages/legal/DataHandlingPolicy";
 import TermsOfService from "../landing/pages/legal/TermsOfService";
 // File is BrowserStoragePolicy.jsx, not CookiePolicy.jsx: ad and cookie-banner
 // blockers match "cookie" in the dev-server module URL and blocked this import,
