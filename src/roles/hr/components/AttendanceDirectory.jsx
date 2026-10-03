@@ -15,7 +15,7 @@ import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 // fallback once the backend confirms the backfill ran in every environment.
 const PLACEHOLDER_NAME = "Unknown";
 import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, todayYMD } from "../../../shared/attendance/dates";
-import { RECORD_STATUS_FILTERS } from "../../../shared/attendance/enums";
+import { RECORD_STATUS_FILTERS, normalizeStatusKey } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 
@@ -145,6 +145,12 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                 <tbody className="divide-y divide-slate-50">
                   {list.items.map((record, idx) => {
                     const name = nameOf(record);
+                    // Holiday / weekly-off / leave are days nothing was owed, so a
+                    // missing punch reads "N/A" (not applicable) rather than "Not
+                    // clocked in", which implies a missed working day. The roster now
+                    // synthesises these rows for past dates too (2026-10-03 fix), so
+                    // the whole staff list shows on a holiday — not just the absent.
+                    const noPunchOwed = ["holiday", "weekly_off", "on_leave"].includes(normalizeStatusKey(record.status));
                     return (
                       <tr
                         key={record.user_id || record.id || idx}
@@ -163,7 +169,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                         </td>
                         <td className="px-6 py-3.5">{record.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={record.status || "not_marked"} />}</td>
                         <td className="px-6 py-3.5">
-                          {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">Not clocked in</span>}
+                          {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">{noPunchOwed ? "N/A" : "Not clocked in"}</span>}
                           {Number(record.late_minutes) > 0 && <p className="text-[10px] text-fuchsia-600 font-bold mt-0.5">{fmtMinutes(record.late_minutes)} late</p>}
                         </td>
                         <td className="px-6 py-3.5">
