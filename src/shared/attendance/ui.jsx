@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiChevronLeft, HiChevronRight, HiRefresh, HiInformationCircle } from "react-icons/hi";
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
 import { statusMeta, TONE_CLASSES, TONE_DOT } from "./enums.js";
+import { dayContextLabel, isProvisionalDay, statusReasonNote } from "./dayStatus.js";
 import { attendanceErrorMessage, isFeatureDisabled } from "../utils/attendanceErrors.js";
 import { employeeCode, personName } from "./normalize.js";
 import GenderAvatar from "../components/GenderAvatar.jsx";
@@ -150,6 +151,35 @@ export function InlineAlert({ tone = "rose", children, className = "" }) {
       <Icon className="w-4 h-4 shrink-0 mt-px" />
       <div className="min-w-0">{children}</div>
     </div>
+  );
+}
+
+/**
+ * The one-line "why this status" banner for a day inspector (contract
+ * 2026-10-04). It explains a derived or not-yet-settled status in plain words,
+ * and names the holiday / weekly-off rule that decided the day from the detail
+ * endpoints' `status_context`. The headline case: a projected absence
+ * (`awaiting_absent_cron`) reads as amber "not finalised" rather than a
+ * confirmed red absence — the day's cut-off simply hasn't run yet.
+ *
+ * Renders nothing for a plain record that explains itself, or when the payload
+ * predates the contract (no provenance keys). Lives here so the employee and
+ * the HR/manager inspectors say exactly the same thing (§2).
+ */
+export function DayStatusNote({ record, className = "" }) {
+  if (!record) return null;
+  const note = statusReasonNote(record);
+  const ctx = dayContextLabel(record.status_context);
+  if (!note && !ctx) return null;
+  return (
+    <InlineAlert tone={isProvisionalDay(record) ? "amber" : "slate"} className={className}>
+      {ctx ? (
+        <>
+          <span className="font-bold">{ctx.name}</span>
+          {ctx.kind === "holiday" ? " — an org holiday" : " — a weekly off"}, so no attendance was due this day.
+        </>
+      ) : note}
+    </InlineAlert>
   );
 }
 
