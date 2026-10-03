@@ -7,7 +7,7 @@ import { unwrap } from "../../../../shared/attendance/normalize";
 import { anomalyStatusKey, anomalyTypeLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
 import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
 import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
-import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
+import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
 
 const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
@@ -57,6 +57,9 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
               { label: "Break time", value: minutesOrZero(log.break_duration_minutes), icon: HiPause },
             ]}
           />
+
+          {/* Why this status — only when derived or not yet settled (2026-10-04). */}
+          <DayStatusNote record={log} className="mt-1" />
 
           <DetailSection title="Day breakdown" icon={HiViewList}>
             <DetailGrid

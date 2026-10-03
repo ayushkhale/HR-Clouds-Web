@@ -136,3 +136,49 @@ export function chipTally(records, today) {
   (Array.isArray(records) ? records : []).forEach((r) => { counts[dayChipKey(r, today)] += 1; });
   return counts;
 }
+
+// ── Day-status provenance (contract 2026-10-04) ──────────────────────────────
+// The read endpoints now say WHERE a day's `status` came from and whether it can
+// still change on its own: `status_source` ("record" | "derived"),
+// `status_reason` (which rule decided it) and `is_provisional` (true = not yet
+// settled). The key fact: a derived holiday / weekly off is permanent (the
+// 07:00 cron never writes those rows), but a derived `absent` / `not_marked` is
+// a projection a punch or that cron may still replace. We read these only to
+// explain a day honestly in the day inspector — an "absent" that really means
+// "the day's cut-off hasn't run yet" must not read as a confirmed absence.
+//
+// Older payloads that predate the contract carry none of these keys:
+// `is_provisional` is then undefined (treated as settled) and `statusReasonNote`
+// returns null, so the inspector degrades to exactly what it showed before.
+
+/** True when the day's status can still change by itself (not yet settled). */
+export const isProvisionalDay = (record) => record?.is_provisional === true;
+
+// Keyed by `status_reason`. `record`, `holiday` and `weekly_off` are deliberately
+// absent: a real row explains itself, and a holiday / weekly off is named instead
+// by its `status_context` rule (dayContextLabel), which is more use than a note.
+const STATUS_REASON_NOTES = {
+  awaiting_absent_cron: "Counted as absent because nothing was recorded and the day’s cut-off hasn’t run yet — a clock-in or correction can still change this.",
+  pending_clock_in: "Still expected in today. Nothing has been clocked yet.",
+  upcoming: "A working day still to come — nothing is owed yet.",
+  in_progress: "Still clocked in. This settles on clock-out.",
+  before_joining: "Hadn’t joined yet on this day, so nothing was due.",
+};
+
+/** A plain sentence explaining a derived / provisional status, or null. */
+export function statusReasonNote(record) {
+  return STATUS_REASON_NOTES[normalizeStatusKey(record?.status_reason)] || null;
+}
+
+/**
+ * The holiday or weekly-off rule that decided a derived day, from the detail
+ * endpoints' `status_context` (null on record-backed days). The backend sends
+ * the highest-priority applicable rule — the same one that decided the day.
+ * @returns {{ kind: string, name: string }|null}
+ */
+export function dayContextLabel(context) {
+  if (!context) return null;
+  if (context.holiday?.name) return { kind: "holiday", name: context.holiday.name };
+  if (context.weekly_off?.name) return { kind: "weekly off", name: context.weekly_off.name };
+  return null;
+}

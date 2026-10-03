@@ -9,7 +9,7 @@ import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, sh
 import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyTypeLabel, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
-import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../shared/components/DetailDialog";
 
 const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
@@ -85,6 +85,9 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
                   { label: "On a break", value: minutesOrZero(record.break_duration_minutes), icon: HiPause },
                 ]}
               />
+
+              {/* Why this status — only when derived or not yet settled (2026-10-04). */}
+              <DayStatusNote record={record} className="mt-1" />
 
               <DetailSection title="How the day added up" icon={HiChartBar}>
                 <DetailGrid

@@ -52,7 +52,14 @@ export function useTargetingOptions({ shifts = EMPTY } = {}) {
     const pick = (e, key) => e?.[key] ?? e?.profile?.[key] ?? e?.employee_profile?.[key];
     const employmentTypes = uniqueStrings(raw.map((e) => pick(e, "employment_type")));
     const jobStatuses = uniqueStrings(raw.map((e) => pick(e, "job_status")));
-    const activeEmployees = employees.options.filter((o) => o.raw?.is_active !== false && o.raw?.status !== "Inactive");
+    // `useOrgEmployees("shift_assignment")` already hands back current employees
+    // only. `o.active` is the directory's own canonical flag, so this never
+    // re-derives "is this person still here?" with a second, subtly different
+    // rule — it used to test `status !== "Inactive"` (capital I) against a
+    // lower-case value, which matched nothing and only looked like a guard.
+    // A leaver already saved in a stored audience still shows as a chip
+    // ("Former employee"), so they can be seen and removed but never added.
+    const activeEmployees = employees.options.filter((o) => o.active !== false);
 
     return {
       loading: org.loading || employees.loading,

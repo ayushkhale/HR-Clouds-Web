@@ -15,7 +15,7 @@ import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attenda
 import { DepartmentCard } from "../../hr/screens/HRDashboard";
 import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
 import { DICTIONARY } from "../../../shared/config/dictionary";
-import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
+import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, leaveCountOf, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
 import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
@@ -261,12 +261,14 @@ function ManagerDashboard() {
 
   const refreshOverview = () => { loadSummary(); reloadTeam(); };
 
-  // Same three series as HR's chart. The manager payload nests the per-status
-  // counts under `counts`, so leave is lifted to the top level for the bar.
+  // Same three series as HR's chart. The leave bar is on-leave + weekly-off +
+  // holiday — now served precomputed as final_leave_count on this endpoint too
+  // (2026-10-03). leaveCountOf uses that, falling back to summing the per-status
+  // counts (the manager payload nests them under `counts`) for older deploys.
   const recorded = listFrom(graph.data, ["daily", "days"]).map((d) => ({
     ...d,
     date: ymdOnly(d.date),
-    on_leave_count: num(d.on_leave_count ?? d.counts?.on_leave_count),
+    final_leave_count: leaveCountOf(d),
   }));
   // Every day of the month gets a slot, so each half always shows its 15 or
   // 15–16 days — the empty-state check still looks at what was recorded.
@@ -338,7 +340,7 @@ function ManagerDashboard() {
               />
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-4">
-                  {[[DICTIONARY.STATUS.PRESENT, TREND_COLORS.present], ["On leave", TREND_COLORS.on_leave], [DICTIONARY.STATUS.ABSENT, TREND_COLORS.absent]].map(([label, dot]) => (
+                  {[[DICTIONARY.STATUS.PRESENT, TREND_COLORS.present], ["Leave", TREND_COLORS.on_leave], [DICTIONARY.STATUS.ABSENT, TREND_COLORS.absent]].map(([label, dot]) => (
                     <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: dot }} /> {label}</span>
                   ))}
                 </div>
@@ -373,9 +375,10 @@ function ManagerDashboard() {
                           <YAxis allowDecimals={false} domain={yAxis.domain} ticks={yAxis.ticks} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
                           <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
                           <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
-                          {/* Approved leave is its own count — the server keeps it out of
-                              final_absent_count, so the three bars never double-count a day. */}
-                          <Bar dataKey="on_leave_count" name="On leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          {/* Not expected to work: leave + weekly-off + holiday. The server
+                              keeps these out of final_absent_count, so the three bars never
+                              double-count a day. */}
+                          <Bar dataKey="final_leave_count" name="Leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
                           <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>

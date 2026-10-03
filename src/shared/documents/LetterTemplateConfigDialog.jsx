@@ -43,8 +43,9 @@ import { hrFieldMeta, letterMatrix } from "./letterFieldMatrix";
 import { humanizeCode } from "./documentMeta";
 import LetterPreviewDialog from "./LetterPreviewDialog";
 import {
-  fieldLabel, letterAudience, letterPurpose, letterTemplateOf, letterTitle,
-  sampleText, savedFieldInputProps, savedFieldProblems, savedFieldsPayload, savedFieldsToForm,
+  fieldLabel, letterAudience, letterPurpose, letterTemplateOf, letterTitle, letterTypeResultOf,
+  LETTER_ISSUANCE_BLOCKED_NOTE, sampleText, savedFieldInputProps, savedFieldProblems,
+  savedFieldsPayload, savedFieldsToForm,
 } from "./letterMeta";
 
 /**
@@ -107,9 +108,18 @@ export default function LetterTemplateConfigDialog({ row, api, onSaved, onClose 
         pinned_version: loaded?.config?.pinned_version ?? null,
       });
       const config = res?.data?.config || res?.config || null;
-      onSaved?.(config, form.is_enabled
-        ? `“${letterTitle(row)}” is switched on and ready to use.`
-        : `“${letterTitle(row)}” is switched off. Nobody can prepare it until you switch it back on.`);
+      // Enabling now also activates the document type the letter files into
+      // (letter change record 2026-10-03 §1). The save still succeeds when that
+      // couldn't happen, so a blocked type is a warning the page surfaces, not a
+      // failure here.
+      const typeResult = letterTypeResultOf(res);
+      const blocked = form.is_enabled && typeResult && !typeResult.isActive;
+      const note = !form.is_enabled
+        ? `“${letterTitle(row)}” is switched off. Nobody can prepare it until you switch it back on.`
+        : blocked
+          ? `Saved. ${LETTER_ISSUANCE_BLOCKED_NOTE}`
+          : `“${letterTitle(row)}” is switched on and ready to use.`;
+      onSaved?.(config, note, typeResult, { warn: !!blocked });
     } catch (err) {
       setSaveError(letterErrorMessage(err, "Couldn’t save this letter’s settings."));
       setSaving(false);

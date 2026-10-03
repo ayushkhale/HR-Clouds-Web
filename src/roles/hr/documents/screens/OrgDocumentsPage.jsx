@@ -40,6 +40,10 @@ export default function OrgDocumentsPage() {
   const setTab = (next) => setParams(next === "proposals" ? { tab: "proposals" } : {}, { replace: true });
 
   const { types, uploadTypes, index } = useDocumentTypes("hrOrg");
+  // Leavers are kept in this list on purpose: the recipient roster of an
+  // already-published document must still name somebody who has since left, and
+  // the audience form narrows the list itself (it offers current employees plus
+  // anyone the draft already names — see OrgDocumentFormDialog).
   const { rows: people, status: dirStatus, nameOf } = useEmployeeDirectory();
   const targeting = useTargetingOptions();
   const { toast, showToast, clearToast } = useToast();

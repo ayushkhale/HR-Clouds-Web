@@ -475,6 +475,37 @@ export const documentsAPI = {
    * checklist has nothing outstanding. No body.
    */
   bulkRequestFromChecklist: (userId) => post(`${HR}/employees/${seg(userId)}/document-requests/bulk-from-checklist`),
+  /**
+   * #240 Ask MANY employees for MANY kinds of document in one call (HR). The
+   * unit of work is the cross product `user_ids × document_type_ids`.
+   *
+   * `{ user_ids: [uuid] (1..200, distinct), document_type_ids: [uuid]
+   * (1..10, distinct), due_on?, note? }`. `user_ids.length ×
+   * document_type_ids.length` must be ≤ 500 (422 REQUEST_BULK_TOO_LARGE); a
+   * repeated id in either array is a 400 rather than being collapsed.
+   *
+   * Always answers `201` with a ledger — `{ summary, due_on, created[],
+   * skipped[], failed[] }`, where `created + skipped + failed === summary.pairs`.
+   * `created: []` is a SUCCESS, not an error (every pair was already on file or
+   * already requested). Idempotent in effect: a pair with an open request comes
+   * back `skipped: already_requested`, so re-sending the same body after a
+   * timeout is safe and creates nothing new. Only ACTIVE, employee-plane types
+   * may be requested — an org-plane type is 422 DOCUMENT_TYPE_PLANE_MISMATCH for
+   * the whole call (letter change record 2026-10-03 §2.8), so build the picker
+   * from `?plane=employee&is_active=true` types (our `uploadTypes`).
+   *
+   * See `bulkRequestResultOf` in documents/requestMeta.js.
+   */
+  bulkCreateDocumentRequests: (body) => post(`${HR}/document-requests/bulk`, body),
+  /**
+   * #241 The manager twin of #240 (roles: manager, hr), scoped to the caller's
+   * reporting line. Same body and ledger. Manager scoping is ALL-OR-NOTHING:
+   * naming one employee outside the cohort is `403 FORBIDDEN` for the whole call
+   * and an out-of-scope id reads identically to a non-existent one, so build the
+   * picker from the manager's own team and this never fires. A type whose policy
+   * forbids manager requests is `403 TYPE_NOT_REQUESTABLE`.
+   */
+  managerBulkCreateDocumentRequests: (body) => post(`${MGR}/document-requests/bulk`, body),
   /** #82 Org-wide. Filters: status (repeatable), user_id, document_type_id, overdue_only, page, limit. */
   getDocumentRequests: (params) => request(`${HR}/document-requests${qs(params)}`),
   /** #83 One request, HR projection. Anything not readable is a uniform 404. */

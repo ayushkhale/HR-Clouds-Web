@@ -88,6 +88,53 @@ export function letterTemplateOf(res) {
 /** #137 → the stored config. */
 export const letterConfigOf = (res) => payload(res).config || null;
 
+/**
+ * #137 → the `document_type` activation block (letter change record 2026-10-03
+ * §1.3). Enabling a letter now activates the org document type it files into, in
+ * the same transaction as the config.
+ *
+ * It is `null` whenever the request had `is_enabled: false` (nothing was
+ * touched). When present, `is_active` is the only field the UI branches on:
+ * `false` (states `catalog_missing` / `catalog_inactive` / `plane_mismatch`)
+ * means the letter is switched on but cannot be issued yet — an ops task, not
+ * anything HR can fix here, so it is a WARNING on a successful save, never an
+ * error that undoes it.
+ */
+export function letterTypeResultOf(res) {
+  const dt = payload(res).document_type;
+  if (!dt || typeof dt !== "object") return null;
+  return {
+    code: dt.code || "",
+    documentTypeId: dt.document_type_id || null,
+    isActive: dt.is_active === true,
+    activatedNow: dt.activated_now === true,
+    state: dt.state || "",
+  };
+}
+
+/**
+ * A row (#135) where the letter is switched on but the document type it issues
+ * into is NOT active — so it would fail at issue time with 409
+ * DOCUMENT_TYPE_NOT_ACTIVATED (letter change record 2026-10-03 §1.4). This is
+ * the one combination worth flagging; every other one is normal.
+ *
+ * A row from a server that predates this change carries no `document_type_active`
+ * key at all (`undefined`), which must NOT read as broken — only an explicit
+ * `false` does.
+ */
+export const letterCannotIssue = (row) =>
+  !!row?.is_enabled && !row?.is_orphaned && row?.document_type_active === false;
+
+/**
+ * Plain wording for a letter that is switched on but cannot be issued because
+ * its document type isn't live. Every inactive `state` (#137 §1.3) says the same
+ * thing to HR: the save worked, but issuance needs an administrator, because the
+ * cause is an unrun seeder or a retired/mismatched catalog entry — none of it
+ * fixable from this screen.
+ */
+export const LETTER_ISSUANCE_BLOCKED_NOTE =
+  "This letter is switched on, but the kind of document it files into isn’t ready on this server, so it can’t be issued yet. That’s for your administrator to put right — nothing here will fix it.";
+
 // ── The two branding images ──────────────────────────────────────────────────
 /** PNG and JPEG only. Vector files are refused outright — they can carry script. */
 export const LETTER_ASSET_CONTENT_TYPES = ["image/png", "image/jpeg"];

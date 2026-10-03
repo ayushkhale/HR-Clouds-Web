@@ -635,6 +635,30 @@
         }
       }
     },
+    "documents.request_bulk": {
+      "kind": "form",
+      "description": "Asking many people for many kinds of document at once — BulkRequestDocumentsDialog, shared by HR (#240) and managers (#241).",
+      "workspaces": [
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "user_ids": {
+          "hint": "Everyone you pick is asked for each kind you choose. Up to 200 people, 10 kinds and 500 requests at once; anyone who already has one is skipped.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does asking many people for documents at once work, and what are the limits?"
+          }
+        },
+        "due_on": {
+          "hint": "Leave it blank to use your organisation’s standard time limit. Everyone gets the same date, and reminder emails go out until each document arrives.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do due dates and reminder emails work when several people are asked for documents at once?"
+          }
+        }
+      }
+    },
     "documents.upload_for_report": {
       "kind": "form",
       "description": "DocumentUploadDialog when someone uploads for another person — the manager’s Upload for a report, HR’s request and profile uploads. Chosen by the host’s helpSurface prop.",

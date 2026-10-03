@@ -20,6 +20,7 @@
 
 import { ReferenceLine } from "recharts";
 import { monthRange, parseYMDLocal, todayYMD } from "./dates";
+import { num } from "./normalize";
 import SundayLabel from "./SundayLabel";
 
 export const CHART_PAGE_SIZE = 15;
@@ -50,7 +51,27 @@ export function fillMonthDays(rows, period, make, key = "date") {
 }
 
 /** An empty day for the three-bar team charts (HR and manager). */
-export const emptyTrendDay = (date) => ({ date, final_present_count: 0, on_leave_count: 0, final_absent_count: 0 });
+export const emptyTrendDay = (date) => ({ date, final_present_count: 0, final_leave_count: 0, final_absent_count: 0 });
+
+/**
+ * The chart's middle bar: everyone not expected to work that day — approved
+ * leave PLUS weekly-offs PLUS holidays. The HR dashboard endpoints return this
+ * precomputed as `final_leave_count` (2026-10-03), so it's used as-is there.
+ * The manager team endpoint doesn't carry it, so we reconstruct it from the
+ * per-status counts — flat or nested under `counts`, as the manager payload
+ * nests them — by the backend's own formula. Any field absent counts as 0, so
+ * a manager payload with only `on_leave_count` degrades to that one number
+ * (unchanged from before) and auto-completes if the backend adds the field.
+ * Drawing just `on_leave_count` left weekly-offs and holidays out of the bar.
+ */
+export function leaveCountOf(day) {
+  const d = day || {};
+  const c = d.counts || {};
+  if (d.final_leave_count != null) return num(d.final_leave_count);
+  if (c.final_leave_count != null) return num(c.final_leave_count);
+  const pick = (key) => num(d[key] ?? c[key]);
+  return pick("on_leave_count") + pick("weekly_off_count") + pick("holiday_count");
+}
 
 export const isSunday = (ymd) => parseYMDLocal(String(ymd || "").slice(0, 10))?.getDay() === 0;
 
@@ -83,7 +104,7 @@ export function defaultChartPage(rows, period, key = "date") {
 /* ─── Y axis ───────────────────────────────────────────────────────────── */
 
 /** The three bars every daily attendance chart draws, in drawing order. */
-export const TREND_BAR_KEYS = ["final_present_count", "on_leave_count", "final_absent_count"];
+export const TREND_BAR_KEYS = ["final_present_count", "final_leave_count", "final_absent_count"];
 
 // 1 / 2 / 5 × 10ⁿ — the only step sizes a reader can add up in their head.
 // Anything else (3, 7, 12…) turns reading a bar into arithmetic.

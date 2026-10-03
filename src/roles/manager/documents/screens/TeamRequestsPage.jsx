@@ -35,6 +35,7 @@ import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import ChecklistPanel from "../../../../shared/documents/ChecklistPanel";
 import RequestsTable from "../../../../shared/documents/RequestsTable";
 import RequestDocumentDialog from "../../../../shared/documents/RequestDocumentDialog";
+import BulkRequestDocumentsDialog from "../../../../shared/documents/BulkRequestDocumentsDialog";
 import DocumentRequestDetailDialog from "../../../../shared/documents/DocumentRequestDetailDialog";
 import DocumentUploadDialog from "../../../../shared/documents/DocumentUploadDialog";
 import useDocumentTypes from "../../../../shared/documents/useDocumentTypes";
@@ -89,6 +90,7 @@ export default function TeamRequestsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [detail, setDetail] = useState(null);
   const [asking, setAsking] = useState(null); // { userId, presetTypeId }
+  const [bulkAsking, setBulkAsking] = useState(false); // the whole-team dialog
   const [uploading, setUploading] = useState(null); // { userId, presetTypeId, presetTitle, askedFor }
 
   const nameOf = useCallback(
@@ -184,6 +186,15 @@ export default function TeamRequestsPage() {
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
             <button type="button" onClick={refreshAll} disabled={state.loading} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-purple-600 disabled:opacity-50" aria-label="Refresh" title="Refresh">
               <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkAsking(true)}
+              disabled={!canRequest}
+              title={!canRequest ? "Your organisation hasn't opened any kind of document for managers to ask for." : undefined}
+              className={SECONDARY_BTN}
+            >
+              <HiUserGroup className="w-4 h-4" /> Ask the team
             </button>
             <button
               type="button"
@@ -354,6 +365,20 @@ export default function TeamRequestsPage() {
             if (created?.id) setDetail(created);
           }}
           onClose={() => setAsking(null)}
+        />
+      )}
+
+      {bulkAsking && (
+        <BulkRequestDocumentsDialog
+          create={(body) => plane.bulkCreate(body)}
+          people={team.options}
+          peopleStatus={team.loading ? "loading" : "ready"}
+          types={uploadTypes}
+          index={index}
+          nameOf={nameOf}
+          viewer="manager"
+          onDone={refreshAll}
+          onClose={() => setBulkAsking(false)}
         />
       )}
 

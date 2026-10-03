@@ -27,6 +27,7 @@ export const REQUEST_PLANES = {
     list: (params) => api.getDocumentRequests(params),
     get: api.getDocumentRequest,
     create: (userId, payload) => api.createDocumentRequest(userId, payload),
+    bulkCreate: (body) => api.bulkCreateDocumentRequests(body),
     bulkFromChecklist: (userId) => api.bulkRequestFromChecklist(userId),
     cancel: (id, reason) => api.cancelDocumentRequest(id, reason),
     remind: (id) => api.remindDocumentRequest(id),
@@ -43,6 +44,8 @@ export const REQUEST_PLANES = {
     // request outside the reporting line answers a uniform 404 anyway.
     get: null,
     create: (userId, payload) => api.managerCreateDocumentRequest(userId, payload),
+    // #241 — scoped to the reporting line; all-or-nothing on an out-of-scope id.
+    bulkCreate: (body) => api.managerBulkCreateDocumentRequests(body),
     bulkFromChecklist: null,
     cancel: (id, reason) => api.managerCancelDocumentRequest(id, reason),
     remind: null,
@@ -58,6 +61,7 @@ export const REQUEST_PLANES = {
     list: (params) => api.getMyDocumentRequests(params),
     get: null,
     create: null,
+    bulkCreate: null,
     bulkFromChecklist: null,
     cancel: null,
     remind: null,
