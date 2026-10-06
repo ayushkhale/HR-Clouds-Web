@@ -136,7 +136,12 @@ export const ANOMALY_FILTERS = [
 ];
 
 export const ANOMALY_TYPE_LABELS = {
-  out_of_bounds: "Punch outside office geofence",
+  out_of_bounds: "Punched away from the work location",
+  missing_coordinates: "Punched without location",
+  // A setup gap, not misconduct — the wording must not read like an accusation
+  // (contract 7_work_mode_and_field_geofencing_api.md §7).
+  geofence_unresolved: "No work location set up to check against",
+  work_mode_claim_mismatch: "Punch claimed a work mode the contract doesn’t allow",
   excessive_break: "Break exceeded policy limit",
   late_arrival: "Late arrival",
   late: "Late arrival",
@@ -147,6 +152,40 @@ export const ANOMALY_TYPE_LABELS = {
   multiple_sessions: "Multiple sessions",
 };
 export const anomalyTypeLabel = (type) => ANOMALY_TYPE_LABELS[normalizeStatusKey(type)] || humanize(type) || "Anomaly";
+
+/**
+ * Which punch a flag is about — "Clock-in", "Clock-out", or "" when it doesn't say.
+ *
+ * Clock-in and clock-out each raise their OWN geofence anomaly, so two rows a
+ * day is correct and must not be de-duplicated (contract
+ * md_attendance/7_work_mode_and_field_geofencing_api.md §7). But rendering only
+ * the type label made them identical twins: a reviewer saw the same flag twice
+ * with no way to tell which punch, so a clock-out breach (someone driving home)
+ * read as a second complaint about a clock-in that was fine. The backend puts
+ * the side at the start of `description`.
+ */
+export function anomalyPunchSide(anomaly) {
+  const d = normalizeStatusKey(anomaly?.description).replace(/_/g, " ");
+  if (d.startsWith("clock in")) return "Clock-in";
+  if (d.startsWith("clock out")) return "Clock-out";
+  return "";
+}
+
+/** The flag's label, named by punch when the flag says which. */
+export function anomalyLabel(anomaly) {
+  const label = anomalyTypeLabel(anomaly?.type || anomaly?.anomaly_type);
+  const side = anomalyPunchSide(anomaly);
+  return side ? `${side} · ${label}` : label;
+}
+
+/**
+ * `geofence_unresolved` means nobody finished configuring a work location — no
+ * assigned office, no active branch, no assigned site, or a location with no
+ * GPS pin. It must be routed to a setup queue, never a disciplinary one, and it
+ * is the only anomaly type whose fix belongs to HR rather than the employee.
+ */
+export const SETUP_ANOMALY_TYPES = new Set(["geofence_unresolved"]);
+export const isSetupAnomaly = (anomaly) => SETUP_ANOMALY_TYPES.has(normalizeStatusKey(anomaly?.type));
 
 export const SEVERITY = {
   low: { label: "Low", tone: "slate" },

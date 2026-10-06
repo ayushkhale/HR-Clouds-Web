@@ -31,7 +31,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   HiBadgeCheck, HiCog, HiExclamation, HiExternalLink, HiEye, HiInformationCircle,
-  HiMail, HiPaperAirplane, HiRefresh,
+  HiMail, HiPaperAirplane, HiRefresh, HiSearch, HiX,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
@@ -82,6 +82,7 @@ export default function LetterTemplatesPage() {
   const [state, setState] = useState({ rows: [], loading: true, error: null });
   const [letterhead, setLetterhead] = useState(null);   // { branding, inherited } or null while unknown
   const [tab, setTab] = useState("");                   // "" | "enabled" | "disabled"
+  const [search, setSearch] = useState("");             // browser-side, see `visible`
   const [configuring, setConfiguring] = useState(null); // the catalog row being set up
   const [previewing, setPreviewing] = useState(null);   // the catalog row being drawn
   // Set once the server says it has no renderer. Nothing else on the page
@@ -128,10 +129,17 @@ export default function LetterTemplatesPage() {
   }), [state.rows]);
 
   const visible = useMemo(() => {
-    if (tab === "enabled") return state.rows.filter((r) => r.is_enabled && !r.is_orphaned);
-    if (tab === "disabled") return state.rows.filter((r) => !r.is_enabled && !r.is_orphaned);
-    return state.rows;
-  }, [state.rows, tab]);
+    const byTab = tab === "enabled" ? state.rows.filter((r) => r.is_enabled && !r.is_orphaned)
+      : tab === "disabled" ? state.rows.filter((r) => !r.is_enabled && !r.is_orphaned)
+        : state.rows;
+    // Searched in the browser: the whole catalogue arrives in one call (see the
+    // header), so there is nothing to ask the server for. Matches the letter's
+    // own name and its code — somebody who knows a letter as "NOC" should find
+    // it without knowing we file it under a longer title.
+    const q = search.trim().toLowerCase();
+    if (!q) return byTab;
+    return byTab.filter((r) => `${letterTitle(r)} ${r.code || ""} ${letterPurpose(r.code) || ""}`.toLowerCase().includes(q));
+  }, [state.rows, tab, search]);
 
   const gaps = useMemo(
     () => (letterhead ? letterheadGaps(letterhead.branding, letterhead.inherited) : []),
@@ -296,8 +304,25 @@ export default function LetterTemplatesPage() {
           </p>
         )}
 
+        {/* Tabs left, search right — the house arrangement (CLAUDE.md §5). */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <FilterTabs options={tabs} value={tab} onChange={setTab} />
+          <div className="relative shrink-0">
+            <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search letters"
+              aria-label="Search letters by name or purpose"
+              className="h-10 w-full md:w-64 pl-9 pr-8 bg-white border border-slate-200 rounded-xl text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch("")} aria-label="Clear the search" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700">
+                <HiX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
@@ -308,10 +333,15 @@ export default function LetterTemplatesPage() {
           ) : visible.length === 0 ? (
             <DocEmptyState
               icon={HiMail}
-              title={tab ? "Nothing in this group" : "No letters available"}
-              message={tab
-                ? "Switch to All letters to see the rest."
-                : "Your server hasn’t been given any standard letters yet. This list fills itself in — there is nothing for you to add."}
+              // A search that finds nothing is its own state: telling someone to
+              // "switch to All letters" when they simply mistyped sends them the
+              // wrong way.
+              title={search ? "No letters match that" : tab ? "Nothing in this group" : "No letters available"}
+              message={search
+                ? `Nothing matches “${search.trim()}”${tab ? " in this group" : ""}. Try a shorter word, or clear the search.`
+                : tab
+                  ? "Switch to All letters to see the rest."
+                  : "Your server hasn’t been given any standard letters yet. This list fills itself in — there is nothing for you to add."}
             />
           ) : (
             <div className={state.loading ? "opacity-60" : ""}>

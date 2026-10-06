@@ -3,7 +3,7 @@ import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
 import { HiExclamationCircle } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
-import { ANOMALY_FILTERS, anomalyStatusKey, anomalyTypeLabel } from "../../../shared/attendance/enums";
+import { ANOMALY_FILTERS, anomalyStatusKey, anomalyLabel } from "../../../shared/attendance/enums";
 import { fmtDate, fmtDateTime, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { rowPreviewProps } from "../../../shared/components/DetailDialog";
@@ -55,7 +55,7 @@ function AttendanceAnomaliesPage() {
                     {list.items.map((anom, idx) => (
                       <tr key={anom.id || idx} {...rowPreviewProps(() => setSelected(anom), "Attendance flag")}>
                         <td className="px-6 py-3.5 font-semibold whitespace-nowrap">{fmtDate(ymdOnly(anom.date || anom.record_date || anom.created_at))}</td>
-                        <td className="px-6 py-3.5">{anomalyTypeLabel(anom.type || anom.anomaly_type)}</td>
+                        <td className="px-6 py-3.5">{anomalyLabel(anom)}</td>
                         <td className="px-6 py-3.5">{anom.severity ? <StatusBadge kind="severity" status={anom.severity} /> : <span className="text-slate-400">N/A</span>}</td>
                         <td className="px-6 py-3.5"><StatusBadge kind="anomaly" status={anomalyStatusKey(anom)} /></td>
                         <td className="px-6 py-3.5 text-xs text-slate-500 whitespace-nowrap">{anom.resolved_at ? fmtDateTime(anom.resolved_at) : "N/A"}</td>

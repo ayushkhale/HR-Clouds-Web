@@ -50,8 +50,20 @@ export function fillMonthDays(rows, period, make, key = "date") {
   });
 }
 
-/** An empty day for the three-bar team charts (HR and manager). */
-export const emptyTrendDay = (date) => ({ date, final_present_count: 0, final_leave_count: 0, final_absent_count: 0 });
+/**
+ * A day the month has but the API didn't report — in practice every date after
+ * today, since the graph endpoints stop at the current day.
+ *
+ * The counts are `null`, NOT `0`. Nothing was measured on a day that hasn't
+ * happened, and zero would claim it was measured and found empty (the same
+ * null-is-not-zero rule as `metric()` in dayStatus.js). It also fixes a visible
+ * defect: a Recharts `<Bar radius={[3,3,0,0]}>` with value 0 still paints its
+ * rounded cap, so every future day drew a small stub bar and the back half of
+ * the month looked like real attendance data. Recharts skips a null outright.
+ * `trendYAxis` reads these through `Number()`, where null lands on 0, so the
+ * axis is unaffected.
+ */
+export const emptyTrendDay = (date) => ({ date, final_present_count: null, final_leave_count: null, final_absent_count: null });
 
 /**
  * The chart's middle bar: everyone not expected to work that day — approved

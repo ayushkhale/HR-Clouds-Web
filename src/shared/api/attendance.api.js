@@ -292,6 +292,40 @@ export const attendanceAPI = {
   /** @param {number} [months] 1–12 (backend default 3) */
   getTrends: (months) => request(`/attendance/trends${qs({ months })}`),
 
+  // ── Field locations & assignments (2026-10-05) ─────────────────────────────
+  // Mounted at IDENTICAL paths on the HR and manager routers — same payloads,
+  // same responses, only the authorization scope differs. So these take a
+  // `plane` ("hr" | "manager") rather than existing twice; see FIELD_PLANES in
+  // `shared/attendance/fieldPlanes.js` for which role may do what.
+  //
+  // A created site is visible org-wide ON PURPOSE, so managers reuse "Tata
+  // Steel Pune" instead of each adding their own copy.
+  /** @param {{search?: string, include_inactive?: boolean, page?: number, limit?: number}} params */
+  getFieldLocations: (plane, params = {}) => request(`/attendance/${seg(plane)}/field-locations${qs(params)}`),
+  /** Returns { location, assigned_user_count, can_modify, assignments[] }. */
+  getFieldLocation: (plane, id) => request(`/attendance/${seg(plane)}/field-locations/${seg(id)}`),
+  /** body: { name, latitude, longitude, client_name?, geofence_radius_meters?, address?, city?, state?, country?, pincode?, timezone? } */
+  createFieldLocation: (plane, payload) => post(`/attendance/${seg(plane)}/field-locations`, payload),
+  /** `is_active` is NOT accepted here — retiring must cascade, which only DELETE does. */
+  updateFieldLocation: (plane, id, payload) => put(`/attendance/${seg(plane)}/field-locations/${seg(id)}`, payload),
+  /** Soft-retires the site AND deactivates its assignments in one transaction. */
+  deleteFieldLocation: (plane, id) => del(`/attendance/${seg(plane)}/field-locations/${seg(id)}`),
+
+  /**
+   * body: { user_id, field_location_id, effective_from?, effective_to? }
+   * Dates MUST be plain `YYYY-MM-DD` strings — an ISO timestamp is a 400,
+   * because at IST a midnight-UTC instant lands on the previous calendar day
+   * and would silently shift the window. Use `ymdOnly()`, never `toISOString()`.
+   * Response carries `work_mode_warning` (string|null) — render it when set.
+   */
+  assignFieldLocation: (plane, payload) => post(`/attendance/${seg(plane)}/field-assignments`, payload),
+  /** Idempotent — a repeat returns `already_inactive: true`, not an error. */
+  unassignFieldLocation: (plane, assignmentId) => del(`/attendance/${seg(plane)}/field-assignments/${seg(assignmentId)}`),
+  /** Returns { user_id, work_mode, assigned_office, total, records[] }. */
+  getUserFieldAssignments: (plane, userId) => request(`/attendance/${seg(plane)}/field-assignments/user/${seg(userId)}`),
+  /** The caller's own sites, for the punch screen. Same shape as the above. */
+  getMyFieldAssignments: () => request("/attendance/my-field-assignments"),
+
   // ── Shift & Holidays (U13, U20) ────────────────────────────────────────────
   getMyShift: () => request("/attendance/shift"),
   /** Takes no parameters — a `year` would be ignored (§4.3). Filter by date client-side. */

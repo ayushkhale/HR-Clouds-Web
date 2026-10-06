@@ -180,10 +180,21 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                         </td>
                         {/* /manager/team/today sends the day's frozen `shift_snapshot`, not `shift`. */}
                         <td className="px-5 py-3.5 text-xs text-slate-500">{shift ? `${shift.name || "Shift"}${shift.start_time ? ` · ${fmtClockTime(shift.start_time)}–${fmtClockTime(shift.end_time)}` : ""}` : "N/A"}</td>
-                        <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">{fmtTime(mem.clock_in_time)}</td>
-                        <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">{fmtTime(mem.clock_out_time)}</td>
+                        {/* All three of these go N/A together for someone who
+                            hasn't clocked in, so they have to LOOK the same. IN
+                            and OUT were dark and semibold while lateness was
+                            slate-300, giving one row three different weights of
+                            the same word (UI/UX review 2026-10-06, Issue 12).
+                            Muted slate-400 is the house colour for a value
+                            that isn't there. */}
+                        <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">
+                          {mem.clock_in_time ? fmtTime(mem.clock_in_time) : <span className="font-medium text-slate-400">N/A</span>}
+                        </td>
+                        <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">
+                          {mem.clock_out_time ? fmtTime(mem.clock_out_time) : <span className="font-medium text-slate-400">N/A</span>}
+                        </td>
                         <td className="px-5 py-3.5 text-right">
-                          {!mem.clock_in_time ? <span className="text-slate-300 text-xs">N/A</span>
+                          {!mem.clock_in_time ? <span className="text-slate-400 text-sm font-medium">N/A</span>
                             : late > 0 ? <span className="text-rose-600 font-bold text-xs">{fmtMinutes(late)} late</span>
                               : <span className="text-violet-600 font-bold text-xs">On time</span>}
                         </td>

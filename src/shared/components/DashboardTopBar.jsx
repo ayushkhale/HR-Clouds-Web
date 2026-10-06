@@ -31,6 +31,20 @@ import { useOrgPaths } from "../attendance/paths";
 // read, and the top bar re-mounts on every page. When it fails, re-read the
 // profile for a fresh link — once a minute at most, shared by every top bar.
 let lastPhotoRefresh = 0;
+/**
+ * How to write the page-search shortcut for the keyboard in front of the person.
+ * Read once at module load — nobody changes OS mid-session — and guarded because
+ * `navigator` is absent when this module is evaluated outside a browser.
+ */
+const SEARCH_SHORTCUT = (() => {
+  try {
+    const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "";
+    return /mac|iphone|ipad|ipod/i.test(platform) ? "⌘F" : "Ctrl F";
+  } catch {
+    return "Ctrl F";
+  }
+})();
+
 const refreshOwnPhoto = (refreshProfile) => () => {
   if (!refreshProfile || Date.now() - lastPhotoRefresh < 60_000) return;
   lastPhotoRefresh = Date.now();
@@ -277,8 +291,11 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
             aria-controls="topbar-search-results"
             className="w-full bg-transparent text-slate-800 placeholder-slate-400 outline-none text-xs font-medium"
           />
+          {/* The handler above already accepts BOTH ⌘ and Ctrl, so only the
+              label needed to follow the platform. A Windows keyboard has no ⌘
+              key, which made a working shortcut look unavailable. */}
           <kbd className="hidden lg:inline-flex items-center gap-1 bg-white border border-slate-200 text-slate-500 font-bold text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 shadow-sm">
-            ⌘F
+            {SEARCH_SHORTCUT}
           </kbd>
           {searchOpen && needle && (
             <div id="topbar-search-results" role="listbox" className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-100 rounded-xl shadow-lg py-1.5 z-50 max-h-80 overflow-y-auto">

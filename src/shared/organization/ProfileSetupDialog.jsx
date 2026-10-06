@@ -354,9 +354,12 @@ export default function ProfileSetupDialog({ status, onStatus, onSaved, onClose 
                       : f.note && <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{f.note}</p>}
                     {/* Said where it happens: a department list that went empty
                         because of the chosen office looks like a broken select. */}
+                    {/* The office is no longer chosen here (2026-10-05), so this
+                        can't tell anyone to pick a different one — and with no
+                        office to filter by, every department is offered. */}
                     {f.kind === "department" && !picker.loading && departmentOptions.length === 0 && picker.departments.length > 0 && (
                       <p className="text-[11px] text-fuchsia-600 font-medium mt-1">
-                        No department at {nameOfLoc(effectiveLocationId) || "that office"} yet. Pick another office, or add a department there first.
+                        No department is available to join yet. Add one from the checklist, then come back.
                       </p>
                     )}
                   </div>

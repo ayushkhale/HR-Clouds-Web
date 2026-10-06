@@ -115,6 +115,21 @@ export function isWorkingDay(record, today) {
 }
 
 /**
+ * Did this person actually turn up on this day?
+ *
+ * Needed before showing ANY lateness or punctuality verdict. An absent day
+ * arrives with `late_minutes: 0` — a real zero, not a null — so a
+ * "both fields are null" guard lets it through and the row reads "On time" for
+ * somebody who never came in (UI/UX review 2026-10-06, Issue 2). Lateness is
+ * only meaningful against an actual arrival, so the question is attendance, not
+ * whether the minutes happen to be zero.
+ */
+export function attendedDay(record, today) {
+  const key = dayChipKey(record, today);
+  return key === "present" || key === "late" || key === "half_day";
+}
+
+/**
  * Totals over a dense range that ignore `null` rather than counting it as 0.
  * Returns `{ sum, count }` so a caller can average over the days that actually
  * carried a number.

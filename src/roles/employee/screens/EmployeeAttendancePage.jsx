@@ -6,7 +6,7 @@ import { HiClock, HiChartBar, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiChe
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, unwrap } from "../../../shared/attendance/normalize";
 import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
-import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyTypeLabel, humanize } from "../../../shared/attendance/enums";
+import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyLabel, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
@@ -147,7 +147,7 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
                 rowKey={(a, i) => a.id || i}
                 empty="Nothing was flagged on this day."
                 columns={[
-                  { header: "What was flagged", render: (a) => <span className="font-semibold text-slate-700">{anomalyTypeLabel(a.type || a.anomaly_type)}</span> },
+                  { header: "What was flagged", render: (a) => <span className="font-semibold text-slate-700">{anomalyLabel(a)}</span> },
                   { header: "Status", align: "center", render: (a) => <StatusBadge kind="anomaly" status={anomalyStatusKey(a)} /> },
                 ]}
               />
