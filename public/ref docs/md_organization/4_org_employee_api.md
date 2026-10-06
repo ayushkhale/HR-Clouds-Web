@@ -577,8 +577,8 @@ HTTP 200 OK
 ### Business Purpose
 The organization creator is provisioned **before** the org has any structure: at registration there
 are no locations and no departments, so their `hr_profiles` row carries an employee code and
-nothing else — no `joining_date`, `department_id`, `location_id`, `designation`,
-`employment_type`, `work_mode`, `gender` or `marital_status`. Every endpoint that can write those
+nothing else — no `joining_date`, `department_id`, `designation`,
+`employment_type`, `gender` or `marital_status`. Every endpoint that can write those
 fields on a member (§5 department transfer, §10 hr-fields) refuses a self-edit, and the creator is
 normally the only HR in the org — so nobody could fill them. The practical damage of the blanks:
 
@@ -586,7 +586,7 @@ normally the only HR in the org — so nobody could fill them. The practical dam
 |---|---|
 | `joining_date` | Leave policy assignment refuses the member (`NO_JOINING_DATE`); payroll excludes them (`joining_date_missing`); bonus tenure skips them; payslips / annual statements / experience letters print an empty DOJ; the attendance series loses its lower bound |
 | `department_id` | Department rosters, filters, reports, department-scoped bonus rules and `countProfilesInDepartment()` all skip them |
-| `location_id` | No work location on the profile; attendance geofence has nothing to resolve |
+| `location_id` | No work location on the profile; the attendance geofence has nothing to resolve and raises `geofence_unresolved`. **HR-owned — not fillable through §11.2** (see the note below) |
 | `gender` / `marital_status` | Gender- and marital-status-gated leave types cannot be evaluated |
 
 These two endpoints close that gap for the HR plane without weakening the self-edit bans: they only
@@ -605,16 +605,15 @@ ever **fill a blank**.
   "message": "Setup status fetched successfully",
   "data": {
     "is_complete": false,
-    "missing_fields": ["joining_date", "department_id", "location_id", "designation", "employment_type", "work_mode", "gender", "marital_status"],
+    "missing_fields": ["joining_date", "department_id", "designation", "employment_type", "gender", "marital_status"],
     "locked_fields": [],
     "current_values": {
-      "joining_date": null, "department_id": null, "location_id": null, "designation": null,
-      "employment_type": null, "work_mode": null, "gender": null, "marital_status": null
+      "joining_date": null, "department_id": null, "designation": null,
+      "employment_type": null, "gender": null, "marital_status": null
     },
     "org_structure": {
       "locations_count": 0,
       "departments_count": 0,
-      "can_set_location": false,
       "can_set_department": false
     }
   }
@@ -626,25 +625,36 @@ ever **fill a blank**.
   condition the fill-once write is guarded on, so anything listed here is accepted by §11.2.
 - `locked_fields` — already on file. Sending one to §11.2 is a `409 FIELD_ALREADY_SET`; a real
   correction goes through §10 (gender / marital_status / joining_date) or §5 (department).
-- `org_structure.can_set_location` / `can_set_department` — `false` means the org has no **active**
-  location / department yet, so the wizard must send the user to create one first
-  (`POST /organizations/locations`, `POST /organizations/departments`).
+- `org_structure.can_set_department` — `false` means the org has no **active** department yet, so
+  the wizard must send the user to create one first (`POST /organizations/departments`).
+- `org_structure.locations_count` — org-structure readiness only. There is **no** `can_set_location`
+  flag: `location_id` is not settable here (see the note below), so advertising one would mislead
+  the wizard.
+- **`work_mode` and `location_id` never appear** in `missing_fields`, `locked_fields` or
+  `current_values`, and `is_complete` can be `true` while both are blank. See §11.2.
 - This is a **soft gate**: nothing else in the API is blocked on `is_complete`.
 
 ### 11.2 `PATCH /api/v1/organizations/me/job-profile`
 
 - **Authentication:** Required. Bearer token.
 - **Authorization:** `hr` only (`HR_ONLY`).
-- **Body:** at least one of the eight fields (`reason` alone is rejected).
+- **Body:** at least one of the six fields (`reason` alone is rejected).
+
+> **`work_mode` and `location_id` are NOT accepted here** (removed 2026-10-05). Both became inputs
+> to attendance geofence *enforcement*, which makes this endpoint an authorization boundary for
+> them: an HR whose own `work_mode` was blank could set it to `remote` and exempt themselves from
+> geofencing, and one whose `location_id` was blank could choose their own geofence anchor. Sending
+> either key is now a `400 VALIDATION_ERROR`, and a payload containing only those keys is a `400`
+> because no recognized field remains. Both are corrected through §10 (`hr-fields`), which no HR can
+> aim at themselves. Full rationale:
+> `public/md_updates/2026-10-05_work_mode_enforcement_api_changes.md`.
 
 ```json
 {
   "joining_date": "2024-04-01",
   "department_id": "41fd3123-076b-4380-a6e4-95d3a3cf78a4",
-  "location_id": "6b84a9f5-aaa7-4800-bf73-0f4238cec4c2",
   "designation": "Founder & Head of People",
   "employment_type": "full_time",
-  "work_mode": "on-site",
   "gender": "male",
   "marital_status": "married",
   "reason": "First-run setup after registration"
@@ -654,24 +664,24 @@ ever **fill a blank**.
 **Validation**
 - `joining_date`: `YYYY-MM-DD`, a real calendar date, not in the future (one day of slack past UTC
   today for orgs ahead of UTC), not before `1950-01-01`.
-- `department_id` / `location_id`: UUIDv4, must belong to **this** org and be active.
+- `department_id`: UUIDv4, must belong to **this** org and be active.
 - `designation`: 2–150 characters.
 - `employment_type`: `full_time` · `part_time` · `contract` · `intern`.
-- `work_mode`: `on-site` · `remote` · `hybrid` · `field`.
 - `gender`: `male` · `female` · `other` · `prefer_not_to_say`.
 - `marital_status`: string ≤ 50.
 - `reason`: optional, 3–500 characters, recorded in the audit log.
 - `null` / `""` are rejected for every field — this endpoint fills blanks, it never clears a value.
-- Any other key (`employee_code`, `job_status`, `pan_number`, `reporting_person`, …) is stripped.
+- Any other key (`work_mode`, `location_id`, `employee_code`, `job_status`, `pan_number`,
+  `reporting_person`, …) is stripped.
 
 **Semantics**
 - **Fill-once per field.** The write is guarded in SQL on "the column is still NULL", so a retried
   or duplicated request, and two concurrent requests, cannot both land — the loser gets
   `409 FIELD_ALREADY_SET`.
 - Fields may be filled across several calls; a `department_id` offered later is still cross-checked
-  against a `location_id` filled earlier (`400 LOCATION_MISMATCH`).
-- Writing `department_id` also refreshes the denormalized `department` name (and `location_id`
-  refreshes `work_location`), which is what clears a stale `'Human Resources'` / `'General'` label.
+  against a `location_id` already on file — set by §10 — (`400 LOCATION_MISMATCH`).
+- Writing `department_id` also refreshes the denormalized `department` name, which is what clears a
+  stale `'Human Resources'` / `'General'` label.
 - **Reporting lines and HOD-ship are NOT touched.** Joining a department does not make the caller
   report to its head, and does not make them its head — those stay with §5 and the department
   endpoints.
@@ -700,8 +710,8 @@ ever **fill a blank**.
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | No real field sent, bad enum, malformed/future/too-old `joining_date`, non-UUID id, `null`/`""` |
 | 400 | `LOCATION_MISMATCH` | The department sits at a different location than the one in the payload or already on file |
-| 400 | `DEPARTMENT_INACTIVE` / `LOCATION_INACTIVE` | The target row is deactivated |
+| 400 | `DEPARTMENT_INACTIVE` | The target department is deactivated. (`LOCATION_INACTIVE` is no longer reachable here — `location_id` is not an accepted input) |
 | 403 | `FORBIDDEN` | Caller is not `hr` |
 | 404 | `PROFILE_NOT_FOUND` | No membership, or no role-profile row for the caller |
-| 404 | `DEPARTMENT_NOT_FOUND` / `LOCATION_NOT_FOUND` | The id does not belong to this org |
+| 404 | `DEPARTMENT_NOT_FOUND` | The id does not belong to this org |
 | 409 | `FIELD_ALREADY_SET` | One or more named fields already hold a value (message lists them), or a concurrent fill won the race |

@@ -27,6 +27,10 @@ export const DICTIONARY = {
     LATE: "Late",
     HALF_DAY: "Half Day",
     ON_LEAVE: "On Leave",
+    // The trend charts' middle bar: everyone not expected to work that day —
+    // approved leave PLUS weekly-offs PLUS holidays. "Leave" alone read as if
+    // the bar were only approved leave.
+    LEAVE_AND_OFF: "Leave & Off",
     OFFICE: "Office",
     REMOTE: "Remote",
     HYBRID: "Hybrid",

@@ -12,7 +12,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { attendanceAPI } from "../../../shared/api";
-import { attendanceErrorCode, attendanceErrorMessage } from "../../../shared/utils/attendanceErrors";
+import { attendanceErrorMessage, isStateReconciliation } from "../../../shared/utils/attendanceErrors";
 import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
 import { fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
@@ -65,7 +65,8 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const [showNotes, setShowNotes] = useState(false);
   const [geoIssue, setGeoIssue] = useState(null); // { status, message, kind }
   const [lastResult, setLastResult] = useState(null);
-  const [inlineError, setInlineError] = useState("");
+  // `{ text, tone }` — a failed punch is rose, a reconciled one slate (see `fail`).
+  const [inlineNotice, setInlineNotice] = useState(null);
   const { toast, showToast, clearToast } = useToast(5000);
 
   const status = today?.status;
@@ -134,7 +135,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(key);
-    setInlineError("");
+    setInlineNotice(null);
     try {
       await task();
     } finally {
@@ -146,8 +147,14 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   // The caller always refetches /today afterwards, so a stale card (e.g. already
   // clocked in from another device) self-corrects; the message explains why.
   const fail = (err, fallback) => {
-    const code = attendanceErrorCode(err);
-    setInlineError(code === "ALREADY_CLOCKED_IN" ? attendanceErrorMessage(err) : attendanceErrorMessage(err, fallback));
+    // A 409 reconciliation isn't a failure — the server already holds the state
+    // the person asked for, and the refetch below puts the card right. Showing
+    // it in rose accused them of breaking something they hadn't.
+    const reconciled = isStateReconciliation(err);
+    setInlineNotice({
+      text: reconciled ? attendanceErrorMessage(err) : attendanceErrorMessage(err, fallback),
+      tone: reconciled ? "slate" : "rose",
+    });
   };
 
   const punch = (kind, { skipLocation = false } = {}) =>
@@ -355,7 +362,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       )}
 
       <div className={horizontal ? "w-full lg:flex-1 lg:max-w-xl lg:ml-auto space-y-3 min-w-0" : "w-full space-y-3 mt-auto"}>
-        {inlineError && <InlineAlert tone="rose">{inlineError}</InlineAlert>}
+        {inlineNotice && <InlineAlert tone={inlineNotice.tone}>{inlineNotice.text}</InlineAlert>}
 
         {geoIssue && (
           <InlineAlert tone="amber">

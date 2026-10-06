@@ -122,6 +122,18 @@ export const isNotFound = (err) => {
   const code = attendanceErrorCode(err) || "";
   return code === "NOT_FOUND" || code.endsWith("_NOT_FOUND") || err?.status === 404;
 };
+/**
+ * The punch already matched the server's state — a double-tap, a retry, or the
+ * same person punching from another device. The backend answers 409 rather than
+ * failing, every caller refetches `/today` straight after, and all three
+ * messages end "Your status has been refreshed". Nothing went wrong, so the card
+ * states it rather than showing a red failure.
+ */
+export const isStateReconciliation = (err) => {
+  const code = attendanceErrorCode(err);
+  return code === "ALREADY_CLOCKED_IN" || code === "NOT_CLOCKED_IN" || code === "NO_ACTIVE_BREAK";
+};
+
 /** The item was decided elsewhere (another approver, or a stale queue). */
 export const isAlreadyProcessed = (err) => {
   const code = attendanceErrorCode(err);
