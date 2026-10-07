@@ -31,6 +31,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailTable, displayValue, rowPreviewProps } from "../components/DetailDialog";
 import GeofenceMapPicker from "../components/GeofenceMapPicker";
+import AddressSearchField from "../components/AddressSearchField";
+import { reverseGeocode } from "../utils/geocoding";
 import { PersonSelect } from "../components/PersonPicker";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, Toast, useToast } from "./ui";
@@ -45,6 +47,20 @@ const PAGE_SIZE = 20;
 const BROWSER_TZ = (() => {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata"; }
   catch { return "Asia/Kolkata"; }
+})();
+
+/**
+ * Every IANA zone the browser knows, so the field is a real choice rather than
+ * free text somebody can misspell into a zone the server won't recognise.
+ * `supportedValuesOf` is absent on older engines — the fallback keeps the
+ * handful this organisation realistically uses plus whatever the browser is on.
+ */
+const TIMEZONES = (() => {
+  try {
+    const all = Intl.supportedValuesOf?.("timeZone");
+    if (Array.isArray(all) && all.length) return all;
+  } catch { /* fall through */ }
+  return [...new Set([BROWSER_TZ, "Asia/Kolkata", "Asia/Dubai", "Europe/London", "America/New_York", "UTC"])];
 })();
 
 const BLANK = {
@@ -444,6 +460,25 @@ function SiteFormDialog({ plane, site, assignedCount = 0, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+
+  /**
+   * Moving the pin fills the address from the coordinate, but only the parts
+   * that are still blank — somebody who has typed "Gate 3, loading bay" must
+   * not lose it because they nudged the pin ten metres. The coordinate itself
+   * always wins, since that is what they just set by hand.
+   */
+  const onPinMoved = async ({ latitude, longitude }) => {
+    setForm((f) => ({ ...f, latitude, longitude }));
+    const place = await reverseGeocode(latitude, longitude);
+    if (!place) return; // offline or rate-limited: the pin still moved
+    setForm((f) => {
+      const next = { ...f, latitude, longitude };
+      ["address", "city", "state", "country", "pincode"].forEach((k) => {
+        if (!String(f[k] ?? "").trim() && place[k]) next[k] = place[k];
+      });
+      return next;
+    });
+  };
   const lat = coord(form.latitude);
   const lng = coord(form.longitude);
   const radius = Number(form.geofence_radius_meters) || FIELD_RADIUS_DEFAULT;
@@ -494,13 +529,16 @@ function SiteFormDialog({ plane, site, assignedCount = 0, onClose, onSaved }) {
       <form onSubmit={submit} className="bg-white w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-xl flex flex-col overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit client site" : "Add a client site"}</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Field staff assigned here can clock in from this place without being flagged.</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Field staff assigned here can clock in from this place without being flagged.
+            <span className="text-slate-400"> Fields marked <span className="text-rose-500">*</span> are required; the rest are worth filling in so the site is findable later.</span>
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
             <div>
-              <label htmlFor="fl-name" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Site name</label>
+              <label htmlFor="fl-name" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Site name<span className="text-rose-500" aria-hidden="true"> *</span></label>
               <input id="fl-name" value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={150} required className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" placeholder="e.g. Tata Steel Pune Plant" />
             </div>
             <div>
@@ -520,12 +558,21 @@ function SiteFormDialog({ plane, site, assignedCount = 0, onClose, onSaved }) {
             </div>
 
             <div className="sm:col-span-2">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Drop a pin</p>
+              <AddressSearchField
+                id="fl-place"
+                label="Find the site"
+                placeholder="e.g. Tata Steel Plant, MIDC Pune"
+                onSelect={(place) => setForm((f) => ({ ...f, ...place }))}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Drop a pin<span className="text-rose-500" aria-hidden="true"> *</span></p>
               <GeofenceMapPicker
                 latitude={lat}
                 longitude={lng}
                 radius={radius}
-                onChange={({ latitude, longitude }) => setForm((f) => ({ ...f, latitude, longitude }))}
+                onChange={onPinMoved}
               />
               <p className="text-[10px] text-slate-400 mt-1.5">
                 {lat !== null && lng !== null
@@ -553,6 +600,16 @@ function SiteFormDialog({ plane, site, assignedCount = 0, onClose, onSaved }) {
             <div>
               <label htmlFor="fl-country" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Country</label>
               <input id="fl-country" value={form.country} onChange={(e) => set("country", e.target.value)} maxLength={100} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
+            </div>
+            <div>
+              {/* Stored against the site and shown rather than sent invisibly:
+                  a site in another zone is exactly the case somebody needs to
+                  correct, and they can't correct what the form never shows. */}
+              <label htmlFor="fl-timezone" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Time zone</label>
+              <select id="fl-timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-purple-500">
+                {!TIMEZONES.includes(form.timezone) && form.timezone && <option value={form.timezone}>{form.timezone}</option>}
+                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
             </div>
           </div>
 
