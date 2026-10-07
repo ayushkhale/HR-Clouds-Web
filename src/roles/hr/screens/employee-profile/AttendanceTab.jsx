@@ -4,7 +4,7 @@ import { memberAttendanceApi } from "../../../../shared/attendance/memberAttenda
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
 import { unwrap } from "../../../../shared/attendance/normalize";
-import { anomalyStatusKey, anomalyTypeLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
+import { anomalyStatusKey, anomalyLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
 import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
 import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
 import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
@@ -125,7 +125,7 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
                 {anomalies.map((a, i) => (
                   <div key={a.id || i} className="bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-bold text-purple-900">{anomalyTypeLabel(a.type)}</p>
+                      <p className="text-sm font-bold text-purple-900">{anomalyLabel(a)}</p>
                       <div className="flex gap-1.5 shrink-0">
                         {a.severity && <DetailPill tone="outline">{humanize(a.severity)}</DetailPill>}
                         <DetailPill tone={anomalyStatusKey(a) === "resolved" ? "muted" : "solid"}>{humanize(anomalyStatusKey(a))}</DetailPill>
@@ -238,9 +238,18 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
                         <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_in_time ? fmtTime(record.clock_in_time) : na}</td>
                         <td className="px-6 py-3.5 text-slate-600 font-medium">{record.clock_out_time ? fmtTime(record.clock_out_time) : na}</td>
                         <td className="px-6 py-3.5 text-right">
-                          {record.effective_hours === null && !record.clock_in_time
+                          {/* Decided by the DAY, not by whether the value came
+                              back as 0 or null — the backend uses both for an
+                              absent day, so testing the value made two
+                              identical absences read "0m" and "N/A" in the same
+                              table (UI/UX review 2026-10-06, Issue 3). No hours
+                              were due on an off day; a working day with nothing
+                              recorded really is 0m (CLAUDE.md §5). */}
+                          {!due
                             ? na
-                            : <LiveEffectiveHours effectiveHours={record.effective_hours} formatted={record.worked_duration_formatted} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />}
+                            : record.effective_hours === null && !record.clock_in_time
+                              ? <span className="text-slate-400">0m</span>
+                              : <LiveEffectiveHours effectiveHours={record.effective_hours} formatted={record.worked_duration_formatted} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />}
                         </td>
                       </tr>
                     );

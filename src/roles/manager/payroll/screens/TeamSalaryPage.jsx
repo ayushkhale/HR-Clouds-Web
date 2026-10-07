@@ -266,6 +266,27 @@ export default function TeamSalaryPage() {
         ))}
 
         {tab === "proposals" && (proposalsLoading ? <Skeleton type="table" rows={4} /> : (
+          <>
+            {/* The Team tab opens with three cards, so dropping straight to a
+                bare table here made the page lurch when the tab changed
+                (UI/UX review 2026-10-06, Issue 10). Same shape, counts that
+                belong to proposals — and they read 0 rather than vanishing,
+                which is itself the answer when nothing has been proposed. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p className="text-[11px] font-bold text-slate-400 uppercase">Proposals sent</p>
+                <p className="text-2xl font-black text-slate-800 mt-1 tabular-nums">{proposals.length}</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p className="text-[11px] font-bold text-slate-400 uppercase">Waiting for approval</p>
+                <p className="text-2xl font-black text-purple-700 mt-1 tabular-nums">{proposals.filter((p) => p.status === "proposed").length}</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p className="text-[11px] font-bold text-slate-400 uppercase">Approved</p>
+                <p className="text-2xl font-black text-slate-800 mt-1 tabular-nums">{proposals.filter((p) => p.status === "approved").length}</p>
+              </div>
+            </div>
+
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm min-w-[640px]">
@@ -302,6 +323,7 @@ export default function TeamSalaryPage() {
               </table>
             </div>
           </div>
+          </>
         ))}
       </main>
 

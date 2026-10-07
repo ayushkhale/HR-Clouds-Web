@@ -27,11 +27,17 @@
 //    `jobProfileBody()` takes `missing` and refuses to send anything outside
 //    it. A locked field sent back is a 409 that fails the whole call.
 //
-//  · THE VOCABULARIES ARE THE DB's, NOT THE UI's. `work_mode` is `on-site`,
-//    with the hyphen, not `office` — which is what `shared/attendance/enums.js`
-//    calls the same idea on attendance screens, where the value comes from a
-//    different column. Don't "tidy" these to match; this is the enum the
-//    organisation module validates against.
+//  · `work_mode` AND `location_id` ARE NOT HERE, DELIBERATELY (2026-10-05).
+//    Both became inputs to geofence ENFORCEMENT, which turned this endpoint
+//    into an authorization boundary: a legacy employee with a NULL `work_mode`
+//    could have set it to `remote` and exempted themselves from geofencing for
+//    good, and a NULL `location_id` let them pick whichever branch sat nearest
+//    their home as their geofence anchor. The server now strips both keys and
+//    never lists them in `missing_fields`, so `is_complete` can be true while
+//    they are blank. They are HR-owned: corrections go through
+//    `PATCH /organizations/employees/:id/hr-fields` and the department-transfer
+//    endpoint. `org_structure.can_set_location` was removed with them.
+//    Don't add them back. Contract: md_updates/2026-10-05_work_mode_enforcement_api_changes.md §1.
 //
 //  · NEVER GUESS A JOINING DATE. No "today" default, no date from the account's
 //    creation. It is fill-once and feeds payroll proration, leave accrual and
@@ -51,14 +57,6 @@ export const EMPLOYMENT_TYPE_OPTIONS = [
   { value: "part_time", label: "Part-time" },
   { value: "contract", label: "Contract" },
   { value: "intern", label: "Intern" },
-];
-
-// `on-site` carries a hyphen and is NOT `office`. See the header.
-export const WORK_MODE_OPTIONS = [
-  { value: "on-site", label: "At the office" },
-  { value: "remote", label: "From home" },
-  { value: "hybrid", label: "Some of both" },
-  { value: "field", label: "Out in the field" },
 ];
 
 export const GENDER_OPTIONS = [
@@ -100,18 +98,14 @@ export const SETUP_FIELDS = [
     note: "Needed before leave and payroll can include you.",
   },
   {
-    key: "location_id",
-    kind: "location",
-    label: "Which office you work from",
-    short: "office",
-    span: true,
-  },
-  {
     key: "department_id",
     kind: "department",
+    // NOT `span: true`. It spanned both columns while `location_id` sat beside
+    // it — two wide pickers in a row of their own. With the office field gone
+    // (see the header) a lone spanning field pushes itself onto a new row and
+    // leaves a visible hole next to the joining date.
     label: "Which department you’re in",
     short: "department",
-    span: true,
   },
   {
     key: "designation",
@@ -123,7 +117,6 @@ export const SETUP_FIELDS = [
     minLength: 2,
   },
   { key: "employment_type", kind: "select", label: "How you’re employed", short: "employment type", options: EMPLOYMENT_TYPE_OPTIONS },
-  { key: "work_mode", kind: "select", label: "Where you usually work", short: "work mode", options: WORK_MODE_OPTIONS },
   { key: "gender", kind: "select", label: "Gender", short: "gender", options: GENDER_OPTIONS },
   { key: "marital_status", kind: "select", label: "Marital status", short: "marital status", options: MARITAL_STATUS_OPTIONS },
 ];
@@ -159,7 +152,9 @@ export function normalizeSetupStatus(res) {
     unknownMissing: rawMissing.filter((k) => !FIELD_BY_KEY[k]),
     locked: strList(data.locked_fields),
     values: data.current_values && typeof data.current_values === "object" ? data.current_values : {},
-    canSetLocation: org.can_set_location === true,
+    // No `canSetLocation`: the server dropped `can_set_location` when it stopped
+    // accepting `location_id` here (see the header). `locations_count` stays —
+    // it still reports org-structure readiness for other callers.
     canSetDepartment: org.can_set_department === true,
     locationsCount: Number(org.locations_count) || 0,
     departmentsCount: Number(org.departments_count) || 0,
@@ -184,25 +179,17 @@ export function lockedFields(status) {
 }
 
 /**
- * What the wizard still has to walk, in order. An office and a department have
- * to exist in the organisation before they can be picked, and a brand-new org
- * has neither — so those are steps of their own, not disabled selects.
+ * What the wizard still has to walk, in order. A department has to exist in the
+ * organisation before it can be picked, and a brand-new org has none — so that
+ * is a step of its own, not a disabled select.
+ *
+ * There is no office step any more: `location_id` is HR-owned and not settable
+ * here (see the header), so the wizard neither asks for it nor blocks on it.
  */
 export function setupSteps(status) {
   if (!status) return [];
   const needs = (key) => status.missing.includes(key);
   const steps = [];
-  if (needs("location_id") && !status.canSetLocation) {
-    steps.push({
-      key: "location",
-      title: "Add your first office",
-      body: "Offices are what attendance checks people in against, and your own record points at one.",
-      // Offices live under Attendance, not Organisation — they exist for
-      // geofenced clock-in, which is why the route reads the way it does.
-      to: "/dashboard/hr/attendance/locations",
-      cta: "Add an office",
-    });
-  }
   if (needs("department_id") && !status.canSetDepartment) {
     steps.push({
       key: "department",
@@ -217,12 +204,10 @@ export function setupSteps(status) {
 
 /**
  * True when every remaining field can be filled from the form right now. A
- * `location_id` or `department_id` with nothing to pick from cannot, and the
- * form must not offer an empty select — `setupSteps()` sends the user to create
- * one instead.
+ * `department_id` with nothing to pick from cannot, and the form must not offer
+ * an empty select — `setupSteps()` sends the user to create one instead.
  */
 export const fieldIsReady = (key, status) => {
-  if (key === "location_id") return !!status?.canSetLocation;
   if (key === "department_id") return !!status?.canSetDepartment;
   return true;
 };

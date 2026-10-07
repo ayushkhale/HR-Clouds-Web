@@ -7,7 +7,7 @@ import { useOrgEmployees } from "../../../shared/attendance/EmployeePicker";
 import { humanize } from "../../../shared/attendance/enums";
 import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
-import { dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
+import { attendedDay, dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
 
 // Contract §2 C15 / §8.1: GET /manager/team/history ignores every query
@@ -209,7 +209,10 @@ function ManagerTeamHistoryPage() {
                               <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : na}</td>
                               <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null && !r.worked_duration_formatted ? zero : workedLabel(r)}</td>
                               <td className="px-5 py-3 text-xs">
-                                {late === null && early === null ? na : (
+                                {/* Somebody who wasn't there is neither late nor
+                                    on time — an absent day sends a real 0, so
+                                    attendance has to be checked first. */}
+                                {!attendedDay(r) || (late === null && early === null) ? na : (
                                   <>
                                     {late > 0 && <span className="block text-rose-600 font-bold">{fmtMinutes(late)} late</span>}
                                     {early > 0 && <span className="block text-fuchsia-600 font-bold">{fmtMinutes(early)} early</span>}

@@ -13,7 +13,7 @@ import { DECISION_TYPES, runDecision } from "./decisions.js";
 import { resolvePerson, useTeamNames } from "./useTeamNames.js";
 import { entityId, listFrom } from "./normalize.js";
 import { formatDayCount } from "../utils/formatUtils.js";
-import { anomalyTypeLabel, humanize } from "./enums.js";
+import { anomalyLabel, humanize } from "./enums.js";
 import { fmtClockTime, fmtDate, fmtHours, fmtMinutes, fmtTime, toLocalYMD, workedLabel, ymdOnly } from "./dates.js";
 import { useAttendanceChanged } from "./events.js";
 import { isAlreadyProcessed, isHierarchyViolation, isNotFound } from "../utils/attendanceErrors.js";
@@ -110,7 +110,16 @@ const COLUMNS = {
   ],
   overtime: [
     { header: "Date", render: (i) => fmtDate(itemDate(i)) },
-    { header: "Overtime", render: (i) => <span className="font-bold text-indigo-600">{fmtMinutes(otMinutes(i))}</span> },
+    {
+      header: "Overtime",
+      // Measured against the attendance policy's FULL-DAY hours, not the length
+      // of the shift shown in the next column. Those two differ (a 7h policy
+      // under a 10–6 shift), so the number looked an hour out and reviewers
+      // suspected a maths bug (UI/UX review 2026-10-06, Issue 6). The detail
+      // dialog shows the full working; this says which baseline it used.
+      help: { surface: "attendance.approval_queue", field: "overtime_minutes", label: "overtime" },
+      render: (i) => <span className="font-bold text-indigo-600">{fmtMinutes(otMinutes(i))}</span>,
+    },
     {
       header: "Shift",
       render: (i) => {
@@ -141,7 +150,7 @@ const COLUMNS = {
   ],
   anomaly: [
     { header: "Date", render: (i) => fmtDate(itemDate(i) || ymdOnly(i.created_at)) },
-    { header: "Flag", render: (i) => anomalyTypeLabel(i.type || i.anomaly_type) },
+    { header: "Flag", render: (i) => anomalyLabel(i) },
     { header: "Severity", render: (i) => (i.severity ? <StatusBadge kind="severity" status={i.severity} /> : "N/A") },
     { header: "Details", render: (i) => <span className="block max-w-[260px] truncate" title={i.description}>{i.description || "N/A"}</span> },
   ],

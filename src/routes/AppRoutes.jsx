@@ -105,6 +105,9 @@ const AttendanceHolidaysPage = lazy(() => import("../roles/hr/attendance/screens
 const AttendanceWeeklyOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceWeeklyOffsPage"));
 const AttendanceRegularizationsHRPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceRegularizationsHRPage"));
 const AttendanceLocationsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLocationsPage"));
+// Client sites — one shared screen, mounted under each workspace's own prefix.
+const FieldLocationsPage = lazy(() => import("../roles/hr/attendance/screens/FieldLocationsPage"));
+const ManagerFieldLocationsPage = lazy(() => import("../roles/manager/screens/FieldLocationsPage"));
 const AttendanceCompOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffsPage"));
 const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage"));
 const AttendanceLockPeriodsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLockPeriodsPage"));
@@ -328,6 +331,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/holidays" element={<AttendanceHolidaysPage />} />
         <Route path="/dashboard/hr/attendance/weekly-offs" element={<AttendanceWeeklyOffsPage />} />
         <Route path="/dashboard/hr/attendance/locations" element={<AttendanceLocationsPage />} />
+        <Route path="/dashboard/hr/attendance/field-locations" element={<FieldLocationsPage />} />
         <Route path="/dashboard/hr/attendance/comp-offs" element={<AttendanceCompOffsPage />} />
         <Route path="/dashboard/hr/attendance/comp-off-policies" element={<AttendanceCompOffPoliciesPage />} />
         <Route path="/dashboard/hr/attendance/lock-periods" element={<AttendanceLockPeriodsPage />} />
@@ -426,6 +430,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/attendance" element={<EmployeeAttendancePage />} />
         <Route path="/dashboard/manager/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
         <Route path="/dashboard/manager/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
+        <Route path="/dashboard/manager/attendance/field-locations" element={<ManagerFieldLocationsPage />} />
         <Route path="/dashboard/manager/attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/manager/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />

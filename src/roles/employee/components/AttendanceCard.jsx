@@ -12,11 +12,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { attendanceAPI } from "../../../shared/api";
-import { attendanceErrorCode, attendanceErrorMessage } from "../../../shared/utils/attendanceErrors";
+import { attendanceErrorMessage, isStateReconciliation } from "../../../shared/utils/attendanceErrors";
 import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
 import { fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { PUNCH_SOURCE_WEB, SHIFT_TYPES, WORK_MODES, WORK_MODE_VALUES, humanize } from "../../../shared/attendance/enums";
+import { choosesWorkMode, geofenceNotice, isFieldWorker, permittedWorkModes } from "../../../shared/attendance/geofence";
 import { PUNCH_NOTES_MAX } from "../../../shared/attendance/validation";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import { ErrorState, InlineAlert, Spinner, StatusBadge, Toast, useToast } from "../../../shared/attendance/ui";
@@ -65,7 +66,16 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const [showNotes, setShowNotes] = useState(false);
   const [geoIssue, setGeoIssue] = useState(null); // { status, message, kind }
   const [lastResult, setLastResult] = useState(null);
-  const [inlineError, setInlineError] = useState("");
+  // The contractual work mode, the base office and any client sites, from
+  // /my-field-assignments. `work_mode` there is already normalized and
+  // fail-secure (a null profile reads as "office"), which is why we take the
+  // mode from here rather than guessing it from the punch record.
+  const [contract, setContract] = useState(null);
+  // The `geofence` object from the last punch. NOT an error — the punch
+  // succeeded in every outcome; this only explains where it landed.
+  const [geofence, setGeofence] = useState(null);
+  // `{ text, tone }` — a failed punch is rose, a reconciled one slate (see `fail`).
+  const [inlineNotice, setInlineNotice] = useState(null);
   const { toast, showToast, clearToast } = useToast(5000);
 
   const status = today?.status;
@@ -91,6 +101,44 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   useEffect(() => {
     if (phase !== "done") setLastResult(null);
   }, [phase, today?.date]);
+
+  // The geofence note belongs to one punch, so it clears when the day moves on.
+  useEffect(() => { setGeofence(null); }, [today?.date]);
+
+  // Read once per mount. A failure leaves `contract` null, which hides the work
+  // mode toggle and the sites panel — a missing backend feature degrades to a
+  // hidden control, never a crash (CLAUDE.md §7).
+  useEffect(() => {
+    let cancelled = false;
+    attendanceAPI.getMyFieldAssignments()
+      .then((res) => { if (!cancelled) setContract(res?.data || null); })
+      .catch(() => { if (!cancelled) setContract(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const contractMode = contract?.work_mode;
+  // Only a hybrid employee declares where they are. For everyone else the
+  // contract decides, the server overrides whatever we send, and sending it
+  // anyway raises a `work_mode_claim_mismatch` flag against them (§0.3).
+  const canDeclareMode = choosesWorkMode(contractMode);
+  const modeOptions = canDeclareMode
+    ? WORK_MODES.filter((m) => permittedWorkModes(contractMode).includes(m.value))
+    : [];
+
+  // `matched_location_id` is polymorphic — an office id or a field-site id, told
+  // apart only by `matched_location_type`. Resolved to a NAME here; the id never
+  // reaches the screen (CLAUDE.md §4). An unmatched id yields "", and the copy
+  // then drops the name clause rather than printing "Unknown".
+  const locationNameFor = (gf) => {
+    if (!gf?.matched_location_id) return "";
+    const id = String(gf.matched_location_id);
+    if (gf.matched_location_type === "field") {
+      const hit = (contract?.records || []).find((r) => String(r.field_location?.id) === id);
+      return hit?.field_location?.name || "";
+    }
+    return String(contract?.assigned_office?.id) === id ? contract.assigned_office.name || "" : "";
+  };
+  const geoNote = geofenceNotice(geofence, locationNameFor(geofence));
 
   // `/attendance/shift` (U13) answers `{ assignment, shift, rotation,
   // weekly_offs }`, not a bare shift. Reading `name` off the wrapper left the
@@ -134,7 +182,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(key);
-    setInlineError("");
+    setInlineNotice(null);
     try {
       await task();
     } finally {
@@ -146,8 +194,14 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   // The caller always refetches /today afterwards, so a stale card (e.g. already
   // clocked in from another device) self-corrects; the message explains why.
   const fail = (err, fallback) => {
-    const code = attendanceErrorCode(err);
-    setInlineError(code === "ALREADY_CLOCKED_IN" ? attendanceErrorMessage(err) : attendanceErrorMessage(err, fallback));
+    // A 409 reconciliation isn't a failure — the server already holds the state
+    // the person asked for, and the refetch below puts the card right. Showing
+    // it in rose accused them of breaking something they hadn't.
+    const reconciled = isStateReconciliation(err);
+    setInlineNotice({
+      text: reconciled ? attendanceErrorMessage(err) : attendanceErrorMessage(err, fallback),
+      tone: reconciled ? "slate" : "rose",
+    });
   };
 
   const punch = (kind, { skipLocation = false } = {}) =>
@@ -177,9 +231,18 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
 
       try {
         if (kind === "clock-in") {
-          if (workMode) payload.work_mode = workMode;
+          // Only a hybrid employee's declaration is honoured; from anyone else
+          // it is overridden and flagged, so it is not sent at all (§0.3).
+          // The stored value is re-checked against the contract because it
+          // outlives a change of work mode: a mode that was valid when it was
+          // saved would otherwise be sent back as a claim the contract now
+          // refuses, flagging the employee for our own stale cache.
+          if (canDeclareMode && permittedWorkModes(contractMode).includes(workMode)) {
+            payload.work_mode = workMode;
+          }
           const res = await attendanceAPI.clockIn(payload);
           const d = res?.data || {};
+          setGeofence(d.geofence || null);
           const late = Number(d.late_minutes) || 0;
           const at = d.clock_in_time ? ` at ${fmtTime(d.clock_in_time)}` : "";
           if (d.is_holiday || d.is_weekly_off) {
@@ -194,6 +257,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
         } else {
           const res = await attendanceAPI.clockOut(payload);
           setLastResult(res?.data || null);
+          setGeofence(res?.data?.geofence || null);
           showToast("Clocked out. Your day has been calculated.");
         }
         setNotes("");
@@ -355,7 +419,34 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       )}
 
       <div className={horizontal ? "w-full lg:flex-1 lg:max-w-xl lg:ml-auto space-y-3 min-w-0" : "w-full space-y-3 mt-auto"}>
-        {inlineError && <InlineAlert tone="rose">{inlineError}</InlineAlert>}
+        {inlineNotice && <InlineAlert tone={inlineNotice.tone}>{inlineNotice.text}</InlineAlert>}
+
+        {/* Where the punch landed. Never rose: the punch succeeded whatever the
+            outcome, and an out-of-bounds result is a flag for a manager to look
+            at, not something the employee did wrong (§5.3). */}
+        {geoNote && <InlineAlert tone={geoNote.tone}>{geoNote.text}</InlineAlert>}
+
+        {/* Field staff punch against their client sites UNION their base office,
+            so both are listed together. Without this an out-of-bounds flag gives
+            them nothing to act on (§4 API 9). Hidden for everyone else. */}
+        {phase === "idle" && isFieldWorker(contractMode) && (contract?.records?.length > 0 || contract?.assigned_office) && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Where you can clock in</p>
+            <ul className="space-y-1">
+              {contract.assigned_office?.name && (
+                <li className="text-[11px] font-semibold text-slate-600 truncate">
+                  {contract.assigned_office.name} <span className="text-slate-400 font-medium">· your base</span>
+                </li>
+              )}
+              {(contract.records || []).map((r) => (
+                <li key={r.id} className="text-[11px] font-semibold text-slate-600 truncate">
+                  {r.field_location?.name || "A client site"}
+                  {r.field_location?.client_name && <span className="text-slate-400 font-medium"> · {r.field_location.client_name}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {geoIssue && (
           <InlineAlert tone="amber">
@@ -380,9 +471,9 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
         {(phase === "idle" || (phase === "working" && !onBreak)) && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              {phase === "idle" && (
-                <div className="flex-1 min-w-0 grid grid-cols-4 gap-0.5 p-1 bg-slate-100/80 rounded-xl" role="radiogroup" aria-label="Working from">
-                  {WORK_MODES.map((m) => (
+              {phase === "idle" && modeOptions.length > 1 && (
+                <div className={`flex-1 min-w-0 grid gap-0.5 p-1 bg-slate-100/80 rounded-xl ${modeOptions.length === 2 ? "grid-cols-2" : "grid-cols-4"}`} role="radiogroup" aria-label="Working from">
+                  {modeOptions.map((m) => (
                     <button key={m.value} type="button" role="radio" aria-checked={workMode === m.value} disabled={disabled} onClick={() => persistWorkMode(m.value)} className={`py-1.5 rounded-lg text-[11px] font-bold truncate transition ${workMode === m.value ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}>
                       {m.label}
                     </button>

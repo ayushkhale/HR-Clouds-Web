@@ -320,7 +320,7 @@ function HRDashboard() {
                           {/* Not expected to work: leave + weekly-off + holiday. The server
                               keeps these out of final_absent_count, so the three bars never
                               double-count a day. */}
-                          <Bar dataKey="final_leave_count" name="Leave" fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="final_leave_count" name={DICTIONARY.STATUS.LEAVE_AND_OFF} fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
                           <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>

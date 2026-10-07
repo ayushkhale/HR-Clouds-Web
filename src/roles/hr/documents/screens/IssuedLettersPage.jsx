@@ -445,8 +445,8 @@ export default function IssuedLettersPage() {
               <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text" value={reference} onChange={(e) => setReference(e.target.value)}
-                placeholder="Reference number"
-                aria-label="Find a letter by its reference number"
+                placeholder="Full reference number"
+                aria-label="Find a letter by its complete reference number"
                 className="h-10 w-48 pl-9 pr-8 bg-white border border-slate-200 rounded-xl text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
               />
               {reference && (
@@ -498,9 +498,14 @@ export default function IssuedLettersPage() {
             <DocEmptyState
               icon={HiMail}
               title={filtered ? "No letter matches this" : "No letter has been issued yet"}
-              message={filtered
-                ? "Nothing in your register matches these filters. Clear them to see every letter."
-                : "When you issue a letter it appears here for good, with the number it was issued under."}
+              // A reference number has to be given in full — the server matches
+              // it exactly. Without saying so, a half-typed reference looks like
+              // an empty register, and people retype it rather than finishing it.
+              message={referenceFilter
+                ? `No letter has the reference “${referenceFilter}”. It has to be the complete reference, not part of one — or search by employee instead.`
+                : filtered
+                  ? "Nothing in your register matches these filters. Clear them to see every letter."
+                  : "When you issue a letter it appears here for good, with the number it was issued under."}
               action={filtered
                 ? <button type="button" onClick={clearFilters} className={SECONDARY_BTN}>Clear filters</button>
                 : !rendererOff && issuable.length > 0

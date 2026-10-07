@@ -14,6 +14,26 @@ import GenderAvatar, { avatarUrlOf, genderOf } from "../../../shared/components/
 /** "hr" → "HR", "employee" → "Employee". */
 const titleCaseRole = (r) => (r === "hr" ? "HR" : r ? r.charAt(0).toUpperCase() + r.slice(1) : r);
 
+/**
+ * Has this person been invited but not joined yet?
+ *
+ * The roster returns `status: "active"` in LOWER CASE. This page used to test
+ * `status === "Active"` with a capital A, which matched nothing — so every
+ * active employee read as "Pending", and because the same test gates the card,
+ * it also blocked their profile, hid their department and offered to resend an
+ * invitation they had never been sent.
+ *
+ * So the invited state is now named explicitly instead of being inferred from
+ * "not active". That also keeps a DEACTIVATED leaver out of it: they are not
+ * active, but they are not a pending invite either. Anything unrecognised
+ * counts as a real member, which fails safe — their profile stays reachable.
+ */
+const INVITED_STATUSES = new Set(["pending", "invited", "pending_invite", "invitation_pending", "invite_sent"]);
+const isPendingInvite = (emp) => {
+  const status = String(emp?.status ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return INVITED_STATUSES.has(status);
+};
+
 function EmployeesPage() {
   const navigate = useNavigate();
 
@@ -77,7 +97,7 @@ function EmployeesPage() {
       name: emp.name || emp.full_name || emp.email || "Unknown",
       email: emp.email || "",
       role: emp.role || "employee",
-      status: emp.status || "Active",
+      pending: isPendingInvite(emp),
       city: emp.city || emp.work_location || "",
       contact: emp.contact || emp.phone_number || "",
       empId: emp.employee_code || emp.emp_id || "",
@@ -188,7 +208,7 @@ function EmployeesPage() {
                 filteredMembers.map((member) => (
                   <div
                     key={member.id}
-                    onClick={() => { if (member.status !== "Pending") navigate(`/dashboard/hr/employees/${member.id}`); }}
+                    onClick={() => { if (!member.pending) navigate(`/dashboard/hr/employees/${member.id}`); }}
                     className="bg-white rounded-[20px] border border-slate-100 hover:border-purple-200 hover:shadow-md hover:-translate-y-1 transition-all duration-200 group cursor-pointer relative flex flex-col overflow-hidden shadow-sm"
                   >
 
@@ -196,10 +216,10 @@ function EmployeesPage() {
                       {/* Status & Emp Code Row */}
                       <div className="flex justify-between items-center mb-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full ${
-                          member.status === "Active" ? "bg-violet-50 text-violet-600 border border-violet-100" : "bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100"
+                          !member.pending ? "bg-violet-50 text-violet-600 border border-violet-100" : "bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100"
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${member.status === "Active" ? "bg-violet-500" : "bg-fuchsia-500"}`} />
-                          {member.status === "Active" ? "Active" : "Pending"}
+                          <span className={`w-1.5 h-1.5 rounded-full ${!member.pending ? "bg-violet-500" : "bg-fuchsia-500"}`} />
+                          {member.pending ? "Pending" : "Active"}
                         </span>
                         {member.empId ? (
                           <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">{member.empId}</span>
@@ -214,7 +234,7 @@ function EmployeesPage() {
                           <div className="w-20 h-20 rounded-full shadow-sm overflow-hidden bg-slate-50 shrink-0 ring-2 ring-purple-100 flex items-center justify-center">
                             <GenderAvatar person={member} name={member.name} />
                           </div>
-                          {member.status === "Active" && (
+                          {!member.pending && (
                             <div className="absolute bottom-0.5 right-0.5 w-4.5 h-4.5 bg-violet-500 border-2 border-white rounded-full shadow-sm" />
                           )}
                         </div>
@@ -222,7 +242,7 @@ function EmployeesPage() {
                         <p className="text-xs font-semibold text-slate-400 mt-1 uppercase">
                           {member.role || "N/A"}
                         </p>
-                        {member.status !== "Pending" && (
+                        {!member.pending && (
                           <span
                             className={`mt-2.5 inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full text-[11px] font-semibold border ${member.department ? "bg-purple-50 text-purple-700 border-purple-100" : "bg-slate-50 text-slate-400 border-slate-200"}`}
                             title={member.department || "No department assigned"}
@@ -231,7 +251,7 @@ function EmployeesPage() {
                             <span className="truncate">{member.department || "No department"}</span>
                           </span>
                         )}
-                        {member.status === "Pending" && member.email && (
+                        {member.pending && member.email && (
                           <div className="mt-3 flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"

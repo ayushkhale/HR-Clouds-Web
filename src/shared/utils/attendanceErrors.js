@@ -32,6 +32,11 @@ const ATTENDANCE_ERROR_MESSAGES = {
   PERIOD_LOCKED: "This date is locked for payroll processing, so its attendance can't be changed. Contact HR if a correction is needed.",
 
   // §3.2 Regularization
+  // Work mode is validated against the employee's contract at submission
+  // (2026-10-05). The server's message names the next step, so these are listed
+  // in SERVER_MESSAGE_CODES below and shown verbatim where it sends one.
+  WORK_MODE_NOT_PERMITTED: "Your contract doesn't allow that work mode. Ask HR to correct your work mode if it's wrong.",
+  INVALID_WORK_MODE: "That isn't a work mode we recognise. Pick one from the list and try again.",
   REGULARIZATION_DISABLED: "Your attendance policy doesn't allow correction requests. Contact HR if a correction is needed.",
   INVALID_REGULARIZATION_DATE: "This date is outside your policy's correction window, so it can't be corrected.",
   INVALID_REGULARIZATION_WINDOW: "The corrected clock-out must be after the corrected clock-in.",
@@ -58,6 +63,17 @@ const ATTENDANCE_ERROR_MESSAGES = {
   LOCK_NOT_FOUND: RECORD_GONE,
   OVERLAPPING_LOCK: "This range overlaps an existing lock period. Adjust the dates or remove the existing lock first.",
   COMP_OFF_NOT_FOUND: RECORD_GONE,
+
+  // §11 Field locations & assignments (2026-10-05). A field site exists only to
+  // be geofenced, so a retired one can't be assigned and coordinates aren't
+  // optional — these say which, rather than "invalid request".
+  FIELD_LOCATION_NOT_FOUND: RECORD_GONE,
+  FIELD_ASSIGNMENT_NOT_FOUND: RECORD_GONE,
+  FIELD_LOCATION_INACTIVE: "This site has been retired, so people can't be assigned to it. Pick an active site or restore this one.",
+  FIELD_LOCATION_FORBIDDEN: "Only HR or the person who added this site can change it.",
+  FIELD_LOCATION_DUPLICATE: "A site with that name already exists. Use the existing one rather than adding a second.",
+  FIELD_ASSIGNMENT_DUPLICATE: "This person is already assigned to this site. Edit that assignment's dates instead of adding another.",
+  // EMPLOYEE_NOT_FOUND (also raised by assign) is already mapped below.
   COMP_OFF_NOT_EARNED: "This request has already been actioned, so it can't be changed. The list has been refreshed.",
   EMPLOYEE_NOT_FOUND: "That employee could not be found. They may have been removed from the organisation.",
   USER_NOT_FOUND: "That employee could not be found. They may have been removed from the organisation.",
@@ -71,7 +87,13 @@ const ATTENDANCE_ERROR_MESSAGES = {
 };
 
 // Joi / shape rejections: the server `message` is more specific than any copy we could write.
-const SERVER_MESSAGE_CODES = new Set(["VALIDATION_ERROR", "INVALID_SHIFT", "INVALID_SHIFT_DATA", "INVALID_ROTATION_DURATIONS"]);
+// Codes whose server message beats ours because it carries specifics we can't
+// know: which field broke a rule, which work mode the contract allows, or the
+// dates of the assignment already blocking this one.
+const SERVER_MESSAGE_CODES = new Set([
+  "VALIDATION_ERROR", "INVALID_SHIFT", "INVALID_SHIFT_DATA", "INVALID_ROTATION_DURATIONS",
+  "WORK_MODE_NOT_PERMITTED", "FIELD_ASSIGNMENT_DUPLICATE", "FIELD_LOCATION_DUPLICATE",
+]);
 
 const SESSION_EXPIRED = "Your session has expired. Please sign in again.";
 const SERVER_ERROR = "The server ran into a problem. Please try again shortly.";
@@ -122,6 +144,18 @@ export const isNotFound = (err) => {
   const code = attendanceErrorCode(err) || "";
   return code === "NOT_FOUND" || code.endsWith("_NOT_FOUND") || err?.status === 404;
 };
+/**
+ * The punch already matched the server's state — a double-tap, a retry, or the
+ * same person punching from another device. The backend answers 409 rather than
+ * failing, every caller refetches `/today` straight after, and all three
+ * messages end "Your status has been refreshed". Nothing went wrong, so the card
+ * states it rather than showing a red failure.
+ */
+export const isStateReconciliation = (err) => {
+  const code = attendanceErrorCode(err);
+  return code === "ALREADY_CLOCKED_IN" || code === "NOT_CLOCKED_IN" || code === "NO_ACTIVE_BREAK";
+};
+
 /** The item was decided elsewhere (another approver, or a stale queue). */
 export const isAlreadyProcessed = (err) => {
   const code = attendanceErrorCode(err);

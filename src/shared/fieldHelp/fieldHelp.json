@@ -691,6 +691,14 @@
         "hr"
       ],
       "fields": {
+        "overtime_minutes": {
+          "tier": "onboarding",
+          "hint": "Counted past the full-day hours in their attendance policy, not past the end of their shift — so it won’t match the shift times beside it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is overtime measured against the attendance policy's full-day hours instead of the shift timings?"
+          }
+        },
         "work_mode": {
           "hint": "Where they worked: first as recorded, then what they’re asking to change it to. It only changes if the correction is approved.",
           "askMaya": {
@@ -2605,6 +2613,58 @@
           "askMaya": {
             "enabled": true,
             "question": "How is the length of a shift rotation cycle worked out?"
+          }
+        }
+      }
+    },
+    "attendance.field_locations": {
+      "kind": "screen",
+      "description": "HR Setup › Client Sites and Manager › Client Sites (FieldLocationsView, shared). Name, client, city and address explain themselves; only what the term means and what the radius does are helped. Contract: md_attendance/7_work_mode_and_field_geofencing_api.md.",
+      "workspaces": [
+        "hr",
+        "manager"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Places outside your offices where field staff can clock in. Anyone assigned to one can punch there without being flagged.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a client site, and how is it different from an office location?"
+          }
+        },
+        "geofence_radius_meters": {
+          "tier": "onboarding",
+          "hint": "How far from the pin a clock-in still counts. Too tight and a large site flags honest punches; too wide and it stops meaning anything.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How should I choose the distance allowed around a client site?"
+          }
+        }
+      }
+    },
+    "attendance.field_assignments": {
+      "kind": "form",
+      "description": "The assign dialog on Client Sites (FieldLocationsView), in both the HR and manager workspaces. Who may be assigned differs by role, and an open-ended window is the non-obvious part.",
+      "workspaces": [
+        "hr",
+        "manager"
+      ],
+      "fields": {
+        "user_id": {
+          "tier": "onboarding",
+          "hint": "Who you can assign depends on your role: HR can assign anyone, a manager only their own direct reports.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who is allowed to assign an employee to a client site?"
+          }
+        },
+        "effective_to": {
+          "tier": "onboarding",
+          "hint": "Leave blank for no end date. Both dates count — the site stays valid on the last day, not up to it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens when a field assignment has no end date?"
           }
         }
       }

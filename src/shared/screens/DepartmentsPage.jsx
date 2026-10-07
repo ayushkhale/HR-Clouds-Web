@@ -154,6 +154,14 @@ function DepartmentsPage({ viewer = "hr" }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Caught here rather than at the server, which answers a blank description
+    // with a bare Joi string that doesn't say which field it meant.
+    if (!description.trim()) {
+      setResult({ type: "error", message: "Add a short description of what this department does — it’s required." });
+      return;
+    }
+
     setLoading(true);
     setResult({ type: "", message: "" });
 
@@ -553,12 +561,20 @@ function DepartmentsPage({ viewer = "hr" }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Description</label>
+                {/* The server rejects a blank description even though
+                    md_organization/3_org_structure_api.md §208 calls it
+                    optional — live behaviour wins (CLAUDE.md §9). Saying
+                    "Optional" here sent people into a validation error they
+                    couldn't explain. */}
+                <label htmlFor="dept-description" className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Description</label>
                 <textarea
+                  id="dept-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Optional description of the department's function"
+                  placeholder="What this department does"
                   rows="3"
+                  required
+                  aria-required="true"
                   className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all resize-none"
                 />
               </div>

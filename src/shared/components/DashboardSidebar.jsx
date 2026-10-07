@@ -235,6 +235,9 @@ function DashboardSidebar({ role = "guest" }) {
             group("Organisation", HiOfficeBuilding, [
               link("Departments", `${H}/departments`, HiOfficeBuilding, { nested: true }),
               link("Office Locations", `${H}/attendance/locations`, HiLocationMarker),
+              // Client sites sit beside offices: both are places a punch can be
+              // checked against, and setting one up is the same kind of job.
+              link("Client Sites", `${H}/attendance/field-locations`, HiLocationMarker),
             ]),
             // Which days are working days, then the hours on them and who works
             // them, then the rules applied to those hours, then what working an
@@ -403,6 +406,10 @@ function DashboardSidebar({ role = "guest" }) {
             link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
             link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
             link(COMP_OFF, `${M}/requests/comp-offs`, HiGift),
+            // Same label and the same screen HR gets, under this workspace's
+            // own prefix — a manager registers and assigns client sites for
+            // their own reports (CLAUDE.md §2).
+            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
         {
@@ -596,9 +603,16 @@ function DashboardSidebar({ role = "guest" }) {
 
   const renderItem = (section, item) => {
     if (item.step) {
+      // The number is a position in the payroll sequence (1 → 2 → 3), not a
+      // count of anything. It used to sit in a round purple pill, which is
+      // exactly how unread counts are drawn elsewhere — a reviewer read
+      // "BEFORE THE MONTH ①" as one pending item (UI/UX review 2026-10-06,
+      // Issue 11). Flat, same colour as the heading, with a separator: an
+      // ordinal can't be mistaken for a badge.
       return (
-        <p key={`step-${item.step}`} className="flex items-center gap-2 px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider first:pt-1">
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-50 text-purple-600 text-[9px] leading-none">{item.step}</span>
+        <p key={`step-${item.step}`} className="flex items-center gap-1.5 px-4 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider first:pt-1">
+          <span className="tabular-nums">Step {item.step}</span>
+          <span aria-hidden="true" className="text-slate-300">·</span>
           {item.heading}
         </p>
       );
@@ -659,7 +673,11 @@ function DashboardSidebar({ role = "guest" }) {
       )}
 
       {/* Sidebar Container */}
-      <aside className={`fixed inset-y-0 left-0 z-50 lg:z-10 w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-screen overflow-y-auto transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 font-sans ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      {/* `no-scrollbar` hides the sidebar's own scrollbar track without taking
+          away its scrolling (CLAUDE.md §5). On a laptop-height window the menu
+          overflows, and its native track sat right beside the main content's —
+          two grey bars next to each other (UI/UX review 2026-10-06, Issue 13). */}
+      <aside className={`fixed inset-y-0 left-0 z-50 lg:z-10 w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-screen overflow-y-auto no-scrollbar transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:flex-shrink-0 font-sans ${isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Top Branding Logo */}
         <div>
           <div className="px-6 py-8 flex items-center justify-between lg:justify-center">

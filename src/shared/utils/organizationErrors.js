@@ -46,7 +46,9 @@ const ORGANIZATION_ERROR_MESSAGES = {
   // a fault, so it reads as "someone got there first" rather than as a failure.
   FIELD_ALREADY_SET: "Some of this was already saved — these answers can only be set once. We’ve reloaded what’s on file.",
   PROFILE_NOT_FOUND: "We couldn’t find your staff record. Sign out and back in, then try again.",
-  LOCATION_MISMATCH: "That department belongs to a different office. Pick a department at your own office, or set your office first.",
+  // Your office is no longer settable from the setup wizard (2026-10-05, it is
+  // HR-owned), so this can't tell you to set it yourself any more.
+  LOCATION_MISMATCH: "That department belongs to a different office. Pick a department at your own office, or ask HR to update which office you’re based at.",
   DEPARTMENT_INACTIVE: "That department has been switched off. Pick another one.",
   LOCATION_INACTIVE: "That office has been switched off. Pick another one.",
   DEPARTMENT_NOT_FOUND: "That department is no longer there. Reload the list and pick again.",

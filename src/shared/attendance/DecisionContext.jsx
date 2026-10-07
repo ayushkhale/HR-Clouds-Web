@@ -13,7 +13,7 @@ import React, { useEffect, useState } from "react";
 import { HiLocationMarker, HiLockClosed, HiMail } from "react-icons/hi";
 import { attendanceAPI } from "../api";
 import { isSynthesizedDay } from "./dayStatus.js";
-import { anomalyTypeLabel, humanize } from "./enums.js";
+import { anomalyLabel, humanize } from "./enums.js";
 import {
   browserTimeZone, clockMinutes, fmtClockMinutes, fmtClockTime, fmtDate, fmtDateTime,
   fmtHours, fmtMinutes, formatInZone, workedLabel, ymdOnly, zoneMinutesFrom,
@@ -640,7 +640,7 @@ export function AnomalyDetails({ item, person, fetchRecord = true }) {
       <EmployeeCard item={item} person={person} />
 
       <DetailSection title="Flag" aside={item.severity && <StatusBadge kind="severity" status={item.severity} />}>
-        <p className="text-sm font-bold text-slate-800">{anomalyTypeLabel(item.type || item.anomaly_type)}</p>
+        <p className="text-sm font-bold text-slate-800">{anomalyLabel(item)}</p>
         {item.description && <p className="text-xs text-slate-600 mt-1 break-words">{item.description}</p>}
         <div className="mt-3">
           <StatGrid>

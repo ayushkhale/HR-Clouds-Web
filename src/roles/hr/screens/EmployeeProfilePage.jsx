@@ -482,7 +482,12 @@ export default function EmployeeProfilePage() {
                         <span className="font-medium text-slate-900 text-right truncate max-w-[140px]" title={employee.designation}>{employee.designation || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
-                        <span className="text-slate-500">Role</span>
+                        {/* "Access" not "Role": this is what they can do in the
+                            app, and the Profile tab separately shows their
+                            Employment Type. Reading "Role: Employee" above
+                            "Employment Type: Intern" looked like the record
+                            contradicted itself (UI/UX review 2026-10-06, Issue 9). */}
+                        <span className="text-slate-500">Access</span>
                         <span className="font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{roleLabel(employee.role || employeeRole) || "N/A"}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm px-2">
