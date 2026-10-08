@@ -320,6 +320,10 @@ function DashboardSidebar({ role = "guest" }) {
             link("Lock Attendance", `${H}/attendance/lock-periods`, HiLockClosed),
             link("Payroll Runs", `${H}/payroll/runs`, HiPlay, { nested: true }),
             link("Payslips & Documents", `${H}/payroll/payslips`, HiDocumentText),
+            // Beside the documents it previews, and before a run rather than
+            // after: the point is to catch a wrong letterhead while it still
+            // costs nothing to fix.
+            link("Document Previews", `${H}/payroll/document-previews`, HiDocumentText),
           ],
         },
         {

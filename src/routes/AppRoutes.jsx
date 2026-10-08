@@ -107,6 +107,7 @@ const AttendanceRegularizationsHRPage = lazy(() => import("../roles/hr/attendanc
 const AttendanceLocationsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLocationsPage"));
 // Client sites — one shared screen, mounted under each workspace's own prefix.
 const FieldLocationsPage = lazy(() => import("../roles/hr/attendance/screens/FieldLocationsPage"));
+const PayrollPdfTemplatesPage = lazy(() => import("../roles/hr/payroll/screens/PayrollPdfTemplatesPage"));
 const ManagerFieldLocationsPage = lazy(() => import("../roles/manager/screens/FieldLocationsPage"));
 const AttendanceCompOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffsPage"));
 const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage"));
@@ -332,6 +333,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/weekly-offs" element={<AttendanceWeeklyOffsPage />} />
         <Route path="/dashboard/hr/attendance/locations" element={<AttendanceLocationsPage />} />
         <Route path="/dashboard/hr/attendance/field-locations" element={<FieldLocationsPage />} />
+        <Route path="/dashboard/hr/payroll/document-previews" element={<PayrollPdfTemplatesPage />} />
         <Route path="/dashboard/hr/attendance/comp-offs" element={<AttendanceCompOffsPage />} />
         <Route path="/dashboard/hr/attendance/comp-off-policies" element={<AttendanceCompOffPoliciesPage />} />
         <Route path="/dashboard/hr/attendance/lock-periods" element={<AttendanceLockPeriodsPage />} />

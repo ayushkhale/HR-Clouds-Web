@@ -2617,6 +2617,23 @@
         }
       }
     },
+    "payroll.pdf_templates": {
+      "kind": "screen",
+      "description": "HR — Payroll › Document Previews (PayrollPdfTemplatesPage). Sample renders of each payroll document with the org's live branding. Only the page itself is helped; the document list explains itself.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Shows how each payroll document will print with your letterhead. The figures are made up — only the branding is real.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are document previews for, and why don't they show real employee pay?"
+          }
+        }
+      }
+    },
     "organization.hr_job_fields": {
       "kind": "form",
       "description": "HR — Employee profile › Profile tab › Edit job details (HrJobFieldsDialog). The HR-only job record. Designation, employee code, gender and marital status are ordinary; the four that change how the system treats the person are helped. Contract: md_updates/2026-10-07_hr_fields_expansion_and_work_mode_update_apis.md §2.",
