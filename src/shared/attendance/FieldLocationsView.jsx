@@ -33,6 +33,7 @@ import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, 
 import GeofenceMapPicker from "../components/GeofenceMapPicker";
 import AddressSearchField from "../components/AddressSearchField";
 import { reverseGeocode } from "../utils/geocoding";
+import { normalizeWorkMode } from "./geofence";
 import { PersonSelect } from "../components/PersonPicker";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, Toast, useToast } from "./ui";
@@ -684,6 +685,31 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [saving, setSaving] = useState(false);
+  const [setFieldMode, setSetFieldMode] = useState(true);
+  // The assignee's contractual mode, read when they are picked. A client site
+  // only geofences a `field` employee, so without this the assignment can be
+  // created and quietly do nothing (contract §3.2).
+  const [assignee, setAssignee] = useState({ loading: false, workMode: null });
+
+  useEffect(() => {
+    if (!userId) { setAssignee({ loading: false, workMode: null }); return undefined; }
+    let cancelled = false;
+    setAssignee({ loading: true, workMode: null });
+    plane.assignmentsFor(userId)
+      .then((res) => { if (!cancelled) setAssignee({ loading: false, workMode: res?.data?.work_mode || null }); })
+      // Unknown mode: offer the checkbox anyway. The backend refuses a
+      // remote/hybrid flip on its own and answers with a warning, so guessing
+      // wrong here is safe (§3.5).
+      .catch(() => { if (!cancelled) setAssignee({ loading: false, workMode: null }); });
+    return () => { cancelled = true; };
+  }, [userId, plane]);
+
+  const mode = normalizeWorkMode(assignee.workMode);
+  const alreadyField = assignee.workMode != null && mode === "field";
+  // `remote`/`hybrid` are contractual modes tied to allowances and payroll, so
+  // only HR may move them — the checkbox is shown disabled rather than hidden,
+  // because "you can't do this here" is more useful than a missing control.
+  const modeLockedByContract = mode === "remote" || mode === "hybrid";
 
   const submit = async (e) => {
     e.preventDefault();
@@ -695,6 +721,10 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
       // Plain YYYY-MM-DD, never an ISO timestamp — see the header.
       const payload = { user_id: userId, field_location_id: site.id, effective_from: ymdOnly(from) };
       if (to) payload.effective_to = ymdOnly(to);
+      // Only sent when it could actually do something. The flip happens in the
+      // same transaction as the assignment, so there is never a moment where
+      // the site is assigned but the mode is half-changed.
+      if (setFieldMode && !alreadyField && !modeLockedByContract) payload.set_work_mode_to_field = true;
       const res = await plane.assign(payload);
       const warn = res?.data?.work_mode_warning;
       if (warn) {
@@ -704,7 +734,11 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
         setSaving(false);
         return;
       }
-      onSaved("Assigned to this site.");
+      // `work_mode_changed` is true only when the backend actually flipped it
+      // on this call, so the confirmation says what really happened (§3.3).
+      onSaved(res?.data?.work_mode_changed
+        ? "Assigned to this site, and their work mode is now Field."
+        : "Assigned to this site.");
     } catch (err) {
       setError(attendanceErrorMessage(err, "Couldn't assign this person."));
       setSaving(false);
@@ -746,6 +780,34 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
                 <input id="fa-to" type="date" min={from || undefined} value={to} onChange={(e) => setTo(e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
                 <p className="text-[10px] text-slate-400 mt-1">Leave blank for no end date.</p>
               </div>
+
+              {/* A client site only geofences a FIELD employee, so without this
+                  the assignment is created and quietly does nothing. Hidden
+                  when they are already field (nothing to do) and disabled for
+                  remote/hybrid, which only HR may move (contract §3.4). */}
+              {userId && !assignee.loading && !alreadyField && (
+                <div className="sm:col-span-2">
+                  <label className={`flex items-start gap-2.5 rounded-xl border p-3 ${modeLockedByContract ? "border-slate-200 bg-slate-50 cursor-not-allowed" : "border-purple-100 bg-purple-50/50 cursor-pointer"}`}>
+                    <input
+                      type="checkbox"
+                      checked={setFieldMode && !modeLockedByContract}
+                      disabled={modeLockedByContract}
+                      onChange={(e) => setSetFieldMode(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-purple-600 shrink-0 disabled:opacity-50"
+                    />
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-bold ${modeLockedByContract ? "text-slate-500" : "text-slate-800"}`}>
+                        Also set their work mode to Field
+                      </span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5">
+                        {modeLockedByContract
+                          ? `Their work mode is ${mode === "remote" ? "Remote" : "Hybrid"}, which only HR can change. The assignment still saves, but it won’t apply until HR changes it.`
+                          : "Needed for their clock-ins at this site to be recognised. Without it the assignment has no effect."}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
           <FieldError message={error} />

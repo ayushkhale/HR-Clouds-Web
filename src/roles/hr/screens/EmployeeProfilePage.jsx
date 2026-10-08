@@ -7,6 +7,7 @@ import OverviewTab from "./employee-profile/OverviewTab";
 import AttendanceTab from "./employee-profile/AttendanceTab";
 import ProfileTab from "./employee-profile/ProfileTab";
 import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
+import HrJobFieldsDialog from "../components/HrJobFieldsDialog";
 import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
 import DepartmentTab from "./employee-profile/DepartmentTab";
@@ -294,6 +295,10 @@ export default function EmployeeProfilePage() {
   const { byId: rosterById } = useEmployeeDirectory();
   const [employee, setEmployee] = useState(null);
   const [editingProfile, setEditingProfile] = useState(false);
+  // Separate from the profile dialog on purpose: these are HR-owned job fields
+  // (work mode, base office, codes), not personal details, and the endpoint
+  // behind them is HR-only.
+  const [editingJobFields, setEditingJobFields] = useState(false);
   const [managerName, setManagerName] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -568,6 +573,7 @@ export default function EmployeeProfilePage() {
                 <ProfileTab
                   employee={employee}
                   onEdit={() => setEditingProfile(true)}
+                  onEditJobFields={() => setEditingJobFields(true)}
                   danger={{ onToggleStatus: handleToggleStatus, onDelete: () => setShowDeleteModal(true), busy: isActionLoading }}
                 />
               )}
@@ -693,7 +699,27 @@ export default function EmployeeProfilePage() {
           }}
         />
       )}
-      
+      {editingJobFields && (
+        <HrJobFieldsDialog
+          userId={userId}
+          name={employee?.name}
+          employee={employee}
+          onClose={() => setEditingJobFields(false)}
+          onSaved={(message) => {
+            setEditingJobFields(false);
+            setSuccessToast(message);
+            setTimeout(() => setSuccessToast(""), 4000);
+            // Work mode and base office decide where this person's attendance
+            // is geofenced, and the roster carries both — so re-read rather
+            // than patching a local copy other screens won't see.
+            organizationAPI.getEmployee(userId)
+              .then((res) => { if (res?.data) setEmployee(res.data); })
+              .catch(() => { /* toast already shown; keep prior data */ });
+            refreshEmployeeDirectory();
+          }}
+        />
+      )}
+
       {/* ── TOAST ── */}
       {successToast && (
         <div className="fixed top-5 right-5 z-[200] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl bg-violet-50 text-violet-700 border border-violet-200 text-sm font-semibold animate-in fade-in slide-in-from-top-2">

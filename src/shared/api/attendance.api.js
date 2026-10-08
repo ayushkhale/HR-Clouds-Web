@@ -312,11 +312,21 @@ export const attendanceAPI = {
   deleteFieldLocation: (plane, id) => del(`/attendance/${seg(plane)}/field-locations/${seg(id)}`),
 
   /**
-   * body: { user_id, field_location_id, effective_from?, effective_to? }
+   * body: { user_id, field_location_id, effective_from?, effective_to?,
+   *         set_work_mode_to_field? }
+   *
    * Dates MUST be plain `YYYY-MM-DD` strings — an ISO timestamp is a 400,
    * because at IST a midnight-UTC instant lands on the previous calendar day
    * and would silently shift the window. Use `ymdOnly()`, never `toISOString()`.
-   * Response carries `work_mode_warning` (string|null) — render it when set.
+   *
+   * `set_work_mode_to_field` (2026-10-07) flips the assignee to `field` in the
+   * SAME transaction as the assignment — but only from on-site/office/unset.
+   * A `remote` or `hybrid` contract is refused and left alone: those are tied
+   * to allowances and payroll, so only HR may move them. The refusal does NOT
+   * fail the call — you get 201 with `work_mode_changed: false` and a
+   * `work_mode_warning` to show.
+   *
+   * Response: { assignment, work_mode_changed: boolean, work_mode_warning: string|null }
    */
   assignFieldLocation: (plane, payload) => post(`/attendance/${seg(plane)}/field-assignments`, payload),
   /** Idempotent — a repeat returns `already_inactive: true`, not an error. */

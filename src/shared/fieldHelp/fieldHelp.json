@@ -2617,6 +2617,47 @@
         }
       }
     },
+    "organization.hr_job_fields": {
+      "kind": "form",
+      "description": "HR — Employee profile › Profile tab › Edit job details (HrJobFieldsDialog). The HR-only job record. Designation, employee code, gender and marital status are ordinary; the four that change how the system treats the person are helped. Contract: md_updates/2026-10-07_hr_fields_expansion_and_work_mode_update_apis.md §2.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "work_mode": {
+          "tier": "onboarding",
+          "hint": "Decides where their clock-ins are checked. Field staff are checked against client sites; remote staff aren’t checked against anywhere.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does each work mode change about how an employee's attendance is tracked?"
+          }
+        },
+        "location_id": {
+          "tier": "onboarding",
+          "hint": "The office their attendance is measured against. Leave it unset and any active branch counts, which is usually not what you want.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to attendance if an employee has no base office set?"
+          }
+        },
+        "job_status": {
+          "tier": "onboarding",
+          "hint": "Where they are in their employment — probation, confirmed, serving notice. Reports and some policies read this.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is job status used for across payroll and leave?"
+          }
+        },
+        "notice_period_started_on": {
+          "tier": "onboarding",
+          "hint": "The day their notice began. Leave it empty unless they are actually serving notice — it feeds exit and final pay.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When should I set the notice start date, and what does it affect?"
+          }
+        }
+      }
+    },
     "attendance.field_locations": {
       "kind": "screen",
       "description": "HR Setup › Client Sites and Manager › Client Sites (FieldLocationsView, shared). Name, client, city and address explain themselves; only what the term means and what the radius does are helped. Contract: md_attendance/7_work_mode_and_field_geofencing_api.md.",
