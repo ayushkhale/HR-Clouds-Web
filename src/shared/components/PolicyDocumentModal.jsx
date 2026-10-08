@@ -67,7 +67,7 @@ function PolicyDocumentModal({ onClose }) {
   const activeContent = docsData.content[activeTab]?.[currentRole] || {};
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6 font-sans">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 sm:p-6 font-sans">
       <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-5xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}

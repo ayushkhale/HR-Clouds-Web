@@ -4,6 +4,7 @@
 // reports to it, and may edit or retire only the sites they created — the
 // server says which per row, and the shared view hides what it can't do.
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 import FieldLocationsView from "../../../shared/attendance/FieldLocationsView";
 
 export default function ManagerFieldLocationsPage() {
@@ -12,7 +13,10 @@ export default function ManagerFieldLocationsPage() {
       <DashboardTopBar title="Client Sites" />
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-6 max-w-7xl mx-auto w-full">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Client Sites</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-bold text-slate-900">Client Sites</h1>
+            <FieldHelp surface="attendance.field_locations" field="page" label="client sites" />
+          </div>
           <p className="text-sm text-slate-500 mt-1">Places your field staff work from, and who is assigned to each.</p>
         </div>
         <FieldLocationsView viewer="manager" />

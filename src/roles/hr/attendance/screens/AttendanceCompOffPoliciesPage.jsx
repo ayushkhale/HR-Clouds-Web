@@ -91,7 +91,7 @@ function PolicyModal({ policy, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
       <form onSubmit={handleSave} noValidate className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-800">{isEdit ? "Edit policy" : "New policy"}</h3>

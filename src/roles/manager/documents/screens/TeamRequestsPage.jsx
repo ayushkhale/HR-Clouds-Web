@@ -422,7 +422,7 @@ function AskDialog({ team, teamLoading, initialUserId = "", presetTypeId = "", n
 
   if (!userId) {
     return (
-      <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
         <div role="dialog" aria-modal="true" aria-label="Choose a team member" className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Who are you asking?</h2>

@@ -402,7 +402,7 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
   ) : null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 sm:p-6">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-6xl w-full flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2.5">

@@ -53,7 +53,7 @@ function ensureLeaflet(onReady) {
  * @param {Function} props.onChange    ({ latitude, longitude }) on drag/click
  * @param {string}   [props.className]
  */
-export default function GeofenceMapPicker({ latitude, longitude, radius = 250, onChange, className = "" }) {
+export default function GeofenceMapPicker({ latitude, longitude, radius = 250, onChange, className = "", fill = false }) {
   const hostRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -124,5 +124,14 @@ export default function GeofenceMapPicker({ latitude, longitude, radius = 250, o
     if (circleRef.current && Number.isFinite(radius)) circleRef.current.setRadius(radius);
   }, [radius]);
 
-  return <div ref={hostRef} className={`w-full rounded-xl overflow-hidden border border-slate-200 ${className}`} style={{ height: 260 }} />;
+  // `fill` lets the map take the remaining height of a flex column, which is how
+  // the office-location dialog sizes its map. Otherwise it keeps a fixed height
+  // so it still works in an ordinary stacked form.
+  return (
+    <div
+      ref={hostRef}
+      className={`w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-100 relative z-0 ${fill ? "flex-1 min-h-[200px] sm:min-h-[350px]" : ""} ${className}`}
+      style={fill ? undefined : { height: 260 }}
+    />
+  );
 }

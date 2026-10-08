@@ -319,7 +319,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
       {/* Grant loan modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 sm:p-6">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Grant Loan / Advance</h2>
@@ -497,7 +497,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
       {/* Foreclose modal */}
       {foreclosing && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Foreclose Loan</h2>
@@ -546,7 +546,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
       {/* Reject modal */}
       {rejectingId && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Reject Loan</h2>

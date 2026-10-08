@@ -56,7 +56,7 @@ const LEAVE_STATUS_TABS = [
 function CancelConfirmModal({ request, onClose, onConfirm }) {
   const needsApproval = hasLeaveStarted(request.start_date);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-800">Cancel Leave?</h2>
@@ -427,7 +427,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
     const req = breakdown.leaveRequest;
     const bk = breakdown.breakdown || [];
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
             <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center">
@@ -480,7 +480,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div>

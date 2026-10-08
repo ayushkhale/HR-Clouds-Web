@@ -442,7 +442,7 @@ function DepartmentsPage({ viewer = "hr" }) {
         </main>
 
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-lg w-full p-7 relative my-8">
             <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">

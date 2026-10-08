@@ -172,7 +172,7 @@ export default function EditMemberProfileModal({ userId, name, profile, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2.5">

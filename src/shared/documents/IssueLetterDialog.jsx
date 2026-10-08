@@ -380,7 +380,7 @@ export default function IssueLetterDialog({
   return (
     <>
       <div
-        className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
+        className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4"
         onMouseDown={(e) => e.target === e.currentTarget && !busy && onCloseRef.current?.()}
       >
         <div

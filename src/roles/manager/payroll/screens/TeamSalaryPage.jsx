@@ -330,7 +330,7 @@ export default function TeamSalaryPage() {
       {historyMember && <HistoryModal member={historyMember} onClose={() => setHistoryMember(null)} />}
 
       {proposeMember && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Propose revision — {memberUser(proposeMember).name}</h2>
