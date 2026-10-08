@@ -104,7 +104,7 @@ export default function TagsDialog({ doc, suggestions = [], save, onDone, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose()}>
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && !saving && onClose()}>
       <form onSubmit={submit} role="dialog" aria-modal="true" aria-label="Tags" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100">
           <div className="flex items-start gap-3 min-w-0">

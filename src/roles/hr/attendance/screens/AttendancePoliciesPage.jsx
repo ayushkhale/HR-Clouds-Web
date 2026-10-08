@@ -166,7 +166,7 @@ function PolicyModal({ editPolicy, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-6 sm:px-10 py-6 border-b border-slate-100">
           <div>

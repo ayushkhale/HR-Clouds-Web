@@ -74,7 +74,7 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
   const showNextDay = !!form.clockOut && (!form.clockIn || form.clockOut <= form.clockIn || form.outNextDay);
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[100] flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !submitting && onClose()}>
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !submitting && onClose()}>
       {/* Wide, two columns: at max-w-md every field sat in one column and the
           reason box was below the fold, so people scrolled a five-field form. */}
       <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="reg-title">

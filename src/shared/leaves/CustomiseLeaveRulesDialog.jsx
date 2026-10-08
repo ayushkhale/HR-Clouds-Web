@@ -174,7 +174,7 @@ export default function CustomiseLeaveRulesDialog({
 
   return (
     <div
-      className={`fixed inset-0 ${zIndex} flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4`}
+      className={`fixed inset-0 ${zIndex} flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4`}
       onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose?.()}
     >
       <div

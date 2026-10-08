@@ -90,7 +90,7 @@ function WeeklyOffModal({ shifts, onClose, onSaved, editRule }) {
   const inputClass = (invalid) => `w-full px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition bg-white shadow-xs ${invalid ? "border-rose-300" : "border-slate-200"}`;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>

@@ -59,7 +59,7 @@ function RecommendDialog({ doc, subjectName, busy, error, onSubmit, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <form
         onSubmit={(e) => { e.preventDefault(); if (choice && !tooLong && !busy) onSubmit(choice, note.trim() || null); }}
         role="dialog" aria-modal="true" aria-label="Recommend a decision"

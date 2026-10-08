@@ -89,13 +89,18 @@ export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, bad
 
   return (
     <div
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6"
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 sm:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onCloseRef.current?.()}
     >
       <div
         ref={panelRef}
         tabIndex={-1}
-        className={`bg-white rounded-2xl border border-slate-100 shadow-2xl ${DIALOG_WIDTH[width] || DIALOG_WIDTH.wide} w-full max-h-[90vh] flex flex-col outline-none animate-in fade-in zoom-in-95 duration-200 transition-[max-width]`}
+        // `overflow-hidden` clips every child to the rounded corner. Without it
+        // the square-cornered header and footer poke a hairline past the radius
+        // and the dimmed backdrop shows through as a pale line along the edge.
+        // Safe to clip: the ⓘ popover and Maya render through a portal, so they
+        // are not children of this box and cannot be cut off by it.
+        className={`bg-white rounded-2xl border border-slate-100 shadow-2xl overflow-hidden ${DIALOG_WIDTH[width] || DIALOG_WIDTH.wide} w-full max-h-[90vh] flex flex-col outline-none animate-in fade-in zoom-in-95 duration-200 transition-[max-width]`}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Details"}
@@ -211,10 +216,15 @@ export function DetailGrid({ items, cols = 4 }) {
   const rows = items.map((it) => (Array.isArray(it) ? { label: it[0], value: it[1] } : it));
   return (
     <dl className={`grid gap-4 ${GRID_COLS[Math.min(cols, 4)] || GRID_COLS[4]}`}>
+      {/* `flex flex-col` + `flex-1` on the value makes every box in a row as
+          tall as the tallest one. Without it a value that wraps — a full postal
+          address beside a pincode — left its own box bulging a line taller than
+          its neighbours and the row looked ragged. The grid already stretches
+          the wrapper; it was the <dd> inside that stayed content-sized. */}
       {rows.map(({ label, value, mono, wide, help }, i) => (
-        <div key={`${label}-${i}`} className={`min-w-0 ${wide ? "sm:col-span-2" : ""}`}>
+        <div key={`${label}-${i}`} className={`min-w-0 flex flex-col ${wide ? "sm:col-span-2" : ""}`}>
           <dt className={LABEL}><HelpLabel text={label} help={help} /></dt>
-          <dd className={`${FIELD} break-words ${isEmpty(value) ? "text-slate-400" : "text-slate-800 font-semibold"} ${mono ? "font-mono" : ""}`}>
+          <dd className={`${FIELD} flex-1 break-words ${isEmpty(value) ? "text-slate-400" : "text-slate-800 font-semibold"} ${mono ? "font-mono" : ""}`}>
             <span className="min-w-0 break-words">{displayValue(value)}</span>
           </dd>
         </div>

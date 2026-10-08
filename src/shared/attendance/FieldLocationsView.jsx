@@ -28,11 +28,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil } from "react-icons/hi";
+import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil, HiX } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailTable, displayValue, rowPreviewProps } from "../components/DetailDialog";
 import GeofenceMapPicker from "../components/GeofenceMapPicker";
 import AddressSearchField from "../components/AddressSearchField";
 import { reverseGeocode } from "../utils/geocoding";
+import { normalizeWorkMode } from "./geofence";
 import { PersonSelect } from "../components/PersonPicker";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, Toast, useToast } from "./ui";
@@ -140,14 +141,11 @@ export default function FieldLocationsView({ viewer = "hr" }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h2 className="text-lg font-bold text-slate-800">Client sites</h2>
-            <FieldHelp surface="attendance.field_locations" field="page" label="client sites" />
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">Places field staff can clock in from, besides their own office.</p>
-        </div>
+      {/* No heading here on purpose. The page wrapper already carries the <h1>
+          and its one-line description, which §2 requires to match the sidebar
+          label and the top bar — repeating them here printed the same title
+          twice. The page ⓘ lives beside that <h1>, per §10. */}
+      <div className="flex justify-end">
         <button type="button" onClick={() => setEditing({ site: null, assignedCount: 0 })} className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition">
           <HiPlus className="w-4 h-4" /> Add a site
         </button>
@@ -462,22 +460,29 @@ function SiteFormDialog({ plane, site, assignedCount = 0, onClose, onSaved }) {
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   /**
-   * Moving the pin fills the address from the coordinate, but only the parts
-   * that are still blank — somebody who has typed "Gate 3, loading bay" must
-   * not lose it because they nudged the pin ten metres. The coordinate itself
-   * always wins, since that is what they just set by hand.
+   * Moving the pin rewrites the address from the new coordinate — the same way
+   * the office-location screen behaves, so the two forms don't disagree.
+   *
+   * It deliberately OVERWRITES rather than filling only blanks: an earlier
+   * version preserved whatever was typed, which meant dragging the pin across
+   * town left the old address sitting under a pin that no longer matched it.
+   * A stale address on a geofence anchor is worse than a lost edit, and the
+   * fields stay editable afterwards.
    */
   const onPinMoved = async ({ latitude, longitude }) => {
     setForm((f) => ({ ...f, latitude, longitude }));
     const place = await reverseGeocode(latitude, longitude);
     if (!place) return; // offline or rate-limited: the pin still moved
-    setForm((f) => {
-      const next = { ...f, latitude, longitude };
-      ["address", "city", "state", "country", "pincode"].forEach((k) => {
-        if (!String(f[k] ?? "").trim() && place[k]) next[k] = place[k];
-      });
-      return next;
-    });
+    setForm((f) => ({
+      ...f,
+      latitude,
+      longitude,
+      address: place.address || f.address,
+      city: place.city || f.city,
+      state: place.state || f.state,
+      country: place.country || f.country,
+      pincode: place.pincode || f.pincode,
+    }));
   };
   const lat = coord(form.latitude);
   const lng = coord(form.longitude);
@@ -524,109 +529,153 @@ function SiteFormDialog({ plane, site, assignedCount = 0, onClose, onSaved }) {
     }
   };
 
+  // Laid out exactly like the office-location dialog (AttendanceLocationsPage):
+  // map and its search on the left, the fields stacked on the right, the same
+  // widths, paddings, label weights and footer. The two screens register the
+  // same kind of thing, so someone who has added an office should not have to
+  // relearn anything to add a client site.
+  const FIELD_CLS = "w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-white shadow-xs";
+  const MONO_CLS = `${FIELD_CLS} font-mono`;
+  const LBL_CLS = "block text-xs font-semibold text-slate-600 mb-1.5";
+
   return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={isEdit ? "Edit client site" : "Add a client site"}>
-      <form onSubmit={submit} className="bg-white w-full max-w-4xl max-h-[92vh] rounded-3xl shadow-xl flex flex-col overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-800">{isEdit ? "Edit client site" : "Add a client site"}</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Field staff assigned here can clock in from this place without being flagged.
-            <span className="text-slate-400"> Fields marked <span className="text-rose-500">*</span> are required; the rest are worth filling in so the site is findable later.</span>
-          </p>
+    <div
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[140] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={isEdit ? "Edit client site" : "Add a client site"}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <form
+        onSubmit={submit}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-slate-100 shrink-0">
+          <h2 className="text-xl font-bold text-slate-800">{isEdit ? "Edit Client Site" : "Add New Client Site"}</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Close"><HiX className="w-5 h-5" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+        {/* Body */}
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto">
+
+          {/* Left: map preview + address search */}
+          <div className="flex-1 p-4 sm:p-6 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-100 min-h-[250px] sm:min-h-[400px]">
+            <label className="block text-sm font-bold text-slate-800 mb-3">
+              Map Preview <span className="text-slate-400 font-normal">(search or drag pin to set location)</span>
+            </label>
+            <AddressSearchField
+              id="fl-place"
+              label={null}
+              hint={false}
+              placeholder="Search for a city, landmark, or address..."
+              onSelect={(place) => setForm((f) => ({ ...f, ...place }))}
+            />
+            <GeofenceMapPicker fill latitude={lat} longitude={lng} radius={radius} onChange={onPinMoved} className="mt-4" />
+          </div>
+
+          {/* Right: the fields */}
+          <div className="w-full lg:w-[380px] shrink-0 p-4 sm:p-6 space-y-4">
             <div>
-              <label htmlFor="fl-name" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Site name<span className="text-rose-500" aria-hidden="true"> *</span></label>
-              <input id="fl-name" value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={150} required className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" placeholder="e.g. Tata Steel Pune Plant" />
-            </div>
-            <div>
-              <label htmlFor="fl-client" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Client</label>
-              <input id="fl-client" value={form.client_name} onChange={(e) => set("client_name", e.target.value)} maxLength={150} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" placeholder="e.g. Tata Steel Ltd" />
+              <label htmlFor="fl-name" className={LBL_CLS}>Site Name *</label>
+              <input id="fl-name" type="text" value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={150} placeholder="e.g. Tata Steel Pune Plant" className={FIELD_CLS} />
             </div>
 
-            <div className="sm:col-span-2">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <label htmlFor="fl-radius" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">How close they must be</label>
-                <FieldHelp surface="attendance.field_locations" field="geofence_radius_meters" label="how close they must be" />
+            <div>
+              <label htmlFor="fl-client" className={LBL_CLS}>Client</label>
+              <input id="fl-client" type="text" value={form.client_name} onChange={(e) => set("client_name", e.target.value)} maxLength={150} placeholder="e.g. Tata Steel Ltd" className={FIELD_CLS} />
+            </div>
+
+            <div>
+              <label htmlFor="fl-address" className={LBL_CLS}>Address</label>
+              <input id="fl-address" type="text" value={form.address} onChange={(e) => set("address", e.target.value)} maxLength={1000} placeholder="Plot 14, MIDC Industrial Area" className={FIELD_CLS} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="fl-lat" className={LBL_CLS}>Latitude *</label>
+                <input id="fl-lat" type="text" value={form.latitude} onChange={(e) => set("latitude", e.target.value)} placeholder="18.52043" className={MONO_CLS} />
               </div>
-              <div className="flex items-center gap-3">
-                <input id="fl-radius" type="range" min={FIELD_RADIUS_MIN} max={FIELD_RADIUS_MAX} step={10} value={radius} onChange={(e) => set("geofence_radius_meters", e.target.value)} className="flex-1 accent-purple-600" />
-                <span className="text-xs font-bold text-slate-700 tabular-nums w-20 text-right">{radius} m</span>
+              <div>
+                <label htmlFor="fl-lng" className={LBL_CLS}>Longitude *</label>
+                <input id="fl-lng" type="text" value={form.longitude} onChange={(e) => set("longitude", e.target.value)} placeholder="73.856743" className={MONO_CLS} />
               </div>
             </div>
 
-            <div className="sm:col-span-2">
-              <AddressSearchField
-                id="fl-place"
-                label="Find the site"
-                placeholder="e.g. Tata Steel Plant, MIDC Pune"
-                onSelect={(place) => setForm((f) => ({ ...f, ...place }))}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="fl-city" className={LBL_CLS}>City</label>
+                <input id="fl-city" type="text" value={form.city} onChange={(e) => set("city", e.target.value)} maxLength={100} placeholder="Pune" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label htmlFor="fl-state" className={LBL_CLS}>State</label>
+                <input id="fl-state" type="text" value={form.state} onChange={(e) => set("state", e.target.value)} maxLength={100} placeholder="Maharashtra" className={FIELD_CLS} />
+              </div>
             </div>
 
-            <div className="sm:col-span-2">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Drop a pin<span className="text-rose-500" aria-hidden="true"> *</span></p>
-              <GeofenceMapPicker
-                latitude={lat}
-                longitude={lng}
-                radius={radius}
-                onChange={onPinMoved}
-              />
-              <p className="text-[10px] text-slate-400 mt-1.5">
-                {lat !== null && lng !== null
-                  ? `Pinned at ${lat.toFixed(5)}, ${lng.toFixed(5)}. Tap or drag to move it.`
-                  : "Tap the map to place the site. This is required — a site with no pin can’t be checked against."}
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="fl-country" className={LBL_CLS}>Country</label>
+                <input id="fl-country" type="text" value={form.country} onChange={(e) => set("country", e.target.value)} maxLength={100} placeholder="India" className={FIELD_CLS} />
+              </div>
+              <div>
+                <label htmlFor="fl-pincode" className={LBL_CLS}>Pincode</label>
+                <input id="fl-pincode" type="text" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} maxLength={20} placeholder="411019" className={FIELD_CLS} />
+              </div>
             </div>
 
-            <div className="sm:col-span-2">
-              <label htmlFor="fl-address" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Address</label>
-              <input id="fl-address" value={form.address} onChange={(e) => set("address", e.target.value)} maxLength={1000} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
-            </div>
             <div>
-              <label htmlFor="fl-city" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">City</label>
-              <input id="fl-city" value={form.city} onChange={(e) => set("city", e.target.value)} maxLength={100} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
-            </div>
-            <div>
-              <label htmlFor="fl-state" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">State</label>
-              <input id="fl-state" value={form.state} onChange={(e) => set("state", e.target.value)} maxLength={100} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
-            </div>
-            <div>
-              <label htmlFor="fl-pincode" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Pincode</label>
-              <input id="fl-pincode" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} maxLength={20} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
-            </div>
-            <div>
-              <label htmlFor="fl-country" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Country</label>
-              <input id="fl-country" value={form.country} onChange={(e) => set("country", e.target.value)} maxLength={100} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
-            </div>
-            <div>
-              {/* Stored against the site and shown rather than sent invisibly:
-                  a site in another zone is exactly the case somebody needs to
-                  correct, and they can't correct what the form never shows. */}
-              <label htmlFor="fl-timezone" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Time zone</label>
-              <select id="fl-timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-purple-500">
+              <label htmlFor="fl-timezone" className={LBL_CLS}>Timezone</label>
+              <select id="fl-timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)} className={MONO_CLS}>
                 {!TIMEZONES.includes(form.timezone) && form.timezone && <option value={form.timezone}>{form.timezone}</option>}
                 {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
               </select>
+              <p className="text-[10px] text-slate-400 mt-1">IANA zone stored against this site.</p>
+            </div>
+
+            <div>
+              <div className="flex items-center">
+                <label htmlFor="fl-radius" className={LBL_CLS}>
+                  Radius: <span className="text-purple-600 font-bold">{radius}m</span>
+                </label>
+                <FieldHelp surface="attendance.field_locations" field="geofence_radius_meters" label="the clock-in radius" className="mb-1.5" />
+              </div>
+              {/* 50–2000 m, wider than an office's 25–1000: client sites are
+                  plants and basements where GPS drifts 50–150 m, and the band
+                  mirrors the database CHECK so a saved value can never fail. */}
+              <input
+                id="fl-radius"
+                type="range"
+                min={FIELD_RADIUS_MIN}
+                max={FIELD_RADIUS_MAX}
+                step={25}
+                value={radius}
+                onChange={(e) => set("geofence_radius_meters", parseInt(e.target.value, 10))}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 shadow-inner"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
+                <span>{FIELD_RADIUS_MIN}m</span><span>1000m</span><span>{FIELD_RADIUS_MAX}m</span>
+              </div>
             </div>
           </div>
-
-          <FieldError message={error} />
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50">Cancel</button>
-          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl">
-            {saving && <Spinner />} {isEdit ? "Save changes" : "Add site"}
+        {/* Footer */}
+        <div className="flex flex-col sm:flex-row sm:justify-end items-stretch sm:items-center gap-3 p-6 border-t border-slate-100 shrink-0 bg-white">
+          {error && (
+            <div className="mr-auto text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
+          <button type="button" onClick={onClose} disabled={saving} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
+          <button type="submit" disabled={saving || !form.name || lat === null || lng === null} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95">
+            {saving ? "Saving…" : isEdit ? "Update Site" : "Create Site"}
           </button>
         </div>
       </form>
     </div>
   );
 }
-
 /* ─── Assign someone to a site ────────────────────────────────────────────── */
 
 function AssignDialog({ plane, site, people, onClose, onSaved }) {
@@ -636,6 +685,31 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [saving, setSaving] = useState(false);
+  const [setFieldMode, setSetFieldMode] = useState(true);
+  // The assignee's contractual mode, read when they are picked. A client site
+  // only geofences a `field` employee, so without this the assignment can be
+  // created and quietly do nothing (contract §3.2).
+  const [assignee, setAssignee] = useState({ loading: false, workMode: null });
+
+  useEffect(() => {
+    if (!userId) { setAssignee({ loading: false, workMode: null }); return undefined; }
+    let cancelled = false;
+    setAssignee({ loading: true, workMode: null });
+    plane.assignmentsFor(userId)
+      .then((res) => { if (!cancelled) setAssignee({ loading: false, workMode: res?.data?.work_mode || null }); })
+      // Unknown mode: offer the checkbox anyway. The backend refuses a
+      // remote/hybrid flip on its own and answers with a warning, so guessing
+      // wrong here is safe (§3.5).
+      .catch(() => { if (!cancelled) setAssignee({ loading: false, workMode: null }); });
+    return () => { cancelled = true; };
+  }, [userId, plane]);
+
+  const mode = normalizeWorkMode(assignee.workMode);
+  const alreadyField = assignee.workMode != null && mode === "field";
+  // `remote`/`hybrid` are contractual modes tied to allowances and payroll, so
+  // only HR may move them — the checkbox is shown disabled rather than hidden,
+  // because "you can't do this here" is more useful than a missing control.
+  const modeLockedByContract = mode === "remote" || mode === "hybrid";
 
   const submit = async (e) => {
     e.preventDefault();
@@ -647,6 +721,10 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
       // Plain YYYY-MM-DD, never an ISO timestamp — see the header.
       const payload = { user_id: userId, field_location_id: site.id, effective_from: ymdOnly(from) };
       if (to) payload.effective_to = ymdOnly(to);
+      // Only sent when it could actually do something. The flip happens in the
+      // same transaction as the assignment, so there is never a moment where
+      // the site is assigned but the mode is half-changed.
+      if (setFieldMode && !alreadyField && !modeLockedByContract) payload.set_work_mode_to_field = true;
       const res = await plane.assign(payload);
       const warn = res?.data?.work_mode_warning;
       if (warn) {
@@ -656,7 +734,11 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
         setSaving(false);
         return;
       }
-      onSaved("Assigned to this site.");
+      // `work_mode_changed` is true only when the backend actually flipped it
+      // on this call, so the confirmation says what really happened (§3.3).
+      onSaved(res?.data?.work_mode_changed
+        ? "Assigned to this site, and their work mode is now Field."
+        : "Assigned to this site.");
     } catch (err) {
       setError(attendanceErrorMessage(err, "Couldn't assign this person."));
       setSaving(false);
@@ -698,6 +780,34 @@ function AssignDialog({ plane, site, people, onClose, onSaved }) {
                 <input id="fa-to" type="date" min={from || undefined} value={to} onChange={(e) => setTo(e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500" />
                 <p className="text-[10px] text-slate-400 mt-1">Leave blank for no end date.</p>
               </div>
+
+              {/* A client site only geofences a FIELD employee, so without this
+                  the assignment is created and quietly does nothing. Hidden
+                  when they are already field (nothing to do) and disabled for
+                  remote/hybrid, which only HR may move (contract §3.4). */}
+              {userId && !assignee.loading && !alreadyField && (
+                <div className="sm:col-span-2">
+                  <label className={`flex items-start gap-2.5 rounded-xl border p-3 ${modeLockedByContract ? "border-slate-200 bg-slate-50 cursor-not-allowed" : "border-purple-100 bg-purple-50/50 cursor-pointer"}`}>
+                    <input
+                      type="checkbox"
+                      checked={setFieldMode && !modeLockedByContract}
+                      disabled={modeLockedByContract}
+                      onChange={(e) => setSetFieldMode(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-purple-600 shrink-0 disabled:opacity-50"
+                    />
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-bold ${modeLockedByContract ? "text-slate-500" : "text-slate-800"}`}>
+                        Also set their work mode to Field
+                      </span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5">
+                        {modeLockedByContract
+                          ? `Their work mode is ${mode === "remote" ? "Remote" : "Hybrid"}, which only HR can change. The assignment still saves, but it won’t apply until HR changes it.`
+                          : "Needed for their clock-ins at this site to be recognised. Without it the assignment has no effect."}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
           <FieldError message={error} />

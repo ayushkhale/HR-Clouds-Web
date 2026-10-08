@@ -576,7 +576,7 @@ export default function PayrollTemplatesPage() {
         </main>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">{editingTemplate ? "Edit Template" : "New Template"}</h2>
@@ -611,7 +611,7 @@ export default function PayrollTemplatesPage() {
       )}
 
       {isComponentModalOpen && managingTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>

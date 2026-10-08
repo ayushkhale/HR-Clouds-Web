@@ -32,7 +32,12 @@ const DEBOUNCE_MS = 600;
  */
 export default function AddressSearchField({
   onSelect,
+  // Pass `label={null}` / `hint={false}` where the surrounding form already
+  // says what the box is for — the office-location dialog heads this whole
+  // column with "Map Preview (search or drag pin to set location)", so a second
+  // label under it would just be noise.
   label = "Find the place",
+  hint = true,
   placeholder = "Search by name, street or area",
   id = "address-search",
 }) {
@@ -75,6 +80,24 @@ export default function AddressSearchField({
     onSelect?.(place);
   };
 
+  /**
+   * Take the best match. If the debounce hasn't fired yet there are no
+   * suggestions in hand, so this searches immediately rather than doing
+   * nothing — pressing Search right after typing has to work.
+   */
+  const takeBest = async () => {
+    if (items.length) return pick(items[0]);
+    const q = query.trim();
+    if (!q) return undefined;
+    setBusy(true);
+    const found = await searchPlaces(q);
+    setBusy(false);
+    if (found.length) return pick(found[0]);
+    setItems([]);
+    setOpen(false);
+    return undefined;
+  };
+
   const clear = () => {
     justPicked.current = true;
     setQuery("");
@@ -84,33 +107,47 @@ export default function AddressSearchField({
 
   return (
     <div className="relative">
-      <label htmlFor={id} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>
-      <div className="relative">
-        <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        <input
-          id={id}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => { if (items.length) setOpen(true); }}
-          // Enter takes the best match rather than submitting the whole form,
-          // which is what a search box in a form otherwise does.
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); if (items.length) pick(items[0]); }
-            if (e.key === "Escape") setOpen(false);
-          }}
-          placeholder={placeholder}
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={`${id}-results`}
-          className="w-full pl-9 pr-9 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
-        />
-        <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
-          {busy ? <Spinner className="w-3.5 h-3.5" />
-            : query ? <button type="button" onClick={clear} aria-label="Clear the search" className="p-0.5 text-slate-400 hover:text-slate-700"><HiX className="w-3.5 h-3.5" /></button>
-              : null}
-        </span>
+      {label && <label htmlFor={id} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>}
+      {/* Input + an explicit Search button, the same pair the office-location
+          screen uses. Without the button a result only landed if you clicked a
+          suggestion, so typing an address and stopping left the fields empty
+          and the form looked broken. */}
+      <div className="flex items-stretch gap-2">
+        <div className="relative flex-1 min-w-0">
+          <HiSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            id={id}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => { if (items.length) setOpen(true); }}
+            // Enter takes the best match rather than submitting the whole form,
+            // which is what a search box in a form otherwise does.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); takeBest(); }
+              if (e.key === "Escape") setOpen(false);
+            }}
+            placeholder={placeholder}
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={`${id}-results`}
+            className="w-full pl-9 pr-9 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
+          />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
+            {busy ? <Spinner className="w-3.5 h-3.5" />
+              : query ? <button type="button" onClick={clear} aria-label="Clear the search" className="p-0.5 text-slate-400 hover:text-slate-700"><HiX className="w-3.5 h-3.5" /></button>
+                : null}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={takeBest}
+          disabled={busy || !query.trim()}
+          className="shrink-0 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs transition"
+        >
+          {busy ? "Searching…" : "Search"}
+        </button>
       </div>
 
       {open && items.length > 0 && (
@@ -130,7 +167,7 @@ export default function AddressSearchField({
           ))}
         </ul>
       )}
-      <p className="text-[10px] text-slate-400 mt-1">Picking a result fills the address below and moves the pin. You can still drag the pin to fine-tune it.</p>
+      {hint && <p className="text-[10px] text-slate-400 mt-1">Picking a result fills the address below and moves the pin. You can still drag the pin to fine-tune it.</p>}
     </div>
   );
 }

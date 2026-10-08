@@ -36,7 +36,7 @@ function UnlockDialog({ lock, onClose, onUnlocked }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" role="dialog" aria-modal="true">
         <div className="p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -254,7 +254,7 @@ function AttendanceLockPeriodsPage() {
       </main>
 
       {confirming && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !creating && setConfirming(null)}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && !creating && setConfirming(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" role="dialog" aria-modal="true">
             <div className="p-6 text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mx-auto"><HiExclamation className="w-8 h-8" /></div>

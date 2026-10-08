@@ -113,7 +113,7 @@ export default function ApplyPolicyToShiftsDialog({ policy, policies = [], onClo
   const linkedCount = ticked.size;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="apply-policy-title">
         <div className="flex items-start justify-between gap-4 px-6 sm:px-8 py-6 border-b border-slate-100 shrink-0">
           <div className="min-w-0">

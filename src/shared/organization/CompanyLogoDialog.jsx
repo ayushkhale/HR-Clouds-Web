@@ -77,7 +77,7 @@ export default function CompanyLogoDialog({ currentLogo, companyName, onClose, o
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
     >
       <div

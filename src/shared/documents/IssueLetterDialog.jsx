@@ -59,6 +59,7 @@ import { triggerDownload } from "./documentUpload";
 import { humanizeCode } from "./documentMeta";
 import useDocumentSettings from "./useDocumentSettings";
 import { letterTemplateOf, letterTemplatesOf, letterTitle } from "./letterMeta";
+import { letterIssueReminder } from "./letterFieldMatrix";
 import {
   issueDateMax, issueDateMin, issueDateNote, issueDateProblem, issuedLetterOf, keyForRetry,
   letterFactFields, letterOverridableFields, newIdempotencyKey, onlyRequiredMissing, overrideProblems,
@@ -210,6 +211,8 @@ export default function IssueLetterDialog({
   // already rejected for this letter never comes back.
   const fields = useMemo(() => (template ? letterOverridableFields(template, code, refused) : []), [template, code, refused]);
   const factFields = useMemo(() => (template ? letterFactFields(template, code) : []), [template, code]);
+  // What must be done in another module BEFORE this letter is issued.
+  const reminder = letterIssueReminder(code);
   // This organisation's saved wording for the letter (#137). It prefills the
   // matching boxes and, where a required box has one, satisfies it (§2.1).
   const saved = detail.data?.config?.saved_fields || null;
@@ -380,7 +383,7 @@ export default function IssueLetterDialog({
   return (
     <>
       <div
-        className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-4"
+        className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4"
         onMouseDown={(e) => e.target === e.currentTarget && !busy && onCloseRef.current?.()}
       >
         <div
@@ -546,6 +549,21 @@ export default function IssueLetterDialog({
                             There is nothing to type in for this letter — every word of it comes from their record, your letterhead and the wording you saved in{" "}
                             <Link to={TEMPLATES_PATH} className="font-bold text-purple-600 hover:underline">Letter Templates</Link>.
                           </p>
+                        )}
+
+                        {/* The one thing that has to be done BEFORE issuing, for
+                            the letters whose figures are read live from another
+                            module. A salary revision letter prints whatever
+                            salary structure is approved in Payroll right now —
+                            issue it first and it reprints the old figure in both
+                            places, which reads as a bug rather than a missed
+                            step (md_updates/2026-10-08 §3.3). The text lives in
+                            letterFieldMatrix; it existed but nothing showed it. */}
+                        {reminder && (
+                          <div className="mt-4 flex items-start gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3">
+                            <HiExclamationCircle className="w-4 h-4 text-fuchsia-600 shrink-0 mt-px" />
+                            <p className="text-[11px] font-semibold text-fuchsia-800 leading-relaxed">{reminder}</p>
+                          </div>
                         )}
 
                         {factFields.length > 0 && <FactList fields={factFields} />}

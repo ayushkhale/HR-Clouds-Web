@@ -77,7 +77,7 @@ function ProposeDialog({ onClose, onDone, showToast, team }) {
   const labelCls = "block text-[11px] font-bold text-slate-500 uppercase mb-2";
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       {/* Wide: the day picker is tall, and at max-w-lg the pay month and the
           submit button sat below the fold. Matches HR’s own payout form. */}
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">

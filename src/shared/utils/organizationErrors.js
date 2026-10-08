@@ -54,6 +54,13 @@ const ORGANIZATION_ERROR_MESSAGES = {
   DEPARTMENT_NOT_FOUND: "That department is no longer there. Reload the list and pick again.",
   LOCATION_NOT_FOUND: "That office is no longer there. Reload the list and pick again.",
 
+  // HR-owned job fields (2026-10-07). These are deliberately not self-editable:
+  // work mode and base office decide where someone's attendance is geofenced,
+  // so letting a person set their own would let them exempt themselves.
+  SELF_EDIT_NOT_ALLOWED: "You can’t change your own job details. Another HR admin has to do it.",
+  EMPLOYEE_CODE_DUPLICATE: "That employee code is already used by someone else. Pick a different one.",
+  JOINING_DATE_ALREADY_SET: "A joining date is already on file and can’t be changed here — it drives payroll, leave and tenure. Raise a correction if it’s wrong.",
+
   // Departments and heads (3_org_structure_api.md §4 and §6).
   // HOD_IN_OTHER_DEPARTMENT gets its own sentence on screen, naming the person
   // and offering the move, so this is only the fallback for a caller that has

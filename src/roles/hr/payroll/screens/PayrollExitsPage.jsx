@@ -119,7 +119,7 @@ function ExitForm({ exit, onClose, onDone, showToast, defaultNoticeDays }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       {/* Wide, two columns: nine fields plus the notice-period card made this
           the longest scroll in payroll at max-w-xl. */}
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">

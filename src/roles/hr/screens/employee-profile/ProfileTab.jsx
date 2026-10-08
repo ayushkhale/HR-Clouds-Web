@@ -27,7 +27,7 @@ function InfoRow({ icon: Icon, label, value, wrap = false }) {
   );
 }
 
-export default function ProfileTab({ employee, onEdit, danger = null }) {
+export default function ProfileTab({ employee, onEdit, onEditJobFields = null, danger = null }) {
   if (!employee) {
     return (
       <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center text-slate-400 shadow-xs">
@@ -66,15 +66,31 @@ export default function ProfileTab({ employee, onEdit, danger = null }) {
         <div>
           <div className="flex items-start justify-between gap-4 mb-4">
             <h2 className="text-base font-bold text-slate-800">Profile Details</h2>
-            {onEdit && (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition"
-              >
-                <HiPencil className="w-3.5 h-3.5" /> Edit details
-              </button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Two buttons because they are two different permissions: personal
+                  details are editable by HR and the manager, while the job
+                  record (work mode, base office, codes) is HR-only and audited.
+                  `onEditJobFields` is simply not passed in the manager
+                  workspace, so the control is absent rather than refused. */}
+              {onEditJobFields && (
+                <button
+                  type="button"
+                  onClick={onEditJobFields}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                >
+                  <HiBriefcase className="w-3.5 h-3.5" /> Edit job details
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition"
+                >
+                  <HiPencil className="w-3.5 h-3.5" /> Edit details
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 items-start">

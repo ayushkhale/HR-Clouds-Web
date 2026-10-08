@@ -59,7 +59,7 @@ function ActionShell({ title, description, icon: Icon, busy, onClose, onSubmit, 
 
   return (
     <div
-      className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
       onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}
     >
       <form

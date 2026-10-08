@@ -100,7 +100,7 @@ export default function ExitPackDialog({ subjectName = "this employee", defaultS
   const items = pack?.items || [];
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div role="dialog" aria-modal="true" aria-label="Their document pack" className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100">
           <div className="flex items-start gap-3 min-w-0">

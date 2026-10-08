@@ -28,6 +28,11 @@ export const payrollAPI = {
   // HR APIs
   // ─────────────────────────────────────────────────────────────────────────────
   
+  // PDF template catalog (#225). The preview itself (#226) streams binary and
+  // therefore cannot go through `request()`, which is JSON-only — it is fetched
+  // as a blob via `fetchFileBlob` in the preview screen (CLAUDE.md §7).
+  getPdfTemplates: () => request("/payroll/hr/pdf-templates"),
+
   // Components
   bootstrapComponents: () => request("/payroll/hr/components/bootstrap", { method: "POST" }),
   getComponents: (params) => request(`/payroll/hr/components${buildQuery(params)}`),
@@ -479,6 +484,10 @@ export const payrollFiles = {
   hrStatutorySummaryPdf: (financialYear) => `/payroll/hr/tax/financial-years/${encodeURIComponent(financialYear)}/statutory-summary/pdf`,
   hrAnnualStatementPdf: (userId) => `/payroll/hr/employees/${userId}/annual-statement/pdf`,          // #184
   hrForm16Pdf: (userId, financialYear) => `/payroll/hr/employees/${userId}/tax/form16/${encodeURIComponent(financialYear)}/pdf`, // #185
+  // #226 — a SAMPLE render of a payroll template, so HR can see how their
+  // letterhead, logo and signature land on the page before a real run exists.
+  // Dummy data, live branding. `private, no-store` — never cache or persist it.
+  hrPdfTemplatePreview: (code) => `/payroll/hr/pdf-templates/${encodeURIComponent(code)}/preview`,
 
   // Manager
   managerPayslipPdf: (userId, runId) => `/payroll/manager/employees/${userId}/payslips/${runId}/pdf`, // #186

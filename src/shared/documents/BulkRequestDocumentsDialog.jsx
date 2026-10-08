@@ -203,7 +203,7 @@ export default function BulkRequestDocumentsDialog({
     const { summary, skipped, failed, dueOn: appliedDue } = result;
     return (
       <div
-        className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
         onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       >
         <div
@@ -288,7 +288,7 @@ export default function BulkRequestDocumentsDialog({
   const noTypes = types.length === 0;
   return (
     <div
-      className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
       onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}
     >
       <form

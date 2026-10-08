@@ -147,6 +147,41 @@ export const organizationAPI = {
   },
 
   /**
+   * The HR-owned fields of someone else's job record.
+   * PATCH /organizations/employees/:id/hr-fields
+   *
+   * HR ONLY, and never on yourself — the server answers a self-target with
+   * `400 SELF_EDIT_NOT_ALLOWED`, because these are exactly the fields nobody
+   * should be able to set for themselves.
+   *
+   * `reason` is REQUIRED (3–500 chars) and is written to the audit log beside a
+   * before/after diff, so it must be a real sentence rather than a filler.
+   *
+   * Dates (`joining_date`, `notice_period_started_on`) are bare `YYYY-MM-DD`
+   * strings — an ISO timestamp is a 400.
+   *
+   * `work_mode` accepts `office` as a convenience alias but the column stores
+   * `on-site`, so a profile always READS BACK as `on-site`. Never compare the
+   * two directly (see `shared/attendance/geofence.js`).
+   *
+   * `location_id: null` clears the base-office anchor; geofencing then falls
+   * back to every active branch. `designation`/`employee_code` clear on `""`.
+   *
+   * Responds with the full employee plus `changes` — a `{from,to}` diff of only
+   * what actually moved, so the confirmation can name the fields rather than
+   * the client re-diffing. A pure no-op returns `changes: {}`.
+   *
+   * @param {string} id   the target's user_id (not your own)
+   * @param {object} payload  at least one field + `reason`
+   */
+  updateEmployeeHrFields(id, payload) {
+    return request(`/organizations/employees/${id}/hr-fields`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Permanently severs an employee's access (soft-delete)
    * DELETE /organizations/employees/:id
    * @param {string} id - The global user_id

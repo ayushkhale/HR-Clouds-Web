@@ -470,7 +470,7 @@ function PtSlabsTab({ showToast }) {
       </div>
 
       {editorState && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">State PT Slabs</h2>
@@ -680,7 +680,7 @@ function RegimesTab({ showToast }) {
       )}
 
       {editing && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800">Edit Regime</h2>
@@ -709,7 +709,7 @@ function RegimesTab({ showToast }) {
       )}
 
       {slabEditor && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-800 capitalize">{slabEditor.regime.name || slabEditor.regime.code} — Slabs</h2>

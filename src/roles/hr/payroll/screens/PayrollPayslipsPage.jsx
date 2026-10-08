@@ -68,7 +68,7 @@ function ReissueDialog({ payslip, onClose, onDone, showToast }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-4">
           <div>

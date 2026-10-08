@@ -155,7 +155,7 @@ export default function DocumentUploadDialog({ mode = "upload", types = [], pres
     : subjectName ? `For ${subjectName}` : "It goes straight to encrypted storage.";
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <form onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-label={heading} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100">
           <div className="flex items-start gap-3 min-w-0">
