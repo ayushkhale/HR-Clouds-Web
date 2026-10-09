@@ -30,6 +30,9 @@
 
 import { humanize } from "../../../shared/attendance/enums";
 import { formatMoney } from "../../../shared/utils/formatUtils";
+import { PLAN_FEATURES, tierName, tierOf } from "../../../shared/config/plans";
+
+const FEATURE_NAME = Object.fromEntries(PLAN_FEATURES.map((f) => [f.key, f.name]));
 
 /* ─── Subscription status (#226 `subscription.status`) ───────────────────────
    Five values, and the difference between three of them is the whole story of
@@ -139,6 +142,16 @@ export const intentConsequence = (intent) => INTENT_CONSEQUENCE[String(intent ||
 /* ─── Billing cycle ────────────────────────────────────────────────────────── */
 export const CYCLE_LABEL = { monthly: "a month", yearly: "a year", lifetime: "" };
 
+/**
+ * How often the card is charged, as a sentence rather than an enum name (§6).
+ * "lifetime" is the free plan's cycle, and the honest word for it is that
+ * nothing is ever taken — not "lifetime", which reads like something bought.
+ */
+export const CYCLE_EVERY = { monthly: "Every month", yearly: "Every year", lifetime: "Never — this plan is free" };
+
+export const cycleEveryLabel = (billingCycle) =>
+  CYCLE_EVERY[String(billingCycle || "").toLowerCase()] || "N/A";
+
 /** "₹999 a month", "₹14,999 a year", "Free" — the whole price phrase. */
 export function priceLabel(amount, billingCycle) {
   const n = parseFloat(amount);
@@ -234,6 +247,31 @@ export function seatMeters(usage) {
 export const meterTone = (meter) =>
   meter.over ? "bg-rose-500" : meter.full || meter.pct >= 90 ? "bg-fuchsia-500" : "bg-violet-500";
 
+/* ─── What a plan includes, in words ───────────────────────────────────────
+   Shared by the catalogue cards and the current-plan panel, which must agree
+   about what a plan gives you — they sit on the same screen, inches apart.
+
+   The feature NAMES come from shared/config/plans.js, the same list the public
+   pricing page reads, including which features the backend grants but the
+   product has no screens for yet. */
+
+/** "payroll.access" → "Payroll", and an unknown key still reads as words (§4). */
+export const featureName = (key) =>
+  FEATURE_NAME[key] || humanize(String(key).split(".")[0]);
+
+/** "1 manager" / "5 managers" — a seat line reading "1 HR admins" looks broken. */
+export const plural = (count, one, many) => `${count} ${Number(count) === 1 ? one : many}`;
+
+/** "Up to 100 employees · 15 managers · 5 HR admins". A null limit is unlimited. */
+export function seatLine(limits) {
+  const parts = [
+    limits?.max_employees == null ? "Unlimited employees" : `Up to ${plural(limits.max_employees, "employee", "employees")}`,
+    limits?.max_managers == null ? null : plural(limits.max_managers, "manager", "managers"),
+    limits?.max_hrs == null ? null : plural(limits.max_hrs, "HR admin", "HR admins"),
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
 /* ─── Plan comparison (display only) ───────────────────────────────────────── */
 
 /** Is `plan` dearer than `current`? Used to sort and to label, never to price. */
@@ -262,6 +300,112 @@ export const STANDING_ACTION = {
   down: "Switch to this plan later",
   none: "Choose this plan",
 };
+
+/* ─── Grouping the flat catalogue into tiers ────────────────────────────────
+   #225 returns one row per PURCHASABLE CODE, so "starter_monthly" and
+   "starter_yearly" arrive as two separate rows. Rendered one card each, six
+   rows asked an admin to compare a tier against its own other billing cycle —
+   and left an orphan card on a row of its own whenever the count wasn't a
+   multiple of the grid. Grouping restores the question they actually have
+   ("which tier?") and moves the cycle to a single toggle above the cards.
+
+   `tierOf` and `tierName` are imported from shared/config/plans.js rather than
+   rewritten here, because the marketing pricing page and the registration
+   picker group the same catalogue with them. Three copies of "what counts as
+   one tier" is three ways for one plan to be named differently.
+
+   THE ROWS ARE KEPT UNTOUCHED in the slots. Everything downstream — the quote
+   dialog, the seat line, the feature ticks — reads `amount`, `billing_cycle`,
+   `limits` and `feature_keys` straight off a #225 row, and a reshaped copy
+   would be one more thing that can quietly disagree with the server. ──────── */
+
+/** Which slot a row fills. A lifetime (free) plan fills both — it has no cycle. */
+const slotOf = (row) => {
+  const cycle = String(row?.billing_cycle || "").toLowerCase();
+  if (cycle === "lifetime") return "both";
+  if (cycle === "yearly" || cycle === "annual" || cycle === "annually") return "yearly";
+  return "monthly";
+};
+
+/**
+ * #225 `plans[]` → `[{ tier, name, description, monthly, yearly }]`, cheapest
+ * first so the cards read as a ladder. `monthly` and `yearly` are the original
+ * rows; a tier sold on only one cycle mirrors it into the other slot, so a
+ * card never vanishes when the toggle moves.
+ */
+export function planTiers(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  const tiers = new Map();
+  for (const row of rows) {
+    if (!row?.code) continue;
+    const key = tierOf(row.code);
+    if (!tiers.has(key)) {
+      tiers.set(key, { tier: key, name: tierName(row.name, row.code), description: row.description || "", monthly: null, yearly: null });
+    }
+    const entry = tiers.get(key);
+    const slot = slotOf(row);
+    if (slot === "both") { entry.monthly = row; entry.yearly = row; }
+    else entry[slot] = row;
+    if (!entry.description && row.description) entry.description = row.description;
+    // The shortest name wins the tier label ("Starter" over "Starter Monthly").
+    const candidate = tierName(row.name, row.code);
+    if (candidate && candidate.length < entry.name.length) entry.name = candidate;
+  }
+
+  return [...tiers.values()]
+    .map((t) => ({ ...t, monthly: t.monthly || t.yearly, yearly: t.yearly || t.monthly }))
+    .filter((t) => t.monthly)
+    .sort((a, b) => (parseFloat(a.monthly.amount) || 0) - (parseFloat(b.monthly.amount) || 0));
+}
+
+/** The row a tier offers on this cycle. Never null for a tier that rendered. */
+export const variantOf = (tier, cycle) =>
+  (cycle === "yearly" ? tier?.yearly || tier?.monthly : tier?.monthly || tier?.yearly) || null;
+
+/** Does this tier actually sell two cycles? A free lifetime plan does not. */
+export const hasBothCycles = (tier) =>
+  Boolean(tier?.monthly && tier?.yearly && tier.monthly.code !== tier.yearly.code);
+
+/**
+ * What a year up front saves against twelve monthly payments:
+ * `{ full, saved, pct }`, or null when there is nothing to advertise.
+ *
+ * Display only, like `isBiggerPlan` — it compares two of the server's own list
+ * prices to label a toggle. It is never what anybody is charged: the quote
+ * (#238) and the charge (#232) both come from the server, and this screen has
+ * no way to pass an amount (see billing.api.js).
+ */
+export function yearlySaving(tier) {
+  if (!hasBothCycles(tier)) return null;
+  const monthly = parseFloat(tier.monthly?.amount);
+  const yearly = parseFloat(tier.yearly?.amount);
+  if (!Number.isFinite(monthly) || !Number.isFinite(yearly) || monthly <= 0) return null;
+  const full = monthly * 12;
+  const saved = full - yearly;
+  if (saved <= 0) return null;
+  return { full, saved, pct: Math.round((saved / full) * 100) };
+}
+
+/** The biggest saving any tier offers — the badge on the "Yearly" tab, or 0. */
+export const bestSavingPct = (tiers = []) =>
+  tiers.reduce((best, tier) => Math.max(best, yearlySaving(tier)?.pct || 0), 0);
+
+/** The two positions of the billing-cycle toggle. */
+export const CYCLE_OPTIONS = [
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+/**
+ * Which position the toggle should open on: the cycle the organisation is
+ * already paying on, so its own plan is the card showing "Your plan" rather
+ * than one the admin has to go looking for. A free or lapsed org opens monthly.
+ */
+export const cycleOfPlan = (plan) =>
+  ["yearly", "annual", "annually"].includes(String(plan?.billing_cycle || "").toLowerCase())
+    ? "yearly"
+    : "monthly";
 
 /* ─── Invoice (#231) ───────────────────────────────────────────────────────
    A frozen statutory document: it is shown exactly as it was issued, never

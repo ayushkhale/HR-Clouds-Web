@@ -19,58 +19,49 @@
 //     never recomputed here from status and dates.
 //   · Seat meters are the second thing, because they are the reason a plan
 //     change gets blocked (#232 SEAT_LIMIT_EXCEEDED) and an admin who can see
-//     "98 of 100" coming is an admin who doesn't hit it mid-purchase.
+//     "98 of 100" coming is an admin who doesn't hit it mid-purchase. They sit
+//     INSIDE the current-plan panel rather than in a section of their own, so
+//     the plan and the thing that invalidates it are read together
+//     (CurrentPlanCard.jsx has the rest of that reasoning).
+//   · The catalogue is one card per TIER with a billing-cycle toggle above it,
+//     not one card per plan code — #225 is flat, and six cards made an admin
+//     compare a tier against its own other cycle (PlanCatalogue.jsx). The
+//     toggle opens on the cycle the organisation already pays on.
 //   · Every figure is the server's. No price, total, credit or renewal date is
 //     computed on this page; `amount` fields arrive as decimal strings and go
 //     straight to formatMoney (see billing.api.js).
 //   · A cheaper plan is SCHEDULED, never bought. The catalogue card knows this,
 //     so the page never opens a payment dialog for one.
+//   · Cancelling sits IN the plan panel, not at the foot of the page. It used
+//     to live below the catalogue, which put the most consequential control on
+//     the screen as far as possible from the thing it acts on.
 //   · A cancellation scheduled for the period end is reversible (#236) and the
 //     Undo sits next to the notice that announced it — the one place an admin
 //     will look after a change of heart.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  HiBadgeCheck, HiCalendar, HiCash, HiCreditCard,
-  HiExclamationCircle, HiReceiptTax, HiRefresh, HiUserGroup, HiXCircle,
+  HiReceiptTax, HiRefresh, HiXCircle,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { billingAPI, organizationAPI } from "../../../../shared/api";
 import { ErrorState, Toast, useToast } from "../../../../shared/attendance/ui";
-import { fmtDate, fmtDateTime } from "../../../../shared/attendance/dates";
-import { formatMoney } from "../../../../shared/utils/formatUtils";
+import { fmtDate } from "../../../../shared/attendance/dates";
 import { billingErrorMessage } from "../../../../shared/utils/billingErrors";
-import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
-import {
-  isFreePlan, priceLabel, seatMeters, subscriptionStatusMeta,
-} from "../billingMeta";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import { cycleOfPlan, isFreePlan, subscriptionStatusMeta } from "../billingMeta";
 import useBillingCheckout from "../useBillingCheckout";
-import { DANGER_BTN, Notice, SECONDARY_BTN, SeatMeter } from "../components/billingUi";
+import { Notice, SECONDARY_BTN } from "../components/billingUi";
+import CurrentPlanCard from "../components/CurrentPlanCard";
 import PlanCatalogue from "../components/PlanCatalogue";
 import ChangePlanDialog from "../components/ChangePlanDialog";
 import CancelPlanDialog from "../components/CancelPlanDialog";
 import BillingNoticesCard from "../components/BillingNoticesCard";
 
 const SURFACE = "billing.overview";
-
-/** One headline tile. Same shape as the tiles on the document screens. */
-function Tile({ label, value, hint, icon: Icon, help, tone = "text-purple-500", alert = false }) {
-  return (
-    <div className={`rounded-2xl border px-4 py-3.5 min-w-0 ${alert ? "bg-rose-50/40 border-rose-200" : "bg-white border-slate-100 shadow-xs"}`}>
-      <div className="flex items-center gap-2 text-slate-400">
-        <Icon className={`w-4 h-4 shrink-0 ${alert ? "text-rose-500" : tone}`} />
-        <span className="text-[11px] font-semibold truncate">
-          {help ? <HelpLabel text={label} help={help} /> : label}
-        </span>
-      </div>
-      <p className={`text-lg font-bold tracking-tight leading-tight mt-2 truncate ${alert ? "text-rose-700" : "text-slate-800"}`}>{value}</p>
-      {hint && <p className="text-[11px] text-slate-500 mt-0.5 truncate">{hint}</p>}
-    </div>
-  );
-}
 
 export default function BillingOverviewPage() {
   const { toast, showToast, clearToast } = useToast();
@@ -83,6 +74,13 @@ export default function BillingOverviewPage() {
   // the card simply isn't offered, rather than offering to save over values we
   // never saw (§7 — "nothing on file" and "couldn't load" are not the same).
   const [orgProfile, setOrgProfile] = useState(null);
+
+  // Which side of the billing-cycle toggle the catalogue is showing. It opens
+  // on the cycle the organisation already pays on (set once the subscription
+  // lands), so their own plan is the card tagged "Your plan" rather than one
+  // they have to go looking for.
+  const [cycle, setCycle] = useState("monthly");
+  const cycleSet = useRef(false);
 
   // Dialogs
   const [changing, setChanging] = useState(null);   // the plan being bought
@@ -102,6 +100,13 @@ export default function BillingOverviewPage() {
         loading: false,
         error: null,
       });
+      // ONCE, on the first read. Every write on this page refreshes, and
+      // re-deriving the toggle each time would drag it back under an admin
+      // who had just moved it to look at the other cycle.
+      if (!cycleSet.current) {
+        cycleSet.current = true;
+        setCycle(cycleOfPlan(data.subscription?.plan));
+      }
     } catch (error) {
       setState({ subscription: null, usage: null, lastPayment: null, loading: false, error });
     }
@@ -140,8 +145,8 @@ export default function BillingOverviewPage() {
 
   const { subscription: sub, usage, lastPayment, loading, error } = state;
   const plan = sub?.plan || null;
+  // Only for the "needs a plan" notice below; the panel resolves its own.
   const statusMeta = subscriptionStatusMeta(sub?.status);
-  const meters = seatMeters(usage);
   const free = isFreePlan(plan);
   const scheduled = sub?.scheduled_change || null;
 
@@ -292,65 +297,35 @@ export default function BillingOverviewPage() {
               </Notice>
             )}
 
-            {/* ── The headline four ──────────────────────────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <Tile
-                label="Your plan"
-                value={plan?.name || "N/A"}
-                hint={priceLabel(plan?.amount, plan?.billing_cycle)}
-                icon={HiBadgeCheck}
-              />
-              <Tile
-                label="Status"
-                value={statusMeta.label}
-                hint={sub.is_entitled ? "Paid features are on" : "Paid features are off"}
-                icon={HiCreditCard}
-                alert={!sub.is_entitled}
-                help={{ surface: SURFACE, field: "status" }}
-              />
-              <Tile
-                label={sub.cancel_at_period_end ? "Ends on" : "Paid up to"}
-                value={sub.current_period_end ? fmtDate(sub.current_period_end) : "No end date"}
-                hint={sub.days_remaining != null
-                  ? `${sub.days_remaining} day${sub.days_remaining === 1 ? "" : "s"} left`
-                  : "This plan doesn’t expire"}
-                icon={HiCalendar}
-                help={{ surface: SURFACE, field: "current_period_end" }}
-              />
-              <Tile
-                label="Last payment"
-                value={lastPayment ? formatMoney(lastPayment.amount) : "None yet"}
-                hint={lastPayment?.settled_at ? fmtDateTime(lastPayment.settled_at) : "Nothing has been charged"}
-                icon={HiCash}
-              />
-            </div>
-
-            {/* ── Seats ──────────────────────────────────────────────────── */}
-            <section className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <HiUserGroup className="w-4 h-4 text-purple-500" />
-                <h2 className="text-sm font-bold text-slate-800">People on this plan</h2>
-                <FieldHelp surface={SURFACE} field="usage" label="how people are counted" className="mb-0" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                {meters.map((meter) => <SeatMeter key={meter.key} meter={meter} />)}
-              </div>
-              {meters.some((m) => m.over || m.full) && (
-                <p className="text-[11px] text-slate-500 mt-4 pt-3 border-t border-slate-100">
-                  A plan change is refused while you have more people than the new plan allows. Move up a plan, or remove people first.
-                </p>
-              )}
-            </section>
+            {/* ── What you are on, what it gives you, how much is left ────── */}
+            <CurrentPlanCard
+              subscription={sub}
+              usage={usage}
+              lastPayment={lastPayment}
+              plans={plans}
+              // The same gate the bottom-of-page section used to carry: a free
+              // plan can't be cancelled (#235 CANNOT_CANCEL_FREE_PLAN) and one
+              // already set to end has its Undo in the notice above instead.
+              canCancel={sub.is_entitled && !free && !sub.cancel_at_period_end}
+              onCancel={() => { setCancelError(""); setCancelling(true); }}
+              busy={acting}
+              surface={SURFACE}
+            />
           </>
         )}
 
         {/* ── The catalogue ───────────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <div className="flex items-center">
-            <h2 className="text-lg font-bold text-slate-900">
-              {sub ? "Change your plan" : "Choose a plan"}
-            </h2>
-            <FieldHelp surface={SURFACE} field="plans" label="moving between plans" className="mb-0 ml-1" />
+        <section className="space-y-4 pt-2">
+          <div className="min-w-0">
+            <div className="flex items-center">
+              <h2 className="text-lg font-bold text-slate-900">
+                {sub ? "Change your plan" : "Choose a plan"}
+              </h2>
+              <FieldHelp surface={SURFACE} field="plans" label="moving between plans" className="mb-0 ml-1" />
+            </div>
+            <p className="text-sm text-slate-500 mt-1">
+              Every plan covers the whole workspace — you pay for the organisation, not for each person.
+            </p>
           </div>
           {plansError ? (
             <Notice tone="error">{plansError}</Notice>
@@ -360,9 +335,12 @@ export default function BillingOverviewPage() {
               currentPlan={plan}
               scheduledCode={scheduled?.plan_code}
               periodEnd={scheduled?.effective_at || sub?.current_period_end}
+              cycle={cycle}
+              onCycleChange={setCycle}
               onChoose={choosePlan}
               onSchedule={schedulePlan}
               busy={acting || checkout.busy}
+              help={<FieldHelp surface={SURFACE} field="billing_cycle" label="paying monthly or yearly" className="mb-0" />}
             />
           )}
         </section>
@@ -376,20 +354,6 @@ export default function BillingOverviewPage() {
           />
         )}
 
-        {/* ── Leaving. Absent for a free plan, which has nothing to stop. ── */}
-        {sub && sub.is_entitled && !free && !sub.cancel_at_period_end && (
-          <section className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-sm font-bold text-slate-800">Thinking of leaving?</h2>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                You can stop the plan renewing and keep everything working until the period you’ve paid for runs out.
-              </p>
-            </div>
-            <button type="button" onClick={() => { setCancelError(""); setCancelling(true); }} disabled={acting} className={`${DANGER_BTN} shrink-0`}>
-              <HiExclamationCircle className="w-4 h-4" /> Cancel my plan
-            </button>
-          </section>
-        )}
       </main>
 
       {changing && (

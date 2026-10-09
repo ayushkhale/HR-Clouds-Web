@@ -146,8 +146,13 @@ const cycleOf = (row) => {
   return "monthly";
 };
 
-/** "Starter Monthly" → "Starter": the tier's name, without the cycle word. */
-const tierName = (name, code) =>
+/**
+ * "Starter Monthly" → "Starter": the tier's name, without the cycle word.
+ * Exported because the HR billing catalogue groups the live #225 rows into the
+ * same tiers this file does, and two copies of this rule would be two places
+ * for one tier to end up labelled differently in-app and on the pricing page.
+ */
+export const tierName = (name, code) =>
   String(name || "").replace(/\s+(monthly|yearly|annual|annually|lifetime)$/i, "").trim()
   || humanize(tierOf(code));
 

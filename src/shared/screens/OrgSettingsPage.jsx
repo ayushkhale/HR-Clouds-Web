@@ -1,18 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // OrgSettingsPage.jsx — "Company Settings": every rule the organisation runs
-// on, in one place, with what each one is set to today (#242, #244).
+// on, in one place, with what each one is set to today and — since Phase 2 —
+// the ability to change it (#242, #244, #246, #247).
 //
 // Contract: public/ref docs/md_settings/combined_api_analysis.md; the design
 // brief is md_settings/frontend_settings_ui_ux_architecture.md.
-//
-// WHY THIS SCREEN IS READ-ONLY. Settings Phase 1 ships the catalogue and the
-// read plane. The write plane (`PUT /settings/groups/:key` and its reset) is
-// Phase 2 and is not deployed. So this is a discovery and audit screen, not a
-// form: it answers "what are our rules, and which ones have we changed", and
-// hands anyone who wants to change something to the module screen that already
-// owns it. Editable-looking inputs with nothing behind them would be the
-// button-that-403s §2 exists to prevent — when the write plane lands, the
-// cards grow inputs and this comment gets deleted, not worked around.
 //
 // It does NOT replace the module settings screens, by explicit instruction
 // (the brief's §1.4): Payroll Settings, Document Settings, Letterhead,
@@ -25,20 +17,37 @@
 // NOT_READABLE. So the manager sees the same screen with less in it, which is
 // the parity rule working rather than a second screen pretending to be it.
 //
+// WHY A SECTION RAIL RATHER THAN A TAB STRIP. This page is a settings hub with
+// five sections and up to twenty-six cards, and a horizontal strip gave it the
+// shape of a report: the eye crossed the full width from a setting's label to
+// its control, and the five sections were a row of chips with no sense of
+// where you were. The rail makes the content column a readable width, keeps
+// the section list visible while scrolling, and is the shape every settings
+// screen a person already uses has. Below `lg` there is no room for it, so it
+// falls back to the house `FilterTabs` — the same options, the same state.
+//
+// WHY THERE IS NO LEGEND STRIP. There used to be four grey sentences under the
+// search box explaining "changed", risk, hidden groups and the save conflict.
+// Four explanations stacked above the thing they explain is a disclaimer, not
+// help. Each one now sits on its own subject (§10's "beside what it
+// explains"): "changed" and risk on the section's own summary line, the
+// hidden-group hint on the locked card itself, and the conflict hint on the
+// conflict banner — which only ever appears once it has happened.
+//
 // Traps:
 //   · A group that is missing is NOT an error. `unavailable_groups[]` carries
 //     NOT_READABLE (role), NOT_ENTITLED (plan) or READ_FAILED (fault), and
 //     only the last of those is worth a retry (§7).
-//   · The tabs come from the catalogue, not from a hardcoded list, so a module
-//     the backend adds appears without a frontend release (the brief's "zero
-//     maintenance burden"). Only modules with something in them get a tab.
+//   · The sections come from the catalogue, not from a hardcoded list, so a
+//     module the backend adds appears without a frontend release (the brief's
+//     "zero maintenance burden"). Only modules with something in them appear.
 //   · Links are built from the reader's OWN workspace prefix, never a
 //     hardcoded /dashboard/hr path — a manager following one must stay in the
 //     manager workspace or the route gate bounces them (§2).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo, useState } from "react";
-import { HiSearch, HiX } from "react-icons/hi";
+import { HiChevronRight, HiSearch, HiX } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../components/DashboardTopBar";
 import Skeleton from "../components/Skeleton";
@@ -47,7 +56,8 @@ import { useCurrentWorkspace } from "../attendance/paths";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import useSettingsHub from "../settings/useSettingsHub";
 import {
-  displaySettingValue, editRouteFor, moduleLabel, searchSettings, surfaceRouteFor, tabsFor,
+  displaySettingValue, editRouteFor, moduleIcon, moduleLabel, searchSettings,
+  surfaceRouteFor, tabsFor,
 } from "../settings/settingsMeta";
 import { SurfaceHubCard } from "../settings/settingsUi";
 import SettingsGroupForm from "../settings/SettingsGroupForm";
@@ -70,8 +80,8 @@ export default function OrgSettingsPage() {
   const inWorkspace = (path) => (workspace ? `/dashboard/${workspace}${path}` : null);
 
   const tabs = useMemo(() => tabsFor(modules), [modules]);
-  // Default to the first tab that exists, so the page never opens empty on a
-  // role (or plan) whose first module happens to be missing.
+  // Default to the first section that exists, so the page never opens empty on
+  // a role (or plan) whose first module happens to be missing.
   const activeTab = tab && tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key || null;
 
   const results = useMemo(
@@ -85,14 +95,13 @@ export default function OrgSettingsPage() {
     [groups, activeTab],
   );
 
-
   // Policy surfaces grouped by the screen that manages them, so four registry
-  // entries backed by one table become one card rather than four.
+  // entries backed by one table become one row rather than four.
   const surfaceCards = useMemo(() => {
     const byRoute = new Map();
     for (const surface of surfacesByModule[activeTab] || []) {
       const route = surfaceRouteFor(surface);
-      // No screen we can point at means no card: a dead link is worse than a
+      // No screen we can point at means no row: a dead link is worse than a
       // missing one, and the catalogue lists surfaces we may not have built.
       if (!route) continue;
       const key = route.path;
@@ -102,11 +111,17 @@ export default function OrgSettingsPage() {
     return [...byRoute.values()];
   }, [surfacesByModule, activeTab]);
 
-  const tabOptions = useMemo(
-    () => tabs.map((t) => ({
-      value: t.key,
-      label: `${t.label}${countFor(groups, t.key)}`,
-    })),
+  /** What this section adds up to — the line under its heading. */
+  const summary = useMemo(() => {
+    const settingCount = visibleGroups.reduce((n, g) => n + (entriesByGroup[g.key]?.length || 0), 0);
+    const changed = visibleGroups.reduce((n, g) => n + (g.nonDefaultKeys || []).length, 0);
+    const risky = visibleGroups.some((g) =>
+      (entriesByGroup[g.key] || []).some((e) => e.risk === "high" || e.risk === "medium"));
+    return { settingCount, changed, risky };
+  }, [visibleGroups, entriesByGroup]);
+
+  const sectionOptions = useMemo(
+    () => tabs.map((t) => ({ value: t.key, label: `${t.label}${countFor(groups, t.key)}` })),
     [tabs, groups],
   );
 
@@ -141,16 +156,16 @@ export default function OrgSettingsPage() {
               </div>
             )}
 
-            {/* One search across everything, because nobody knows which tab a
-                setting lives in — the brief's whole §6. */}
-            <div className="relative">
+            {/* One search across everything, because nobody knows which
+                section a setting lives in — the brief's whole §6. */}
+            <div className="relative max-w-2xl">
               <HiSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search every setting — try “cutoff”, “retention” or “grace”"
-                className="w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-10 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition"
+                className="w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-10 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition"
                 aria-label="Search settings"
               />
               {query && (
@@ -159,32 +174,6 @@ export default function OrgSettingsPage() {
                 </button>
               )}
             </div>
-
-            {/* The three words on this page that aren't self-explanatory, each
-                introduced once (§10: once per concept per screen). They sit on
-                a legend rather than on every card, because the cards repeat
-                and an ⓘ per card would be the same hint a dozen times. */}
-            {!searching && (
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-slate-500">
-                <span className="inline-flex items-center whitespace-nowrap">
-                  <span className="font-semibold text-purple-700">Changed</span>
-                  <span className="ml-1">= set away from the default</span>
-                  <FieldHelp surface={SURFACE} field="non_default_keys" label="what “changed” means" size="sm" className="mb-0" />
-                </span>
-                <span className="inline-flex items-center whitespace-nowrap">
-                  <span>Some settings need care</span>
-                  <FieldHelp surface={SURFACE} field="risk" label="settings that need care" size="sm" className="mb-0" />
-                </span>
-                <span className="inline-flex items-center whitespace-nowrap">
-                  <span>Not everything is shown to everyone</span>
-                  <FieldHelp surface={SURFACE} field="unavailable_groups" label="why some settings are hidden" size="sm" className="mb-0" />
-                </span>
-                <span className="inline-flex items-center whitespace-nowrap">
-                  <span>Two people can’t overwrite each other</span>
-                  <FieldHelp surface={SURFACE} field="etag_conflict" label="what happens if two people edit at once" size="sm" className="mb-0" />
-                </span>
-              </div>
-            )}
 
             {searching ? (
               <SearchResults
@@ -198,17 +187,70 @@ export default function OrgSettingsPage() {
                 There are no settings you can see here. They belong to an HR administrator.
               </p>
             ) : (
-              <>
-                <FilterTabs options={tabOptions} value={activeTab} onChange={setTab} />
+              <div className="grid lg:grid-cols-[15rem_minmax(0,1fr)] gap-6 items-start">
+                {/* The rail, on screens with room for it. `display:none` keeps
+                    the hidden one out of the grid entirely, so each breakpoint
+                    gets exactly one navigation and no empty column. */}
+                <nav className="hidden lg:block lg:sticky lg:top-6 space-y-1" aria-label="Settings sections">
+                  {tabs.map((t) => {
+                    const Icon = moduleIcon(t.key);
+                    const active = t.key === activeTab;
+                    const n = groups.filter((g) => g.module_key === t.key).length;
+                    return (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setTab(t.key)}
+                        aria-current={active ? "page" : undefined}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm font-semibold transition ${
+                          active
+                            ? "bg-purple-50 text-purple-800 ring-1 ring-purple-200"
+                            : "text-slate-600 hover:bg-slate-100/70 hover:text-slate-900"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 shrink-0 ${active ? "text-purple-600" : "text-slate-400"}`} />
+                        <span className="min-w-0 truncate">{t.label}</span>
+                        {n > 0 && (
+                          <span className={`ml-auto shrink-0 text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-full ${active ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-500"}`}>
+                            {n}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
 
-                <div className="space-y-4">
-                  {surfaceCards.map(({ route, surfaces }) => (
-                    <SurfaceHubCard
-                      key={route.path}
-                      surfaces={surfaces}
-                      to={{ ...route, path: inWorkspace(route.path) }}
-                    />
-                  ))}
+                <div className="lg:hidden">
+                  <FilterTabs options={sectionOptions} value={activeTab} onChange={setTab} />
+                </div>
+
+                <div className="min-w-0 space-y-4">
+                  {/* The section's own heading, and the two pieces of
+                      vocabulary this page needs — each shown only when the
+                      section actually contains the thing it describes. */}
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-bold text-slate-900">{moduleLabel(activeTab)}</h2>
+                    <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                      <span>
+                        {summary.settingCount} setting{summary.settingCount === 1 ? "" : "s"} in{" "}
+                        {visibleGroups.length} group{visibleGroups.length === 1 ? "" : "s"}
+                      </span>
+                      {summary.changed > 0 && (
+                        <span className="inline-flex items-center whitespace-nowrap">
+                          <span aria-hidden="true" className="mr-1.5">·</span>
+                          <span className="font-semibold text-purple-700">{summary.changed} changed from the default</span>
+                          <FieldHelp surface={SURFACE} field="non_default_keys" label="what “changed” means" size="sm" className="mb-0" />
+                        </span>
+                      )}
+                      {summary.risky && (
+                        <span className="inline-flex items-center whitespace-nowrap">
+                          <span aria-hidden="true" className="mr-1.5">·</span>
+                          <span>some need care</span>
+                          <FieldHelp surface={SURFACE} field="risk" label="settings that need care" size="sm" className="mb-0" />
+                        </span>
+                      )}
+                    </p>
+                  </div>
 
                   {visibleGroups.map((group) => {
                     const route = editRouteFor(group);
@@ -221,9 +263,30 @@ export default function OrgSettingsPage() {
                         onSaved={applyWrite}
                         onReload={() => reload()}
                         showToast={showToast}
+                        surface={SURFACE}
                       />
                     );
                   })}
+
+                  {/* Policy areas: not settings at all, but whole screens that
+                      manage many records. Kept apart and visually quieter, so
+                      a list of links never reads as something editable here. */}
+                  {surfaceCards.length > 0 && (
+                    <section className="pt-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                        Managed on their own screens
+                      </h3>
+                      <div className="space-y-2">
+                        {surfaceCards.map(({ route, surfaces }) => (
+                          <SurfaceHubCard
+                            key={route.path}
+                            surfaces={surfaces}
+                            to={{ ...route, path: inWorkspace(route.path) }}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
 
                   {visibleGroups.length === 0 && surfaceCards.length === 0 && (
                     <p className="text-sm text-slate-500 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
@@ -231,7 +294,7 @@ export default function OrgSettingsPage() {
                     </p>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </>
         )}
@@ -252,7 +315,7 @@ function countFor(groups, moduleKey) {
 
 /**
  * Search hits across every module. Each one says where it lives, because
- * "which tab is this in" is the question that brought them to the search box.
+ * "which section is this in" is the question that brought them to the search box.
  */
 function SearchResults({ results, groupsByKey, inWorkspace, onClear }) {
   if (results.length === 0) {
@@ -267,7 +330,7 @@ function SearchResults({ results, groupsByKey, inWorkspace, onClear }) {
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2 max-w-4xl">
       {results.map((entry) => {
         const group = groupsByKey[entry.group_key];
         const route = editRouteFor(group);
@@ -287,8 +350,8 @@ function SearchResults({ results, groupsByKey, inWorkspace, onClear }) {
                 </span>
               )}
               {route && (
-                <Link to={inWorkspace(route.path)} className="text-xs font-bold text-purple-700 hover:text-purple-900">
-                  {route.label}
+                <Link to={inWorkspace(route.path)} className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 hover:text-purple-900">
+                  {route.label} <HiChevronRight className="w-3.5 h-3.5" />
                 </Link>
               )}
             </div>

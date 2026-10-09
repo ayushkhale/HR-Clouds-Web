@@ -38,6 +38,7 @@ import {
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import ReasonDialog from "../components/ReasonDialog";
+import FieldHelp from "../fieldHelp/FieldHelp";
 import { TONE_CLASSES } from "../attendance/enums";
 import { fmtDateTime } from "../attendance/dates";
 import { settingsAPI } from "../api";
@@ -71,7 +72,7 @@ const sameValue = (a, b) => {
   return String(a) === String(b);
 };
 
-export default function SettingsGroupForm({ group, entries, editTo, onSaved, onReload, showToast }) {
+export default function SettingsGroupForm({ group, entries, editTo, onSaved, onReload, showToast, surface }) {
   const rows = useMemo(() => entries || [], [entries]);
   // Memoised: it feeds the patch diff, and a fresh {} each render would make
   // that recompute (and the card re-render) on every keystroke in any card.
@@ -240,7 +241,12 @@ export default function SettingsGroupForm({ group, entries, editTo, onSaved, onR
             ? <HiExclamationCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
             : <HiLockClosed className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />}
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-slate-700">{reason.label}</p>
+            {/* The ⓘ explaining why groups go missing lives here, on a group
+                that has gone missing — not on a legend above the page. */}
+            <p className="text-xs font-bold text-slate-700 flex items-center">
+              {reason.label}
+              {surface && <FieldHelp surface={surface} field="unavailable_groups" label="why some settings are hidden" size="sm" className="mb-0" />}
+            </p>
             <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{reason.detail}</p>
           </div>
           {reason.retry && (
@@ -263,7 +269,12 @@ export default function SettingsGroupForm({ group, entries, editTo, onSaved, onR
 
         {conflict && (
           <div className="mx-5 mt-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 px-4 py-3 text-xs text-slate-700">
-            <span className="flex-1">{error}</span>
+            {/* The "two people can't overwrite each other" hint belongs here,
+                on the one screen state where that has actually happened. */}
+            <span className="flex-1">
+              {error}
+              {surface && <FieldHelp surface={surface} field="etag_conflict" label="what happens if two people edit at once" size="sm" className="mb-0" />}
+            </span>
             <button type="button" onClick={onReload} className={`${SECONDARY} shrink-0 !py-1.5`}>
               <HiRefresh className="w-3.5 h-3.5" /> Load the latest
             </button>
@@ -281,8 +292,22 @@ export default function SettingsGroupForm({ group, entries, editTo, onSaved, onR
             const editable = canWrite && isEditable(entry);
             const hint = rangeHint(entry);
             const id = `set-${group.key}-${entry.key}`;
+            const wide = editable && entry.data_type === "array";
             return (
-              <div key={entry.key} className="px-5 py-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-x-6 gap-y-2 items-start">
+              // A fixed control column rather than `auto`, so every row's
+              // input starts on the same line down the card. With `auto` a
+              // long enum made one row's control twice the width of the next
+              // and the card read as a ragged edge.
+              //
+              // A list is the exception: its chips, its text box AND its Add
+              // button cannot share 14rem without the placeholder being cut
+              // off, so a list drops below its label and takes the full row.
+              <div
+                key={entry.key}
+                className={`px-5 py-3 grid gap-x-5 gap-y-2 items-center transition-colors ${
+                  wide ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-[minmax(0,1fr)_14rem]"
+                } ${edited ? "bg-fuchsia-50/40" : ""}`}
+              >
                 <div className="min-w-0">
                   <label htmlFor={editable ? id : undefined} className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 flex-wrap">
                     {entry.label}
@@ -295,7 +320,7 @@ export default function SettingsGroupForm({ group, entries, editTo, onSaved, onR
                   )}
                   {hint && <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>}
                 </div>
-                <div className="sm:w-56 sm:justify-self-end w-full">
+                <div className={`w-full min-w-0 ${wide ? "sm:max-w-lg" : ""}`}>
                   {editable ? (
                     <SettingInput
                       id={id}
@@ -305,7 +330,7 @@ export default function SettingsGroupForm({ group, entries, editTo, onSaved, onR
                       onChange={(v) => setEdits((e) => ({ ...e, [entry.key]: v }))}
                     />
                   ) : (
-                    <span className="block sm:text-right text-xs font-bold text-slate-800">
+                    <span className="block text-xs font-bold text-slate-800">
                       {group.hasValues ? displaySettingValue(stored[entry.key], entry) : "Couldn’t load"}
                     </span>
                   )}

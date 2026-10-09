@@ -3674,6 +3674,14 @@
             "enabled": true,
             "question": "What is the difference between moving up to a dearer plan and scheduling a cheaper one, and when is each charged?"
           }
+        },
+        "billing_cycle": {
+          "tier": "onboarding",
+          "hint": "Paying for a year costs less than twelve monthly payments, but it is taken in one go and renews a year at a time.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between paying for a subscription monthly and yearly, and what happens at renewal on each?"
+          }
         }
       }
     },
@@ -3863,7 +3871,7 @@
     },
     "settings.hub": {
       "kind": "data",
-      "description": "Company Settings (OrgSettingsPage) — the read-only settings hub. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields.",
+      "description": "Company Settings (OrgSettingsPage) — the settings hub: a section rail, editable group cards and one search. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields.",
       "workspaces": [
         "hr",
         "manager"

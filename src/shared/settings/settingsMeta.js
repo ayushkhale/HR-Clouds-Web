@@ -26,6 +26,9 @@
 // bare JSON scalar (§4: no raw enum, §5: never a dash, §6: plain words).
 // ─────────────────────────────────────────────────────────────────────────────
 
+import {
+  HiCalendar, HiCash, HiClock, HiDocumentText, HiOfficeBuilding, HiAdjustments,
+} from "react-icons/hi";
 import { humanize } from "../attendance/enums";
 import { formatMoney } from "../utils/formatUtils";
 import { fmtDate } from "../attendance/dates";
@@ -47,6 +50,20 @@ export const MODULE_TABS = [
 const MODULE_LABEL = Object.fromEntries(MODULE_TABS.map((m) => [m.key, m.label]));
 
 export const moduleLabel = (key) => MODULE_LABEL[key] || humanize(key) || "Other";
+
+/* One icon per module, for the section rail. They are the same icons these
+   areas already carry in the sidebar, so the rail reads as the product's own
+   map rather than a second vocabulary. A module we don't know about gets the
+   generic one rather than nothing, so an unknown tab still looks deliberate. */
+const MODULE_ICONS = {
+  organization: HiOfficeBuilding,
+  payroll: HiCash,
+  document: HiDocumentText,
+  attendance: HiClock,
+  leave: HiCalendar,
+};
+
+export const moduleIcon = (key) => MODULE_ICONS[key] || HiAdjustments;
 
 /**
  * The tabs to show, in the brief's order, with any unknown module appended

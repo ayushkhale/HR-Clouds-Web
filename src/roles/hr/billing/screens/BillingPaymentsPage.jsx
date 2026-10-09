@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  HiBadgeCheck, HiChevronLeft, HiClipboardList, HiDocumentText,
+  HiBadgeCheck, HiChevronDown, HiChevronLeft, HiClipboardList, HiDocumentText,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
@@ -57,15 +57,23 @@ function Ledger({ title, icon: Icon, count, help, children, open, onToggle }) {
           type="button"
           onClick={onToggle}
           aria-expanded={open}
-          className="flex items-center gap-2 min-w-0 text-left flex-1 cursor-pointer group"
+          className="flex items-center gap-2.5 min-w-0 text-left flex-1 cursor-pointer group"
         >
           <Icon className="w-4 h-4 shrink-0 text-purple-500" />
           <span className="text-sm font-bold text-slate-800 group-hover:text-purple-700 transition truncate">
-            {title}{count != null ? ` (${count})` : ""}
+            {title}
           </span>
-          <span className={`ml-auto text-[11px] font-bold text-purple-600 shrink-0 ${open ? "" : "opacity-70"}`}>
-            {open ? "Hide" : "Show"}
-          </span>
+          {/* The count as a pill rather than "(2)" in the heading: it is a fact
+              about the contents, not part of what the section is called. */}
+          {count != null && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold tabular-nums">
+              {count}
+            </span>
+          )}
+          <HiChevronDown
+            className={`ml-auto w-4 h-4 shrink-0 text-slate-400 group-hover:text-purple-600 transition-transform ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
         </button>
         {/* Beside the fold toggle, never inside it: a button in a button is
             invalid and the click would fold the card (FieldHelp.jsx). */}
@@ -182,17 +190,17 @@ export default function BillingPaymentsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm min-w-[820px]">
                 <thead>
-                  <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    <th className="px-6 py-4">When</th>
-                    <th className="px-6 py-4">Plan</th>
-                    <th className="px-6 py-4">
+                  <tr className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 tracking-wider border-b border-slate-100">
+                    <th className="px-6 py-3.5">When</th>
+                    <th className="px-6 py-3.5">Plan</th>
+                    <th className="px-6 py-3.5">
                       <span className="inline-flex items-center whitespace-nowrap">
                         <HelpLabel text="What for" help={{ surface: SURFACE, field: "intent" }} />
                       </span>
                     </th>
-                    <th className="px-6 py-4 text-right">Amount</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">
+                    <th className="px-6 py-3.5 text-right">Amount</th>
+                    <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5">
                       <span className="inline-flex items-center whitespace-nowrap">
                         <HelpLabel text="Invoice" help={{ surface: SURFACE, field: "invoice_number" }} />
                       </span>
@@ -202,17 +210,19 @@ export default function BillingPaymentsPage() {
                 <tbody className="divide-y divide-slate-50">
                   {state.rows.map((row) => (
                     <tr key={row.id} {...rowPreviewProps(() => setSelected(row), "Payment details")}>
-                      <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                      <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap tabular-nums">
                         {fmtDate(row.settled_at || row.created_at)}
                       </td>
-                      <td className="px-6 py-4 font-semibold text-slate-800">{row.plan?.name || "N/A"}</td>
-                      <td className="px-6 py-4 text-slate-600">{intentLabel(row.intent)}</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-6 py-3.5 font-semibold text-slate-800">{row.plan?.name || "N/A"}</td>
+                      <td className="px-6 py-3.5 text-slate-500">{intentLabel(row.intent)}</td>
+                      {/* The amount is what the reader came for, so it is the
+                          one thing on the row set above body size. */}
+                      <td className="px-6 py-3.5 text-right text-[15px] font-bold text-slate-900 tabular-nums whitespace-nowrap">
                         {formatMoney(row.amount)}
                       </td>
-                      <td className="px-6 py-4"><BillingBadge meta={paymentStatusMeta(row.status)} /></td>
-                      <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
-                        {row.invoice_number || <span className="text-slate-400">Not yet</span>}
+                      <td className="px-6 py-3.5"><BillingBadge meta={paymentStatusMeta(row.status)} /></td>
+                      <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap tabular-nums text-[13px]">
+                        {row.invoice_number || <span className="text-slate-400 tracking-normal">Not yet</span>}
                       </td>
                     </tr>
                   ))}
