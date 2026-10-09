@@ -391,6 +391,49 @@ export function yearlySaving(tier) {
 export const bestSavingPct = (tiers = []) =>
   tiers.reduce((best, tier) => Math.max(best, yearlySaving(tier)?.pct || 0), 0);
 
+/* ─── The rank mark on the premium banner ──────────────────────────────────
+   One image per paid tier, in price order, so the banner says at a glance
+   WHERE this organisation sits rather than only that it pays us something.
+
+   The rank is the tier's POSITION among the paid tiers of the live
+   catalogue — never a hardcoded "starter → bronze" map. A backend that adds
+   a tier, renames one or reprices one therefore re-ranks the art with no
+   frontend release, which is the same rule the catalogue cards already
+   follow. It also means the marks can never disagree with the price order
+   shown directly beneath them.
+
+   The free tier has no mark and never reaches here: the premium skin is for
+   an entitled PAID plan only (CurrentPlanCard). A catalogue deeper than this
+   list tops out at the last mark rather than running out, so the dearest
+   plan always has one.
+
+   A plan code that isn't in the catalogue any more (withdrawn from sale)
+   returns null, and the banner simply renders without art (§7 — gate on what
+   the server returned). */
+const RANK_ART = [
+  // Lowest paid tier
+  "https://cdn3d.iconscout.com/3d/premium/thumb/bronze-rank-3d-icon-png-download-8955734.png",
+  "https://cdn3d.iconscout.com/3d/premium/thumb/rank-silver-3d-icon-png-download-9325593.png",
+  "https://cdn3d.iconscout.com/3d/premium/thumb/gold-rank-3d-icon-png-download-8955735.png",
+  // Anything above the top three
+  "https://cdn3d.iconscout.com/3d/premium/thumb/rank-mythril-3d-icon-png-download-10163274.png",
+];
+
+/**
+ * The rank mark for a subscription's plan, or null.
+ * @param {string} planCode  #226 `subscription.plan.code`
+ * @param {object[]} rows    #225 rows, flat
+ */
+export function rankArtFor(planCode, rows) {
+  if (!planCode) return null;
+  // Paid tiers only, already cheapest-first from planTiers().
+  const paid = planTiers(rows).filter((t) => (parseFloat(t.monthly?.amount) || 0) > 0);
+  // Either cycle of a tier is the same rank — paying yearly is not a promotion.
+  const index = paid.findIndex((t) => t.monthly?.code === planCode || t.yearly?.code === planCode);
+  if (index < 0) return null;
+  return RANK_ART[Math.min(index, RANK_ART.length - 1)];
+}
+
 /** The two positions of the billing-cycle toggle. */
 export const CYCLE_OPTIONS = [
   { value: "monthly", label: "Monthly" },

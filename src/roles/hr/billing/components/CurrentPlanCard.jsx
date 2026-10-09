@@ -39,19 +39,12 @@ import { formatMoney } from "../../../../shared/utils/formatUtils";
 import { isComingSoon } from "../../../../shared/config/plans";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import {
-  CYCLE_LABEL, cycleEveryLabel, featureName, isFreePlan, seatLine, seatMeters,
-  subscriptionStatusMeta,
+  CYCLE_LABEL, cycleEveryLabel, featureName, isFreePlan, rankArtFor, seatLine,
+  seatMeters, subscriptionStatusMeta,
 } from "../billingMeta";
 import { BillingBadge, SeatMeter } from "./billingUi";
 
 const HERO = "bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95]";
-
-/* The membership mark on the premium banner. A remote URL, matching how all
-   three dashboards supply their PageHeader art — swapping it for a local
-   asset is fine, but do it for all four at once rather than leaving the app
-   with two conventions. It is decoration: if it 404s the banner is unchanged
-   apart from a gap, because the layout sizes it rather than being sized by it. */
-const ART = "https://cdn3d.iconscout.com/3d/premium/thumb/rank-silver-3d-icon-png-download-10163266.png";
 const HERO_BTN = "px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-white/15 border border-white/25 hover:bg-white/25 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5 backdrop-blur-sm";
 const PLAIN_BTN = "px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5";
 
@@ -101,6 +94,11 @@ export default function CurrentPlanCard({
   const features = catalogRow?.feature_keys || [];
   const limits = catalogRow?.limits || null;
 
+  // Which rank mark this plan earns, from its position among the paid tiers
+  // of the live catalogue (billingMeta). Null when the plan is no longer on
+  // sale, and the banner then renders without art rather than guessing.
+  const art = rankArtFor(plan?.code, plans);
+
   return (
     <div className="space-y-4">
       <section className={`rounded-2xl overflow-hidden ${premium ? `${HERO} shadow-sm` : "bg-white border border-slate-100 shadow-xs"}`}>
@@ -145,19 +143,21 @@ export default function CurrentPlanCard({
               )}
             </div>
 
-            {/* Decorative art, the same way the three dashboards carry theirs
-                in PageHeader: a remote URL, sized by HEIGHT so a different
+            {/* The rank mark, the same way the three dashboards carry their
+                PageHeader art: a remote URL, sized by HEIGHT so a different
                 asset letterboxes rather than resizing the banner, and hidden
-                from screen readers because it says nothing the heading
-                doesn't. It rides only on the premium banner — a tier badge
-                over a free or lapsed plan would be claiming something. Hidden
-                below `sm`, where the width belongs to the words. */}
-            {premium && (
+                from screen readers because it says nothing the heading and
+                the price don't already say. It rides only on the premium
+                banner — a rank over a free or lapsed plan would be claiming
+                something. Hidden below `sm`, where the width belongs to the
+                words. Which mark it is comes from `rankArtFor` above. */}
+            {premium && art && (
               <img
-                src={ART}
+                key={art}
+                src={art}
                 alt=""
                 aria-hidden="true"
-                className="hidden sm:block shrink-0 h-20 md:h-24 w-auto object-contain drop-shadow-2xl select-none pointer-events-none"
+                className="hidden sm:block shrink-0 h-24 md:h-28 w-auto object-contain drop-shadow-2xl select-none pointer-events-none"
               />
             )}
 
