@@ -429,6 +429,10 @@ function RegisterOrgPage() {
                       <div className="mb-1 flex items-baseline">
                         <span className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
                           {price}
+                          {/* Only ever shown beside a hardcoded figure — and
+                              the submit guard below refuses to charge on one,
+                              so the mark warns before the refusal explains. */}
+                          {planSource !== "live" && <span className="align-super text-lg" aria-hidden="true">*</span>}
                         </span>
                         {!isFree && (
                           <span className="text-xs text-gray-400 ml-1">
@@ -468,6 +472,12 @@ function RegisterOrgPage() {
                 );
               })}
             </div>
+
+            {planSource !== "live" && plans.length > 0 && (
+              <p className="mt-6 text-xs text-gray-400 text-center">
+                * Prices may vary according to plans. We’ll confirm the exact amount before anything is charged.
+              </p>
+            )}
           </div>
         )}
 

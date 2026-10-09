@@ -3860,6 +3860,46 @@
           }
         }
       }
+    },
+    "settings.hub": {
+      "kind": "data",
+      "description": "Company Settings (OrgSettingsPage) — the read-only settings hub. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields.",
+      "workspaces": [
+        "hr",
+        "manager"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Every rule your organisation runs on, in one place. You can read them all here; you change each one on the screen that owns it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the Company Settings page show, and why are settings changed on each module's own screen rather than here?"
+          }
+        },
+        "non_default_keys": {
+          "tier": "onboarding",
+          "hint": "“Changed” means someone set this away from the value the system ships with. It’s the quickest way to see what your organisation has customised.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it mean when a setting is marked as changed from the default, and why does that matter when auditing a company's configuration?"
+          }
+        },
+        "unavailable_groups": {
+          "hint": "Some settings aren’t listed for you: they belong to an HR administrator, or they’re part of the product your plan doesn’t include.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why would a group of company settings not be visible to me — what is the difference between a role restriction and a plan restriction?"
+          }
+        },
+        "risk": {
+          "hint": "Marked where a change can cost money or delete data. These need care and, once editing is switched on, a written reason.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which company settings are considered high risk, and what kind of damage can changing them cause?"
+          }
+        }
+      }
     }
   }
 }

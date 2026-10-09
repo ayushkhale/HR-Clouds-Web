@@ -187,6 +187,12 @@ function DashboardSidebar({ role = "guest" }) {
     items: [
       link("Org Chart", ORG_PATHS[workspace].chart, HiShare),
       link("Company Profile", ORG_PATHS[workspace].company, HiLibrary),
+      // Every rule the organisation runs on, in one read-only place. HR and
+      // the manager both get it; the server decides how much of it they see,
+      // so this is one entry rather than a role branch (§2).
+      ...(workspace === "hr" || workspace === "manager"
+        ? [link("Company Settings", `/dashboard/${workspace}/settings`, HiCog)]
+        : []),
       ...(workspace === "hr" ? [
         link("Plan & Billing", "/dashboard/hr/billing", HiCreditCard),
         link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax),

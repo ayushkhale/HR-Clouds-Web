@@ -11,7 +11,8 @@ function Pricing() {
   // a token), a signed-in one gets the live list. The source isn't surfaced
   // here — advertising is not billing, and registration is where the figures
   // have to be the server's.
-  const { plans } = usePlanCatalog();
+  const { plans, source } = usePlanCatalog();
+  const estimated = source === "fallback";
   const saving = bestYearlySavingPct(plans);
 
   function handlePaymentPlanChange() {
@@ -48,10 +49,19 @@ function Pricing() {
             // Cards deal in left to right; the popular one is not singled out
             // by timing, only by its existing badge.
             <Reveal key={plan.tier} variant="rise" index={i} delay={140} className="h-full">
-              <PricingCard plan={plan} billing={billing} />
+              <PricingCard plan={plan} billing={billing} estimated={estimated} />
             </Reveal>
           ))}
         </div>
+
+        {/* The asterisk's other half. Shown only alongside fallback figures, so
+            a live price is never hedged — and a hedged one is never mistaken
+            for a quote. */}
+        {estimated && (
+          <p className="mt-6 text-xs text-primary-500/60 text-center">
+            * Prices may vary according to plans. Check the current price when you sign up.
+          </p>
+        )}
       </div>
     </section>
   );

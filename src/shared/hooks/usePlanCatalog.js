@@ -7,18 +7,25 @@
 // it can produce a buyer who agreed to one number and meets another in the
 // payment window, which is the complaint this whole module exists to prevent.
 //
-// #225 needs a bearer token and the marketing pricing page is public, so there
-// is no single answer, and the hook gives each caller the best one available:
+// Two endpoints serve the same catalogue, and the hook takes the best one the
+// caller can reach:
 //
-//   token present  → the live catalogue, and `source: "live"`
-//   no token       → the hardcoded fallback in plans.js, `source: "fallback"`
-//   fetch failed   → the fallback, `source: "fallback"`, with `error` set
+//   token present  → #225 GET /billing/plans — the only one that marks the
+//                    caller's current plan — falling back to the public route
+//   no token       → GET /plans, the public catalogue
+//   both failed    → the hardcoded copy in plans.js, `source: "fallback"`
 //
-// `source` is not decoration. Registration uses it to refuse to take money on
-// figures it couldn't verify: a visitor who is signed in (every registering
-// user is — #2 requires a guest token) and whose catalogue read failed is told
-// to retry rather than shown prices that might be wrong. The public marketing
-// page ignores it, because advertising is not billing.
+// The public route is why the marketing page no longer has to advertise a
+// hardcoded price. Before it existed the local copy was the ONLY thing a
+// logged-out visitor could be shown, and it rotted invisibly.
+//
+// `source` is not decoration, and it drives two things:
+//   · Registration refuses to take money while it reads "fallback" — a figure
+//     we could not verify must not become a different number in the payment
+//     window.
+//   · The public cards mark a fallback price with an asterisk and say prices
+//     may vary (user decision, 2026-10-09). Live prices carry no asterisk, so
+//     the mark means something: it appears only when we are guessing.
 //
 // An EMPTY live catalogue is not the same as a failed read (§7). The server
 // answering `plans: []` means nothing is on sale, which is a real state and
@@ -33,11 +40,11 @@ import { PLANS, plansFromCatalog, variantFor } from "../config/plans";
  * Shout, in development only, when the hardcoded fallback disagrees with what
  * the server actually sells.
  *
- * This is the whole reason the drift was dangerous: #225 needs a token, so the
- * public pricing page can only ever show the local copy, and NOBODY could tell
- * it had gone stale — the figures only meet on a signed-in screen, where the
- * live ones win silently. Now the first signed-in developer to open any page
- * with plans on it gets told exactly which number moved.
+ * The fallback is now a last resort rather than the public page's only option,
+ * but it is still what a visitor sees when both endpoints are down — the worst
+ * possible moment to be advertising a price from 2026. Nothing else compares
+ * the two copies, so without this the local one rots unnoticed; here, the first
+ * developer to open any page with plans on it is told which number moved.
  *
  * Dev-only and console-only on purpose: a visitor must never be shown our
  * bookkeeping, and the fallback is still the right thing to render.
@@ -80,13 +87,40 @@ function warnOnDrift(live) {
 
   if (drifted.length) {
     console.warn(
-      "[plans] The hardcoded fallback in shared/config/plans.js disagrees with the live catalogue (#225).\n"
-      + "The public pricing page shows the fallback — logged-out visitors are being advertised these figures.\n"
+      "[plans] The hardcoded fallback in shared/config/plans.js disagrees with the live catalogue.\n"
+      + "It is rendered only when BOTH plan endpoints fail — but that is exactly when a visitor is\n"
+      + "advertised these figures, so they still need to be right.\n"
       + drifted.map((line) => `  • ${line}`).join("\n")
-      + "\nFix plans.js, or make #225 public so the marketing page can read it too.",
+      + "\nUpdate PLANS in shared/config/plans.js to match.",
     );
   }
 }
+
+/* ─── One read per page, not one per component ────────────────────────────
+   The pricing page mounts this hook twice — once for the cards, once for the
+   comparison table — and both want the same immutable catalogue. Without a
+   shared promise that is two identical requests on every visit (four in dev,
+   where StrictMode double-mounts). The in-flight promise is shared and the
+   answer is kept for the rest of the session; `reload()` clears it, which is
+   what the "Reload plans" button on registration needs to actually re-ask. */
+let inFlight = null;
+let cached = null;
+
+const readCatalogue = () => {
+  if (cached) return Promise.resolve(cached);
+  if (inFlight) return inFlight;
+  // A signed-in caller prefers #225 because it alone marks their current plan;
+  // everyone else — and anyone whose #225 read fails — takes the public route.
+  inFlight = (tokenHelper.get()
+    ? billingAPI.getPlans().catch(() => billingAPI.getPublicPlans())
+    : billingAPI.getPublicPlans())
+    .then((res) => { cached = res; return res; })
+    .finally(() => { inFlight = null; });
+  return inFlight;
+};
+
+/** Forget the session's catalogue, so the next read really asks the server. */
+export const forgetPlanCatalog = () => { cached = null; inFlight = null; };
 
 /**
  * @param {{ enabled?: boolean }} [options]
@@ -99,20 +133,19 @@ export default function usePlanCatalog({ enabled = true } = {}) {
   const [state, setState] = useState(() => ({
     plans: PLANS,
     source: "fallback",
-    // Only a signed-in visitor has a read to wait for; everyone else is
-    // already looking at their final answer.
-    loading: enabled && Boolean(tokenHelper.get()),
+    // Everyone has a read to wait for now that the catalogue is public.
+    loading: enabled,
     error: null,
   }));
 
   const load = useCallback(async ({ signal } = {}) => {
-    if (!enabled || !tokenHelper.get()) {
+    if (!enabled) {
       setState({ plans: PLANS, source: "fallback", loading: false, error: null });
       return;
     }
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const res = await billingAPI.getPlans();
+      const res = await readCatalogue();
       if (signal?.aborted) return;
       const rows = res?.data?.plans;
       const live = plansFromCatalog(rows);
@@ -127,6 +160,9 @@ export default function usePlanCatalog({ enabled = true } = {}) {
       setState({ plans: live, source: "live", loading: false, error: null });
     } catch (error) {
       if (signal?.aborted) return;
+      // Never cache a failure: the next mount, or the Reload button, must be
+      // free to ask again.
+      forgetPlanCatalog();
       // Keep showing something rather than an empty page, but say plainly that
       // these are not the server's numbers.
       setState({ plans: PLANS, source: "fallback", loading: false, error });
@@ -139,5 +175,8 @@ export default function usePlanCatalog({ enabled = true } = {}) {
     return () => controller.abort();
   }, [load]);
 
-  return { ...state, reload: load };
+  // The caller's Reload button must really re-ask, so it drops the cache first.
+  const reload = useCallback((args) => { forgetPlanCatalog(); return load(args); }, [load]);
+
+  return { ...state, reload };
 }

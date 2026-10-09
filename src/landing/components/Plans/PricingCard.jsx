@@ -13,7 +13,11 @@ import {
 // along so the picker can pre-select it.
 const ctaLabel = (plan) => (plan.tier === "free" ? "Start free" : `Choose ${plan.name}`);
 
-function PricingCard({ plan, billing }) {
+// `estimated` is true only when the catalogue could not be read and these are
+// the hardcoded figures (usePlanCatalog `source: "fallback"`). It marks the
+// price with an asterisk so a guess is never shown as a quote. A live price
+// carries no mark — that is what makes the mark mean something.
+function PricingCard({ plan, billing, estimated = false }) {
   const pclass = {
     container: "pb-12 lg:pb-14",
     bulletColor: "stroke-purple-500",
@@ -53,6 +57,7 @@ function PricingCard({ plan, billing }) {
       <div className="flex items-end gap-x-2 mb-1">
         <p className="font-bold text-4xl sm:text-5xl lg:text-[4rem]/[4rem] text-white">
           {price}
+          {estimated && <span className="align-super text-2xl" aria-hidden="true">*</span>}
         </p>
         <span className="text-white text-sm pb-1">{period}</span>
       </div>

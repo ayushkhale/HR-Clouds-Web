@@ -165,6 +165,9 @@ const OrgChartPage = lazy(() => import("../shared/screens/OrgChartPage"));
 const CompanyProfilePage = lazy(() => import("../shared/screens/CompanyProfilePage"));
 // Billing is HR-only by contract, not by choice: every endpoint but the plan
 // catalogue is gated HR_ONLY, so there is no manager twin of these two screens.
+// Company Settings is shared by HR and the manager: one screen, and the server
+// projects what each role may read (§2). Phase 1 is read-only.
+const OrgSettingsPage = lazy(() => import("../shared/screens/OrgSettingsPage"));
 const BillingOverviewPage = lazy(() => import("../roles/hr/billing/screens/BillingOverviewPage"));
 const BillingPaymentsPage = lazy(() => import("../roles/hr/billing/screens/BillingPaymentsPage"));
 const MyDocumentsPage = lazy(() => import("../shared/screens/MyDocumentsPage"));
@@ -342,6 +345,7 @@ function AppRoutes() {
         {/* Plan & Billing. HR-only: the billing endpoints are gated HR_ONLY and
             refuse platform admins too, so this is a capability one role has
             rather than a screen another role was denied. */}
+        <Route path="/dashboard/hr/settings" element={<OrgSettingsPage />} />
         <Route path="/dashboard/hr/billing" element={<BillingOverviewPage />} />
         <Route path="/dashboard/hr/billing/payments" element={<BillingPaymentsPage />} />
         <Route path="/dashboard/hr/attendance/directory" element={<HRAttendancePage />} />
@@ -493,6 +497,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/documents/compliance" element={<TeamCompliancePage />} />
         <Route path="/dashboard/manager/documents/requests" element={<TeamRequestsPage />} />
         <Route path="/dashboard/manager/my-documents" element={<MyDocumentsPage />} />
+        <Route path="/dashboard/manager/settings" element={<OrgSettingsPage />} />
         <Route path="/dashboard/manager/company-documents" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/manager/company-documents/:documentId" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/manager/my-document-requests" element={<MyRequestsPage />} />

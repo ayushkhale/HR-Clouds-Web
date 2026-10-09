@@ -80,6 +80,21 @@ export const billingAPI = {
     return request(`${B}/plans`);
   },
 
+  /**
+   * GET /plans — the same catalogue, PUBLIC (no token).
+   *
+   * `#225` above sits behind `authenticate`, which the marketing pricing page
+   * cannot satisfy: a visitor who has not signed up has nothing to send. This
+   * route exists so the public site can advertise the real prices instead of a
+   * hardcoded copy that silently rots (see usePlanCatalog).
+   *
+   * Same row shape as `#225` minus `is_current`, which is meaningless without a
+   * tenant — so a signed-in caller still prefers `#225`.
+   */
+  getPublicPlans() {
+    return request("/plans");
+  },
+
   // ───────────────────────────────────────────────────────────────────────────
   //  SUBSCRIPTION STATE
   // ───────────────────────────────────────────────────────────────────────────
