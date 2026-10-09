@@ -106,6 +106,9 @@ export default function useSettingsHub() {
           values: live?.values || null,
           nonDefaultKeys: live?.non_default_keys || [],
           updatedAt: live?.updated_at || null,
+          // The precondition for writing this group (#246/#247 `If-Match`).
+          // Per-group, never the response's top-level ETag.
+          etag: live?.etag || null,
           // Why this group has no numbers, if it has none. A group absent from
           // BOTH lists simply wasn't read (e.g. the values call failed whole).
           unavailableReason: live ? null : unavailableByKey[group.key] || null,
@@ -134,10 +137,37 @@ export default function useSettingsHub() {
     return { groups, entriesByGroup, groupsByKey, entries, surfacesByModule, unavailable, modules };
   }, [state.catalog, state.values]);
 
+  /**
+   * Fold a successful write (#246/#247) back into the loaded values, without
+   * re-reading anything. The reply carries the group's new `values`, its new
+   * `etag` and a freshly computed `non_default_keys`, which is everything
+   * this screen displays — so a re-read would cost a round trip to learn what
+   * we were just told.
+   */
+  const applyWrite = useCallback((groupKey, result) => {
+    if (!result) return;
+    setState((s) => {
+      if (!s.values) return s;
+      const groups = (s.values.groups || []).map((g) => (
+        g.key === groupKey
+          ? {
+            ...g,
+            values: result.values ?? g.values,
+            non_default_keys: result.non_default_keys ?? g.non_default_keys,
+            updated_at: result.updated_at ?? g.updated_at,
+            etag: result.etag ?? g.etag,
+          }
+          : g
+      ));
+      return { ...s, values: { ...s.values, groups } };
+    });
+  }, []);
+
   return {
     ...state,
     ...model,
     catalogVersion: state.catalog?.catalog_version || null,
     reload: load,
+    applyWrite,
   };
 }

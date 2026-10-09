@@ -42,26 +42,28 @@ import { HiSearch, HiX } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../components/DashboardTopBar";
 import Skeleton from "../components/Skeleton";
-import { ErrorState, FilterTabs } from "../attendance/ui";
+import { ErrorState, FilterTabs, Toast, useToast } from "../attendance/ui";
 import { useCurrentWorkspace } from "../attendance/paths";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import useSettingsHub from "../settings/useSettingsHub";
 import {
   displaySettingValue, editRouteFor, moduleLabel, searchSettings, surfaceRouteFor, tabsFor,
 } from "../settings/settingsMeta";
-import { SettingsGroupCard, SurfaceHubCard } from "../settings/settingsUi";
+import { SurfaceHubCard } from "../settings/settingsUi";
+import SettingsGroupForm from "../settings/SettingsGroupForm";
 
 const SURFACE = "settings.hub";
 
 export default function OrgSettingsPage() {
   const workspace = useCurrentWorkspace();
   const hub = useSettingsHub();
+  const { toast, showToast, clearToast } = useToast();
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
 
   const {
     groups, entriesByGroup, groupsByKey, entries, surfacesByModule,
-    modules, loading, error, valuesError, reload,
+    modules, loading, error, valuesError, reload, applyWrite,
   } = hub;
 
   /** Every link on this page is prefixed with the reader's own workspace. */
@@ -118,7 +120,7 @@ export default function OrgSettingsPage() {
             <FieldHelp surface={SURFACE} field="page" label="this page" className="mb-0 ml-1" />
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Every rule your organisation runs on, and what each one is set to today. Open the area that owns a rule to change it.
+            Every rule your organisation runs on, and what each one is set to today. Change them here, or open the area that owns one for its fuller screen.
           </p>
         </div>
 
@@ -177,6 +179,10 @@ export default function OrgSettingsPage() {
                   <span>Not everything is shown to everyone</span>
                   <FieldHelp surface={SURFACE} field="unavailable_groups" label="why some settings are hidden" size="sm" className="mb-0" />
                 </span>
+                <span className="inline-flex items-center whitespace-nowrap">
+                  <span>Two people can’t overwrite each other</span>
+                  <FieldHelp surface={SURFACE} field="etag_conflict" label="what happens if two people edit at once" size="sm" className="mb-0" />
+                </span>
               </div>
             )}
 
@@ -207,12 +213,14 @@ export default function OrgSettingsPage() {
                   {visibleGroups.map((group) => {
                     const route = editRouteFor(group);
                     return (
-                      <SettingsGroupCard
+                      <SettingsGroupForm
                         key={group.key}
                         group={group}
                         entries={entriesByGroup[group.key]}
                         editTo={route ? { ...route, path: inWorkspace(route.path) } : null}
-                        onRetry={() => reload()}
+                        onSaved={applyWrite}
+                        onReload={() => reload()}
+                        showToast={showToast}
                       />
                     );
                   })}
@@ -228,6 +236,8 @@ export default function OrgSettingsPage() {
           </>
         )}
       </main>
+
+      <Toast toast={toast} onClose={clearToast} />
     </>
   );
 }

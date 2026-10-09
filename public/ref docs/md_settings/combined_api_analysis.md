@@ -49,7 +49,7 @@
 5. Batch Entitlement Check: Collects distinct non-null `feature_key` values from candidate groups and calls `resolveEntitlements(ctx.orgId, featureKeys)` once.
 6. Filters `catalog.ENTRIES` for surviving groups, removing deprecated entries unless `include_hidden = true`. Strips `enforcement_hint`.
 7. Attaches matching descriptors from `catalog.SURFACES` (the 49 multi-record policy directory pointers). If `group` was specified, `surfaces` is set to `[]` because surfaces are multi-record domain entities that do not belong to singleton settings groups.
-8. Weak ETag Evaluation: Evaluates `W/"<CATALOG_VERSION>"` (e.g. `W/"2026-10-09.1"`). If `req.headers['if-none-match'] === tag`, returns HTTP `304 Not Modified` immediately. Otherwise sets `ETag` and `Cache-Control: private, max-age=0, must-revalidate` and returns `200 OK`.
+8. Weak ETag Evaluation: Evaluates `W/"<CATALOG_VERSION>"` (e.g. `W/"2026-10-09.2"`). If `req.headers['if-none-match'] === tag`, returns HTTP `304 Not Modified` immediately. Otherwise sets `ETag` and `Cache-Control: private, max-age=0, must-revalidate` and returns `200 OK`.
 
 #### Database Impact, Concurrency & Transactions
 * **Database Operations:** Zero database tables owned. Zero write operations. At most 1–2 cached or direct read queries against organization subscription records inside `entitlementService.hasFeature()`.
@@ -63,7 +63,7 @@
   "success": true,
   "message": "OK",
   "data": {
-    "catalog_version": "2026-10-09.1",
+    "catalog_version": "2026-10-09.2",
     "generated_at": "2026-10-09T08:15:20.123Z",
     "groups": [
       {
@@ -279,7 +279,7 @@
   "success": true,
   "message": "OK",
   "data": {
-    "catalog_version": "2026-10-09.1",
+    "catalog_version": "2026-10-09.2",
     "setting": {
       "key": "payroll_require_separate_checker",
       "registry_ref": 39,
@@ -295,9 +295,9 @@
       "nullable": false,
       "range": null,
       "platform_cap": null,
-      "effect_timing": "next_record",
-      "risk": "medium",
-      "requires_reason": false,
+      "effect_timing": "next_run",
+      "risk": "high",
+      "requires_reason": true,
       "resettable": true,
       "sensitive": false,
       "deprecated": false,
@@ -319,7 +319,9 @@
         "INSUFFICIENT_CHECKERS",
         "SEPARATE_CHECKER_REQUIRED"
       ],
-      "warnings": []
+      "warnings": [
+        "Changes who may approve a payroll run: turning this on requires a second active HR to approve every run, and turning it off lets a single HR approve money alone."
+      ]
     },
     "group": {
       "key": "payroll.authority",
@@ -439,7 +441,7 @@
   "success": true,
   "message": "OK",
   "data": {
-    "catalog_version": "2026-10-09.1",
+    "catalog_version": "2026-10-09.2",
     "org_id": "018e3d55-1234-7890-abcd-ef0123456789",
     "groups": [
       {
@@ -463,7 +465,7 @@
           "pay_day"
         ],
         "updated_at": "2026-10-08T14:32:00.000Z",
-        "etag": "W/\"2026-10-09.1:2026-10-08T14:32:00.000Z\""
+        "etag": "W/\"2026-10-09.2:2026-10-08T14:32:00.000Z\""
       },
       {
         "key": "documents.branding",
@@ -492,7 +494,7 @@
           "accent_color_hex"
         ],
         "updated_at": "2026-10-08T15:00:00.000Z",
-        "etag": "W/\"2026-10-09.1:2026-10-08T15:00:00.000Z\""
+        "etag": "W/\"2026-10-09.2:2026-10-08T15:00:00.000Z\""
       }
     ],
     "unavailable_groups": [
@@ -501,7 +503,7 @@
         "reason": "NOT_ENTITLED"
       }
     ],
-    "etag": "W/\"2026-10-09.1:2026-10-08T15:00:00.000Z\"",
+    "etag": "W/\"2026-10-09.2:2026-10-08T15:00:00.000Z\"",
     "meta": {
       "stores_read": 5,
       "groups_returned": 25,
@@ -622,7 +624,7 @@
       "pay_day"
     ],
     "updated_at": "2026-10-08T14:32:00.000Z",
-    "etag": "W/\"2026-10-09.1:2026-10-08T14:32:00.000Z\"",
+    "etag": "W/\"2026-10-09.2:2026-10-08T14:32:00.000Z\"",
     "settings": [
       {
         "key": "pay_day",
@@ -715,109 +717,83 @@
 
 ---
 
-## 3. Settings Write Plane
+# Phase 2: The Write Plane & Concurrency Guard (APIs #246–#247)
 
-> **Phase 2.** Two HR-only write endpoints that **delegate** each write to the owning
-> module's existing service under optimistic concurrency. The gateway opens no
-> transaction and persists nothing itself; it gates, shapes and checks the patch, then
-> hands the write to the owner. Nothing in the Phase 1 read plane changes.
+## 1. Settings Write Plane
 
-### Shared write conventions
-
-#### `If-Match` optimistic concurrency (both S-5 and S-6)
-- **Required** on every write. Value is the **per-group** weak ETag
-  `W/"<CATALOG_VERSION>:<updated_at ISO>"` obtained from **S-4**
-  (`GET /settings/groups/:groupKey`) `data.etag`, or from a prior write's response.
-  **Do not use the S-3 top-level ETag** — it folds in the max `updated_at` across all
-  stores and is not a valid per-group precondition.
-- The gateway (`settings_etag.utils.parseIfMatch`) validates the outer form and the
-  `catalog_version` segment, then hands the owner the **bare ISO timestamp**, which the
-  owner compares **under its own row lock** (`SELECT … FOR UPDATE`). This proves no
-  competing commit landed between the client's read and the lock.
-- Missing header → `400 SETTINGS_IF_MATCH_REQUIRED`. Malformed (`*`, bare ISO, strong
-  ETag) → `400 SETTINGS_IF_MATCH_INVALID`. Wrong `catalog_version` → `412` with
-  `details.reason = "CATALOG_VERSION_CHANGED"`. Stale timestamp → `412` with
-  `details.current_etag` (the server's current token) and `details.current_updated_at`.
-- **This is the first use of HTTP `412` anywhere in this API.**
-
-#### Write-path retry guidance
-Writes are **not** blindly idempotent — they are **conditional**. On `412`, the correct
-recovery is **re-read the group (S-4), reconcile, resubmit with the fresh `If-Match`** —
-**never** retry the same request. This matters most after a network timeout: the write
-may have committed server-side, so a blind retry risks clobbering a newer value. On
-`409 SETTINGS_CONFIRMATION_REQUIRED` resubmit with `confirm: true`; on
-`422 SETTINGS_REASON_REQUIRED` resubmit with a `reason`. A `503` (entitlement dependency)
-is safe to retry after backoff. A successful write returns a **new** `etag` — adopt it as
-the next `If-Match` with no re-read. Write responses set `Cache-Control: no-store` and do
-**not** honour `If-None-Match`.
-
-#### High-risk confirmation gate
-Eight keys are `risk: "high"` (`payroll_require_separate_checker`,
-`manager_direct_compensation_authority`, `manager_direct_document_authority`,
-`document_require_separate_checker`, `document_retention_days`,
-`document_publish_sync_threshold`, `letter_auto_issue_on_exit`,
-`letter_record_retention_days`). Touching any of them requires **both** a non-empty
-`reason` and `confirm: true`. The reason gate (`422 SETTINGS_REASON_REQUIRED`) is
-evaluated **before** the confirmation gate (`409 SETTINGS_CONFIRMATION_REQUIRED`), and
-the `409` returns verbatim catalog `warnings[]` to show the user before they confirm.
-
-### 5. PUT /api/v1/settings/groups/:groupKey
+### 1. PUT /api/v1/settings/groups/:groupKey
 
 * **API Number / Registry Ref:** S-5 (API Registry #246)
 * **HTTP Method:** `PUT`
 * **Route Path:** `/api/v1/settings/groups/:groupKey`
-* **Purpose & Business Problem Solved:** Lets HR change one or more settings in a group
-  through a single uniform door, while the value rules, audit, and persistence stay with
-  the owning module. Optimistic concurrency (`If-Match`) prevents a slow HR form from
-  silently overwriting a concurrent change; a mass-assignment allowlist and a high-risk
-  confirmation gate prevent accidental or unauthorized changes to money/document
-  authority and irreversible purges.
+* **Purpose & Business Problem Solved:** Provides a unified, atomic endpoint for updating one or more configuration settings within a specific settings group. It delegates value validation, row-level locking, database updates, and domain audit logging directly to the owning module's existing service. Centralizes optimistic concurrency control (`If-Match`), mass-assignment allowlisting, and two-stage safety controls (reason and confirmation) for high-risk settings without creating new settings storage tables.
 
 #### Authentication, Authorization & Security
-* **Authentication Required:** Yes (valid JWT Bearer token).
-* **Allowed Roles:** `hr` **only**. `manager` — even where it can *read* a group — is
-  rejected with `403 FORBIDDEN`. `employee`, `admin`, `super-admin` likewise.
-* **Two independent authorization layers:** route `authorize(['hr'])` at the door, and a
-  per-group `write_roles` check (`projection.isGroupWritable`) in the service — so
-  widening a writer is a one-line catalog data change.
-* **Tenant Isolation:** `orgId` comes from `req.user.orgId` and nowhere else; `values`
-  keys are regex-constrained and intersected with the catalog, so `org_id` is not even
-  representable in a patch.
+* **Authentication Required:** Yes (Valid JWT Bearer token).
+* **Allowed Roles:** `hr` **only**. Requests from `manager`, `employee`, `admin`, or `super-admin` are rejected at the router door with HTTP `403 FORBIDDEN` (`errorCode: "FORBIDDEN"`).
+* **Tenant Isolation:** Enforced strictly via authenticated user token claims (`req.user.orgId`). The caller cannot specify, override, or spoof `orgId` via path, query, or body.
+* **Active Organization Check:** Verified via `requireActiveOrg`. Inactive or suspended tenants receive HTTP `403 FORBIDDEN` (`errorCode: "ORG_NOT_ACTIVE"`).
+* **Group Writability Validation:** Service checks `projection.isGroupWritable(group, req.user.role)` against `group.write_roles`. Groups with empty `write_roles` (e.g. `payroll.deprecated`) reject write attempts with HTTP `405 Method Not Allowed` (`errorCode: "SETTINGS_GROUP_READ_ONLY"`).
+* **Feature Entitlement Check:** Service resolves billing subscription entitlements for `group.featureKey` (e.g. `payroll.access`, `documents.access`) via `resolveEntitlements(orgId)`. Tenants lacking active plan access receive HTTP `403 FORBIDDEN` (`errorCode: "FEATURE_NOT_AVAILABLE"`).
+* **Mass-Assignment Defense:** Gateway builds a strict allowlist: `catalogKeysForGroup ∩ ownerWritableKeys`, explicitly excluding `deprecated: true` and `sensitive: true` entries. Any submitted key outside this allowlist is reported and rejected with HTTP `422 Unprocessable Entity` (`errorCode: "SETTING_NOT_WRITABLE"`), never silently dropped.
+* **Owner-Schema Validation at Gateway (F-P2-1):** The gateway directly executes the domain module's own exported Joi schema using `{ abortEarly: false, allowUnknown: false, stripUnknown: false, convert: true, noDefaults: true }`. This guarantees type conversion (`"5"` $\rightarrow$ `5`), rejects unknown properties, and prevents injecting default values (which would wipe unmentioned fields such as `registered_address_lines`).
+* **High-Risk Two-Gate Safety Shield:** Modifying any setting classified as `risk: "high"` requires both a non-empty `reason` (1..500 characters) and `confirm: true`. The reason gate (`422 SETTINGS_REASON_REQUIRED`) evaluates prior to the confirmation gate (`409 SETTINGS_CONFIRMATION_REQUIRED`), allowing clients to capture business justification before presenting user warnings.
+* **Payload Bounds Protection:** Gateway enforces maximum 60 keys, maximum container nesting depth of 2, and maximum serialized payload size of 65,536 bytes before initiating database I/O.
+* **Prototype Pollution Protection:** Property name schemas enforce regex `^[a-z0-9_]{1,80}$`. Lookups use native `Set` and `Map` instances, rendering `__proto__` and `constructor` attacks inert.
 
 #### Request Parameters & Headers
 * **Request Headers:**
   * `Authorization: Bearer <token>` (Required)
-  * `If-Match: W/"<CATALOG_VERSION>:<updated_at ISO>"` (**Required** — see shared conventions)
+  * `If-Match: W/"<CATALOG_VERSION>:<updated_at ISO>"` (**Required** — per-group weak ETag token obtained from `S-4` `data.etag` or a prior write response. Wildcards `*`, bare timestamps, and strong ETags are rejected with HTTP `400 Bad Request` [`errorCode: "SETTINGS_IF_MATCH_INVALID"`]).
+  * `Content-Type: application/json` (Required)
 * **Path Parameters (`groupKeyParamSchema`):**
-  * `groupKey` (String, Required): Pattern `^[a-z0-9_.]{1,60}$`.
+  * `groupKey` (String, Required): Pattern `^[a-z0-9_.]{1,60}$`. Must match an active group in `catalog.GROUPS`.
 * **Request Body (`updateGroupBodySchema`, `.unknown(false)`):**
-  * `values` (Object, Required): 1–60 keys, each matching `^[a-z0-9_]{1,80}$`; per-key
-    values are validated by the **owner's own Joi**, not here.
-  * `reason` (String, Optional): trimmed 1–500 chars. Required for high-risk keys.
-  * `confirm` (Boolean, Optional): must be `true` for high-risk keys.
+  ```json
+  {
+    "values": {
+      "pay_day": 5
+    },
+    "reason": "Aligning payroll cycle with executive banking schedule",
+    "confirm": true
+  }
+  ```
+* **Request Body Specifications:**
+  | Field | Type | Required? | Nullable? | Validation Constraints & Rules |
+  | :--- | :--- | :---: | :---: | :--- |
+  | `values` | Object | Yes | No | Key-value map. Keys must match regex `^[a-z0-9_]{1,80}$`. Min 1 key, max 60 keys. Max container depth $\le 2$. Max payload size 64 KB. Values must satisfy the owner domain's Joi schema. |
+  | `reason` | String | Conditional | No | Trimmed string, 1–500 characters. Mandatory if any touched setting has `requires_reason: true` (e.g. `risk: "high"`). |
+  | `confirm` | Boolean | Conditional | No | Must be `true` if any touched setting is classified as `risk: "high"`. |
 
 #### Execution Behavior & Implementation Pipeline
-1. **Exists** — `catalog.groupByKey(groupKey)`; else `404 GROUP_NOT_FOUND`.
-2. **Read-only** — group with empty `write_roles` → `405 SETTINGS_GROUP_READ_ONLY`.
-3. **RBAC** — `isGroupWritable(group, role)`; else `403 FORBIDDEN`.
-4. **Entitlement** — `resolveEntitlements(orgId, [group.featureKey])`; else `403 FEATURE_NOT_AVAILABLE`.
-5. **Bounds** — `assertBodyBounds`: ≤60 keys, container depth ≤2, ≤64 KB; else `422 SETTINGS_PAYLOAD_INVALID{violation}`.
-6. **Allowlist** — intersect `values` with (catalog keys ∩ owner-writable, minus deprecated/sensitive); rejected keys → `422 SETTING_NOT_WRITABLE{keys}`; empty result → `422 NO_WRITABLE_KEYS`.
-7. **Reason/Confirm** — high-risk without `reason` → `422 SETTINGS_REASON_REQUIRED{keys}`; with reason but no `confirm:true` → `409 SETTINGS_CONFIRMATION_REQUIRED{keys,warnings}`.
-8. **Owner Joi** — the gateway runs the owner's exported schema with fixed options `{abortEarly:false, allowUnknown:false, stripUnknown:false, convert:true, noDefaults:true}`; a rejected value → `400 VALIDATION_ERROR{keys}`. `convert:true` coerces (`"5"→5`); `noDefaults` is why a branding write never injects — and thus never wipes — `registered_address_lines`.
-9. **Before-read** — `adapter.read(orgId)` captures the pre-write stored row.
-10. **Write** — `adapter.update(orgId, coerced, ctx, { ifMatch })`; exactly one owner call, under the owner's lock. Any owner error propagates verbatim; only a `412` is enriched with `details.current_etag`.
-11. **Diff** — `changed`/`unchanged_keys` computed from the **stored** before/after rows via the type-aware comparator; `non_default_keys` recomputed; `values` sliced to this group.
+1. **Step 1 (Exists):** Resolves group via `catalog.groupByKey(groupKey)`. Missing group $\rightarrow$ `404 GROUP_NOT_FOUND`.
+2. **Step 2 (Read-Only):** Checks `group.write_roles`. If empty, throws `405 SETTINGS_GROUP_READ_ONLY`.
+3. **Step 3 (RBAC):** Evaluates `projection.isGroupWritable(group, ctx.actorRole)`. If false, throws `403 FORBIDDEN`.
+4. **Step 4 (Entitlement):** Calls `resolveEntitlements(ctx.orgId, [group.featureKey])`. If unsubscribed, throws `403 FEATURE_NOT_AVAILABLE`.
+5. **Step 5 (Bounds):** `patch.assertBodyBounds(values)` validates object shape, key count (1..60), container depth ($\le 2$), and serialized size ($\le 64$ KB). Throws `422 SETTINGS_PAYLOAD_INVALID`.
+6. **Step 6 (Allowlist Intersection):** Intersects submitted keys with `writableKeysForGroup(entries, adapter.ownerWritableKeys())`. Non-writable, deprecated, or sensitive keys collect into `rejected[]` $\rightarrow$ `422 SETTING_NOT_WRITABLE { keys }`. If clean patch is empty $\rightarrow$ `422 NO_WRITABLE_KEYS`.
+7. **Step 7a / 7b (Policy Evaluation):**
+   * If any touched setting has `requires_reason: true` and `reason` is blank $\rightarrow$ `422 SETTINGS_REASON_REQUIRED { keys }`.
+   * If any touched setting has `risk: "high"` and `confirm !== true` $\rightarrow$ `409 SETTINGS_CONFIRMATION_REQUIRED { keys, warnings }`.
+8. **Step 8 (Owner Joi Validation):** Executes `validateWithOwnerSchema(adapter.ownerSchema, clean)`. Returns coerced values (e.g. numeric string converted to number). Throws `400 VALIDATION_ERROR` with `keys[]` on failure.
+9. **Step 9 (Pre-Lock Baseline):** Calls `adapter.read(ctx.orgId)` to capture pre-write state.
+10. **Step 10 (Domain Write):** Calls `adapter.update(ctx.orgId, coerced, ctx, { ifMatch })`. Executes inside the domain's own database transaction under row lock (`SELECT ... FOR UPDATE`). Compares `ifMatch` against locked `updated_at`. If mismatched, throws `412 SETTINGS_PRECONDITION_FAILED` (enriched with `current_etag`).
+11. **Step 11 (Diffing & Response):** Slices post-write store values to group keys. Compares stored `before` and `after` rows via `patch.diffStored`. Computes `changed`, `unchanged_keys`, and `non_default_keys`. Sets `ETag` and `Cache-Control: no-store`. Returns HTTP `200 OK`.
 
 #### Database Impact, Concurrency & Transactions
-* **Database Operations:** Exactly one owner transaction (opened and committed by the owner), which does a locked read + conditional update of the single backing singleton row. The gateway opens **no** transaction.
-* **Concurrency & ETag:** `If-Match` compared under the owner's `FOR UPDATE` lock. The success response's `etag` is the post-write group token and is safe to use as the next `If-Match`.
-* **Idempotency & Retries:** Conditional, not idempotent — see write-path retry guidance. A no-op (patch equals stored values) still commits a touch and returns a fresh `etag`.
-* **Audit:** Each store writes through the owner's existing audit path, **except
-  `billing.notifications`** (`organization_profiles` has no audit table yet — closed in
-  Phase 3).
+* **Database Operations:** The gateway opens zero database transactions and owns zero tables. The owning domain service opens exactly 1 transaction:
+  * Acquires row lock: `SELECT * FROM <store> WHERE org_id = :orgId FOR UPDATE`.
+  * Validates optimistic concurrency: `assertUpdatedAtMatches(row, ifMatch)`.
+  * Executes update: `UPDATE <store> SET ... WHERE org_id = :orgId`.
+  * Emits domain audit log (e.g. `payroll_audit_logs`, `document_audit_logs`) within the same transaction.
+  * *Note on `billing.notifications`:* Updates `organization_profiles` under row lock; because `organization_profiles` lacks a domain audit table, writes to this group in Phase 2 are not audit logged.
+* **Concurrency & Locking:** Row-level exclusive lock prevents lost updates. Two concurrent writers serialize on the lock; the loser acquires the lock, detects timestamp mismatch, rolls back, and returns HTTP `412 SETTINGS_PRECONDITION_FAILED`.
+* **Idempotency & Retries:** Conditional PUT. A blind replay with the same `If-Match` after success fails with HTTP `412`. On network timeout, clients must re-read via `S-4` before retrying.
+* **No-Op Writes:** Submitting an identical patch returns `changed: {}`, lists the keys in `unchanged_keys`, updates the database `updated_at`, and mints a fresh ETag.
 
 #### Success Response Contract (`200 OK`)
+
+##### Standard Group Update (e.g. `payroll.calendar`)
 ```json
 {
   "success": true,
@@ -828,97 +804,197 @@ the `409` returns verbatim catalog `warnings[]` to show the user before they con
     "store": "payroll_settings",
     "etag": "W/\"2026-10-09.2:2026-10-09T11:30:00.000Z\"",
     "updated_at": "2026-10-09T11:30:00.000Z",
-    "values": { "pay_day": 5 },
-    "changed": { "pay_day": { "from": 1, "to": 5 } },
+    "values": {
+      "payroll_cycle": "monthly",
+      "period_start_day": 1,
+      "attendance_cutoff_day": 25,
+      "pay_day": 5,
+      "pay_day_in_next_month": false,
+      "currency": "INR",
+      "financial_year_start_month": 4
+    },
+    "changed": {
+      "pay_day": {
+        "from": 30,
+        "to": 5
+      }
+    },
     "unchanged_keys": [],
-    "non_default_keys": ["pay_day"]
+    "non_default_keys": [
+      "pay_day"
+    ]
   }
 }
 ```
-For a `statutory.*` group the response also carries `impact`:
+
+##### Statutory Group Update with Side-Effect Impact (e.g. `statutory.pf`)
 ```json
-"impact": {
-  "affected_runs": [{ "id": "…", "period_month": 9, "run_type": "regular", "status": "draft" }],
-  "activated_components": ["PF_EMPLOYEE"]
+{
+  "success": true,
+  "message": "Settings updated",
+  "data": {
+    "catalog_version": "2026-10-09.2",
+    "group": "statutory.pf",
+    "store": "statutory_configs",
+    "etag": "W/\"2026-10-09.2:2026-10-09T11:35:12.450Z\"",
+    "updated_at": "2026-10-09T11:35:12.450Z",
+    "values": {
+      "pf_enabled": true,
+      "pf_establishment_code": "MH/BAN/0012345/000",
+      "pf_employee_rate": "12.00",
+      "pf_employer_rate": "12.00",
+      "pf_wage_ceiling": "15000.00",
+      "pf_include_admin_charges": true,
+      "pf_admin_rate": "0.50",
+      "pf_include_edli": true,
+      "pf_edli_rate": "0.50",
+      "pf_restrict_to_ceiling": true
+    },
+    "changed": {
+      "pf_enabled": {
+        "from": false,
+        "to": true
+      }
+    },
+    "unchanged_keys": [],
+    "non_default_keys": [
+      "pf_enabled"
+    ],
+    "impact": {
+      "affected_runs": [
+        {
+          "id": "7b8e5c32-9f0a-4a1e-8d2b-1c3d4e5f6a7b",
+          "period_month": 9,
+          "run_type": "regular",
+          "status": "draft"
+        }
+      ],
+      "activated_components": [
+        "PF_EMPLOYEE",
+        "PF_EMPLOYER",
+        "EPS",
+        "PF_ADMIN_CHARGES",
+        "EDLI"
+      ]
+    }
+  }
 }
 ```
 
 #### Field-Level Response Dictionary
 | Field Path | Type | Nullable? | Description & Semantics |
 | :--- | :--- | :---: | :--- |
-| `data.catalog_version` | String | No | Catalog version the write was evaluated against. |
-| `data.group` | String | No | The group key written. |
-| `data.store` | String | No | Backing owner store. |
-| `data.etag` | String | No | Post-write per-group weak ETag; use as the next `If-Match`. |
-| `data.updated_at` | String (ISO 8601) | No | Post-write store `updated_at` (advances even on a no-op). |
-| `data.values` | Object | No | Stored values for **this group only** after the write. |
-| `data.changed` | Object | No | `{ key: { from, to } }` for keys whose **stored** value changed. |
-| `data.unchanged_keys` | Array of Strings | No | Touched keys whose stored value did not change (incl. type-equal DECIMALs). |
-| `data.non_default_keys` | Array of Strings | No | Post-write keys differing from catalog default. |
-| `data.impact` | Object | Yes | **Statutory only.** `{ affected_runs[], activated_components[] }`, passed through verbatim. Absent otherwise. |
+| `success` | Boolean | No | Always `true` on successful response. |
+| `message` | String | No | Confirmation message (`"Settings updated"`). |
+| `data.catalog_version` | String | No | Active settings catalog version (e.g. `"2026-10-09.2"`). |
+| `data.group` | String | No | Target settings group identifier. |
+| `data.store` | String | No | Backing database store table name. |
+| `data.etag` | String | No | Newly minted group weak ETag. Use as `If-Match` for subsequent writes. |
+| `data.updated_at` | String (ISO 8601) | No | Database modification timestamp of the underlying store row. |
+| `data.values` | Object | No | Key-value dictionary containing stored settings for **this group only**. |
+| `data.changed` | Object | No | Key-value dictionary mapping changed keys to `{ from, to }`. Empty on no-op. |
+| `data.unchanged_keys` | Array of Strings | No | Array of touched keys whose stored value remained identical. |
+| `data.non_default_keys` | Array of Strings | No | Array of group keys whose stored value currently differs from factory defaults. |
+| `data.impact` | Object | Yes | **Statutory writes only.** Lists domain side effects. |
+| `data.impact.affected_runs` | Array of Objects | No | Draft/calculated payroll runs whose frozen snapshot will not reflect this update. |
+| `data.impact.activated_components` | Array of Strings | No | Salary component codes automatically activated by enabling statutory heads. |
 
 #### Error Responses
-See the shared error register (§3 shared conventions) and the per-step codes in the
-pipeline above. Example `412`:
 ```json
 {
   "success": false,
   "errorCode": "SETTINGS_PRECONDITION_FAILED",
-  "message": "The settings group changed since you last read it; re-fetch and retry",
+  "message": "The resource was modified by another request",
   "details": {
-    "current_etag": "W/\"2026-10-09.2:2026-10-09T12:00:00.000Z\"",
-    "current_updated_at": "2026-10-09T12:00:00.000Z"
+    "current_updated_at": "2026-10-09T12:00:00.000Z",
+    "current_etag": "W/\"2026-10-09.2:2026-10-09T12:00:00.000Z\""
   }
 }
 ```
-| HTTP Status | Error Code | Triggering Condition |
-| :--- | :--- | :--- |
-| **400** | `VALIDATION_ERROR` | Envelope Joi or owner Joi rejects a value (`details.keys[]`). |
-| **400** | `SETTINGS_IF_MATCH_REQUIRED` / `SETTINGS_IF_MATCH_INVALID` | Missing / malformed `If-Match`. |
-| **403** | `FORBIDDEN` | Not `hr`, or role not in the group's `write_roles`. |
-| **403** | `FEATURE_NOT_AVAILABLE` | Org's plan lacks the group's feature. |
-| **404** | `GROUP_NOT_FOUND` / `ORG_PROFILE_NOT_FOUND` | Unknown group / missing org profile (`billing.notifications`). |
-| **405** | `SETTINGS_GROUP_READ_ONLY` | Group has no writers (e.g. `payroll.deprecated`). |
-| **409** | `SETTINGS_CONFIRMATION_REQUIRED` | High-risk key without `confirm:true` (`details.keys`, `warnings`). |
-| **409** | `INSUFFICIENT_CHECKERS` / `SETTINGS_CONFLICT` / `SCAN_PROVIDER_NOT_CONFIGURED` | Owner guard rejects the change. |
-| **412** | `SETTINGS_PRECONDITION_FAILED` | Stale `If-Match` or changed `catalog_version` (`details.current_etag`). |
-| **422** | `SETTING_NOT_WRITABLE` / `NO_WRITABLE_KEYS` / `SETTINGS_REASON_REQUIRED` / `SETTINGS_PAYLOAD_INVALID` | Gateway pre-write rejections. |
-| **422** | `SETTING_OUT_OF_RANGE` / `INVALID_PAYOUT_COMPONENT` / `LETTER_REFERENCE_PATTERN_INVALID` | Owner value guards. |
-| **503** | `ENTITLEMENT_DEPENDENCY_FAILURE` | Entitlement dependency outage. |
+| HTTP Status | Error Code | Raised By | Triggering Condition & Description |
+| :--- | :--- | :--- | :--- |
+| **400 Bad Request** | `SETTINGS_IF_MATCH_REQUIRED` | Gateway | Missing or blank `If-Match` request header. |
+| **400 Bad Request** | `SETTINGS_IF_MATCH_INVALID` | Gateway | Malformed `If-Match` header (wildcard `*`, bare ISO, strong ETag). |
+| **400 Bad Request** | `VALIDATION_ERROR` | Gateway / Owner | Request envelope invalid, or owner Joi schema rejected value (`details.keys[]`). |
+| **401 Unauthorized** | `UNAUTHORIZED` | Auth Middleware | Missing, invalid, or expired JWT token. |
+| **403 Forbidden** | `FORBIDDEN` | Route / Service | Caller is not `hr`, or role is not in group `write_roles`. |
+| **403 Forbidden** | `FEATURE_NOT_AVAILABLE` | Service | Tenant plan lacks subscription entitlement for this group's feature. |
+| **404 Not Found** | `GROUP_NOT_FOUND` | Service | Group key does not exist in catalog. |
+| **404 Not Found** | `ORG_PROFILE_NOT_FOUND` | Domain Service | For `billing.notifications`, organization profile row is missing in database. |
+| **405 Method Not Allowed** | `SETTINGS_GROUP_READ_ONLY` | Service | Group has empty `write_roles` (e.g. `payroll.deprecated`). |
+| **409 Conflict** | `SETTINGS_CONFIRMATION_REQUIRED`| Gateway | High-risk setting modified without `confirm: true` (`details.keys[]`, `details.warnings[]`). |
+| **409 Conflict** | `INSUFFICIENT_CHECKERS` | Domain Owner | Attempted to enable separate checker with fewer than 2 active HR users. |
+| **409 Conflict** | `SETTINGS_CONFLICT` | Domain Owner | Attempted to enable mutually conflicting authority settings. |
+| **409 Conflict** | `SCAN_PROVIDER_NOT_CONFIGURED` | Domain Owner | Attempted to enable document scanning before provider configuration. |
+| **412 Precondition Failed**| `SETTINGS_PRECONDITION_FAILED` | Gateway / Domain | Stale ETag or catalog version changed (`details.current_etag`, `details.current_updated_at`). |
+| **422 Unprocessable** | `SETTINGS_PAYLOAD_INVALID` | Gateway | Payload bounds violation: $>60$ keys, depth $>2$, or size $>64$ KB. |
+| **422 Unprocessable** | `SETTING_NOT_WRITABLE` | Gateway | Submitted key is unknown, deprecated, or not writable in this group (`details.keys[]`). |
+| **422 Unprocessable** | `NO_WRITABLE_KEYS` | Gateway | Clean patch contains zero writable keys after allowlist intersection. |
+| **422 Unprocessable** | `SETTINGS_REASON_REQUIRED` | Gateway | Modified setting requires business reason (`requires_reason: true`), but `reason` was omitted. |
+| **422 Unprocessable** | `SETTING_OUT_OF_RANGE` | Domain Owner | Submitted numeric or duration value violates domain operational caps. |
+| **422 Unprocessable** | `INVALID_PAYOUT_COMPONENT` | Domain Owner | FNF payout component ID does not reference an active earning component. |
+| **422 Unprocessable** | `LETTER_REFERENCE_PATTERN_INVALID`| Domain Owner | Letter reference pattern contains invalid tokens or lacks sequence token. |
+| **503 Service Unavailable**| `ENTITLEMENT_DEPENDENCY_FAILURE`| Service | Database or billing service unreachable during entitlement verification. |
 
-### 6. POST /api/v1/settings/groups/:groupKey/reset
+---
+
+### 2. POST /api/v1/settings/groups/:groupKey/reset
 
 * **API Number / Registry Ref:** S-6 (API Registry #247)
 * **HTTP Method:** `POST`
 * **Route Path:** `/api/v1/settings/groups/:groupKey/reset`
-* **Purpose & Business Problem Solved:** Restores named keys in a group to their catalog
-  factory defaults, through the **identical** pipeline as S-5 — reset is not a privileged
-  bypass, so every gate (RBAC, entitlement, allowlist, high-risk confirmation,
-  `If-Match`) still applies.
+* **Purpose & Business Problem Solved:** Restores named configuration keys in a group back to their factory catalog defaults. Reset is not a privileged bypass: it executes through the exact same 11-step pipeline as `S-5`, strictly enforcing optimistic concurrency (`If-Match`), RBAC, feature entitlements, mass-assignment allowlists, high-risk reason requirements, and confirmation gates.
 
 #### Authentication, Authorization & Security
-Identical to S-5 — `hr` only, `If-Match` required, same two authorization layers and
-tenant isolation.
+* **Authentication Required:** Yes (Valid JWT Bearer token).
+* **Allowed Roles:** `hr` **only**.
+* **Tenant Isolation:** Scoped strictly to `req.user.orgId`.
+* **Group Writable Check:** Validates `isGroupWritable(group, req.user.role)`.
+* **Entitlement Check:** Evaluates `resolveEntitlements(orgId, [group.featureKey])`.
+* **Precondition Required:** Mandatory `If-Match` header.
+* **Reset Allowlist & Immutability:** Requested keys must be writable in the group and cannot have `resettable: false`.
 
 #### Request Parameters & Headers
-* **Request Headers:** `Authorization` (Required), `If-Match` (**Required**).
-* **Path Parameters:** `groupKey` (`^[a-z0-9_.]{1,60}$`).
+* **Request Headers:**
+  * `Authorization: Bearer <token>` (Required)
+  * `If-Match: W/"<CATALOG_VERSION>:<updated_at ISO>"` (**Required**)
+  * `Content-Type: application/json` (Required)
+* **Path Parameters (`groupKeyParamSchema`):**
+  * `groupKey` (String, Required): Pattern `^[a-z0-9_.]{1,60}$`. Must match an active group in `catalog.GROUPS`.
 * **Request Body (`resetGroupBodySchema`, `.unknown(false)`):**
-  * `keys` (Array of Strings, Required): 1–50 unique keys, each `^[a-z0-9_]{1,80}$`.
-  * `reason` (String, Optional): required for high-risk keys.
-  * `confirm` (Boolean, Optional): must be `true` for high-risk keys.
+  ```json
+  {
+    "keys": [
+      "pay_day"
+    ],
+    "reason": "Restoring standard factory payroll calendar schedule",
+    "confirm": true
+  }
+  ```
+* **Request Body Specifications:**
+  | Field | Type | Required? | Nullable? | Validation Constraints & Rules |
+  | :--- | :--- | :---: | :---: | :--- |
+  | `keys` | Array of Strings | Yes | No | Array of setting keys to reset. Min 1 key, max 50 keys. Items must be unique and match regex `^[a-z0-9_]{1,80}$`. |
+  | `reason` | String | Conditional | No | Trimmed string, 1–500 characters. Mandatory if any reset key has `requires_reason: true`. |
+  | `confirm` | Boolean | Conditional | No | Must be `true` if any reset key is classified as `risk: "high"`. |
 
 #### Execution Behavior & Implementation Pipeline
-1–4 as S-5 (exists / read-only / RBAC / entitlement).
-5. **Reset-specific checks (step 6):** a requested key not in the writable allowlist →
-   `422 SETTING_NOT_WRITABLE{keys}`; a key whose catalog entry is `resettable:false` →
-   `422 SETTING_NOT_RESETTABLE{keys}`.
-6. Resolve each remaining key to its catalog `default` (`patch.resolveDefaults`), then
-   run the **identical** S-5 pipeline from step 5 — so a high-risk reset still needs
-   `reason` + `confirm:true`, and the owner's Joi still validates the default values.
+1. **Resolution & Access Gating (Steps 1–4):** Validates group exists, is not read-only, caller role is authorized, and tenant plan includes group feature.
+2. **Reset Key Verification:**
+   * Verifies all requested keys belong to the group's writable allowlist (`patch.writableKeysForGroup`). Any unknown or read-only key triggers HTTP `422 SETTING_NOT_WRITABLE` (`details.keys[]`).
+   * Verifies `resettable !== false` for each key. Any key marked non-resettable in the catalog triggers HTTP `422 SETTING_NOT_RESETTABLE` (`details.keys[]`).
+3. **Default Value Resolution:** Resolves each key's catalog factory default via `patch.resolveDefaults(entryByKey, keys)`. Formats synthetic patch: `{ [key]: catalogEntry.default }`.
+4. **Pipeline Execution (Steps 5–11):** Runs the synthetic default patch through the identical `runPipeline` function as `S-5`:
+   * Reason gate (`422 SETTINGS_REASON_REQUIRED`) and confirmation gate (`409 SETTINGS_CONFIRMATION_REQUIRED`) enforce policy if any reset key is high-risk.
+   * Owner Joi schema validates default values.
+   * Row lock (`SELECT ... FOR UPDATE`) and `If-Match` check execute under transaction.
+   * Domain update persists defaults and records domain audit log.
+   * Diff is calculated against stored row. Emits `data.reset = true`.
+
+#### Database Impact, Concurrency & Transactions
+Identical to `S-5`. The reset executes as an atomic domain update inside a single transaction protected by row-level locking.
 
 #### Success Response Contract (`200 OK`)
-Identical to S-5 plus `"reset": true` and `message: "Settings reset"`:
 ```json
 {
   "success": true,
@@ -927,10 +1003,23 @@ Identical to S-5 plus `"reset": true` and `message: "Settings reset"`:
     "catalog_version": "2026-10-09.2",
     "group": "payroll.calendar",
     "store": "payroll_settings",
-    "etag": "W/\"2026-10-09.2:2026-10-09T11:35:00.000Z\"",
-    "updated_at": "2026-10-09T11:35:00.000Z",
-    "values": { "pay_day": 1 },
-    "changed": { "pay_day": { "from": 5, "to": 1 } },
+    "etag": "W/\"2026-10-09.2:2026-10-09T11:40:00.000Z\"",
+    "updated_at": "2026-10-09T11:40:00.000Z",
+    "values": {
+      "payroll_cycle": "monthly",
+      "period_start_day": 1,
+      "attendance_cutoff_day": 25,
+      "pay_day": 30,
+      "pay_day_in_next_month": false,
+      "currency": "INR",
+      "financial_year_start_month": 4
+    },
+    "changed": {
+      "pay_day": {
+        "from": 5,
+        "to": 30
+      }
+    },
     "unchanged_keys": [],
     "non_default_keys": [],
     "reset": true
@@ -938,6 +1027,55 @@ Identical to S-5 plus `"reset": true` and `message: "Settings reset"`:
 }
 ```
 
+#### Field-Level Response Dictionary
+Includes all fields defined for `S-5`, plus:
+| Field Path | Type | Nullable? | Description & Semantics |
+| :--- | :--- | :---: | :--- |
+| `data.reset` | Boolean | No | Explicit boolean flag indicating response was generated by a reset operation (`true`). |
+
 #### Error Responses
-The S-5 register, plus `422 SETTING_NOT_RESETTABLE` (a key whose entry forbids reset).
-`Database Impact, Concurrency & Transactions` and retry guidance are identical to S-5.
+Includes all error codes defined for `S-5`, plus:
+| HTTP Status | Error Code | Raised By | Triggering Condition & Description |
+| :--- | :--- | :--- | :--- |
+| **422 Unprocessable** | `SETTING_NOT_RESETTABLE` | Gateway | Attempted to reset a setting whose catalog definition declares `resettable: false`. |
+
+---
+
+## 2. Existing APIs Modified / Extended by Phase 2
+
+### 2.1 GET /api/v1/settings/catalog (S-1 #242)
+
+* **Catalog Version Bump:** Returns `catalog_version: "2026-10-09.2"`.
+* **Weak ETag Update:** Top-level weak ETag changes to `W/"2026-10-09.2"`, causing HTTP caching clients to revalidate cached catalog data once.
+* **Risk & Warning Reclassifications:** Eight operational settings are reclassified to `risk: "high"`, automatically setting `requires_reason: true` and attaching explicit plain-language `warnings[]`:
+  * `payroll_require_separate_checker` (#39)
+  * `manager_direct_compensation_authority` (#40)
+  * `manager_direct_document_authority` (#59)
+  * `document_require_separate_checker` (#60)
+  * `document_retention_days` (#65)
+  * `document_publish_sync_threshold` (#79)
+  * `letter_auto_issue_on_exit` (#92)
+  * `letter_record_retention_days` (#95)
+* **Cross-Setting Relationships:** Populates `conflicts_with` between `manager_direct_document_authority` and `document_require_separate_checker` (bidirectional), and `depends_on` between `document_expiry_reminder_days` and `document_notify_expiry`.
+* **Contract Backward Compatibility:** 100% backward compatible. Request parameters (`module`, `group`, `include_hidden`), response structure, and error conditions remain identical.
+
+### 2.2 GET /api/v1/settings/catalog/:settingKey (S-2 #243)
+
+* **Reflects Updated Setting Metadata:** When querying any of the 8 high-risk settings, returns updated `risk: "high"`, `requires_reason: true`, populated `warnings[]`, and bidirectional `conflicts_with` references.
+* **Weak ETag Update:** Reflects the new catalog release version (`W/"2026-10-09.2"`).
+* **Contract Backward Compatibility:** 100% backward compatible. Path parameter handling and response structure remain unchanged.
+
+### 2.3 GET /api/v1/settings (S-3 #244)
+
+* **Live State Synchronization:** Groups returned in `data.groups[]` immediately reflect settings updated or reset via `S-5` and `S-6`.
+* **Dynamic Default Diffing:** `non_default_keys` dynamically recalculates across all groups using `valuesEqual` type-aware comparison. If a setting is reset via `S-6`, it disappears from `non_default_keys`.
+* **Composite ETag Advancement:** Response ETag advances to `W/"2026-10-09.2:<max_updated_at>"`, reflecting the most recently modified backing store.
+* **Contract Backward Compatibility:** 100% backward compatible. Query filtering (`?modules=`), partial degradation (`unavailable_groups[]`), and meta block remain identical.
+
+### 2.4 GET /api/v1/settings/groups/:groupKey (S-4 #245)
+
+* **Live State Synchronization:** Returns updated setting values modified via `S-5` or reset via `S-6`.
+* **Targeted ETag Advancement:** Group weak ETag (`W/"2026-10-09.2:<updated_at ISO>"`) advances immediately upon write.
+* **Precondition Authority:** The ETag returned by `S-4` serves as the exact `If-Match` precondition token required by `S-5` and `S-6`.
+* **Contract Backward Compatibility:** 100% backward compatible. Fail-loud security behavior and response structure remain identical.
+

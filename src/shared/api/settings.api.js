@@ -1,18 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// settings.api.js — The organisation settings gateway, Phase 1 (#242–#245).
+// settings.api.js — The organisation settings gateway (#242–#247).
 //
-// Contract: public/ref docs/md_settings/combined_api_analysis.md and
-// phases/phase1_api_analysis.md.
+// Contract: public/ref docs/md_settings/combined_api_analysis.md, with
+// phases/phase1_api_analysis.md (reads) and phase2_api_analysis.md (writes).
 //
-// PHASE 1 IS READ-ONLY. There are four endpoints and all four are GETs: the
-// catalogue (what settings EXIST and what they mean), and the read plane (what
-// this organisation has them set to). The write plane — `PUT /settings/groups/
-// :groupKey` and its reset — is Phase 2 and is NOT shipped, so there is
-// deliberately no write function in this file. Don't add one speculatively;
-// a Save button with nothing behind it is exactly the "button that 403s" §2
-// forbids.
-//
-// Two planes, and the difference between them is the whole design:
+// Two planes for reading, plus the write plane (Phase 2, #246–#247):
 //   · CATALOGUE (#242/#243) — the contract. 26 groups, ~137 settings, 49
 //     policy surfaces, with labels, types, ranges, defaults, risk and effect
 //     timing. No tenant values at all. Versioned by `catalog_version` and
@@ -20,6 +12,12 @@
 //   · VALUES (#244/#245) — this organisation's live numbers, sliced per group.
 //
 // Traps worth keeping:
+//   · Every write needs an `If-Match`, and it must be the PER-GROUP ETag.
+//     #244's top-level ETag folds in the newest `updated_at` across all five
+//     stores, so it is never a valid precondition for one group.
+//   · A write is CONDITIONAL, not idempotent. Replaying one after a timeout
+//     can clobber a newer value, which is why a 412 means re-read and
+//     reconcile — never retry the same body.
 //   · `module` and `group` on #242 are MUTUALLY EXCLUSIVE (422
 //     INVALID_FILTER_COMBINATION). `qs()` would happily send both, so the
 //     helper below refuses rather than letting the server scold us.
@@ -115,6 +113,72 @@ export const settingsAPI = {
    */
   getGroup(groupKey) {
     return request(`/settings/groups/${seg(groupKey)}`);
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  THE WRITE PLANE (Phase 2, #246–#247) — HR only
+  // ───────────────────────────────────────────────────────────────────────────
+  /**
+   * #246 PUT /settings/groups/:groupKey — change one or more settings in ONE
+   * group, under optimistic concurrency.
+   *
+   * `etag` is REQUIRED and must be the PER-GROUP weak ETag from #244/#245
+   * (`group.etag`) or from a previous write's reply. Never the top-level ETag
+   * of #244: that one folds in the newest `updated_at` across all five stores,
+   * so it is not a valid precondition for any single group and the server
+   * rejects it. A stale one answers 412 with the current token in `details`.
+   *
+   * One group per request by design (decision D-S4: one request, one group,
+   * one transaction) — the gateway holds no transaction of its own and hands
+   * the write to the owning module under its row lock.
+   *
+   * @param {string} groupKey
+   * @param {{ values: object, reason?: string, confirm?: boolean }} patch
+   *   `values` carries ONLY the keys being changed; `reason` and `confirm` are
+   *   required together for anything the catalogue marks `risk: "high"`.
+   * @param {string} etag the group's current ETag, sent as `If-Match`
+   * @returns `{ catalog_version, group, store, etag, updated_at, values,
+   *   changed: { key: { from, to } }, unchanged_keys, non_default_keys, impact? }`
+   *   The new `etag` is adopted directly — a successful write needs no re-read.
+   */
+  updateGroup(groupKey, { values, reason, confirm } = {}, etag) {
+    return request(`/settings/groups/${seg(groupKey)}`, {
+      method: "PUT",
+      headers: { "If-Match": etag },
+      body: JSON.stringify({
+        values,
+        // The envelope is `.unknown(false)`: sending `reason: undefined` is
+        // fine, but sending an empty string where none is needed is a
+        // validation error waiting to happen. Omit what we don't mean.
+        ...(reason ? { reason } : {}),
+        ...(confirm ? { confirm: true } : {}),
+      }),
+    });
+  },
+
+  /**
+   * #247 POST /settings/groups/:groupKey/reset — put named keys back to their
+   * catalogue defaults.
+   *
+   * Not a privileged shortcut: it runs the identical pipeline as #246, so the
+   * same `If-Match`, the same reason and confirmation gates, and the same
+   * allowlist apply. A key the catalogue marks `resettable: false` is refused
+   * with 422 SETTING_NOT_RESETTABLE.
+   *
+   * @param {string} groupKey
+   * @param {{ keys: string[], reason?: string, confirm?: boolean }} payload
+   * @param {string} etag the group's current ETag, sent as `If-Match`
+   */
+  resetGroup(groupKey, { keys, reason, confirm } = {}, etag) {
+    return request(`/settings/groups/${seg(groupKey)}/reset`, {
+      method: "POST",
+      headers: { "If-Match": etag },
+      body: JSON.stringify({
+        keys,
+        ...(reason ? { reason } : {}),
+        ...(confirm ? { confirm: true } : {}),
+      }),
+    });
   },
 };
 

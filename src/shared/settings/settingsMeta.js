@@ -241,3 +241,44 @@ export function searchSettings(entries, groupsByKey, query) {
     .slice(0, 12)
     .map((s) => s.entry);
 }
+
+/* ─── Which settings can be edited inline ──────────────────────────────────
+   Chosen from the catalogue's `data_type`, not from a list of keys, so a
+   setting the backend adds gets a working control with no frontend release.
+
+   Two kinds are deliberately NOT editable here and stay read-only with the
+   card's link out:
+     · `jsonb` — a structured blob has no honest generic editor, and guessing
+       one risks writing a shape the owning module can't read back.
+     · anything `deprecated` or `sensitive` — the gateway's allowlist refuses
+       those anyway (422 SETTING_NOT_WRITABLE), so a control would be a button
+       that 403s. */
+export const EDITABLE_TYPES = ["boolean", "enum", "integer", "decimal", "string", "date", "array"];
+
+export const isEditable = (entry) =>
+  Boolean(entry)
+  && !entry.deprecated
+  && !entry.sensitive
+  && EDITABLE_TYPES.includes(entry.data_type);
+
+/**
+ * Array items follow the catalogue's own `default`: `[7, 1]` means numbers,
+ * anything else means strings. Inferring from what the person typed would make
+ * `"7"` versus `7` depend on the order items were entered, and the owning
+ * module's schema does care which it gets.
+ */
+export const arrayItemIsNumber = (entry) =>
+  Array.isArray(entry?.default) && entry.default.some((v) => typeof v === "number");
+
+/** "between 1 and 90", "up to 5 items" — the rule, in the catalogue's words. */
+export function rangeHint(entry) {
+  const r = entry?.range;
+  if (!r) return null;
+  if (Array.isArray(r.enum)) return null; // the select already lists the choices
+  const bits = [];
+  if (r.min !== undefined && r.max !== undefined) bits.push(`between ${r.min} and ${r.max}`);
+  else if (r.min !== undefined) bits.push(`${r.min} or more`);
+  else if (r.max !== undefined) bits.push(`up to ${r.max}`);
+  if (r.max_items !== undefined) bits.push(`up to ${r.max_items} item${r.max_items === 1 ? "" : "s"}`);
+  return bits.length ? bits.join(", ") : null;
+}

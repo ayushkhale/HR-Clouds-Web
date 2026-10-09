@@ -3871,10 +3871,10 @@
       "fields": {
         "page": {
           "tier": "onboarding",
-          "hint": "Every rule your organisation runs on, in one place. You can read them all here; you change each one on the screen that owns it.",
+          "hint": "Every rule your organisation runs on, in one place. Change them here, or open the area that owns one for its fuller screen.",
           "askMaya": {
             "enabled": true,
-            "question": "What does the Company Settings page show, and why are settings changed on each module's own screen rather than here?"
+            "question": "What does the Company Settings page let me change, and when should I use a module's own settings screen instead?"
           }
         },
         "non_default_keys": {
@@ -3893,10 +3893,17 @@
           }
         },
         "risk": {
-          "hint": "Marked where a change can cost money or delete data. These need care and, once editing is switched on, a written reason.",
+          "hint": "Marked where a change can cost money or delete data. Saving one asks you to confirm it and write down why.",
           "askMaya": {
             "enabled": true,
-            "question": "Which company settings are considered high risk, and what kind of damage can changing them cause?"
+            "question": "Which company settings are considered high risk, why do they need a written reason, and what damage can changing them cause?"
+          }
+        },
+        "etag_conflict": {
+          "hint": "Two people editing the same area can’t overwrite each other. If someone saves first, yours is held back — nothing is lost.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens if two administrators change the same company settings at the same time, and is my work lost?"
           }
         }
       }

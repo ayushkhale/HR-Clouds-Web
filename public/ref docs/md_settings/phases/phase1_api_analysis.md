@@ -2,7 +2,7 @@
 
 **Document File:** `public/md_settings/phases/phase1_api_analysis.md`  
 **Author:** Senior/Principal Backend Engineer, API Architect & Technical Documentation Engineer  
-**Status:** Shipped, Verified & Green (`node --test tests/unit/settings/*.test.js` — 48 passing assertions)  
+**Status:** Shipped, Verified & Green (`node --test tests/unit/settings/*.test.js` — 133 passing assertions, 0 failures)  
 **Codebase Sources of Truth:**
 * Router: [src/modules/settings/routes/settings.routes.js](file:///c:/Users/91930/Desktop/Vs_Code/HRMS/src/modules/settings/routes/settings.routes.js)
 * Controller: [src/modules/settings/controllers/settings.controller.js](file:///c:/Users/91930/Desktop/Vs_Code/HRMS/src/modules/settings/controllers/settings.controller.js)
@@ -143,7 +143,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
    * Strips `enforcement_hint` from all entries via `projectEntryForResponse` (prevents leaking internal file paths).
    * Attaches matching entries from `catalog.SURFACES` (the 49 multi-record pointers). If `group` was specified, surfaces are omitted (`[]`) as surfaces do not belong to singleton groups.
 3. **ETag & Cache Check:**
-   * Generates weak ETag: `W/"<CATALOG_VERSION>"` (e.g. `W/"2026-10-09.1"`).
+   * Generates weak ETag: `W/"<CATALOG_VERSION>"` (e.g. `W/"2026-10-09.2"`).
    * If `req.headers['if-none-match'] === tag` $\rightarrow$ returns HTTP `304 Not Modified` immediately.
    * Otherwise sets `ETag` and `Cache-Control: private, max-age=0, must-revalidate` and returns `200 OK`.
 
@@ -156,7 +156,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
   "success": true,
   "message": "OK",
   "data": {
-    "catalog_version": "2026-10-09.1",
+    "catalog_version": "2026-10-09.2",
     "generated_at": "2026-10-09T02:21:08.123Z",
     "groups": [
       {
@@ -294,7 +294,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
   "success": true,
   "message": "OK",
   "data": {
-    "catalog_version": "2026-10-09.1",
+    "catalog_version": "2026-10-09.2",
     "setting": {
       "key": "payroll_require_separate_checker",
       "registry_ref": 39,
@@ -310,9 +310,9 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
       "nullable": false,
       "range": null,
       "platform_cap": null,
-      "effect_timing": "next_record",
-      "risk": "medium",
-      "requires_reason": false,
+      "effect_timing": "next_run",
+      "risk": "high",
+      "requires_reason": true,
       "resettable": true,
       "sensitive": false,
       "deprecated": false,
@@ -327,7 +327,9 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
       "preconditions": ["min_active_hr:2"],
       "consumed_by": ["payroll"],
       "known_errors": ["INSUFFICIENT_CHECKERS", "SEPARATE_CHECKER_REQUIRED"],
-      "warnings": []
+      "warnings": [
+        "Changes who may approve a payroll run: turning this on requires a second active HR to approve every run, and turning it off lets a single HR approve money alone."
+      ]
     },
     "group": {
       "key": "payroll.authority",
@@ -425,7 +427,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
   "success": true,
   "message": "OK",
   "data": {
-    "catalog_version": "2026-10-09.1",
+    "catalog_version": "2026-10-09.2",
     "org_id": "018e3d55-1234-7890-abcd-ef0123456789",
     "groups": [
       {
@@ -447,7 +449,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
         },
         "non_default_keys": ["pay_day"],
         "updated_at": "2026-10-08T14:32:00.000Z",
-        "etag": "W/\"2026-10-09.1:2026-10-08T14:32:00.000Z\""
+        "etag": "W/\"2026-10-09.2:2026-10-08T14:32:00.000Z\""
       }
     ],
     "unavailable_groups": [
@@ -456,7 +458,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
         "reason": "NOT_ENTITLED"
       }
     ],
-    "etag": "W/\"2026-10-09.1:2026-10-08T14:32:00.000Z\"",
+    "etag": "W/\"2026-10-09.2:2026-10-08T14:32:00.000Z\"",
     "meta": {
       "stores_read": 5,
       "groups_returned": 25,
@@ -542,7 +544,7 @@ In Express 5, `req.query` is getter-only. All query parameters are validated str
     },
     "non_default_keys": ["pay_day"],
     "updated_at": "2026-10-08T14:32:00.000Z",
-    "etag": "W/\"2026-10-09.1:2026-10-08T14:32:00.000Z\"",
+    "etag": "W/\"2026-10-09.2:2026-10-08T14:32:00.000Z\"",
     "settings": [
       {
         "key": "pay_day",
