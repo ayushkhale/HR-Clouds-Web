@@ -45,6 +45,13 @@ import {
 import { BillingBadge, SeatMeter } from "./billingUi";
 
 const HERO = "bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95]";
+
+/* The membership mark on the premium banner. A remote URL, matching how all
+   three dashboards supply their PageHeader art — swapping it for a local
+   asset is fine, but do it for all four at once rather than leaving the app
+   with two conventions. It is decoration: if it 404s the banner is unchanged
+   apart from a gap, because the layout sizes it rather than being sized by it. */
+const ART = "https://cdn3d.iconscout.com/3d/premium/thumb/rank-silver-3d-icon-png-download-10163266.png";
 const HERO_BTN = "px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-white/15 border border-white/25 hover:bg-white/25 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5 backdrop-blur-sm";
 const PLAIN_BTN = "px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5";
 
@@ -102,8 +109,8 @@ export default function CurrentPlanCard({
           {premium && (
             <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
           )}
-          <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div className="min-w-0">
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
               <p className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${premium ? "text-purple-200" : "text-purple-600"}`}>
                 {premium ? <HiBadgeCheck className="w-3.5 h-3.5" /> : <HiSparkles className="w-3.5 h-3.5" />}
                 Your plan
@@ -137,6 +144,22 @@ export default function CurrentPlanCard({
                 </p>
               )}
             </div>
+
+            {/* Decorative art, the same way the three dashboards carry theirs
+                in PageHeader: a remote URL, sized by HEIGHT so a different
+                asset letterboxes rather than resizing the banner, and hidden
+                from screen readers because it says nothing the heading
+                doesn't. It rides only on the premium banner — a tier badge
+                over a free or lapsed plan would be claiming something. Hidden
+                below `sm`, where the width belongs to the words. */}
+            {premium && (
+              <img
+                src={ART}
+                alt=""
+                aria-hidden="true"
+                className="hidden sm:block shrink-0 h-20 md:h-24 w-auto object-contain drop-shadow-2xl select-none pointer-events-none"
+              />
+            )}
 
             {/* The price, given the weight it has on a bill rather than being
                 folded into a sentence. `priceLabel` carries the period word,

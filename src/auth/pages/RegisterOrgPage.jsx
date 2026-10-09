@@ -284,20 +284,29 @@ function RegisterOrgPage() {
   // ─── Success Page ──────────────────────────────────────────────
   if (success) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-4 font-sans">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-10 max-w-sm w-full text-center animate-fade-in">
-          <div className="w-16 h-16 bg-violet-50 rounded-full flex items-center justify-center mx-auto mb-5">
-            <HiCheck className="w-8 h-8 text-violet-600" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 font-sans relative overflow-hidden">
+        <div aria-hidden="true" className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-40 -left-32 w-[38rem] h-[38rem] rounded-full bg-purple-300/25 blur-[130px]" />
+          <div className="absolute bottom-[-10rem] right-[-8rem] w-[32rem] h-[32rem] rounded-full bg-fuchsia-300/20 blur-[120px]" />
+        </div>
+        {/* The one moment in the flow worth the full brand treatment: the
+            workspace exists and they are about to be let into it. */}
+        <div className="relative z-10 rounded-3xl shadow-lg overflow-hidden max-w-sm w-full animate-fade-in">
+          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] px-10 pt-10 pb-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-white/15 border border-white/25 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
+              <HiCheck className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-2">You’re all set</h1>
+            <p className="text-sm text-purple-100/90 leading-relaxed">
+              Your workspace is live. We’re taking you to it now.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome aboard! 🎉</h1>
-          <p className="text-sm text-gray-500 mb-4">
-            Your organization is active. Redirecting to your HR Dashboard…
-          </p>
-          <div className="flex justify-center">
-            <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+          <div className="bg-white px-10 py-6 flex items-center justify-center gap-2.5">
+            <svg className="w-4 h-4 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
+            <span className="text-xs font-semibold text-slate-500">Opening your dashboard…</span>
           </div>
         </div>
       </div>
@@ -305,9 +314,20 @@ function RegisterOrgPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col justify-between font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans relative">
+      {/* The same two purple glows the auth panel carries, at a fraction of
+          the strength. This screen used to be flat white, which made the step
+          AFTER signing up look like a different product from the screen
+          before it — the one place a new customer is most likely to doubt
+          they are still in the right place. Decoration only, and behind
+          everything, so nothing here depends on it rendering. */}
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -left-32 w-[38rem] h-[38rem] rounded-full bg-purple-300/25 blur-[130px]" />
+        <div className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] rounded-full bg-fuchsia-300/20 blur-[120px]" />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-gray-100 px-6 sm:px-12 py-5 bg-white">
+      <header className="relative z-10 border-b border-slate-200/60 px-6 sm:px-12 py-5 bg-white/70 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/">
             <img src={hrcloudsLogo} alt="HR Clouds" className="h-9 w-auto object-contain" />
@@ -329,7 +349,7 @@ function RegisterOrgPage() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-grow flex items-center justify-center px-6 py-12">
+      <main className="relative z-10 flex-grow flex items-center justify-center px-6 py-12">
         
         {/* STEP 1: Plan Selection */}
         {step === 1 && (
@@ -338,11 +358,12 @@ function RegisterOrgPage() {
               <span className="inline-block mb-3 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-purple-700 text-xs font-semibold">
                 Step 1 of 2
               </span>
+              {/* The accent word was a `from-white` clipped gradient on a
+                  white page, so its top half faded into the background and
+                  "Workspace" read as half-erased. Solid purple, the same way
+                  the marketing pricing heading accents its last word. */}
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-2">
-                Choose a Plan for Your{" "}
-                <span className="bg-clip-text bg-gradient-to-t from-white to-purple-800 text-transparent">
-                  Workspace
-                </span>
+                Choose a Plan for Your <span className="text-purple-600">Workspace</span>
               </h1>
               <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
                 Select a plan scale. Upgrade or change your configuration anytime.
@@ -408,50 +429,57 @@ function RegisterOrgPage() {
                 const price = formatPlanPrice(plan, billing);
                 const isFree = plan.monthly.amount === 0;
                 return (
+                  /* Same anatomy as the in-app plan catalogue: a fixed-height
+                     tag strip, a two-line description floor, then the ACTION
+                     ABOVE the feature list. Feature lists are different
+                     lengths, so a button placed after them lands at a
+                     different height on every card — above them, the names,
+                     prices and buttons line up across the row. (The in-app
+                     one is roles/hr/billing/components/PlanCatalogue.jsx —
+                     keep the two looking like one product.) */
                   <div
                     key={plan.tier}
-                    className={`bg-white rounded-2xl p-7 flex flex-col justify-between transition-all duration-200 relative
+                    className={`bg-white rounded-2xl p-6 flex flex-col transition-all duration-200 relative
                       ${plan.popular
-                        ? "border-2 border-purple-600 bg-purple-50/10 shadow-md shadow-purple-100"
-                        : "border-2 border-gray-200 hover:border-purple-300 shadow-sm"
+                        ? "border-2 border-purple-500 shadow-md shadow-purple-100"
+                        : "border border-slate-200 hover:border-purple-300 shadow-xs hover:shadow-sm"
                       }`}
                   >
-                    {plan.popular && (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-purple-600 text-white text-[10px] font-bold tracking-wider rounded-full uppercase">
-                        Most Popular
-                      </span>
-                    )}
+                    <div className="h-5 mb-1.5 flex items-center">
+                      {plan.popular ? (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[10px] font-bold tracking-wider rounded-full uppercase">
+                          Most Popular
+                        </span>
+                      ) : isFree ? (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold tracking-wider rounded-full uppercase">
+                          No charge
+                        </span>
+                      ) : null}
+                    </div>
 
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-900 mb-1">{plan.name}</h3>
-                      <p className="text-xs text-gray-500 mb-6">{plan.description}</p>
+                    <h3 className="font-bold text-lg text-gray-900">{plan.name}</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 min-h-[2rem] mt-1">
+                      {plan.description}
+                    </p>
 
-                      <div className="mb-1 flex items-baseline">
-                        <span className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+                    <div className="mt-4">
+                      <p className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-[1.75rem] leading-none font-bold text-gray-900 tracking-tight">
                           {price}
                           {/* Only ever shown beside a hardcoded figure — and
                               the submit guard below refuses to charge on one,
                               so the mark warns before the refusal explains. */}
-                          {planSource !== "live" && <span className="align-super text-lg" aria-hidden="true">*</span>}
+                          {planSource !== "live" && <span className="align-super text-base" aria-hidden="true">*</span>}
                         </span>
                         {!isFree && (
-                          <span className="text-xs text-gray-400 ml-1">
+                          <span className="text-xs font-semibold text-gray-400">
                             /{billing === "yearly" ? "year" : "month"}
                           </span>
                         )}
-                      </div>
-                      <p className="text-[11px] text-gray-400 mb-6">
-                        for the whole workspace
                       </p>
-
-                      <ul className="space-y-2.5 mb-8">
-                        {planBullets(plan).map((f) => (
-                          <li key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                            <HiCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                            <span>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="min-h-[1.125rem] mt-1.5 text-[11px] leading-[1.125rem] text-gray-400">
+                        {isFree ? "Free for as long as you like" : "for the whole workspace"}
+                      </p>
                     </div>
 
                     <button
@@ -459,15 +487,29 @@ function RegisterOrgPage() {
                         setSelectedTier(plan.tier);
                         setStep(2);
                       }}
-                      className={`w-full font-semibold text-sm rounded-xl py-3 text-center transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5
+                      className={`mt-4 w-full font-semibold text-sm rounded-xl py-3 text-center transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5
                         ${plan.popular
                           ? "bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white shadow-purple-200"
-                          : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+                          : "bg-slate-100 hover:bg-slate-200 text-gray-900"
                         }`}
                     >
                       {isFree ? "Get Started Free" : "Select Plan"}
                       <HiArrowRight className="w-4 h-4" />
                     </button>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+                        What you get
+                      </p>
+                      <ul className="space-y-2">
+                        {planBullets(plan).map((f) => (
+                          <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
+                            <HiCheck className="w-3.5 h-3.5 text-violet-500 shrink-0 mt-0.5" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 );
               })}
