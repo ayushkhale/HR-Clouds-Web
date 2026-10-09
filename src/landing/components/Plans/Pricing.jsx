@@ -1,12 +1,18 @@
 import { useState } from "react";
 import Toggle from "../../../shared/components/Toggle";
 import PricingCard from "./PricingCard";
-import { PLANS, bestYearlySavingPct } from "../../../shared/config/plans";
+import { bestYearlySavingPct } from "../../../shared/config/plans";
+import usePlanCatalog from "../../../shared/hooks/usePlanCatalog";
 import { Reveal } from "../../../shared/motion";
 
 function Pricing() {
   const [billing, setBilling] = useState("monthly");
-  const saving = bestYearlySavingPct();
+  // Public page: a logged-out visitor gets the fallback catalogue (#225 needs
+  // a token), a signed-in one gets the live list. The source isn't surfaced
+  // here — advertising is not billing, and registration is where the figures
+  // have to be the server's.
+  const { plans } = usePlanCatalog();
+  const saving = bestYearlySavingPct(plans);
 
   function handlePaymentPlanChange() {
     setBilling((plan) => (plan === "monthly" ? "yearly" : "monthly"));
@@ -38,7 +44,7 @@ function Pricing() {
         </Reveal>
 
         <div className="gap-8 grid md:grid-cols-2 lg:grid-cols-3 mt-12 w-full items-stretch">
-          {PLANS.map((plan, i) => (
+          {plans.map((plan, i) => (
             // Cards deal in left to right; the popular one is not singled out
             // by timing, only by its existing badge.
             <Reveal key={plan.tier} variant="rise" index={i} delay={140} className="h-full">

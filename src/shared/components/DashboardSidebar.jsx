@@ -38,6 +38,8 @@ import {
   HiShieldCheck,
   HiDatabase,
   HiReceiptRefund,
+  HiCreditCard,
+  HiReceiptTax,
   HiHeart,
   HiScale,
   HiChartBar,
@@ -175,12 +177,20 @@ function DashboardSidebar({ role = "guest" }) {
   // details. Every role reads the same two pages (the endpoints return the
   // whole org to all of them), so the section is identical in each workspace
   // and sits in the same place: last before Me, after the work sections.
+  // Billing is the one entry in here that is NOT in every workspace, and not
+  // by choice: every billing endpoint but the plan catalogue is gated HR_ONLY
+  // and refuses platform admins too, so a manager has no billing page rather
+  // than a broken one (§2 — a capability a role lacks is absent, not broken).
   const companySection = (workspace) => ({
     title: "COMPANY",
     icon: HiLibrary,
     items: [
       link("Org Chart", ORG_PATHS[workspace].chart, HiShare),
       link("Company Profile", ORG_PATHS[workspace].company, HiLibrary),
+      ...(workspace === "hr" ? [
+        link("Plan & Billing", "/dashboard/hr/billing", HiCreditCard),
+        link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax),
+      ] : []),
     ],
   });
 

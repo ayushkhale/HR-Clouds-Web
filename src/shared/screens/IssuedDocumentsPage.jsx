@@ -17,9 +17,41 @@
 // (#70 `compliance_state`), judged on today's IST date — never recomputed here.
 // Opening a document records that I've read it (#72), so that is always a
 // deliberate click, never a background call.
+//
+// DEEP LINK (`/company-documents/:documentId`, 2026-10-08 contract).
+// Transactional emails — a letter issued, a policy published, an
+// acknowledgement falling due — carry a CTA straight to one document, so this
+// screen also answers on a URL with a document id in it.
+//
+// It opens the id in this page's record-inspector dialog rather than on a
+// separate viewer page, which is a deliberate departure from the backend
+// guide's reference implementation (it sketches a standalone page with its own
+// iframe, banners and sign modal). Every one of those parts already exists
+// here, built to the house pattern: OrgDocumentDetailDialog does the viewer,
+// the state banners, acknowledge (#73), sign (#74) and the receipt (#75) on the
+// `self` plane, and §3 makes that dialog the standard for every popup showing a
+// record. A second implementation would have been a fork of a shared screen —
+// the exact thing §2 forbids — and would have drifted the first time either
+// changed. The guide's route, APIs and states are all honoured; only its
+// suggested layout is not.
+//
+// Two traps in the contract:
+//   · The id in the email is the DOCUMENT id, while the rows this list renders
+//     are RECIPIENT records with the document nested under `document`. #71
+//     takes the document id and answers with the recipient record, so the read
+//     below produces exactly the row shape the dialog wants — don't try to find
+//     the id among the loaded rows, it won't be there on page two.
+//   · The deep link is the one entry point where the document may be absent:
+//     withdrawn, superseded, or addressed to somebody else. That reads as "no
+//     longer available to you", never as a failure to load, and the person is
+//     left on their list rather than on an error page.
+// Login is already handled: ProtectedRoute sends an unauthenticated visitor to
+// `/auth/login?redirect=<this url>` and returns them here afterwards, which is
+// the guide's `returnUrl` requirement under this app's own parameter name.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   HiBadgeCheck, HiBell, HiCheckCircle, HiExclamationCircle, HiInbox, HiLockClosed, HiPencilAlt,
   HiRefresh, HiShieldCheck,
@@ -37,6 +69,8 @@ import { ackBlockOf, actionWindow, asksForSomething, hasEvidence, myComplianceSt
 import { DocEmptyState, DocErrorState, DocIcon, PRIMARY_BTN } from "../documents/ui";
 import { ComplianceStateBadge, DueChip, OrgStatusBadge, RecipientStateBadge } from "../documents/orgUi";
 import FieldHelp from "../fieldHelp/FieldHelp";
+import { useMyDocumentPaths } from "../attendance/paths";
+import { documentErrorMessage } from "../utils/documentErrors";
 
 const PAGE = 24;
 const plane = ORG_PLANES.self;
@@ -138,6 +172,10 @@ export default function IssuedDocumentsPage() {
   // list is the fallback for rows from before that shipped.
   const { types } = useDocumentTypes("self");
   const { toast, showToast, clearToast } = useToast();
+  // Deep link: an email's CTA lands here with one document's id in the URL.
+  const { documentId } = useParams();
+  const navigate = useNavigate();
+  const myDocs = useMyDocumentPaths();
 
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -180,6 +218,49 @@ export default function IssuedDocumentsPage() {
   useEffect(() => { loadTallies(); }, [loadTallies]);
 
   const refresh = useCallback(() => { load(); loadTallies(); }, [load, loadTallies]);
+
+  /* ─── Deep link ──────────────────────────────────────────────────────────
+     Read the one document the email pointed at (#71) and open it in the same
+     dialog a click would have. The list keeps loading behind it, so closing
+     the dialog leaves the person somewhere useful rather than on a blank page.
+     The id is dropped from the URL on close, so a later refresh doesn't
+     re-open a document they've finished with. */
+  const listPath = myDocs?.company || null;
+
+  useEffect(() => {
+    if (!documentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await documentsAPI.getMyIssuedDocument(documentId);
+        // #71 answers with the RECIPIENT record and nests the document, which is
+        // the same shape the list rows have (OrgDocumentDetailDialog's `load`
+        // relies on it too), so it goes straight into the dialog.
+        const row = res?.data || null;
+        if (cancelled) return;
+        if (row?.document) setDetail({ row, action: null });
+        else showToast("That document is no longer available to you.", "error");
+      } catch (error) {
+        if (cancelled) return;
+        // Withdrawn, superseded or addressed to somebody else — a state, not a
+        // broken page. Say so and leave them on their list.
+        showToast(
+          error?.status === 404 || error?.status === 403
+            ? "That document is no longer available to you."
+            : documentErrorMessage(error, "We couldn’t open that document. It’s still in the list below."),
+          "error",
+        );
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [documentId, showToast]);
+
+  /** Closing a deep-linked document takes the id out of the URL. */
+  const closeDetail = useCallback(() => {
+    setDetail(null);
+    refresh();
+    if (documentId && listPath) navigate(listPath, { replace: true });
+  }, [documentId, listPath, navigate, refresh]);
 
   const index = useMemo(() => typeIndex(types), [types]);
   const totalPages = Math.max(1, Math.ceil((state.total || 0) / PAGE));
@@ -292,7 +373,7 @@ export default function IssuedDocumentsPage() {
           types={index}
           showToast={showToast}
           onChanged={refresh}
-          onClose={() => { setDetail(null); refresh(); }}
+          onClose={closeDetail}
         />
       )}
 

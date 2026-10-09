@@ -2,6 +2,7 @@ import React, { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import { canAccessWorkspace, dashboardPathForRole, workspaceForRole } from "../shared/auth/permissions";
+import { selfServiceDocumentEquivalent } from "../shared/attendance/paths";
 import Skeleton from "../shared/components/Skeleton";
 
 // Landing Layout & Pages
@@ -162,6 +163,10 @@ const MyProfilePage = lazy(() => import("../shared/screens/MyProfilePage"));
 const DirectoryPage = lazy(() => import("../shared/screens/DirectoryPage"));
 const OrgChartPage = lazy(() => import("../shared/screens/OrgChartPage"));
 const CompanyProfilePage = lazy(() => import("../shared/screens/CompanyProfilePage"));
+// Billing is HR-only by contract, not by choice: every endpoint but the plan
+// catalogue is gated HR_ONLY, so there is no manager twin of these two screens.
+const BillingOverviewPage = lazy(() => import("../roles/hr/billing/screens/BillingOverviewPage"));
+const BillingPaymentsPage = lazy(() => import("../roles/hr/billing/screens/BillingPaymentsPage"));
 const MyDocumentsPage = lazy(() => import("../shared/screens/MyDocumentsPage"));
 const IssuedDocumentsPage = lazy(() => import("../shared/screens/IssuedDocumentsPage"));
 const MyRequestsPage = lazy(() => import("../shared/screens/MyRequestsPage"));
@@ -255,6 +260,16 @@ function ProtectedRoute({ children, workspace }) {
   // role, so the backend does not stop a wrong-workspace render. An unknown
   // role goes to /dashboard, which says so instead of spinning.
   if (workspace && !canAccessWorkspace(role, workspace)) {
+    // One exception to "go home", and it is a translation rather than a
+    // widening: a self-service Documents page mounted in every workspace,
+    // reached through someone else's prefix. Company-document emails link at
+    // `/dashboard/employee/company-documents/:id`, and an HR admin or manager
+    // is sent those documents too — so send them to the SAME page under their
+    // own prefix, carrying the id, instead of dropping them on a dashboard with
+    // no idea what they were asked to read. The gate itself is untouched: this
+    // workspace is still never rendered for them.
+    const mine = selfServiceDocumentEquivalent(location.pathname, workspaceForRole(role));
+    if (mine && mine !== location.pathname) return <Navigate to={mine} replace />;
     return <Navigate to={dashboardPathForRole(role)} replace />;
   }
 
@@ -324,6 +339,11 @@ function AppRoutes() {
         {/* Org-wide reads open to every role (ORG_PATHS) */}
         <Route path="/dashboard/hr/org-chart" element={<OrgChartPage />} />
         <Route path="/dashboard/hr/company" element={<CompanyProfilePage />} />
+        {/* Plan & Billing. HR-only: the billing endpoints are gated HR_ONLY and
+            refuse platform admins too, so this is a capability one role has
+            rather than a screen another role was denied. */}
+        <Route path="/dashboard/hr/billing" element={<BillingOverviewPage />} />
+        <Route path="/dashboard/hr/billing/payments" element={<BillingPaymentsPage />} />
         <Route path="/dashboard/hr/attendance/directory" element={<HRAttendancePage />} />
         <Route path="/dashboard/hr/attendance/policies" element={<AttendancePoliciesPage />} />
         <Route path="/dashboard/hr/attendance/shifts" element={<AttendanceShiftsPage />} />
@@ -421,6 +441,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/documents/letter-proposals" element={<HRLetterProposalsPage />} />
         <Route path="/dashboard/hr/my-documents" element={<MyDocumentsPage />} />
         <Route path="/dashboard/hr/company-documents" element={<IssuedDocumentsPage />} />
+        <Route path="/dashboard/hr/company-documents/:documentId" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/hr/my-document-requests" element={<MyRequestsPage />} />
         <Route path="/dashboard/hr/my-documents/all" element={<AllMyDocumentsPage />} />
         <Route path="/dashboard/hr/forms" element={<FormsLibraryPage />} />
@@ -473,6 +494,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/documents/requests" element={<TeamRequestsPage />} />
         <Route path="/dashboard/manager/my-documents" element={<MyDocumentsPage />} />
         <Route path="/dashboard/manager/company-documents" element={<IssuedDocumentsPage />} />
+        <Route path="/dashboard/manager/company-documents/:documentId" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/manager/my-document-requests" element={<MyRequestsPage />} />
         <Route path="/dashboard/manager/my-documents/all" element={<AllMyDocumentsPage />} />
         <Route path="/dashboard/manager/forms" element={<FormsLibraryPage />} />
@@ -498,6 +520,7 @@ function AppRoutes() {
         <Route path="/dashboard/employee/payroll/reimbursements" element={<MyReimbursementsPage />} />
         <Route path="/dashboard/employee/documents" element={<MyDocumentsPage />} />
         <Route path="/dashboard/employee/company-documents" element={<IssuedDocumentsPage />} />
+        <Route path="/dashboard/employee/company-documents/:documentId" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/employee/document-requests" element={<MyRequestsPage />} />
         <Route path="/dashboard/employee/documents/all" element={<AllMyDocumentsPage />} />
         <Route path="/dashboard/employee/forms" element={<FormsLibraryPage />} />

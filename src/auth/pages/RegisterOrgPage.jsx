@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { organizationAPI, tokenHelper } from "../../shared/api";
 import { useAuth } from "../../shared/contexts/AuthContext";
-import { HiCheck, HiArrowLeft, HiArrowRight, HiOfficeBuilding } from "react-icons/hi";
+import { HiCheck, HiArrowLeft, HiArrowRight, HiOfficeBuilding, HiExclamationCircle, HiRefresh } from "react-icons/hi";
 import hrcloudsLogo from "../../assets/logo2.png";
 import {
-  PLANS,
-  PLAN_BY_TIER,
   planCodeFor,
   formatPlanPrice,
+  planPeriodLabel,
   planBullets,
   bestYearlySavingPct,
+  variantFor,
+  limitsFor,
 } from "../../shared/config/plans";
+import usePlanCatalog from "../../shared/hooks/usePlanCatalog";
+import { organizationErrorMessage } from "../../shared/utils/organizationErrors";
 import { readPlanIntent, clearPlanIntent } from "../../shared/config/planIntent";
 import { INDUSTRY_OPTIONS } from "../../shared/organization/orgProfileMeta";
 import { ENV } from "../../config/env";
@@ -53,7 +56,11 @@ function RegisterOrgPage() {
   // Step 1: select plan; Step 2: enter details
   const [step, setStep] = useState(1);
   const [billing, setBilling] = useState("monthly"); // monthly | yearly
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  // The TIER, not the plan object. The catalogue arrives asynchronously, so
+  // holding the object would pin a card to whichever list was loaded when it
+  // was clicked — the fallback's figures surviving into a live session is
+  // exactly the drift this screen must not have.
+  const [selectedTier, setSelectedTier] = useState(null);
 
   // Form details
   const [form, setForm] = useState({
@@ -65,30 +72,53 @@ function RegisterOrgPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  // Where the cards and the price come from. Everyone who reaches this page is
+  // a signed-in guest (#2 needs a guest token), so this is normally the LIVE
+  // catalogue; the hardcoded fallback appears only if that read failed, and
+  // `planSource` is what stops us taking money on unverified figures below.
+  const {
+    plans, source: planSource, loading: plansLoading, error: plansError, reload: reloadPlans,
+  } = usePlanCatalog();
+  const planByTier = useMemo(() => Object.fromEntries(plans.map((p) => [p.tier, p])), [plans]);
+
   useEffect(() => { loadRazorpayScript(); }, []);
 
   // A pricing-page card links here as ?plan=starter&billing=yearly. Honour it
   // so the plan the buyer clicked is the plan they land on — picking again
   // from a second, identical list is how the two lists drifted apart before.
-  useEffect(() => {
-    // Either the query string (already signed in, straight from a card) or the
-    // intent parked before the signup detour. Query wins — it is the more
-    // recent click.
+  //
+  // The parked choice is READ once and HELD, rather than consumed on mount:
+  // applying it needs the catalogue, which arrives a moment later, and
+  // clearing the intent before it could be used would lose the click.
+  const [parkedChoice] = useState(() => {
     const parked = readPlanIntent();
-    const tier = searchParams.get("plan") || parked?.tier;
-    const cycle = searchParams.get("billing") || parked?.billing;
+    // Query wins over the parked intent — it is the more recent click.
+    const choice = {
+      tier: searchParams.get("plan") || parked?.tier || null,
+      cycle: searchParams.get("billing") || parked?.billing || null,
+    };
+    clearPlanIntent(); // honoured once; re-picking here must stick
+    return choice;
+  });
 
-    if (cycle === "yearly" || cycle === "monthly") setBilling(cycle);
-    const preset = tier && PLAN_BY_TIER[tier];
-    if (preset) {
-      setSelectedPlan(preset);
+  useEffect(() => {
+    if (parkedChoice.cycle === "yearly" || parkedChoice.cycle === "monthly") {
+      setBilling(parkedChoice.cycle);
+    }
+  }, [parkedChoice]);
+
+  // Apply the parked tier as soon as the catalogue that defines it is in. Once
+  // only: a later edit in the picker must not be overwritten when the list
+  // refreshes. A tier that no longer exists simply leaves them on the picker.
+  const choiceApplied = useRef(false);
+  useEffect(() => {
+    if (choiceApplied.current || plansLoading || !parkedChoice.tier) return;
+    choiceApplied.current = true;
+    if (planByTier[parkedChoice.tier]) {
+      setSelectedTier(parkedChoice.tier);
       setStep(2);
     }
-    clearPlanIntent(); // honoured once; re-picking here must stick
-
-    // Read once on entry — later edits to the picker must not be overwritten.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [parkedChoice, planByTier, plansLoading]);
 
   useEffect(() => {
     if (!tokenHelper.get()) {
@@ -102,13 +132,30 @@ function RegisterOrgPage() {
     }
   }, [navigate, role, getDashboardPath]);
 
+  // Always derived from the current catalogue, so a live list arriving after a
+  // click silently corrects the card rather than leaving a stale one selected.
+  const selectedPlan = selectedTier ? planByTier[selectedTier] || null : null;
+  const selectedVariant = variantFor(selectedPlan, billing);
+  const selectedLimits = limitsFor(selectedPlan, billing);
+  const isFreePlan = selectedVariant ? selectedVariant.amount === 0 : false;
+
   useEffect(() => {
-    if (selectedPlan?.tier === "free") {
+    if (isFreePlan) {
       setForm((prev) => ({ ...prev, size: "1-10" }));
     }
-  }, [selectedPlan]);
+  }, [isFreePlan]);
 
-  const availableSizes = sizesForPlan(selectedPlan);
+  const availableSizes = sizesForPlan(selectedPlan, billing);
+
+  // A size already chosen can stop fitting when the catalogue loads and the
+  // real limit turns out to be lower. Drop it rather than submitting a bucket
+  // the picker would no longer offer.
+  useEffect(() => {
+    if (form.size && !availableSizes.includes(form.size)) {
+      setForm((prev) => ({ ...prev, size: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableSizes.join("|")]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -118,10 +165,24 @@ function RegisterOrgPage() {
     e.preventDefault();
     if (!selectedPlan) return;
 
+    // Don't take money on figures we couldn't verify. Everyone here is signed
+    // in, so a fallback catalogue means the #225 read failed — the price on
+    // screen may not be the price the gateway asks for, and meeting a
+    // different number in the payment window is the complaint this whole
+    // module exists to prevent. A free plan is exempt: there is nothing to
+    // get wrong.
+    const planCode = planCodeFor(selectedPlan, billing);
+    if (planSource !== "live" && !isFreePlan) {
+      setError("We couldn’t confirm today’s prices just now. Reload the plans and try again — nothing has been charged.");
+      return;
+    }
+    if (!planCode) {
+      setError("That plan isn’t available any more. Pick another one.");
+      return;
+    }
+
     setError("");
     setLoading(true);
-
-    const planCode = planCodeFor(selectedPlan, billing);
 
     try {
       const res = await organizationAPI.initiateRegistration({
@@ -146,7 +207,10 @@ function RegisterOrgPage() {
         await openRazorpay(res.data.razorpay_order, res.data.org_id);
       }
     } catch (err) {
-      setError(err.message || "Registration failed. Please try again.");
+      // §6: never a raw server sentence. A stale plan_code in the catalogue
+      // surfaces here as PLAN_NOT_FOUND, which has to read as "pick another",
+      // not as a backend error string.
+      setError(organizationErrorMessage(err, "We couldn’t set up your organisation. Try again."));
     } finally {
       setLoading(false);
     }
@@ -190,7 +254,10 @@ function RegisterOrgPage() {
           setSuccess(true);
           setTimeout(() => navigate(getDashboardPath("hr"), { replace: true }), 1500);
         } catch (err) {
-          setError(err.message || "Payment verification failed. Please contact support.");
+          // A verification that does not land is NOT a lost payment: the
+          // gateway webhook and the reconciler settle the same transaction
+          // within minutes (#239). Never tell them to pay again.
+          setError(organizationErrorMessage(err, "We couldn’t confirm that payment yet. Don’t pay again — check your email, or contact support if your workspace isn’t ready shortly."));
         } finally {
           setLoading(false);
         }
@@ -303,15 +370,41 @@ function RegisterOrgPage() {
                 >
                   Yearly billing
                   <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-bold">
-                    Save {bestYearlySavingPct()}%
+                    Save {bestYearlySavingPct(plans)}%
                   </span>
                 </button>
               </div>
             </div>
 
+            {/* The catalogue couldn't be read. Say so before they choose,
+                rather than letting them reach the payment window and meet a
+                different number — the plans below are our last known list. */}
+            {plansError && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 px-4 py-3 mb-6 text-xs text-slate-700">
+                <HiExclamationCircle className="w-4 h-4 shrink-0 text-fuchsia-500" />
+                <span className="flex-1">
+                  We couldn’t load today’s prices, so these are our last known ones. Reload before paying.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => reloadPlans()}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  <HiRefresh className="w-3.5 h-3.5" /> Reload plans
+                </button>
+              </div>
+            )}
+
+            {/* The server offers nothing — a real state, not a failed read. */}
+            {!plansLoading && !plansError && plans.length === 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
+                There are no plans on sale at the moment. Contact support and we’ll set one up for you.
+              </div>
+            )}
+
             {/* Clean 3-Card Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-              {PLANS.map((plan) => {
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch ${plansLoading ? "opacity-60" : ""}`}>
+              {plans.map((plan) => {
                 const price = formatPlanPrice(plan, billing);
                 const isFree = plan.monthly.amount === 0;
                 return (
@@ -359,7 +452,7 @@ function RegisterOrgPage() {
 
                     <button
                       onClick={() => {
-                        setSelectedPlan(plan);
+                        setSelectedTier(plan.tier);
                         setStep(2);
                       }}
                       className={`w-full font-semibold text-sm rounded-xl py-3 text-center transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5
@@ -403,9 +496,13 @@ function RegisterOrgPage() {
                   {selectedPlan?.name} ({billing})
                 </p>
                 <p className="text-[11px] text-gray-500">
-                  {selectedPlan?.monthlyPrice === 0
+                  {/* `monthlyPrice` / `yearlyPrice` were never fields on a plan,
+                      so this line rendered "₹undefined/month" for every plan.
+                      The catalogue's own formatters are the only way to print
+                      a price. */}
+                  {isFreePlan
                     ? "Free forever"
-                    : `₹${(billing === "yearly" ? selectedPlan?.yearlyPrice : selectedPlan?.monthlyPrice)?.toLocaleString("en-IN")}/${billing === "yearly" ? "year" : "month"}`}
+                    : [formatPlanPrice(selectedPlan, billing), planPeriodLabel(selectedPlan, billing)].filter(Boolean).join(" ")}
                 </p>
               </div>
             </div>
@@ -469,7 +566,7 @@ function RegisterOrgPage() {
                   </select>
                   {selectedPlan && (
                     <p className="text-[11px] text-purple-600 font-medium mt-1">
-                      {selectedPlan.name} covers up to {selectedPlan.limits.employees} employees.
+                      {selectedPlan.name} covers {selectedLimits?.employees == null ? "any number of" : `up to ${selectedLimits.employees}`} employees.
                     </p>
                   )}
                 </div>
@@ -547,7 +644,7 @@ function RegisterOrgPage() {
                   </>
                 ) : (
                   <>
-                    {selectedPlan?.monthlyPrice === 0 ? "Activate Workspace" : "Proceed to Payment"}
+                    {isFreePlan ? "Activate Workspace" : "Proceed to Payment"}
                     <HiArrowRight className="w-4 h-4" />
                   </>
                 )}

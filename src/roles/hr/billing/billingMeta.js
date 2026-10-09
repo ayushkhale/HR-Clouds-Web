@@ -1,0 +1,278 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// billingMeta.js — What the billing module's enums, states and figures MEAN,
+// kept out of the JSX (§1) so the two billing screens and three dialogs agree.
+//
+// Contract: public/ref docs/md_money/phase1_api_analysis.md.
+//
+// This domain has more jargon per screen than anything else in the product —
+// proration, entitlement, grace, settlement, intent, credit notes — and none of
+// it is a word an HR admin should have to learn (§6). So every label here is
+// written for the person paying the bill, and says the consequence rather than
+// the mechanism:
+//
+//   entitlement  → "your workspace is switched on"
+//   in_grace     → "payment overdue" (access continues, briefly)
+//   proration    → "credit for the days you’ve already paid for"
+//   intent       → what this payment IS: first plan / renewal / move up
+//   settled_via  → never shown at all; nobody cares which of our three
+//                  settlement paths won the race
+//
+// Tones follow §5: `emerald` renders violet (good), `amber` renders fuchsia
+// (pending/warning), `blue`/`indigo` render indigo (neutral info), and `rose`
+// stays red for the two states that genuinely are failures — a failed payment
+// and an expired subscription.
+//
+// The money figures arrive as DECIMAL STRINGS ("14999.00"). Nothing here does
+// arithmetic on them; the one place that must compare two amounts
+// (`isBiggerPlan`) parses explicitly and is only ever used to sort a catalogue
+// for display, never to decide what to charge — the server decides that.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { humanize } from "../../../shared/attendance/enums";
+import { formatMoney } from "../../../shared/utils/formatUtils";
+
+/* ─── Subscription status (#226 `subscription.status`) ───────────────────────
+   Five values, and the difference between three of them is the whole story of
+   whether the workspace still works. `is_entitled` is the server's verdict and
+   is always preferred over reading the status ourselves. */
+export const SUBSCRIPTION_STATUS = {
+  active: {
+    label: "Active",
+    tone: "emerald",
+    meaning: "Everything is switched on and the plan renews on its own.",
+  },
+  in_grace: {
+    label: "Payment overdue",
+    tone: "amber",
+    meaning: "The plan has run out but we’ve kept the workspace on for a few more days. Renew to keep it.",
+  },
+  past_due: {
+    label: "Payment overdue",
+    tone: "amber",
+    meaning: "The plan has run out but we’ve kept the workspace on for a few more days. Renew to keep it.",
+  },
+  expired: {
+    label: "Ended",
+    tone: "rose",
+    meaning: "The plan has run out and the extra days are used up. Choose a plan to switch the workspace back on.",
+  },
+  canceled: {
+    label: "Cancelled",
+    tone: "slate",
+    meaning: "This plan was cancelled. Choose a plan to start again.",
+  },
+  cancelled: {
+    label: "Cancelled",
+    tone: "slate",
+    meaning: "This plan was cancelled. Choose a plan to start again.",
+  },
+  suspended: {
+    label: "Suspended",
+    tone: "rose",
+    meaning: "We’ve paused this workspace. Contact support to sort it out.",
+  },
+};
+
+export const subscriptionStatusMeta = (status) =>
+  SUBSCRIPTION_STATUS[String(status || "").toLowerCase()]
+  || { label: humanize(status) || "N/A", tone: "slate", meaning: "" };
+
+/* ─── Payment status (#229 `status`) ────────────────────────────────────────
+   "pending" is the one that needs care: it means an order is open and the
+   person may be mid-payment, so it is never styled as a failure. */
+export const PAYMENT_STATUS = {
+  pending: { label: "Waiting to pay", tone: "amber" },
+  success: { label: "Paid", tone: "emerald" },
+  failed: { label: "Didn’t go through", tone: "rose" },
+  cancelled: { label: "Dropped", tone: "slate" },
+  partially_refunded: { label: "Part refunded", tone: "blue" },
+  refunded: { label: "Refunded", tone: "blue" },
+};
+
+export const paymentStatusMeta = (status) =>
+  PAYMENT_STATUS[String(status || "").toLowerCase()]
+  || { label: humanize(status) || "N/A", tone: "slate" };
+
+/** The filter tabs on Payments & Invoices — labels, not enum names. */
+export const PAYMENT_FILTERS = [
+  { value: "", label: "All" },
+  { value: "success", label: "Paid" },
+  { value: "pending", label: "Waiting to pay" },
+  { value: "failed", label: "Didn’t go through" },
+  { value: "refunded", label: "Refunded" },
+];
+
+/* ─── Intent (#229/#232/#238 `intent`) ──────────────────────────────────────
+   The server works out what a payment is from the organisation's current
+   subscription; we only ever display its answer. "Upgrade" is the word the API
+   uses, but nobody buying it calls it that — they are moving to a bigger plan. */
+export const PAYMENT_INTENT = {
+  initial: { label: "First plan", verb: "Subscribe" },
+  renewal: { label: "Renewal", verb: "Renew" },
+  upgrade: { label: "Moved up a plan", verb: "Move up" },
+  downgrade: { label: "Moved down a plan", verb: "Move down" },
+  reactivation: { label: "Restarted", verb: "Restart" },
+};
+
+export const intentLabel = (intent) =>
+  PAYMENT_INTENT[String(intent || "").toLowerCase()]?.label || humanize(intent) || "N/A";
+
+/** The button word for a quote: "Renew and pay", "Move up and pay". */
+export const intentVerb = (intent) =>
+  PAYMENT_INTENT[String(intent || "").toLowerCase()]?.verb || "Pay";
+
+/**
+ * What this payment will do, in a sentence — shown above the amount so nobody
+ * pays without knowing what changes. Deliberately avoids dates and figures:
+ * the quote renders those itself, from the server's numbers.
+ */
+export const INTENT_CONSEQUENCE = {
+  initial: "Paying starts your plan and switches the workspace on.",
+  renewal: "Paying extends your plan from the day the current one ends — you don’t lose the days you’ve already paid for.",
+  upgrade: "Paying moves you up straight away. We’ve taken off credit for the days left on your current plan, and your renewal date doesn’t change.",
+  reactivation: "Paying switches the workspace back on and starts a fresh period today.",
+  downgrade: "A cheaper plan starts when the period you’ve paid for ends, so there’s nothing to pay now.",
+};
+
+export const intentConsequence = (intent) => INTENT_CONSEQUENCE[String(intent || "").toLowerCase()] || "";
+
+/* ─── Billing cycle ────────────────────────────────────────────────────────── */
+export const CYCLE_LABEL = { monthly: "a month", yearly: "a year", lifetime: "" };
+
+/** "₹999 a month", "₹14,999 a year", "Free" — the whole price phrase. */
+export function priceLabel(amount, billingCycle) {
+  const n = parseFloat(amount);
+  if (!Number.isFinite(n) || n === 0) return "Free";
+  const per = CYCLE_LABEL[String(billingCycle || "").toLowerCase()];
+  return per ? `${formatMoney(amount)} ${per}` : formatMoney(amount);
+}
+
+/** A free plan never expires and can't be cancelled (#235 CANNOT_CANCEL_FREE_PLAN). */
+export const isFreePlan = (plan) =>
+  !plan || parseFloat(plan.amount) === 0 || String(plan.billing_cycle).toLowerCase() === "lifetime";
+
+/* ─── Subscription lifecycle events (#228 `event_type`) ─────────────────────
+   An audit trail an HR admin can actually read. Anything not listed falls back
+   to humanize(), so a new backend event type shows as words rather than a raw
+   code — and never as nothing. */
+export const EVENT_LABEL = {
+  "payment.initiated": "Payment started",
+  "payment.succeeded": "Payment received",
+  "payment.failed": "Payment didn’t go through",
+  "payment.abandoned": "Payment dropped",
+  "payment.flagged": "Payment held for checking",
+  "payment.refunded": "Payment refunded",
+  "subscription.activated": "Plan switched on",
+  "subscription.renewed": "Plan renewed",
+  "subscription.upgraded": "Moved up a plan",
+  "subscription.downgraded": "Moved down a plan",
+  "subscription.cancelled": "Plan cancelled",
+  "subscription.canceled": "Plan cancelled",
+  "subscription.cancel_scheduled": "Set to end at the period end",
+  "subscription.cancel_reverted": "Cancellation called off",
+  "subscription.downgrade_scheduled": "Cheaper plan scheduled",
+  "subscription.downgrade_cleared": "Scheduled plan change removed",
+  "subscription.expired": "Plan ran out",
+  "subscription.grace_started": "Extra days started",
+  "subscription.suspended": "Workspace paused",
+  "invoice.issued": "Invoice issued",
+};
+
+export const eventLabel = (type) => EVENT_LABEL[type] || humanize(String(type || "").replace(/\./g, " ")) || "N/A";
+
+/** Events that are bad news get the one red tone; everything else stays neutral. */
+export const eventTone = (type) =>
+  ["payment.failed", "payment.flagged", "subscription.expired", "subscription.suspended"].includes(type)
+    ? "rose"
+    : ["payment.succeeded", "subscription.activated", "subscription.renewed", "subscription.upgraded"].includes(type)
+      ? "emerald"
+      : "slate";
+
+/* ─── Seat usage ────────────────────────────────────────────────────────────
+   #226 `usage` is `{ employees, managers, hrs }`, each `{ used, limit }` with a
+   null limit meaning unlimited. The meters are the main reason an admin opens
+   this page, so they are derived once here. */
+export const SEAT_ROLES = [
+  { key: "employees", label: "Employees" },
+  { key: "managers", label: "Managers" },
+  { key: "hrs", label: "HR admins" },
+];
+
+/** Role word for a #232/#237 seat violation, which names the singular role. */
+export const VIOLATION_ROLE_LABEL = { employee: "Employees", manager: "Managers", hr: "HR admins" };
+
+/**
+ * One meter: `{ key, label, used, limit, unlimited, pct, full, over }`.
+ * `pct` is capped at 100 so the bar can't overflow its track, while `over`
+ * keeps the fact that the count has passed the limit — which is possible, since
+ * people can be invited up to the limit and a scheduled downgrade can land
+ * under it.
+ */
+export function seatMeters(usage) {
+  return SEAT_ROLES.map(({ key, label }) => {
+    const row = usage?.[key] || {};
+    const used = Number(row.used) || 0;
+    const limit = row.limit === null || row.limit === undefined ? null : Number(row.limit);
+    const unlimited = limit === null || !Number.isFinite(limit);
+    const pct = unlimited || limit === 0 ? 0 : Math.min(100, Math.round((used / limit) * 100));
+    return {
+      key,
+      label,
+      used,
+      limit,
+      unlimited,
+      pct,
+      full: !unlimited && used >= limit,
+      over: !unlimited && used > limit,
+      // "42 of 100" / "42 — no limit", never a bare fraction with no unit.
+      text: unlimited ? `${used} — no limit` : `${used} of ${limit}`,
+    };
+  });
+}
+
+/** The meter colour: red once it's over, fuchsia as it fills, violet otherwise. */
+export const meterTone = (meter) =>
+  meter.over ? "bg-rose-500" : meter.full || meter.pct >= 90 ? "bg-fuchsia-500" : "bg-violet-500";
+
+/* ─── Plan comparison (display only) ───────────────────────────────────────── */
+
+/** Is `plan` dearer than `current`? Used to sort and to label, never to price. */
+export function isBiggerPlan(plan, current) {
+  const a = parseFloat(plan?.amount);
+  const b = parseFloat(current?.amount);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  return a > b;
+}
+
+/**
+ * How a catalogue plan stands against the one in force: "current" | "up" |
+ * "down" | "none". The server has the final say (#238 `intent`); this only
+ * decides which button a card shows before anything is asked.
+ */
+export function planStanding(plan, currentPlan) {
+  if (!currentPlan) return "none";
+  if (plan.code === currentPlan.code) return "current";
+  return isBiggerPlan(plan, currentPlan) ? "up" : "down";
+}
+
+/** The card's button word, from that standing. */
+export const STANDING_ACTION = {
+  current: "Renew this plan",
+  up: "Move up to this plan",
+  down: "Switch to this plan later",
+  none: "Choose this plan",
+};
+
+/* ─── Invoice (#231) ───────────────────────────────────────────────────────
+   A frozen statutory document: it is shown exactly as it was issued, never
+   re-derived from today's company details. The labels are the ones a finance
+   team expects on a tax invoice, because this is the one screen in the product
+   written for an accountant rather than for an HR admin. */
+export const INVOICE_TOTAL_ROWS = [
+  { key: "subtotal", label: "Subtotal" },
+  { key: "discount", label: "Discount" },
+  { key: "taxable_amount", label: "Taxable amount" },
+  { key: "cgst_amount", label: "CGST" },
+  { key: "sgst_amount", label: "SGST" },
+  { key: "igst_amount", label: "IGST" },
+];

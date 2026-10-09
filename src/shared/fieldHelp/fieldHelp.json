@@ -3629,6 +3629,237 @@
           }
         }
       }
+    },
+    "billing.overview": {
+      "kind": "data",
+      "description": "Plan & Billing (BillingOverviewPage) — the subscription headline, seat meters and plan catalogue. Keys are GET /billing/subscription (#226) response keys.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Your company’s subscription to HR Clouds — what you pay us, what it allows, and how to change it. Nothing here touches employee pay.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the Plan & Billing page control, and how is the company's HR Clouds subscription different from employee payroll?"
+          }
+        },
+        "status": {
+          "hint": "Whether the paid features are switched on today. Overdue means the plan has run out but we’ve kept it on for a few more days.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the subscription statuses mean — active, payment overdue, ended and cancelled — and what stops working in each one?"
+          }
+        },
+        "current_period_end": {
+          "hint": "The last day the plan you’ve paid for covers. After it, a short grace period keeps things on, then the paid features switch off.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens when a subscription period ends, how long is the grace period, and what stops working after it?"
+          }
+        },
+        "usage": {
+          "tier": "onboarding",
+          "hint": "People who have joined and can sign in, counted per role. Invitations not yet accepted don’t count; someone who has left frees their place.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How are employees, managers and HR admins counted against a plan's limits, and do pending invitations or people who have left count?"
+          }
+        },
+        "plans": {
+          "tier": "onboarding",
+          "hint": "A dearer plan starts today and you’re credited for the days left on this one. A cheaper plan starts when the period you’ve paid for ends.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between moving up to a dearer plan and scheduling a cheaper one, and when is each charged?"
+          }
+        }
+      }
+    },
+    "billing.plan_change": {
+      "kind": "data",
+      "description": "The review-and-pay dialog (ChangePlanDialog). Keys are GET /billing/subscription/preview-change (#238) response keys.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "amount_due": {
+          "hint": "What will be charged if you pay now. It already has any credit for your unused days taken off it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the amount due for a plan change worked out, and what is taken off it before I pay?"
+          }
+        },
+        "proration": {
+          "tier": "onboarding",
+          "hint": "Moving up mid-period doesn’t waste what you’ve paid: the days you haven’t used on your current plan come off the new plan’s price.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is proration on a subscription upgrade, and how are unused days on the current plan turned into credit?"
+          }
+        },
+        "unused_credit": {
+          "hint": "What the days left on your current plan are worth. It’s taken off today’s payment, not refunded to your bank.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is unused credit on a plan change, and is it paid back to me or only taken off the new plan's price?"
+          }
+        },
+        "new_period_end": {
+          "hint": "When the next payment falls due. Moving up a plan doesn’t move this date — you keep the period you already paid for.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Does upgrading a subscription change my renewal date, and how is the new period end decided for a renewal?"
+          }
+        }
+      }
+    },
+    "billing.cancel": {
+      "kind": "form",
+      "description": "The cancellation dialog (CancelPlanDialog). `effective` is the POST /billing/subscription/cancel (#235) request key.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "effective": {
+          "hint": "Stopping it renewing keeps everything working until the period ends, and can be undone. Ending access today can’t be, and isn’t refunded.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between cancelling a subscription at the end of the period and ending access immediately, and which one can be undone?"
+          }
+        }
+      }
+    },
+    "billing.payments": {
+      "kind": "data",
+      "description": "Payments & Invoices (BillingPaymentsPage) — the transactions table and the two collapsed ledgers. Keys are GET /billing/payments (#229) response keys.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Every payment your company has made for HR Clouds, each with a tax invoice your accounts team can claim against.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What records does the Payments & Invoices page hold, and what can our accounts team do with the tax invoices on it?"
+          }
+        },
+        "intent": {
+          "hint": "What the payment was for: starting a plan, renewing it, or moving up to a dearer one part-way through a period.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the payment types mean — first plan, renewal, moved up a plan and restarted?"
+          }
+        },
+        "invoice_number": {
+          "tier": "onboarding",
+          "hint": "The serial on your tax invoice. These run in an unbroken sequence per financial year, so quote it when asking us about a payment.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a GST tax invoice number, why does it run in an unbroken sequence per financial year, and when should we quote it?"
+          }
+        },
+        "history": {
+          "hint": "Every plan this company has been on, with the dates each one covered. Useful when reconciling an old invoice.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the plan history show, and why does a subscription appear as several rows over time?"
+          }
+        },
+        "events": {
+          "hint": "A dated record of everything that has happened to your subscription. It can’t be edited, so it’s what we both work from.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is recorded in the billing activity trail, and why can't it be changed?"
+          }
+        }
+      }
+    },
+    "billing.payment_detail": {
+      "kind": "data",
+      "description": "One payment (PaymentDetailDialog), with its frozen GST invoice. Keys are GET /billing/payments/:transactionId (#230) and its /invoice (#231) response keys.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "amount": {
+          "hint": "What was actually taken, after any credit for unused days was applied. The plan’s full price is shown separately below.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can the amount charged for a subscription be less than the plan's listed price?"
+          }
+        },
+        "intent": {
+          "hint": "What this payment bought: a new plan, a renewal of the same one, or a move up to a dearer one.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the payment types mean on a subscription payment, and how is each one priced?"
+          }
+        },
+        "base_amount": {
+          "hint": "The plan’s price before tax and before any credit. The invoice below shows how it becomes the amount charged.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between a subscription's base amount, its tax and the total charged?"
+          }
+        },
+        "tax_amount": {
+          "hint": "The GST charged on this payment. Your accounts team can usually claim it back against the invoice below.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is GST charged on a software subscription in India, and what does a company need in order to claim it back?"
+          }
+        },
+        "refunded_amount": {
+          "hint": "How much of this payment has been sent back. A refund is issued against a credit note, which is listed with the invoice.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does a refund on a subscription payment work, and what is a credit note for?"
+          }
+        },
+        "invoice_number": {
+          "hint": "The serial on your tax invoice. It is only issued once the payment has settled, so a payment still in progress has none.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When is a tax invoice number issued for a subscription payment, and why does a pending payment not have one?"
+          }
+        },
+        "tax_invoice": {
+          "tier": "onboarding",
+          "hint": "The statutory invoice, kept exactly as it was issued. Changing your company address later doesn’t alter invoices already raised.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is a GST tax invoice frozen at the moment it is issued, and what happens to old invoices if our company address or GSTIN changes?"
+          }
+        }
+      }
+    },
+    "billing.notices": {
+      "kind": "form",
+      "description": "Billing notices (BillingNoticesCard) on Plan & Billing. Keys are the PATCH /organizations/profile request keys for settings #97 and #98.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "billing_notification_emails": {
+          "tier": "onboarding",
+          "hint": "Extra addresses copied on invoices and renewal notices — usually your accounts team. Your own address always gets them anyway.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who receives our billing emails and tax invoices, and why would a company add its accounts team as extra recipients?"
+          }
+        },
+        "billing_reminder_lead_days": {
+          "tier": "onboarding",
+          "hint": "How many days before the plan ends we warn you. Picking none switches renewal reminders off, so the plan could lapse unnoticed.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are subscription renewal reminders, how far ahead should they be sent, and what is the risk of turning them off?"
+          }
+        }
+      }
     }
   }
 }
