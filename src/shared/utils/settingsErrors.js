@@ -2,7 +2,8 @@
 // settingsErrors.js — The settings gateway's error codes in plain words.
 // Mirrors payrollErrors.js / organizationErrors.js.
 //
-// Source: the error tables in public/ref docs/md_settings/combined_api_analysis.md.
+// Source: the error tables in public/ref docs/md_settings/combined_api_analysis.md
+// and phases/phase3_api_analysis.md §4.
 //
 // Most of these are not the reader's fault and not fixable by retrying — they
 // say a group is off-limits to their role, or not in their plan. So each one
@@ -10,9 +11,8 @@
 // HR admin to ask IT about a permission when the real answer is that the
 // company doesn't pay for that module.
 //
-// Phase 2's write codes (412 precondition, the reason and confirmation gates)
-// are deliberately absent: there is no write plane yet, so a message for one
-// could only ever be dead copy that drifts before it is used.
+// Covers all three phases: the read plane (#242–#245), the write plane and its
+// two gates (#246–#247), and the change history (#248).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SETTINGS_ERROR_MESSAGES = {
@@ -68,6 +68,18 @@ const SETTINGS_ERROR_MESSAGES = {
   INVALID_PAYOUT_COMPONENT: "That isn’t a salary component we can pay out. Pick another.",
   LETTER_REFERENCE_PATTERN_INVALID: "That reference pattern isn’t valid. It needs a sequence number in it.",
   ORG_PROFILE_NOT_FOUND: "This organisation has no profile yet, so there’s nothing to save against. Open Company Profile and fill it in first.",
+
+  // ── The change history (Phase 3, #248) ───────────────────────────────────
+  // Two of these are OUR bugs wearing a user-facing status, and both say
+  // "reload" rather than describing a control nobody touched: a cursor is
+  // opaque and never typed by hand, and a filter conflict can only happen if
+  // the screen let two filters disagree.
+  INVALID_CURSOR: "We lost our place in the list. Reload the page to start from the newest changes.",
+  FILTER_CONFLICT: "That setting isn’t part of the area you’ve picked. Change one of the two filters.",
+  INVALID_DATE_RANGE: "The “to” date is before the “from” date. Swap them, or clear one.",
+  // Every audit source failed. Nothing is lost — this is a read — so the
+  // wording invites a retry rather than suggesting the record is gone.
+  SETTINGS_HISTORY_UNAVAILABLE: "We couldn’t read the change history just now. Nothing has been lost — try again in a moment.",
 };
 
 /** The code a settings error arrived with, or "". */
@@ -165,5 +177,29 @@ export function riskWarnings(error) {
   const warnings = error?.data?.details?.warnings;
   return Array.isArray(warnings) ? warnings.filter(Boolean) : [];
 }
+
+/* ─── The change history: which refusals the screen must ACT on ────────────
+   Two of #248's refusals are the screen's fault and are recoverable without
+   the reader doing anything, so they get predicates rather than only a
+   sentence. */
+
+/**
+ * The keyset cursor was rejected. It is opaque and we only ever echo back what
+ * the server gave us, so this means our page is stale — the only honest
+ * recovery is to drop the cursor and re-read from the newest change. NEVER
+ * retry the same cursor: it will fail identically, forever.
+ */
+export const isInvalidCursor = (error) => settingsErrorCode(error) === "INVALID_CURSOR";
+
+/**
+ * `group` and `setting_key` were both sent and disagree. The screen let two
+ * filters contradict each other, so it clears the narrower one rather than
+ * asking the reader to work out which is wrong.
+ */
+export const isFilterConflict = (error) => settingsErrorCode(error) === "FILTER_CONFLICT";
+
+/** Every audit source failed. A read, so nothing is lost and a retry is fair. */
+export const isHistoryUnavailable = (error) =>
+  settingsErrorCode(error) === "SETTINGS_HISTORY_UNAVAILABLE";
 
 export default settingsErrorMessage;

@@ -1079,3 +1079,254 @@ Includes all error codes defined for `S-5`, plus:
 * **Precondition Authority:** The ETag returned by `S-4` serves as the exact `If-Match` precondition token required by `S-5` and `S-6`.
 * **Contract Backward Compatibility:** 100% backward compatible. Fail-loud security behavior and response structure remain identical.
 
+
+---
+
+# Phase 3: Unified Change History & Audit Ledger (API #248)
+
+## 1. Settings Change History Plane
+
+### 1. GET /api/v1/settings/history
+
+* **API Number / Registry Ref:** S-7 (API Registry #248)
+* **HTTP Method:** `GET`
+* **Route Path:** `/api/v1/settings/history`
+* **Purpose & Business Problem Solved:** Provides a single, unified, keyset-paginated audit trail across all five organizational settings stores (138 catalog settings). Answers who changed which setting, when, from what value, to what value, and why. Unifies fragmented audit logs across disparate physical tables (`payroll_audit_logs`, `document_audit_logs`, and `settings_change_logs`), closes the historical audit gap for organization profile billing notifications, and provides tenant administrators with complete policy traceability for compliance and security auditing. It is a **pure read plane**: it writes nothing, acquires zero row locks, and opens zero database transactions.
+
+#### Authentication, Authorization & Security
+* **Authentication Required:** Yes (Valid JWT Bearer token).
+* **Allowed Roles:** `hr` **only**. Requests from non-HR tenant roles (`manager`, `employee`) or platform infrastructure roles (`admin`, `super-admin`) are rejected at the route guard with HTTP `403 FORBIDDEN` (`errorCode: "FORBIDDEN"`).
+* **Tenant Isolation:** Enforced strictly via `req.user.orgId`. The query parameter `org_id` is forbidden (`400 VALIDATION_ERROR`). All underlying database queries append `WHERE org_id = :orgId`.
+* **Active Organization Check:** Verified via `requireActiveOrg`. Suspended or inactive tenants are rejected with HTTP `403 FORBIDDEN` (`errorCode: "ORG_NOT_ACTIVE"`).
+* **Role-Based Group Scoping:** In-scope groups are filtered against `projection.isGroupReadable(group, ctx.actorRole)`. If the caller filters by a specific `group` that is not readable by their role, returns HTTP `403 FORBIDDEN`.
+* **Subscription Feature Entitlement:**
+  * When querying with a specific `group` or `setting_key`, the service resolves subscription entitlements for that group's module feature flag (`resolveEntitlements(orgId, featureKeys)`). If the tenant's active plan does not include that feature, returns HTTP `403 FORBIDDEN` (`errorCode: "FEATURE_NOT_AVAILABLE"`).
+  * When querying across all settings (no group filter), unentitled groups are silently excluded from the candidate group scope. If no groups remain in scope, returns an empty list (`items: []`).
+  * If the entitlement service fails with a transient dependency error (`503`), the 503 error propagates directly and is never masked as a 403.
+* **Sensitive & Internal Column Gate (Normalization Rule 1):** Internal database columns (e.g. `created_at`, `updated_at`, `id`, `logo_storage_key`, `signature_storage_key`) and unmapped columns are discarded by Normalization Rule 1 (`catalog.byKey(candidate.key)`). Only registered catalog keys are emitted. Sensitive keys (`sensitive: true`) are masked per catalog policies.
+* **Tenant-Isolated Actor Hydration:** Actor display names are hydrated by querying `user_profiles` filtered strictly by `org_id = ctx.orgId`. Cross-tenant or platform user IDs safely resolve to `name: null` without leaking foreign profile information.
+
+#### Request Parameters & Headers
+* **Request Headers:**
+  * `Authorization: Bearer <token>` (Required)
+  * *(Note: S-7 does not emit or evaluate `ETag` / `If-None-Match` headers because audit history is append-only and streaming. Emits `Cache-Control: private, max-age=0, must-revalidate`).*
+* **Path Parameters:** None.
+* **Query Parameters (`historyQuerySchema`):**
+  | Parameter | Type | Required? | Default | Validation Constraints & Rules |
+  | :--- | :--- | :---: | :---: | :--- |
+  | `group` | String | Optional | `null` | Pattern: `^[a-z0-9_.]{1,60}$`. Must match an active catalog group key. Unknown group $\rightarrow$ `404 GROUP_NOT_FOUND`. |
+  | `setting_key` | String | Optional | `null` | Pattern: `^[a-z0-9_]{1,80}$`. Must match an active catalog setting key. Unknown key $\rightarrow$ `404 SETTING_NOT_FOUND`. |
+  | `actor_id` | String | Optional | `null` | Must be a valid UUID v4 format. Filters changes performed by a specific user. |
+  | `from` | String | Optional | `null` | ISO 8601 UTC timestamp. Filters changes created on or after this timestamp (`created_at >= from`). |
+  | `to` | String | Optional | `null` | ISO 8601 UTC timestamp. Filters changes created on or before this timestamp (`created_at <= to`). Must be $\ge$ `from`, else `422 INVALID_DATE_RANGE`. |
+  | `source` | String | Optional | `null` | Enum: `settings_api`, `module_api`, `system`. Filters by ingestion channel. **Applies only to `settings_change_logs`** (see Caveats). |
+  | `limit` | Integer | Optional | `50` | Integer between `1` and `100` inclusive. Page size limit. |
+  | `cursor` | String | Optional | `null` | Opaque Base64URL string (1..300 chars). Decodes to JSON `{ v: 1, t, i, k }`. Malformed or unknown version $\rightarrow$ `400 INVALID_CURSOR`. |
+
+* **Query Conflict & Parameter Pollution Hardening:**
+  * Supplying duplicate parameters (e.g. `?group=a&group=b`, parsed as array by Express 5) triggers HTTP `400 Bad Request` (`errorCode: "VALIDATION_ERROR"`).
+  * Supplying `?org_id=...` triggers HTTP `400 Bad Request` (`errorCode: "VALIDATION_ERROR"`).
+  * Supplying both `group` and `setting_key` where the setting is not a member of that group triggers HTTP `422 Unprocessable Entity` (`errorCode: "FILTER_CONFLICT"`).
+  * Supplying `new Date(to) < new Date(from)` triggers HTTP `422 Unprocessable Entity` (`errorCode: "INVALID_DATE_RANGE"`).
+
+#### Execution Behavior & Implementation Pipeline
+1. **Context Extraction & Joi Validation:** Validates query parameters against `historyQuerySchema` into typed scalar variables.
+2. **In-Scope Groups & RBAC / Entitlement Resolution:**
+   * If `group` or `setting_key` is supplied, validates existence against catalog, verifies caller readability (`isGroupReadable`), and resolves entitlement (`resolveEntitlements`).
+   * If unfiltered, starts with all 26 catalog groups, filters by readability for `ctx.actorRole`, and drops unentitled groups.
+3. **Federated Multi-Source Queries:**
+   * Determines active candidate stores from in-scope groups (`settings_change_logs`, `payroll_audit_logs`, `document_audit_logs`).
+   * Dispatches parallel queries across candidate tables using `Promise.allSettled`.
+   * Backing audit sources:
+     * `settings_change_logs` (Shape C: native 1-row-per-key ledger).
+     * `payroll_audit_logs` (Shape A: diff maps for `payroll_settings` and `statutory_configs`).
+     * `document_audit_logs` (Shape A for `document_settings`; Shape B [two-full-DTO] for `document_letter_branding`).
+4. **Five-Rule Sequential Normalization:** For every raw candidate item from each source row:
+   * *Rule 1 (Catalog Projection):* Discards non-catalog keys. Internal/sensitive columns never leak.
+   * *Rule 2 (Store Consistency):* Asserts `entry.store === source.store`.
+   * *Rule 3 (Group Scope Gate):* Asserts `entry.group_key` is in `inScopeGroups`.
+   * *Rule 4 (No-Op Drop):* Compares `old_value` and `new_value` using `valuesEqual(a, b, entry.data_type)`. If equal, candidate is dropped.
+   * *Rule 5 (Keyset Tie Trim):* If candidate belongs to the boundary row identified by `cursor.i` and `cursor.t`, discards keys where `candidate.key <= cursor.k`.
+5. **Merge-Sort & Horizon Cut-Off:**
+   * Normalised candidates are merged and sorted: `created_at DESC, id DESC, setting_key ASC`.
+   * Merge stream is trimmed at the slowest active stream's horizon to prevent pagination holes across heterogeneous sources.
+6. **Actor Hydration:** Hydrates actor display names in a single query against `user_profiles` filtered by `org_id = ctx.orgId`.
+7. **Keyset Cursor Minting:** Encodes boundary state into opaque Base64URL token `{ v: 1, t, i, k }`. If no further records exist, `next_cursor` is `null`.
+8. **Tolerant Degradation:**
+   * If 1 of 3 sources fails, returns HTTP `200 OK` with available history and populates `unavailable_sources: [{ table, reason: "READ_FAILED" }]`.
+   * If all queried sources fail, returns HTTP `503 Service Unavailable` (`errorCode: "SETTINGS_HISTORY_UNAVAILABLE"`).
+
+#### Database Impact, Concurrency & Transactions
+* **Database Operations:** Pure read operation. Zero writes, zero locks acquired, zero database transactions opened. Safe for read replicas.
+* **Targeted Composite Indexes:** Queries on `settings_change_logs` utilize 4 targeted composite B-tree indexes:
+  * `("org_id", "created_at" DESC)`
+  * `("org_id", "setting_key", "created_at" DESC)`
+  * `("org_id", "group_key", "created_at" DESC)`
+  * `("org_id", "actor_id", "created_at" DESC)`
+* **Microsecond-to-Millisecond Alignment:** Keyset queries use `date_trunc('milliseconds', created_at)` to eliminate microsecond truncation discrepancies between PostgreSQL and Node.js `Date`.
+* **Idempotency & Retries:** Inherently idempotent. Safe to retry freely.
+
+#### Success Response Contract (`200 OK`)
+
+##### Success Response Body Example
+```json
+{
+  "success": true,
+  "message": "OK",
+  "data": {
+    "items": [
+      {
+        "occurred_at": "2026-10-09T11:30:00.000Z",
+        "group": "billing.notifications",
+        "setting_key": "billing_reminder_lead_days",
+        "registry_ref": 98,
+        "old_value": [7, 1],
+        "new_value": [14, 7, 1],
+        "actor": {
+          "id": "e4b52df1-7a6b-4e12-881c-912b7a489111",
+          "name": "Asha Rao",
+          "role": "hr"
+        },
+        "reason": "Extended reminder window for finance team",
+        "source": "settings_api",
+        "request_id": "req-98234-abcd",
+        "audit_source": "settings_change_logs"
+      },
+      {
+        "occurred_at": "2026-10-09T10:15:22.000Z",
+        "group": "payroll.calendar",
+        "setting_key": "pay_day",
+        "registry_ref": 36,
+        "old_value": 28,
+        "new_value": 30,
+        "actor": {
+          "id": "e4b52df1-7a6b-4e12-881c-912b7a489111",
+          "name": "Asha Rao",
+          "role": null
+        },
+        "reason": null,
+        "source": null,
+        "request_id": "req-11029-efgh",
+        "audit_source": "payroll_audit_logs"
+      },
+      {
+        "occurred_at": "2026-10-08T16:45:10.000Z",
+        "group": "documents.retention",
+        "setting_key": "letter_record_retention_days",
+        "registry_ref": 95,
+        "old_value": null,
+        "new_value": 730,
+        "actor": {
+          "id": "f8c92a10-2b11-4991-88dc-112233445566",
+          "name": "Karthik Nair",
+          "role": null
+        },
+        "reason": "Compliance policy update",
+        "source": null,
+        "request_id": "req-44910-ijkl",
+        "audit_source": "document_audit_logs"
+      }
+    ],
+    "next_cursor": "eyJ2IjoxLCJ0IjoiMjAyNi0xMC0wOFQxNjo0NToxMC4wMDBaIiwiaSI6IjQ0OTFmYWFjLTExMjItMzM0NC01NTY2LTc3ODg5OWFabbNjYyIsImsiOiJsZXR0ZXJfcmVjb3JkX3JldGVudGlvbl9kYXlzIn0",
+    "unavailable_sources": [],
+    "meta": {
+      "sources_read": 3,
+      "sources_unavailable": 0,
+      "returned": 3
+    }
+  }
+}
+```
+
+#### Field-Level Response Dictionary
+| Field Path | Type | Nullable? | Description & Semantics |
+| :--- | :--- | :---: | :--- |
+| `success` | Boolean | No | Always `true` on successful response. |
+| `message` | String | No | Always `"OK"`. |
+| `data.items[]` | Array of Objects | No | Chronological array of per-key change events (ordered newest first). |
+| `data.items[].occurred_at` | String (ISO 8601) | No | Exact UTC timestamp when the setting modification was committed. |
+| `data.items[].group` | String | No | Unique catalog group key (e.g. `payroll.calendar`, `billing.notifications`). |
+| `data.items[].setting_key` | String | No | Unique catalog setting key (e.g. `pay_day`, `billing_reminder_lead_days`). |
+| `data.items[].registry_ref` | Integer | Yes | Unique integer identifier in master settings registry (#1 through #138). |
+| `data.items[].old_value` | Any (JSON) | Yes | Stored value prior to modification (`null` if newly configured). |
+| `data.items[].new_value` | Any (JSON) | Yes | Stored value after modification took effect. |
+| `data.items[].actor` | Object | No | Identification details of the user who initiated the change. |
+| `data.items[].actor.id` | String (UUID) | Yes | User UUID of the actor (`null` for system automated tasks). |
+| `data.items[].actor.name` | String | Yes | Display name resolved from `user_profiles` (`null` if unresolvable). |
+| `data.items[].actor.role` | String | Yes | Role of the user at change time (`hr`, populated only for `settings_change_logs`). |
+| `data.items[].reason` | String | Yes | Business justification entered at write time (`null` if omitted). |
+| `data.items[].source` | String | Yes | Ingestion channel: `settings_api`, `module_api`, or `system` (populated for `settings_change_logs`). |
+| `data.items[].request_id` | String | Yes | Correlation request ID (`x-request-id` or `x-correlation-id`). |
+| `data.items[].audit_source` | String | No | Originating physical audit table: `settings_change_logs`, `payroll_audit_logs`, or `document_audit_logs`. |
+| `data.next_cursor` | String (Base64URL) | Yes | Keyset pagination cursor token for the next page (`null` when no further records exist). |
+| `data.unavailable_sources[]` | Array of Objects | No | Audit tables that could not be queried: `[{ table, reason: "READ_FAILED" }]`. |
+| `data.meta.sources_read` | Integer | No | Count of successfully queried audit tables. |
+| `data.meta.sources_unavailable`| Integer | No | Count of failed audit tables. |
+| `data.meta.returned` | Integer | No | Count of normalized items returned in the current page. |
+
+#### Error Responses
+```json
+{
+  "success": false,
+  "errorCode": "FILTER_CONFLICT",
+  "message": "Setting 'pay_day' is not a member of group 'documents.retention'"
+}
+```
+| HTTP Status | Error Code | Raised By | Triggering Condition & Description |
+| :--- | :--- | :--- | :--- |
+| **400 Bad Request** | `VALIDATION_ERROR` | Validator | Schema failure on query params (e.g. `limit > 100`, array pollution `?group=a&group=b`, or `?org_id=...`). |
+| **400 Bad Request** | `INVALID_CURSOR` | Utils | Cursor string is malformed, invalid Base64URL, corrupt JSON, or unknown version (`v != 1`). |
+| **403 Forbidden** | `FORBIDDEN` | Route Guard | Caller does not possess role `hr` (e.g. `manager`, `employee`, `admin`, `super-admin`), OR lacks read access to targeted group. |
+| **403 Forbidden** | `FEATURE_NOT_AVAILABLE` | Service | Targeted group/setting belongs to an unentitled module feature flag on the organization's subscription. |
+| **403 Forbidden** | `ORG_NOT_ACTIVE` | Route Guard | Organization is suspended, cancelled, or inactive. |
+| **404 Not Found** | `GROUP_NOT_FOUND` | Service | Queried `group` does not exist in catalog. |
+| **404 Not Found** | `SETTING_NOT_FOUND` | Service | Queried `setting_key` does not exist in catalog. |
+| **422 Unprocessable** | `FILTER_CONFLICT` | Service | Both `group` and `setting_key` were provided, but the setting is not a member of that group in the catalog. |
+| **422 Unprocessable** | `INVALID_DATE_RANGE` | Validator | `to` timestamp is strictly earlier than `from` timestamp. |
+| **503 Service Unavailable** | `SETTINGS_HISTORY_UNAVAILABLE`| Service | All queried audit sources failed due to database query errors. |
+| **503 Service Unavailable** | `ENTITLEMENT_DEPENDENCY_FAILURE`| Service | Billing backend dependency failure during feature entitlement check. |
+
+#### Keyset Cursor Specification & Edge Cases
+* **Payload Structure:** Opaque Base64URL-encoded JSON:
+  ```json
+  { "v": 1, "t": "2026-10-08T16:45:10.000Z", "i": "4491faac-1122-3344-5566-778899aabbcc", "k": "letter_record_retention_days" }
+  ```
+* **SQL Keyset Predicate:**
+  ```sql
+  WHERE date_trunc('milliseconds', created_at) < :t
+     OR (date_trunc('milliseconds', created_at) = :t AND id <= :i)
+  ORDER BY date_trunc('milliseconds', created_at) DESC, id DESC
+  ```
+* **Contract Caveats:**
+  1. `source`: Populated only for `settings_change_logs` rows. Legacy audit tables have no `source` column; passing `?source=...` automatically queries only the new ledger.
+  2. `actor.role`: Populated only for `settings_change_logs` rows (`hr`). For legacy audit tables, `actor.role` is `null` to avoid retroactively misrepresenting historical roles.
+  3. `reason`: Populated for `settings_change_logs` and when supplied on `payroll_audit_logs` / `document_audit_logs`.
+
+---
+
+## 2. Existing APIs Modified / Extended by Phase 3
+
+### 2.1 PUT /api/v1/settings/groups/:groupKey (S-5 #246)
+
+* **Audit Ledger Integration for `billing.notifications`:** Updating settings within `billing.notifications` (`billing_notification_emails` [#97], `billing_reminder_lead_days` [#98]) now records audit rows directly into `settings_change_logs` within the owning database transaction.
+* **Double-Door Attribution:** Writes submitted via the Settings Gateway record `source: "settings_api"`, preserving administrative channel attribution.
+* **Contract Backward Compatibility:** 100% backward compatible. Request body, path parameters, `If-Match` header validation, success response envelope, status codes, and ETag mechanics remain identical.
+
+### 2.2 POST /api/v1/settings/groups/:groupKey/reset (S-6 #247)
+
+* **Audit Ledger Integration for `billing.notifications`:** Resetting settings within `billing.notifications` to catalog defaults now records audit rows into `settings_change_logs` within the owning database transaction, tracking the customized value that was removed and the default restored.
+* **Double-Door Attribution:** Resets submitted via the Settings Gateway record `source: "settings_api"`.
+* **Contract Backward Compatibility:** 100% backward compatible. Request headers, path parameters, response envelope, status codes, and ETag mechanics remain identical.
+
+### 2.3 PUT /api/v1/organizations/profile
+
+* **Direct Domain Door Audit Attribution:** Updating organization profiles directly via the organization module domain controller now forwards caller audit metadata (`req.user.role`, `req.ip`, `x-request-id`, `source: "module_api"`).
+* **Atomic Ledger Write:** The organization domain service invokes `settingsAudit.recordDiff` inside `updateOrganizationProfileFieldsLocked` under the existing row lock and transaction, recording changes to notification settings.
+* **Contract Backward Compatibility:** 100% backward compatible. Request body, response structure, and status codes remain identical.
+
+### 2.4 PUT /api/v1/payroll/hr/settings
+
+* **Completion of DEF-S11 / F-P3-2:** The owner diff comparator in `payroll_settings.service.js:117` was upgraded from reference inequality (`!==`) to the type-aware comparator `valuesEqual(before[key], updated[key], entry.data_type)`.
+* **Elimination of Phantom Diff Logging:** Resolves a defect where updating payroll settings generated phantom audit rows in `payroll_audit_logs` for `fnf_encashment_leave_type_codes` (`jsonb` array). Both S-5 and S-7 now consistently agree on whether the setting changed.
+* **Contract Backward Compatibility:** 100% backward compatible. HTTP contract and responses are unchanged; prevents false audit records from polluting the audit ledger.
+

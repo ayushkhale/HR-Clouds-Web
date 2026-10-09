@@ -47,7 +47,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo, useState } from "react";
-import { HiChevronRight, HiSearch, HiX } from "react-icons/hi";
+import { HiChevronRight, HiClock, HiSearch, HiX } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../components/DashboardTopBar";
 import Skeleton from "../components/Skeleton";
@@ -61,8 +61,15 @@ import {
 } from "../settings/settingsMeta";
 import { SurfaceHubCard } from "../settings/settingsUi";
 import SettingsGroupForm from "../settings/SettingsGroupForm";
+import SettingsHistoryPanel from "../settings/SettingsHistoryPanel";
 
 const SURFACE = "settings.hub";
+
+/* The change history is its own rail entry rather than a module section: it
+   spans every module, so it belongs beside them, not inside one. HR ONLY —
+   #248 is guarded `authorize(['hr'])` and a manager gets 403, so the entry is
+   ABSENT for them rather than present and broken (§2). */
+const HISTORY_TAB = "__history";
 
 export default function OrgSettingsPage() {
   const workspace = useCurrentWorkspace();
@@ -80,9 +87,14 @@ export default function OrgSettingsPage() {
   const inWorkspace = (path) => (workspace ? `/dashboard/${workspace}${path}` : null);
 
   const tabs = useMemo(() => tabsFor(modules), [modules]);
+  // The history reads across every module and is HR's alone.
+  const canSeeHistory = workspace === "hr";
+  const showHistory = canSeeHistory && tab === HISTORY_TAB;
   // Default to the first section that exists, so the page never opens empty on
   // a role (or plan) whose first module happens to be missing.
-  const activeTab = tab && tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key || null;
+  const activeTab = showHistory
+    ? HISTORY_TAB
+    : (tab && tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key || null);
 
   const results = useMemo(
     () => searchSettings(entries, groupsByKey, query),
@@ -121,8 +133,13 @@ export default function OrgSettingsPage() {
   }, [visibleGroups, entriesByGroup]);
 
   const sectionOptions = useMemo(
-    () => tabs.map((t) => ({ value: t.key, label: `${t.label}${countFor(groups, t.key)}` })),
-    [tabs, groups],
+    () => [
+      ...tabs.map((t) => ({ value: t.key, label: `${t.label}${countFor(groups, t.key)}` })),
+      // Below `lg` the rail becomes this strip, so the history has to be
+      // reachable from it too — otherwise HR loses a whole section on a phone.
+      ...(canSeeHistory ? [{ value: HISTORY_TAB, label: "Change history" }] : []),
+    ],
+    [tabs, groups, canSeeHistory],
   );
 
   return (
@@ -218,12 +235,41 @@ export default function OrgSettingsPage() {
                       </button>
                     );
                   })}
+
+                  {/* Separated from the module sections by a rule, because it
+                      is a different KIND of thing: the others are "what is it
+                      set to", this is "what has it been". */}
+                  {canSeeHistory && (
+                    <div className="pt-2 mt-2 border-t border-slate-200/70">
+                      <button
+                        type="button"
+                        onClick={() => setTab(HISTORY_TAB)}
+                        aria-current={showHistory ? "page" : undefined}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm font-semibold transition ${
+                          showHistory
+                            ? "bg-purple-50 text-purple-800 ring-1 ring-purple-200"
+                            : "text-slate-600 hover:bg-slate-100/70 hover:text-slate-900"
+                        }`}
+                      >
+                        <HiClock className={`w-4 h-4 shrink-0 ${showHistory ? "text-purple-600" : "text-slate-400"}`} />
+                        <span className="min-w-0 truncate">Change history</span>
+                      </button>
+                    </div>
+                  )}
                 </nav>
 
                 <div className="lg:hidden">
                   <FilterTabs options={sectionOptions} value={activeTab} onChange={setTab} />
                 </div>
 
+                {showHistory ? (
+                  <SettingsHistoryPanel
+                    groups={groups}
+                    entries={entries}
+                    groupsByKey={groupsByKey}
+                    surface={SURFACE}
+                  />
+                ) : (
                 <div className="min-w-0 space-y-4">
                   {/* The section's own heading, and the two pieces of
                       vocabulary this page needs — each shown only when the
@@ -294,6 +340,7 @@ export default function OrgSettingsPage() {
                     </p>
                   )}
                 </div>
+                )}
               </div>
             )}
           </>

@@ -1,10 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// settings.api.js — The organisation settings gateway (#242–#247).
+// settings.api.js — The organisation settings gateway (#242–#248).
 //
 // Contract: public/ref docs/md_settings/combined_api_analysis.md, with
-// phases/phase1_api_analysis.md (reads) and phase2_api_analysis.md (writes).
+// phases/phase1_api_analysis.md (reads), phase2_api_analysis.md (writes) and
+// phase3_api_analysis.md (the change history).
 //
-// Two planes for reading, plus the write plane (Phase 2, #246–#247):
+// Two planes for reading, the write plane (Phase 2, #246–#247), and the
+// history plane (Phase 3, #248):
 //   · CATALOGUE (#242/#243) — the contract. 26 groups, ~137 settings, 49
 //     policy surfaces, with labels, types, ranges, defaults, risk and effect
 //     timing. No tenant values at all. Versioned by `catalog_version` and
@@ -179,6 +181,61 @@ export const settingsAPI = {
         ...(confirm ? { confirm: true } : {}),
       }),
     });
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  THE HISTORY PLANE (Phase 3, #248) — HR only
+  // ───────────────────────────────────────────────────────────────────────────
+  /**
+   * #248 GET /settings/history — every settings change, newest first, across
+   * all five stores in one list.
+   *
+   * HR ONLY. A manager gets 403 FORBIDDEN at the route guard, which is why
+   * the hub hides the section from them rather than offering it (§2).
+   *
+   * @param {object} [filters]
+   * @param {string} [filters.group]       a catalogue group key
+   * @param {string} [filters.settingKey]  a catalogue setting key
+   * @param {string} [filters.actorId]     who made the change
+   * @param {string} [filters.from]        ISO 8601, inclusive
+   * @param {string} [filters.to]          ISO 8601, inclusive, >= `from`
+   * @param {string} [filters.source]      settings_api | module_api | system
+   * @param {number} [filters.limit]       1–100, default 50 server side
+   * @param {string} [filters.cursor]      `next_cursor` from the previous page
+   * @returns `{ items[], next_cursor, unavailable_sources[], meta }`
+   *
+   * Contract traps, all of them ways to get a 400 for free:
+   *   · `org_id` is FORBIDDEN as a query parameter — the tenant comes from the
+   *     token. Sending it is 400 VALIDATION_ERROR, so it is never built here
+   *     and must never be added.
+   *   · A REPEATED parameter (`?group=a&group=b`) is parameter pollution and
+   *     is refused. Every value below is appended exactly once, which is why
+   *     this builds its own string rather than going through `qs()`.
+   *   · The validator is `unknown(false)`: a key we don't mean is a 400, so
+   *     empty strings and nulls are dropped rather than sent blank.
+   *   · `cursor` is OPAQUE. It is a base64url keyset token, not an offset —
+   *     pass back exactly what the server gave, never build or decode one.
+   *     Paging is "fetch the next page and append", never "jump to page 7".
+   *   · `group` + `setting_key` together must agree (422 FILTER_CONFLICT when
+   *     the setting isn't in that group). The server owns that check; the UI
+   *     clears one when the other changes rather than guessing the answer.
+   */
+  getHistory({ group, settingKey, actorId, from, to, source, limit, cursor } = {}) {
+    const search = new URLSearchParams();
+    const put = (key, value) => {
+      if (value === undefined || value === null || value === "") return;
+      search.append(key, String(value));
+    };
+    put("group", group);
+    put("setting_key", settingKey);
+    put("actor_id", actorId);
+    put("from", from);
+    put("to", to);
+    put("source", source);
+    put("limit", limit);
+    put("cursor", cursor);
+    const text = search.toString();
+    return request(`/settings/history${text ? `?${text}` : ""}`);
   },
 };
 

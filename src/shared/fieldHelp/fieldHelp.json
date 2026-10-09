@@ -3913,6 +3913,21 @@
             "enabled": true,
             "question": "What happens if two administrators change the same company settings at the same time, and is my work lost?"
           }
+        },
+        "history": {
+          "tier": "onboarding",
+          "hint": "A permanent record of every settings change: what it was, what it became, who changed it and when. It can’t be edited.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the company settings change history, what is recorded in it, and why can it not be edited or deleted?"
+          }
+        },
+        "change_source": {
+          "hint": "Where the change was made from. Only changes to billing notices record this, so most rows show nothing — that is normal, not missing data.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the “changed from” channel mean on a settings change record, and why is it blank on most rows?"
+          }
         }
       }
     }

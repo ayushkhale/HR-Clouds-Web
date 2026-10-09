@@ -299,3 +299,62 @@ export function rangeHint(entry) {
   if (r.max_items !== undefined) bits.push(`up to ${r.max_items} item${r.max_items === 1 ? "" : "s"}`);
   return bits.length ? bits.join(", ") : null;
 }
+/* ─── The change history (#248) ────────────────────────────────────────────
+   What a change record MEANS on screen.
+
+   `audit_source` — which physical table the row came out of
+   (`settings_change_logs` / `payroll_audit_logs` / `document_audit_logs`) — is
+   deliberately never rendered. Which of our tables holds the record is our
+   plumbing, exactly like `settled_via` in billing: the reader asked who
+   changed what, not where we filed it. */
+
+/** `source` → where the change was made, in words. */
+export const CHANGE_SOURCE = {
+  settings_api: "Company Settings",
+  module_api: "The area's own screen",
+  system: "Automatically",
+};
+
+/**
+ * Where the change came from, or null when we genuinely don't know.
+ *
+ * Null is the COMMON case, not an edge one: only the billing-notification
+ * store records a channel (phase3_api_analysis §3.5). So this returns null and
+ * the row prints nothing, rather than guessing "Company Settings" for four
+ * stores out of five and being wrong most of the time.
+ */
+export const changeSourceLabel = (source) =>
+  CHANGE_SOURCE[String(source || "").toLowerCase()] || null;
+
+/** The filter options for the channel, with the "any" position first. */
+export const CHANGE_SOURCE_OPTIONS = [
+  { value: "", label: "Anywhere" },
+  { value: "settings_api", label: CHANGE_SOURCE.settings_api },
+  { value: "module_api", label: CHANGE_SOURCE.module_api },
+  { value: "system", label: CHANGE_SOURCE.system },
+];
+
+/**
+ * Who made a change, as a name (§4 — never an id).
+ *
+ * The server resolves `actor.name` itself, so that wins. When it can't (the
+ * actor left, or the legacy table only stored an id) we ask the directory,
+ * and only then fall back to words. A change with no actor at all is the
+ * system acting, which is a fact worth saying rather than hiding.
+ */
+export function changeActorName(actor, nameOf) {
+  if (actor?.name) return actor.name;
+  if (!actor?.id) return "System";
+  const resolved = typeof nameOf === "function" ? nameOf(actor.id) : null;
+  // `nameOf` answers "Loading…" while the directory is still arriving; passing
+  // that straight through is what §4 asks for.
+  return resolved || "Unknown user";
+}
+
+/**
+ * One change, as a sentence for the row: "Pay day — 28 to 30".
+ * Values go through `displaySettingValue` so an enum reads as words and an
+ * unset value reads "Not set" rather than null (§4, §5).
+ */
+export const changeSummary = (item, entry) =>
+  `${displaySettingValue(item?.old_value, entry)} → ${displaySettingValue(item?.new_value, entry)}`;
