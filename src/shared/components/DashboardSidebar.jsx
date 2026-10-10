@@ -38,6 +38,8 @@ import {
   HiShieldCheck,
   HiDatabase,
   HiReceiptRefund,
+  HiCreditCard,
+  HiReceiptTax,
   HiHeart,
   HiScale,
   HiChartBar,
@@ -175,12 +177,25 @@ function DashboardSidebar({ role = "guest" }) {
   // details. Every role reads the same two pages (the endpoints return the
   // whole org to all of them), so the section is identical in each workspace
   // and sits in the same place: last before Me, after the work sections.
+  // Billing is the one entry in here that is NOT in every workspace, and not
+  // by choice: every billing endpoint but the plan catalogue is gated HR_ONLY
+  // and refuses platform admins too, so a manager has no billing page rather
+  // than a broken one (§2 — a capability a role lacks is absent, not broken).
   const companySection = (workspace) => ({
     title: "COMPANY",
     icon: HiLibrary,
     items: [
       link("Org Chart", ORG_PATHS[workspace].chart, HiShare),
       link("Company Profile", ORG_PATHS[workspace].company, HiLibrary),
+      // Company Settings used to be a third entry here. It is now the gear in
+      // the utility dock at the bottom of the sidebar, where a settings hub
+      // belongs and where it is reachable with the COMPANY section collapsed —
+      // which it is, most of the time. Two entry points to one hub meant the
+      // one people found depended on which they happened to open.
+      ...(workspace === "hr" ? [
+        link("Plan & Billing", "/dashboard/hr/billing", HiCreditCard),
+        link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax),
+      ] : []),
     ],
   });
 
@@ -574,6 +589,17 @@ function DashboardSidebar({ role = "guest" }) {
   // ── Rendering ────────────────────────────────────────────────────────────
   const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-purple-200";
 
+  // The utility dock at the bottom. It gets the same active treatment as the
+  // nav above it — a gear that stays grey while you are standing on the page
+  // it opens makes the sidebar look like it has lost track of you.
+  const UTILITY_LINK = `w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors ${FOCUS}`;
+  const UTILITY_LINK_ACTIVE = `w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#F3E8FF] text-[#7E22CE] transition-colors ${FOCUS}`;
+  // Active on the hub and on anything under it, so a future sub-route keeps
+  // the gear lit rather than quietly dropping the highlight.
+  const settingsBase = `/dashboard/${role}/settings`;
+  const settingsActive = location.pathname === settingsBase
+    || location.pathname.startsWith(`${settingsBase}/`);
+
   // `compact` = inside a third-level group: the group already shows the icon,
   // so its children are text only, which keeps the nesting readable.
   const renderLink = (item, parentKey, compact = false) => {
@@ -778,17 +804,46 @@ function DashboardSidebar({ role = "guest" }) {
         </div>
 
         <div className="mt-auto px-4 pb-4 space-y-2">
-          {/* Help lives in the in-app Documents guide; settings (Maya, profile,
-              sign-out) live on My Profile. Guests have neither page. */}
+          {/* The utility dock: help, the organisation's settings, and the
+              person's own account — the three things that are never part of
+              the work above them, so they sit outside the nav and stay put
+              while it scrolls. Guests have none of these pages.
+
+              THE GEAR IS COMPANY SETTINGS, and it used to be My Profile. A
+              gear labelled "Settings" that opened one person's own profile is
+              the wrong promise: every product puts the organisation's
+              configuration behind that icon. The profile now carries its own
+              name and the user icon, which also makes the sidebar label match
+              the page's heading again (§2). */}
           {role !== "guest" && (
             <>
-              <Link to="/dashboard/documents" onClick={closeOnMobile} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+              <Link to="/dashboard/documents" onClick={closeOnMobile} className={UTILITY_LINK}>
                 <HiQuestionMarkCircle className="w-5 h-5 text-slate-400" />
                 <span>Help Center</span>
               </Link>
-              <Link to="/dashboard/profile" onClick={closeOnMobile} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-                <HiCog className="w-5 h-5 text-slate-400" />
-                <span>Settings</span>
+              {/* HR and the manager both read the hub; the server decides how
+                  much of it they see, so this is one entry rather than a role
+                  branch (§2). An employee has no settings to read, so for them
+                  it is absent rather than a page that refuses them. */}
+              {(role === "hr" || role === "manager") && (
+                <Link
+                  to={`/dashboard/${role}/settings`}
+                  onClick={closeOnMobile}
+                  aria-current={settingsActive ? "page" : undefined}
+                  className={settingsActive ? UTILITY_LINK_ACTIVE : UTILITY_LINK}
+                >
+                  <HiCog className={`w-5 h-5 ${settingsActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                  <span>Company Settings</span>
+                </Link>
+              )}
+              <Link
+                to="/dashboard/profile"
+                onClick={closeOnMobile}
+                aria-current={location.pathname === "/dashboard/profile" ? "page" : undefined}
+                className={location.pathname === "/dashboard/profile" ? UTILITY_LINK_ACTIVE : UTILITY_LINK}
+              >
+                <HiUserCircle className={`w-5 h-5 ${location.pathname === "/dashboard/profile" ? "text-[#7E22CE]" : "text-slate-400"}`} />
+                <span>My Profile</span>
               </Link>
             </>
           )}

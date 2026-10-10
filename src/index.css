@@ -127,3 +127,56 @@
     .oc-flow, .oc-pop { animation: none; }
   }
 }
+
+/* ─── Plan & Billing: the current-plan banner ───────────────────────────────
+   Two small pieces of motion, both decorative, both ONE-SHOT.
+
+   `plan-card-enter` runs once when the banner mounts — a short rise and fade
+   with a single sheen crossing it. Nothing here loops, and nothing should:
+   the rank mark carried a slow repeating glint for exactly one commit before
+   it was (rightly) called annoying. A thing that is always on screen should
+   not keep moving; the arrival is the only moment worth animating.
+
+   `.plan-sheen` is the sweep: a narrow white diagonal translated across its
+   parent, which must be `relative` and `overflow-hidden`.
+
+   Every one of these is off for anyone who asks the OS for less motion — the
+   global safety net at the top of this file already near-zeroes them, and the
+   explicit rule below removes them outright so nothing flashes once. */
+@layer components {
+  @keyframes plan-card-enter {
+    from { opacity: 0; transform: translateY(10px) scale(0.995); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .plan-card-enter {
+    animation: plan-card-enter 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* One pass, delayed just past the rise so the two don't fight. */
+  @keyframes plan-sheen-once {
+    from { transform: translateX(-130%) skewX(-18deg); }
+    to   { transform: translateX(330%) skewX(-18deg); }
+  }
+  .plan-sheen {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28%;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.14) 45%,
+      rgba(255, 255, 255, 0.28) 50%,
+      rgba(255, 255, 255, 0.14) 55%,
+      transparent 100%
+    );
+    animation: plan-sheen-once 1100ms cubic-bezier(0.22, 0.61, 0.36, 1) 260ms both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .plan-card-enter,
+    .plan-sheen { animation: none; }
+    .plan-sheen { display: none; }
+  }
+}

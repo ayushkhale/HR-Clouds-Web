@@ -87,6 +87,46 @@ export const MY_DOCUMENT_PATHS = {
 };
 
 /**
+ * The same self-service Documents page, under the caller's OWN workspace.
+ *
+ * Transactional emails link to `/dashboard/employee/company-documents/:id`
+ * (2026-10-08 deep-link contract) because that is where an employee reads an
+ * issued document. But HR admins and managers receive those documents too, and
+ * the route gate is exact: an HR user following that link is refused the
+ * employee shell, as it must be (§2 — HR once walked the employee tabs through
+ * exactly this kind of widening). Bouncing them to their dashboard home would
+ * lose the document they were sent to read.
+ *
+ * So this translates rather than widens: same page, same id, the caller's own
+ * prefix. `/dashboard/employee/company-documents/abc` becomes
+ * `/dashboard/hr/company-documents/abc` for an HR user. It returns null when
+ * the path isn't one of these pages, or already sits in the right workspace, so
+ * the caller falls back to its normal redirect.
+ *
+ * Longest prefix wins: `/dashboard/employee/documents/all` must not match
+ * `/dashboard/employee/documents` and drop the `/all`.
+ */
+export function selfServiceDocumentEquivalent(pathname = "", workspace) {
+  const target = MY_DOCUMENT_PATHS[workspace];
+  if (!target) return null;
+
+  const candidates = [];
+  Object.entries(MY_DOCUMENT_PATHS).forEach(([space, pages]) => {
+    if (space === workspace) return;
+    Object.entries(pages).forEach(([page, base]) => {
+      if (pathname === base || pathname.startsWith(`${base}/`)) {
+        candidates.push({ page, base });
+      }
+    });
+  });
+  if (candidates.length === 0) return null;
+
+  const { page, base } = candidates.sort((a, b) => b.base.length - a.base.length)[0];
+  const mine = target[page];
+  return mine ? `${mine}${pathname.slice(base.length)}` : null;
+}
+
+/**
  * Self-service leave and pay routes per workspace. Everyone in the organisation
  * takes leave and gets paid, HR and managers included, so each workspace mounts
  * the same employee screens under its own prefix — the same arrangement as

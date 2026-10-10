@@ -30,6 +30,7 @@ import {
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import DetailDialog, { DetailGrid, DetailSection, DetailStats, rowPreviewProps } from "../../../shared/components/DetailDialog";
 import { organizationAPI } from "../../../shared/api";
+import { organizationErrorMessage } from "../../../shared/utils/organizationErrors";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import { FilterTabs, Pagination, Toast, useToast } from "../../../shared/attendance/ui";
 import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
@@ -332,7 +333,11 @@ export default function InvitesPage() {
     ? "missing"
     : state.error?.status >= 500 && !state.error?.data?.errorCode ? "pending-setup" : null;
 
-  const serverMessage = (err, fallback) => err?.data?.message || (err?.message && !/^Request failed/.test(err.message) ? err.message : "") || fallback;
+  // Goes through the domain's own map first (§6): a raw server sentence must
+  // not reach a toast, and since billing shipped these calls can be refused
+  // for a SUBSCRIPTION reason — a full plan (403 LIMIT_EXCEEDED) or a lapsed
+  // one (402) — which has its own wording and its own fix.
+  const serverMessage = (err, fallback) => organizationErrorMessage(err, fallback);
 
   const resend = async (inv) => {
     if (!inv?.email || busyEmail) return;

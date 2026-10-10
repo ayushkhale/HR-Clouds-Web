@@ -28,6 +28,25 @@ const ORGANIZATION_ERROR_MESSAGES = {
   ORG_NOT_FOUND: "We couldn’t find this organisation. Sign out and back in, then try again.",
   UNAUTHORIZED: "Your session has no organisation selected. Sign out and back in, then try again.",
 
+  // Subscription limits (Billing Phase 1, 2026-10-09). These arrive on
+  // ORDINARY organisation endpoints, not billing ones: since the billing
+  // module shipped, the subscription middleware intercepts an invite and
+  // checks headcount plus pending invitations against the plan snapshot
+  // (`md_money/hr_user_billing_and_subscription_qa.md` §Q3), so a perfectly
+  // valid invite can now be refused for a reason that has nothing to do with
+  // the form. Each one therefore names the real cause and the real remedy —
+  // "ask your administrator" would be useless here, because the reader IS the
+  // administrator and the fix is a plan change they can make.
+  LIMIT_EXCEEDED: "Your plan has no room for another person. Move up a plan, or remove someone who has left, then invite again.",
+  SEAT_LIMIT_EXCEEDED: "Your plan has no room for another person. Move up a plan, or remove someone who has left, then invite again.",
+  // 402: the subscription has lapsed entirely.
+  NO_ACTIVE_SUBSCRIPTION: "Your organisation doesn’t have an active plan, so this can’t be done. Choose a plan to switch everything back on.",
+  SUBSCRIPTION_REQUIRED: "Your organisation doesn’t have an active plan, so this can’t be done. Choose a plan to switch everything back on.",
+  SUBSCRIPTION_EXPIRED: "Your plan has run out, so this can’t be done. Renew it to carry on.",
+  FEATURE_NOT_AVAILABLE: "Your current plan doesn’t include this. Moving to a higher plan switches it on.",
+  // A plan_code we sent no longer exists — our catalogue has gone stale.
+  PLAN_NOT_FOUND: "That plan isn’t on offer any more. Reload the page and pick from the current plans.",
+
   // Profile photo. The same codes serve the company logo (same handshake), so
   // they say "image" where they can rather than naming one of the two.
   FILE_TOO_LARGE: "That image is too large. Choose one under 5 MB.",
@@ -123,5 +142,23 @@ export function organizationErrorMessage(err, fallback = "Something went wrong. 
   if (code === "VALIDATION_ERROR") return fallback;
   return err?.message && !/^Request failed/.test(err.message) ? err.message : fallback;
 }
+
+/* ─── Subscription refusals that deserve a way out ─────────────────────────
+   A seat-limit or lapsed-plan refusal is the one kind of organisation error
+   with a fix the reader can perform themselves, two clicks away. These two
+   predicates let a screen offer that route instead of leaving an HR admin
+   staring at a sentence about a limit with nothing to press. */
+
+/** The plan is full: this invite needs a bigger plan, or a seat freed. */
+export const isSeatLimited = (err) =>
+  ["LIMIT_EXCEEDED", "SEAT_LIMIT_EXCEEDED"].includes(codeOf(err));
+
+/** There is no live plan at all (402), so paid features are off. */
+export const isSubscriptionLapsed = (err) =>
+  ["NO_ACTIVE_SUBSCRIPTION", "SUBSCRIPTION_REQUIRED", "SUBSCRIPTION_EXPIRED"].includes(codeOf(err))
+  || err?.status === 402;
+
+/** Either of the above — the screen should link to Plan & Billing. */
+export const isBillingBlocked = (err) => isSeatLimited(err) || isSubscriptionLapsed(err);
 
 export { ORGANIZATION_ERROR_MESSAGES };
