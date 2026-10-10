@@ -441,7 +441,6 @@ export default function SettingsGroupForm({
           group={group}
           rows={rows}
           dirtyCount={dirtyKeys.length}
-          canWrite={canWrite}
           open={open}
           onToggle={toggle}
           bodyId={bodyId}
@@ -716,49 +715,58 @@ export default function SettingsGroupForm({
  * exactly the same height and the two columns stack without gaps.
  */
 function Header({
-  group, rows, dirtyCount = 0, canWrite = false, open, onToggle, bodyId,
+  group, rows, dirtyCount = 0, open, onToggle, bodyId,
   onReset, resetCount = 0, busy = false,
 }) {
   const changed = (group.nonDefaultKeys || []).length;
   const Icon = groupIcon(group);
   const blurb = groupBlurb(group);
   return (
-    <header className={`flex items-start gap-1 pr-2 ${open ? "border-b border-slate-100" : ""}`}>
+    <header className={`flex gap-1 pr-2 ${open ? "items-start border-b border-slate-100" : "items-center"}`}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={bodyId}
-        className="flex-1 min-w-0 flex items-start gap-3 px-5 py-4 text-left rounded-2xl hover:bg-slate-50/70 transition-colors"
+        className={`flex-1 min-w-0 flex gap-3 px-4 text-left rounded-2xl hover:bg-slate-50/70 transition-colors ${open ? "items-start py-4" : "items-center py-3"}`}
       >
-        <span className="shrink-0 w-9 h-9 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
-          <Icon className="w-[18px] h-[18px]" />
+        <span className="shrink-0 w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
+          <Icon className="w-4 h-4" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="text-[15px] font-semibold text-slate-900 truncate">{group.label}</span>
-            {/* One pill, the most urgent fact first: unsaved beats customised,
-                customised beats "still as it ships". Three pills in a row
-                would be a legend, not a status. */}
+            {/* One pill, and only when it SAYS something. "Default" was on
+                twelve of the fifteen payroll cards — a badge on everything is
+                a badge on nothing, and it was the single biggest source of
+                noise in a closed list. Unsaved beats customised; nothing at
+                all is the resting state. */}
             {dirtyCount > 0
               ? <Pill tone="amber">{dirtyCount} unsaved</Pill>
               : changed > 0
                 ? <Pill tone="purple">Customised</Pill>
-                : canWrite ? <Pill tone="slate">Default</Pill> : null}
+                : null}
           </span>
-          {blurb && (
-            <span className={`block ${BLURB} mt-1 ${open ? "" : "line-clamp-1"}`}>
-              {blurb}
+          {/* Closed, a card is ONE LINE: its name. The sentence explaining it
+              and the date it last moved are both reference — worth reading
+              about the one group you are opening, worth nothing repeated
+              fifteen times down a list you are scanning for a name. */}
+          {open && blurb && <span className={`block ${BLURB} mt-1`}>{blurb}</span>}
+          {open && (
+            <span className={`block ${META} mt-1.5`}>
+              {rows.length} setting{rows.length === 1 ? "" : "s"}
+              {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
             </span>
           )}
-          <span className={`block ${META} mt-1.5`}>
-            {rows.length} setting{rows.length === 1 ? "" : "s"}
-            {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
-          </span>
         </span>
+        {/* The size of the group, quietly, so a closed row still says how
+            much is behind it without spending a line on it. */}
+        {!open && (
+          <span className={`shrink-0 ${META} tabular-nums`}>{rows.length}</span>
+        )}
         <HiChevronDown
           aria-hidden="true"
-          className={`shrink-0 w-4 h-4 mt-1 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`shrink-0 w-4 h-4 text-slate-400 transition-transform ${open ? "mt-1 rotate-180" : ""}`}
         />
       </button>
 
@@ -769,7 +777,7 @@ function Header({
           disabled={busy}
           title={`Put ${resetCount === 1 ? "this setting" : `these ${resetCount} settings`} back to the value we ship`}
           aria-label={`Put ${group.label} back to the default`}
-          className={`mt-4 shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition`}
+          className={`shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition ${open ? "mt-4" : "my-auto"}`}
         >
           <HiRefresh className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Put back to default</span>

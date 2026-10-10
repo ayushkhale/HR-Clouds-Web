@@ -106,6 +106,12 @@ export function SurfaceHubCard({ surfaces, to }) {
           <h3 className="text-[15px] font-semibold text-slate-900 group-hover:text-purple-800 transition truncate">
             {title}
           </h3>
+          {/* The footer bar that used to sit here said "Manage <title>" under
+              a card already titled <title>, in a card that is itself the
+              link. Three statements of the same fact. The arrow on the right
+              of the row carries it now. The blurb stays — it is the one line
+              that says something the title doesn't (user instruction,
+              2026-10-10). */}
           {blurb && <p className={`text-xs ${TEXT.body} mt-1 leading-relaxed line-clamp-2`}>{blurb}</p>}
           {/* One line, always. `truncate` is the backstop for a long first
               label; the count is what keeps the card honest about the rest. */}
@@ -116,16 +122,13 @@ export function SurfaceHubCard({ surfaces, to }) {
             </p>
           )}
         </div>
+        {to?.path && (
+          <HiArrowRight
+            aria-hidden="true"
+            className="shrink-0 w-4 h-4 mt-1 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-0.5 transition"
+          />
+        )}
       </div>
-
-      {to?.path && (
-        <div className="mt-auto px-4 py-2.5 bg-slate-50/70 border-t border-slate-100">
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 group-hover:text-purple-900">
-            Manage {title}
-            <HiArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </span>
-        </div>
-      )}
     </Shell>
   );
 }

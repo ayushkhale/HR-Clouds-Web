@@ -102,7 +102,7 @@ import FieldHelp from "../fieldHelp/FieldHelp";
 import useSettingsHub from "../settings/useSettingsHub";
 import { settingLabel } from "../settings/settingsBlurbs";
 import {
-  displaySettingValue, editRouteFor, LANDING_MODULE, moduleBlurb, moduleIcon,
+  displaySettingValue, editRouteFor, LANDING_MODULE, moduleIcon,
   moduleLabel, searchSettings, searchSurfaces, surfaceRouteFor, tabsFor,
 } from "../settings/settingsMeta";
 import { META, TEXT } from "../settings/settingsText";
@@ -162,9 +162,6 @@ export default function OrgSettingsPage() {
     ? HISTORY_TAB
     : (tab && tabs.some((t) => t.key === tab) ? tab : landing);
 
-  // The open tab's own icon, for the section band. Capitalised because JSX
-  // needs a component, not a value.
-  const TabIcon = moduleIcon(activeTab);
 
   const searching = query.trim().length >= 2;
   const results = useMemo(
@@ -430,26 +427,19 @@ export default function OrgSettingsPage() {
                           for in a line. The tab ⓘ sits beside the heading
                           rather than in the tablist — §10 forbids one inside a
                           tablist, and this is the heading of the open tab. */}
-                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 bg-white rounded-2xl border border-slate-100 shadow-xs px-5 py-4">
-                        <div className="min-w-0 flex items-start gap-3">
-                          {/* The module's own icon, in the house badge — the
-                              same one the tab strip and the sidebar use, so
-                              the open tab is named twice in the same visual
-                              language. It also gives the thinner tabs
-                              (Company & Billing is one card) something to be
-                              a page rather than a stray card on grey. */}
-                          <span className="shrink-0 w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                            <TabIcon className="w-5 h-5" aria-hidden="true" />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex items-center">
-                              <h2 className="text-lg font-bold text-slate-900">{moduleLabel(activeTab)}</h2>
-                              <FieldHelp surface={SURFACE} field={`tab.${activeTab}`} label={`the ${moduleLabel(activeTab)} settings`} className="mb-0 ml-0.5" />
-                            </div>
-                            {moduleBlurb(activeTab) && (
-                              <p className={`text-sm ${TEXT.body} mt-0.5`}>{moduleBlurb(activeTab)}</p>
-                            )}
-                          </div>
+                      {/* A heading, not a card. This used to be a full white
+                          panel carrying the module's icon, its name and a
+                          sentence — all three of which the tab directly above
+                          it already shows. A card that repeats the thing it
+                          sits under is a card the eye has to read and then
+                          discard, which is the cost the page could least
+                          afford. The ⓘ stays: §10 wants the open tab's help
+                          beside the strip, and it now carries the sentence
+                          that used to be printed here. */}
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1">
+                        <div className="flex items-center min-w-0">
+                          <h2 className="text-base font-bold text-slate-900 truncate">{moduleLabel(activeTab)}</h2>
+                          <FieldHelp surface={SURFACE} field={`tab.${activeTab}`} label={`the ${moduleLabel(activeTab)} settings`} className="mb-0 ml-0.5" />
                         </div>
                         {visibleGroups.length > 1 && (
                           <button
