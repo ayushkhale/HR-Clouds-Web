@@ -165,23 +165,19 @@ export default function CurrentPlanCard({
                 so the rank sits on the banner's midline however long the plan
                 name or the price happens to be. Only from `lg`, because below
                 that the words need the whole width and a mark floating over
-                them would be in the way. `key` on the src so swapping rank
-                restarts the shine rather than leaving it mid-sweep. */}
+                them would be in the way.
+                NO ANIMATION ON IT. A looping glint on a mark that is always
+                on screen reads as something asking to be clicked; the card's
+                one-time entrance carries the arrival, and the mark just sits
+                there being the mark. */}
             {premium && art && (
-              <div
+              <img
                 key={art}
+                src={art}
+                alt=""
                 aria-hidden="true"
-                className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none"
-              >
-                <div className="relative overflow-hidden">
-                  <img
-                    src={art}
-                    alt=""
-                    className="h-28 xl:h-32 w-auto object-contain drop-shadow-2xl"
-                  />
-                  <span className="plan-medal-shine" />
-                </div>
-              </div>
+                className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-28 xl:h-32 w-auto object-contain drop-shadow-2xl pointer-events-none select-none"
+              />
             )}
 
             {/* The price, given the weight it has on a bill rather than being

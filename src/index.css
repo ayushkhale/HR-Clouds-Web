@@ -129,18 +129,16 @@
 }
 
 /* ─── Plan & Billing: the current-plan banner ───────────────────────────────
-   Three small pieces of motion, all decorative and all one job each.
+   Two small pieces of motion, both decorative, both ONE-SHOT.
 
-   `plan-card-enter` runs ONCE when the banner mounts — a short rise and fade
-   with a single sheen crossing it. Deliberately not a loop: a card that keeps
-   glinting stops reading as premium and starts reading as a notification.
+   `plan-card-enter` runs once when the banner mounts — a short rise and fade
+   with a single sheen crossing it. Nothing here loops, and nothing should:
+   the rank mark carried a slow repeating glint for exactly one commit before
+   it was (rightly) called annoying. A thing that is always on screen should
+   not keep moving; the arrival is the only moment worth animating.
 
-   `plan-medal-shine` is the only repeating one. It is slow (5s) and low
-   contrast, so it reads as a highlight catching the metal rather than
-   something asking to be clicked.
-
-   `.plan-sheen` is the shared sweep: a narrow white diagonal translated
-   across its parent, which must be `relative` and `overflow-hidden`.
+   `.plan-sheen` is the sweep: a narrow white diagonal translated across its
+   parent, which must be `relative` and `overflow-hidden`.
 
    Every one of these is off for anyone who asks the OS for less motion — the
    global safety net at the top of this file already near-zeroes them, and the
@@ -176,32 +174,9 @@
     animation: plan-sheen-once 1100ms cubic-bezier(0.22, 0.61, 0.36, 1) 260ms both;
   }
 
-  @keyframes plan-medal-shine {
-    /* Most of the cycle is spent off-frame; the glint itself is brief. */
-    0%, 62%  { transform: translateX(-140%) skewX(-18deg); }
-    88%, 100% { transform: translateX(340%) skewX(-18deg); }
-  }
-  .plan-medal-shine {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 42%;
-    pointer-events: none;
-    background: linear-gradient(
-      100deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.35) 48%,
-      rgba(255, 255, 255, 0.55) 52%,
-      transparent 100%
-    );
-    animation: plan-medal-shine 5s cubic-bezier(0.4, 0, 0.2, 1) 900ms infinite;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .plan-card-enter,
-    .plan-sheen,
-    .plan-medal-shine { animation: none; }
-    .plan-sheen,
-    .plan-medal-shine { display: none; }
+    .plan-sheen { animation: none; }
+    .plan-sheen { display: none; }
   }
 }
