@@ -16,11 +16,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { organizationAPI } from "../../../shared/api";
 import { HiX, HiPaperAirplane, HiCheckCircle, HiChevronDown, HiUserGroup, HiTrash, HiClock } from "react-icons/hi";
 import { PersonSelect, toPersonOption } from "../../../shared/components/PersonPicker";
 import { useEmployeeDirectory, refreshEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
+import { isBillingBlocked, organizationErrorMessage } from "../../../shared/utils/organizationErrors";
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -369,7 +371,15 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
 
       setTimeout(() => { setInviteResult({ type: "", message: "" }); onClose(); }, 1200);
     } catch (err) {
-      setInviteResult({ type: "error", message: err?.data?.message || err.message || "Failed to send invitation." });
+      // §6: never the raw server sentence. Since billing shipped, a valid
+      // invite can be refused because the PLAN is full (403 LIMIT_EXCEEDED) —
+      // nothing to do with this form, and fixable by the person reading it,
+      // so that case offers the way out instead of just naming the wall.
+      setInviteResult({
+        type: "error",
+        message: organizationErrorMessage(err, "We couldn’t send that invitation. Try again."),
+        billing: isBillingBlocked(err),
+      });
     } finally {
       setInviteLoading(false);
     }
@@ -758,7 +768,12 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                 {inviteResult.message && (
                   <div className={`mr-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${inviteResult.type === "success" ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}>
                     {inviteResult.type === "success" && <HiCheckCircle className="w-4 h-4 text-violet-500 flex-shrink-0" />}
-                    {inviteResult.message}
+                    <span>{inviteResult.message}</span>
+                    {inviteResult.billing && (
+                      <Link to="/dashboard/hr/billing" className="underline underline-offset-2 font-bold whitespace-nowrap hover:text-rose-900">
+                        Open Plan &amp; Billing
+                      </Link>
+                    )}
                   </div>
                 )}
                 <button type="button" onClick={() => onClose()} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">Cancel</button>

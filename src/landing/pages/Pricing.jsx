@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Pricing from "../components/Plans/Pricing";
 import { HiChevronDown, HiCheck, HiMinus } from "react-icons/hi";
 import pricingills from "../../assets/testimonials/pricingills.png";
-import { PLANS, comparisonRows } from "../../shared/config/plans";
+import { comparisonRows } from "../../shared/config/plans";
+import usePlanCatalog from "../../shared/hooks/usePlanCatalog";
 import GetStartedLink from "../../shared/components/GetStartedLink";
 import { Reveal, RevealText, useParallax, HOVER } from "../../shared/motion";
 
@@ -10,7 +11,7 @@ import { Reveal, RevealText, useParallax, HOVER } from "../../shared/motion";
 // Rows come from the plan catalog so this table can never contradict the
 // cards above it or the checkout. It previously listed an Enterprise tier
 // that doesn't exist and omitted the Free plan that does.
-const comparisonFeatures = comparisonRows();
+// (built inside the component now, so it follows the live catalogue)
 
 // ─── Simplified FAQ ──────────────────────────────────────────
 const faqs = [
@@ -102,6 +103,9 @@ function FaqItem({ q, a }) {
 // ─── Main Page ───────────────────────────────────────────────
 const PricingPage = () => {
   const heroParallax = useParallax(30);
+  // Live for a signed-in visitor, the fallback for everyone else.
+  const { plans } = usePlanCatalog();
+  const comparisonFeatures = useMemo(() => comparisonRows(plans), [plans]);
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
@@ -205,7 +209,7 @@ const PricingPage = () => {
 
           <div className="grid grid-cols-4 border-b border-white/10 px-4 sm:px-8 py-5 sticky top-0 bg-primary-500 z-10">
             <div className="text-white/40 text-xs font-bold uppercase tracking-widest">Feature</div>
-            {PLANS.map(({ tier, name, popular }) => (
+            {plans.map(({ tier, name, popular }) => (
               <div key={tier} className="text-center">
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${popular ? "bg-gradient-to-r from-purple-500 to-purple-300 text-white" : "bg-white/10 text-white/70"}`}>
                   {name}
@@ -227,7 +231,7 @@ const PricingPage = () => {
             >
               <span className="text-white/80 text-xs sm:text-sm font-medium">{feat.label}</span>
               {feat.values.map((value, col) => (
-                <div key={PLANS[col].tier} className="flex justify-center">
+                <div key={plans[col].tier} className="flex justify-center">
                   <CompCell value={value} />
                 </div>
               ))}

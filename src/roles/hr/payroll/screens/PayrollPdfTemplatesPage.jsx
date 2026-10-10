@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HiDocumentText, HiDownload, HiRefresh } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { payrollAPI } from "../../../../shared/api";
+import { payrollAPI, payrollFiles } from "../../../../shared/api";
 import { fetchFileBlob } from "../../../../shared/utils/download";
 import { EmptyState, ErrorState, LoadingRows, Spinner } from "../../../../shared/attendance/ui";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
@@ -69,7 +69,7 @@ export default function PayrollPdfTemplatesPage() {
       // POST with an empty body renders the golden sample. `override_fields`
       // exists for what-if text, which this screen does not need — the point
       // here is the branding, not the content.
-      const { blob } = await fetchFileBlob(payrollAPI.hrPdfTemplatePreview(templateCode), {
+      const { blob } = await fetchFileBlob(payrollFiles.hrPdfTemplatePreview(templateCode), {
         method: "POST",
         body: {},
       });

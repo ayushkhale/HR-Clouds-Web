@@ -14,3 +14,5 @@ export { attendanceAPI } from "./attendance.api.js";
 export { leaveAPI } from "./leave.api.js";
 export { payrollAPI, payrollFiles } from "./payroll.api.js";
 export { documentsAPI } from "./documents.api.js";
+export { billingAPI } from "./billing.api.js";
+export { settingsAPI } from "./settings.api.js";

@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { organizationAPI, tokenHelper } from "../../shared/api";
 import { useAuth } from "../../shared/contexts/AuthContext";
-import { HiCheck, HiArrowLeft, HiArrowRight, HiOfficeBuilding } from "react-icons/hi";
+import { HiCheck, HiArrowLeft, HiArrowRight, HiOfficeBuilding, HiExclamationCircle, HiRefresh } from "react-icons/hi";
 import hrcloudsLogo from "../../assets/logo2.png";
 import {
-  PLANS,
-  PLAN_BY_TIER,
   planCodeFor,
   formatPlanPrice,
+  planPeriodLabel,
   planBullets,
   bestYearlySavingPct,
+  variantFor,
+  limitsFor,
 } from "../../shared/config/plans";
+import usePlanCatalog from "../../shared/hooks/usePlanCatalog";
+import { organizationErrorMessage } from "../../shared/utils/organizationErrors";
 import { readPlanIntent, clearPlanIntent } from "../../shared/config/planIntent";
 import { INDUSTRY_OPTIONS } from "../../shared/organization/orgProfileMeta";
 import { ENV } from "../../config/env";
@@ -53,7 +56,11 @@ function RegisterOrgPage() {
   // Step 1: select plan; Step 2: enter details
   const [step, setStep] = useState(1);
   const [billing, setBilling] = useState("monthly"); // monthly | yearly
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  // The TIER, not the plan object. The catalogue arrives asynchronously, so
+  // holding the object would pin a card to whichever list was loaded when it
+  // was clicked — the fallback's figures surviving into a live session is
+  // exactly the drift this screen must not have.
+  const [selectedTier, setSelectedTier] = useState(null);
 
   // Form details
   const [form, setForm] = useState({
@@ -65,30 +72,53 @@ function RegisterOrgPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  // Where the cards and the price come from. Everyone who reaches this page is
+  // a signed-in guest (#2 needs a guest token), so this is normally the LIVE
+  // catalogue; the hardcoded fallback appears only if that read failed, and
+  // `planSource` is what stops us taking money on unverified figures below.
+  const {
+    plans, source: planSource, loading: plansLoading, error: plansError, reload: reloadPlans,
+  } = usePlanCatalog();
+  const planByTier = useMemo(() => Object.fromEntries(plans.map((p) => [p.tier, p])), [plans]);
+
   useEffect(() => { loadRazorpayScript(); }, []);
 
   // A pricing-page card links here as ?plan=starter&billing=yearly. Honour it
   // so the plan the buyer clicked is the plan they land on — picking again
   // from a second, identical list is how the two lists drifted apart before.
-  useEffect(() => {
-    // Either the query string (already signed in, straight from a card) or the
-    // intent parked before the signup detour. Query wins — it is the more
-    // recent click.
+  //
+  // The parked choice is READ once and HELD, rather than consumed on mount:
+  // applying it needs the catalogue, which arrives a moment later, and
+  // clearing the intent before it could be used would lose the click.
+  const [parkedChoice] = useState(() => {
     const parked = readPlanIntent();
-    const tier = searchParams.get("plan") || parked?.tier;
-    const cycle = searchParams.get("billing") || parked?.billing;
+    // Query wins over the parked intent — it is the more recent click.
+    const choice = {
+      tier: searchParams.get("plan") || parked?.tier || null,
+      cycle: searchParams.get("billing") || parked?.billing || null,
+    };
+    clearPlanIntent(); // honoured once; re-picking here must stick
+    return choice;
+  });
 
-    if (cycle === "yearly" || cycle === "monthly") setBilling(cycle);
-    const preset = tier && PLAN_BY_TIER[tier];
-    if (preset) {
-      setSelectedPlan(preset);
+  useEffect(() => {
+    if (parkedChoice.cycle === "yearly" || parkedChoice.cycle === "monthly") {
+      setBilling(parkedChoice.cycle);
+    }
+  }, [parkedChoice]);
+
+  // Apply the parked tier as soon as the catalogue that defines it is in. Once
+  // only: a later edit in the picker must not be overwritten when the list
+  // refreshes. A tier that no longer exists simply leaves them on the picker.
+  const choiceApplied = useRef(false);
+  useEffect(() => {
+    if (choiceApplied.current || plansLoading || !parkedChoice.tier) return;
+    choiceApplied.current = true;
+    if (planByTier[parkedChoice.tier]) {
+      setSelectedTier(parkedChoice.tier);
       setStep(2);
     }
-    clearPlanIntent(); // honoured once; re-picking here must stick
-
-    // Read once on entry — later edits to the picker must not be overwritten.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [parkedChoice, planByTier, plansLoading]);
 
   useEffect(() => {
     if (!tokenHelper.get()) {
@@ -102,13 +132,30 @@ function RegisterOrgPage() {
     }
   }, [navigate, role, getDashboardPath]);
 
+  // Always derived from the current catalogue, so a live list arriving after a
+  // click silently corrects the card rather than leaving a stale one selected.
+  const selectedPlan = selectedTier ? planByTier[selectedTier] || null : null;
+  const selectedVariant = variantFor(selectedPlan, billing);
+  const selectedLimits = limitsFor(selectedPlan, billing);
+  const isFreePlan = selectedVariant ? selectedVariant.amount === 0 : false;
+
   useEffect(() => {
-    if (selectedPlan?.tier === "free") {
+    if (isFreePlan) {
       setForm((prev) => ({ ...prev, size: "1-10" }));
     }
-  }, [selectedPlan]);
+  }, [isFreePlan]);
 
-  const availableSizes = sizesForPlan(selectedPlan);
+  const availableSizes = sizesForPlan(selectedPlan, billing);
+
+  // A size already chosen can stop fitting when the catalogue loads and the
+  // real limit turns out to be lower. Drop it rather than submitting a bucket
+  // the picker would no longer offer.
+  useEffect(() => {
+    if (form.size && !availableSizes.includes(form.size)) {
+      setForm((prev) => ({ ...prev, size: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableSizes.join("|")]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -118,10 +165,24 @@ function RegisterOrgPage() {
     e.preventDefault();
     if (!selectedPlan) return;
 
+    // Don't take money on figures we couldn't verify. Everyone here is signed
+    // in, so a fallback catalogue means the #225 read failed — the price on
+    // screen may not be the price the gateway asks for, and meeting a
+    // different number in the payment window is the complaint this whole
+    // module exists to prevent. A free plan is exempt: there is nothing to
+    // get wrong.
+    const planCode = planCodeFor(selectedPlan, billing);
+    if (planSource !== "live" && !isFreePlan) {
+      setError("We couldn’t confirm today’s prices just now. Reload the plans and try again — nothing has been charged.");
+      return;
+    }
+    if (!planCode) {
+      setError("That plan isn’t available any more. Pick another one.");
+      return;
+    }
+
     setError("");
     setLoading(true);
-
-    const planCode = planCodeFor(selectedPlan, billing);
 
     try {
       const res = await organizationAPI.initiateRegistration({
@@ -146,7 +207,10 @@ function RegisterOrgPage() {
         await openRazorpay(res.data.razorpay_order, res.data.org_id);
       }
     } catch (err) {
-      setError(err.message || "Registration failed. Please try again.");
+      // §6: never a raw server sentence. A stale plan_code in the catalogue
+      // surfaces here as PLAN_NOT_FOUND, which has to read as "pick another",
+      // not as a backend error string.
+      setError(organizationErrorMessage(err, "We couldn’t set up your organisation. Try again."));
     } finally {
       setLoading(false);
     }
@@ -190,7 +254,10 @@ function RegisterOrgPage() {
           setSuccess(true);
           setTimeout(() => navigate(getDashboardPath("hr"), { replace: true }), 1500);
         } catch (err) {
-          setError(err.message || "Payment verification failed. Please contact support.");
+          // A verification that does not land is NOT a lost payment: the
+          // gateway webhook and the reconciler settle the same transaction
+          // within minutes (#239). Never tell them to pay again.
+          setError(organizationErrorMessage(err, "We couldn’t confirm that payment yet. Don’t pay again — check your email, or contact support if your workspace isn’t ready shortly."));
         } finally {
           setLoading(false);
         }
@@ -217,20 +284,29 @@ function RegisterOrgPage() {
   // ─── Success Page ──────────────────────────────────────────────
   if (success) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-4 font-sans">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-10 max-w-sm w-full text-center animate-fade-in">
-          <div className="w-16 h-16 bg-violet-50 rounded-full flex items-center justify-center mx-auto mb-5">
-            <HiCheck className="w-8 h-8 text-violet-600" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 font-sans relative overflow-hidden">
+        <div aria-hidden="true" className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-40 -left-32 w-[38rem] h-[38rem] rounded-full bg-purple-300/25 blur-[130px]" />
+          <div className="absolute bottom-[-10rem] right-[-8rem] w-[32rem] h-[32rem] rounded-full bg-fuchsia-300/20 blur-[120px]" />
+        </div>
+        {/* The one moment in the flow worth the full brand treatment: the
+            workspace exists and they are about to be let into it. */}
+        <div className="relative z-10 rounded-3xl shadow-lg overflow-hidden max-w-sm w-full animate-fade-in">
+          <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] px-10 pt-10 pb-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-white/15 border border-white/25 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
+              <HiCheck className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-2">You’re all set</h1>
+            <p className="text-sm text-purple-100/90 leading-relaxed">
+              Your workspace is live. We’re taking you to it now.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome aboard! 🎉</h1>
-          <p className="text-sm text-gray-500 mb-4">
-            Your organization is active. Redirecting to your HR Dashboard…
-          </p>
-          <div className="flex justify-center">
-            <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+          <div className="bg-white px-10 py-6 flex items-center justify-center gap-2.5">
+            <svg className="w-4 h-4 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
+            <span className="text-xs font-semibold text-slate-500">Opening your dashboard…</span>
           </div>
         </div>
       </div>
@@ -238,9 +314,20 @@ function RegisterOrgPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col justify-between font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans relative">
+      {/* The same two purple glows the auth panel carries, at a fraction of
+          the strength. This screen used to be flat white, which made the step
+          AFTER signing up look like a different product from the screen
+          before it — the one place a new customer is most likely to doubt
+          they are still in the right place. Decoration only, and behind
+          everything, so nothing here depends on it rendering. */}
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -left-32 w-[38rem] h-[38rem] rounded-full bg-purple-300/25 blur-[130px]" />
+        <div className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] rounded-full bg-fuchsia-300/20 blur-[120px]" />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-gray-100 px-6 sm:px-12 py-5 bg-white">
+      <header className="relative z-10 border-b border-slate-200/60 px-6 sm:px-12 py-5 bg-white/70 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/">
             <img src={hrcloudsLogo} alt="HR Clouds" className="h-9 w-auto object-contain" />
@@ -262,7 +349,7 @@ function RegisterOrgPage() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-grow flex items-center justify-center px-6 py-12">
+      <main className="relative z-10 flex-grow flex items-center justify-center px-6 py-12">
         
         {/* STEP 1: Plan Selection */}
         {step === 1 && (
@@ -271,11 +358,12 @@ function RegisterOrgPage() {
               <span className="inline-block mb-3 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-purple-700 text-xs font-semibold">
                 Step 1 of 2
               </span>
+              {/* The accent word was a `from-white` clipped gradient on a
+                  white page, so its top half faded into the background and
+                  "Workspace" read as half-erased. Solid purple, the same way
+                  the marketing pricing heading accents its last word. */}
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-2">
-                Choose a Plan for Your{" "}
-                <span className="bg-clip-text bg-gradient-to-t from-white to-purple-800 text-transparent">
-                  Workspace
-                </span>
+                Choose a Plan for Your <span className="text-purple-600">Workspace</span>
               </h1>
               <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
                 Select a plan scale. Upgrade or change your configuration anytime.
@@ -303,78 +391,135 @@ function RegisterOrgPage() {
                 >
                   Yearly billing
                   <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-bold">
-                    Save {bestYearlySavingPct()}%
+                    Save {bestYearlySavingPct(plans)}%
                   </span>
                 </button>
               </div>
             </div>
 
+            {/* The catalogue couldn't be read. Say so before they choose,
+                rather than letting them reach the payment window and meet a
+                different number — the plans below are our last known list. */}
+            {plansError && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 px-4 py-3 mb-6 text-xs text-slate-700">
+                <HiExclamationCircle className="w-4 h-4 shrink-0 text-fuchsia-500" />
+                <span className="flex-1">
+                  We couldn’t load today’s prices, so these are our last known ones. Reload before paying.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => reloadPlans()}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  <HiRefresh className="w-3.5 h-3.5" /> Reload plans
+                </button>
+              </div>
+            )}
+
+            {/* The server offers nothing — a real state, not a failed read. */}
+            {!plansLoading && !plansError && plans.length === 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
+                There are no plans on sale at the moment. Contact support and we’ll set one up for you.
+              </div>
+            )}
+
             {/* Clean 3-Card Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-              {PLANS.map((plan) => {
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch ${plansLoading ? "opacity-60" : ""}`}>
+              {plans.map((plan) => {
                 const price = formatPlanPrice(plan, billing);
                 const isFree = plan.monthly.amount === 0;
                 return (
+                  /* Same anatomy as the in-app plan catalogue: a fixed-height
+                     tag strip, a two-line description floor, then the ACTION
+                     ABOVE the feature list. Feature lists are different
+                     lengths, so a button placed after them lands at a
+                     different height on every card — above them, the names,
+                     prices and buttons line up across the row. (The in-app
+                     one is roles/hr/billing/components/PlanCatalogue.jsx —
+                     keep the two looking like one product.) */
                   <div
                     key={plan.tier}
-                    className={`bg-white rounded-2xl p-7 flex flex-col justify-between transition-all duration-200 relative
+                    className={`bg-white rounded-2xl p-6 flex flex-col transition-all duration-200 relative
                       ${plan.popular
-                        ? "border-2 border-purple-600 bg-purple-50/10 shadow-md shadow-purple-100"
-                        : "border-2 border-gray-200 hover:border-purple-300 shadow-sm"
+                        ? "border-2 border-purple-500 shadow-md shadow-purple-100"
+                        : "border border-slate-200 hover:border-purple-300 shadow-xs hover:shadow-sm"
                       }`}
                   >
-                    {plan.popular && (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-purple-600 text-white text-[10px] font-bold tracking-wider rounded-full uppercase">
-                        Most Popular
-                      </span>
-                    )}
+                    <div className="h-5 mb-1.5 flex items-center">
+                      {plan.popular ? (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[10px] font-bold tracking-wider rounded-full uppercase">
+                          Most Popular
+                        </span>
+                      ) : isFree ? (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold tracking-wider rounded-full uppercase">
+                          No charge
+                        </span>
+                      ) : null}
+                    </div>
 
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-900 mb-1">{plan.name}</h3>
-                      <p className="text-xs text-gray-500 mb-6">{plan.description}</p>
+                    <h3 className="font-bold text-lg text-gray-900">{plan.name}</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 min-h-[2rem] mt-1">
+                      {plan.description}
+                    </p>
 
-                      <div className="mb-1 flex items-baseline">
-                        <span className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+                    <div className="mt-4">
+                      <p className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-[1.75rem] leading-none font-bold text-gray-900 tracking-tight">
                           {price}
+                          {/* Only ever shown beside a hardcoded figure — and
+                              the submit guard below refuses to charge on one,
+                              so the mark warns before the refusal explains. */}
+                          {planSource !== "live" && <span className="align-super text-base" aria-hidden="true">*</span>}
                         </span>
                         {!isFree && (
-                          <span className="text-xs text-gray-400 ml-1">
+                          <span className="text-xs font-semibold text-gray-400">
                             /{billing === "yearly" ? "year" : "month"}
                           </span>
                         )}
-                      </div>
-                      <p className="text-[11px] text-gray-400 mb-6">
-                        for the whole workspace
                       </p>
-
-                      <ul className="space-y-2.5 mb-8">
-                        {planBullets(plan).map((f) => (
-                          <li key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                            <HiCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                            <span>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="min-h-[1.125rem] mt-1.5 text-[11px] leading-[1.125rem] text-gray-400">
+                        {isFree ? "Free for as long as you like" : "for the whole workspace"}
+                      </p>
                     </div>
 
                     <button
                       onClick={() => {
-                        setSelectedPlan(plan);
+                        setSelectedTier(plan.tier);
                         setStep(2);
                       }}
-                      className={`w-full font-semibold text-sm rounded-xl py-3 text-center transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5
+                      className={`mt-4 w-full font-semibold text-sm rounded-xl py-3 text-center transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-1.5
                         ${plan.popular
                           ? "bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white shadow-purple-200"
-                          : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+                          : "bg-slate-100 hover:bg-slate-200 text-gray-900"
                         }`}
                     >
                       {isFree ? "Get Started Free" : "Select Plan"}
                       <HiArrowRight className="w-4 h-4" />
                     </button>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+                        What you get
+                      </p>
+                      <ul className="space-y-2">
+                        {planBullets(plan).map((f) => (
+                          <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
+                            <HiCheck className="w-3.5 h-3.5 text-violet-500 shrink-0 mt-0.5" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 );
               })}
             </div>
+
+            {planSource !== "live" && plans.length > 0 && (
+              <p className="mt-6 text-xs text-gray-400 text-center">
+                * Prices may vary according to plans. We’ll confirm the exact amount before anything is charged.
+              </p>
+            )}
           </div>
         )}
 
@@ -403,9 +548,13 @@ function RegisterOrgPage() {
                   {selectedPlan?.name} ({billing})
                 </p>
                 <p className="text-[11px] text-gray-500">
-                  {selectedPlan?.monthlyPrice === 0
+                  {/* `monthlyPrice` / `yearlyPrice` were never fields on a plan,
+                      so this line rendered "₹undefined/month" for every plan.
+                      The catalogue's own formatters are the only way to print
+                      a price. */}
+                  {isFreePlan
                     ? "Free forever"
-                    : `₹${(billing === "yearly" ? selectedPlan?.yearlyPrice : selectedPlan?.monthlyPrice)?.toLocaleString("en-IN")}/${billing === "yearly" ? "year" : "month"}`}
+                    : [formatPlanPrice(selectedPlan, billing), planPeriodLabel(selectedPlan, billing)].filter(Boolean).join(" ")}
                 </p>
               </div>
             </div>
@@ -469,7 +618,7 @@ function RegisterOrgPage() {
                   </select>
                   {selectedPlan && (
                     <p className="text-[11px] text-purple-600 font-medium mt-1">
-                      {selectedPlan.name} covers up to {selectedPlan.limits.employees} employees.
+                      {selectedPlan.name} covers {selectedLimits?.employees == null ? "any number of" : `up to ${selectedLimits.employees}`} employees.
                     </p>
                   )}
                 </div>
@@ -547,7 +696,7 @@ function RegisterOrgPage() {
                   </>
                 ) : (
                   <>
-                    {selectedPlan?.monthlyPrice === 0 ? "Activate Workspace" : "Proceed to Payment"}
+                    {isFreePlan ? "Activate Workspace" : "Proceed to Payment"}
                     <HiArrowRight className="w-4 h-4" />
                   </>
                 )}

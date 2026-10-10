@@ -7,6 +7,7 @@ import EmployeePicker from "../../../../shared/attendance/EmployeePicker";
 import EmployeeAttendanceReport from "../../../../shared/attendance/EmployeeAttendanceReport";
 import { downloadCSV } from "../../../../shared/utils/csv";
 import { employeeCode, listFrom, num, personName } from "../../../../shared/attendance/normalize";
+import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, todayYMD } from "../../../../shared/attendance/dates";
 import { RECORD_STATUS_FILTERS } from "../../../../shared/attendance/enums";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Spinner, StatusBadge } from "../../../../shared/attendance/ui";
@@ -41,11 +42,38 @@ function useReport() {
   return [state, run];
 }
 
+// The daily and monthly report endpoints return `user.profile: null` — the row
+// carries only the login email — so `personName()` lands on its email fallback
+// and the table printed addresses where every other screen prints a name. The
+// roster is already in memory (the employee picker on this same page reads it),
+// so resolve the id through the directory first, and keep `personName()` for the
+// payloads that do carry one. §4: an unresolved id reads "Loading…" / "Unknown
+// user" through `nameOf`, never the raw value and never an email.
+function useReportPerson() {
+  const { entryOf, nameOf } = useEmployeeDirectory();
+  const idOf = (row) => row?.user_id || row?.user?.id || row?.employee_id || row?.id || "";
+  const personLabel = (row) => {
+    const id = idOf(row);
+    const known = entryOf(id)?.name;
+    if (known) return known;
+    // A payload that genuinely carries a name still wins over a directory miss.
+    const own = personName(row, "");
+    if (own && !own.includes("@")) return own;
+    // `own` can only be an email at this point — exactly what this is replacing —
+    // so let `nameOf` supply the §4 wording ("Loading…", "Unknown user") instead
+    // of handing the address back as a fallback.
+    return nameOf(id);
+  };
+  const codeLabel = (row) => employeeCode(row) || entryOf(idOf(row))?.code || "";
+  return { personLabel, codeLabel };
+}
+
 function DailyReport() {
   const [date, setDate] = useState(todayYMD());
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [state, run] = useReport();
+  const { personLabel, codeLabel } = useReportPerson();
   // §5.8: `date` is required; `status` and `search` are optional server-side filters.
   const generate = () => {
     const params = { date, status: status || undefined, search: search.trim() || undefined };
@@ -58,7 +86,7 @@ function DailyReport() {
     downloadCSV(
       `daily_attendance_${shownDate}${state.params?.status ? `_${state.params.status}` : ""}.csv`,
       ["Employee", "Code", "Status", "Clock In", "Clock Out", "Late (min)", "Left Early (min)", "Overtime (min)", "Flagged"],
-      rows.map((d) => [personName(d), employeeCode(d), d.status || "", localTime(d.clock_in_time), localTime(d.clock_out_time), num(d.late_minutes), num(d.early_leave_minutes ?? d.early_exit_minutes), num(d.overtime_minutes), d.is_anomaly ? "Yes" : "No"])
+      rows.map((d) => [personLabel(d), codeLabel(d), d.status || "", localTime(d.clock_in_time), localTime(d.clock_out_time), num(d.late_minutes), num(d.early_leave_minutes ?? d.early_exit_minutes), num(d.overtime_minutes), d.is_anomaly ? "Yes" : "No"])
     );
 
   return (
@@ -122,8 +150,8 @@ function DailyReport() {
                   {rows.map((d, i) => (
                     <tr key={d.id || d.user_id || i} className="hover:bg-slate-50/80">
                       <td className="px-5 py-3">
-                        <p className="font-semibold text-slate-800">{personName(d)}</p>
-                        {employeeCode(d) && <p className="text-[10px] text-slate-400">{employeeCode(d)}</p>}
+                        <p className="font-semibold text-slate-800">{personLabel(d)}</p>
+                        {codeLabel(d) && <p className="text-[10px] text-slate-400">{codeLabel(d)}</p>}
                       </td>
                       <td className="px-5 py-3"><StatusBadge status={d.status || "not_marked"} /></td>
                       <td className="px-5 py-3">{fmtTime(d.clock_in_time)}</td>
@@ -148,6 +176,7 @@ function MonthlyReport() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [state, run] = useReport();
+  const { personLabel, codeLabel } = useReportPerson();
   const period = `${year}-${String(month).padStart(2, "0")}`;
   // The live endpoint is consumed with `month=YYYY-MM` (audit C15).
   const generate = () => run(() => attendanceAPI.getMonthlyReport({ month: period }), { year, month, period });
@@ -159,7 +188,7 @@ function MonthlyReport() {
     downloadCSV(
       `monthly_attendance_${shown.period}.csv`,
       ["Employee", "Code", "Present (days)", "Absent (days)", "Late (days)", "Overtime (min)"],
-      rows.map((e) => [personName(e), employeeCode(e), num(e.total_present), num(e.total_absent), num(e.total_late_days), num(e.total_overtime_minutes)])
+      rows.map((e) => [personLabel(e), codeLabel(e), num(e.total_present), num(e.total_absent), num(e.total_late_days), num(e.total_overtime_minutes)])
     );
 
   const totals = rows.reduce(
@@ -237,8 +266,8 @@ function MonthlyReport() {
                     {rows.map((e, i) => (
                       <tr key={e.user_id || e.id || i} className="hover:bg-slate-50/80">
                         <td className="px-5 py-3">
-                          <p className="font-semibold text-slate-800">{personName(e)}</p>
-                          {employeeCode(e) && <p className="text-[10px] text-slate-400">{employeeCode(e)}</p>}
+                          <p className="font-semibold text-slate-800">{personLabel(e)}</p>
+                          {codeLabel(e) && <p className="text-[10px] text-slate-400">{codeLabel(e)}</p>}
                         </td>
                         <td className="px-5 py-3 font-bold text-indigo-600">{num(e.total_present)}d</td>
                         <td className="px-5 py-3 font-bold text-slate-500">{num(e.total_absent)}d</td>
