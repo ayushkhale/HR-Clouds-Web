@@ -28,6 +28,31 @@
 // a server-to-server webhook and has no client function here by design — it is
 // what settles a payment when our verify call never lands.
 //
+// WHERE THIS FILE DISAGREES WITH api_registry.md, AND WHY (§9 asks for the
+// deviation to be recorded, so the next person doesn't "correct" it back).
+// Audited against the live dev server on 2026-10-10: every route below
+// answers 401 unauthenticated, i.e. exists and is addressed correctly. Two
+// registry one-line summaries are nonetheless stale, and following either
+// would break a working call:
+//
+//   · #229 GET /billing/payments — the registry row says the filters are
+//     `type`, `page`, `limit`. They are `status`, `from`, `to`, `limit`,
+//     `offset`. phase1_api_analysis.md §229 names the backend validator
+//     (`PaymentValidators.fieldValidation_PaymentsQuery`) and documents the
+//     `{ count, rows }` reply this file reads. Do NOT switch to `page`.
+//
+//   · #235 POST /billing/subscription/cancel — the registry row says the body
+//     is `{ immediate, reason, feedback }`. It is `{ effective, reason,
+//     confirm }`, agreed by FOUR money documents (phase1_api_analysis §235's
+//     parameter table, money_operations_and_apis' literal JSON example,
+//     money_and_subscription_handling_architecture and the HR Q&A). Sending
+//     `immediate` would be rejected by the validator.
+//
+// The one genuine backend gap: GET /plans (the PUBLIC catalogue, no token)
+// still answers 404 on dev. #225 behind a token is fine. `usePlanCatalog`
+// already falls back and marks the figures, so this degrades rather than
+// breaking — see shared/config/plans.js.
+//
 // Two contract traps worth keeping:
 //   · #232 REQUIRES an `Idempotency-Key` header, and a retry has to reuse the
 //     same one — a fresh key on a retried click mints a second gateway order.
