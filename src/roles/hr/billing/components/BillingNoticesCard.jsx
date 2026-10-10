@@ -176,15 +176,19 @@ export default function BillingNoticesCard({ onSaved, onClose, showToast }) {
     <div
       className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
       role="presentation"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+      // Backdrop-close is the house behaviour (DetailDialog, ReasonDialog),
+      // but NOT over unsaved edits: this is a form, and a stray click beside
+      // it would throw away a list somebody had just typed. ReasonDialog
+      // guards the same way on `busy`.
+      onMouseDown={(e) => { if (e.target === e.currentTarget && !dirty && !saving) onClose?.(); }}
     >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="billing-notices-title"
-        className="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden"
       >
-        <header className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 shrink-0">
+        <header className="flex items-center gap-2 px-6 sm:px-8 py-4 border-b border-slate-100 shrink-0">
           <HiBell className="w-4 h-4 text-purple-500" />
           <h2 id="billing-notices-title" className="text-sm font-bold text-slate-800">Billing notices</h2>
           <FieldHelp surface={SURFACE} field="billing_notification_emails" label="who gets billing emails" className="mb-0" />
@@ -198,7 +202,7 @@ export default function BillingNoticesCard({ onSaved, onClose, showToast }) {
           </button>
         </header>
 
-        <div className="px-5 py-5 space-y-5 overflow-y-auto">
+        <div className="px-6 sm:px-8 py-6 space-y-6 overflow-y-auto">
           {/* A failed read is NOT an empty list: saving over values we never
               saw would wipe whoever is already on it (§7). */}
           {loadError && <Notice tone="error">{loadError}</Notice>}
@@ -309,7 +313,7 @@ export default function BillingNoticesCard({ onSaved, onClose, showToast }) {
         {/* Pinned, so a long email list never scrolls the actions away. Save
             still only appears once something has actually changed — the PATCH
             refuses an empty body. */}
-        <footer className="flex flex-wrap items-center justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
+        <footer className="flex flex-wrap items-center justify-end gap-3 px-6 sm:px-8 py-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
           {dirty && loaded ? (
             <>
               <button type="button" onClick={reset} disabled={saving} className={SECONDARY_BTN}>Undo changes</button>

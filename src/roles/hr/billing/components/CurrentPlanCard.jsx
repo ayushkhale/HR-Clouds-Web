@@ -106,7 +106,11 @@ export default function CurrentPlanCard({
 
   return (
     <div className="space-y-4">
-      <section className={`rounded-2xl overflow-hidden ${premium ? `${HERO} shadow-sm` : "bg-white border border-slate-100 shadow-xs"}`}>
+      {/* `plan-card-enter` runs once per mount — the "it arrived" moment, not
+          a loop. The sheen rides inside it and only on the premium skin,
+          where there is a gradient for it to catch. */}
+      <section className={`relative rounded-2xl overflow-hidden plan-card-enter ${premium ? `${HERO} shadow-sm` : "bg-white border border-slate-100 shadow-xs"}`}>
+        {premium && <span className="plan-sheen z-20" aria-hidden="true" />}
         {/* ── Identity, price, and the two actions ────────────────────────── */}
         <div className={`p-5 sm:p-6 ${premium ? "relative" : ""}`}>
           {premium && (
@@ -157,14 +161,27 @@ export default function CurrentPlanCard({
                 banner — a rank over a free or lapsed plan would be claiming
                 something. Hidden below `sm`, where the width belongs to the
                 words. Which mark it is comes from `rankArtFor` above. */}
+            {/* Centred on the CARD, not between its two text blocks: absolute
+                so the rank sits on the banner's midline however long the plan
+                name or the price happens to be. Only from `lg`, because below
+                that the words need the whole width and a mark floating over
+                them would be in the way. `key` on the src so swapping rank
+                restarts the shine rather than leaving it mid-sweep. */}
             {premium && art && (
-              <img
+              <div
                 key={art}
-                src={art}
-                alt=""
                 aria-hidden="true"
-                className="hidden sm:block shrink-0 h-24 md:h-28 w-auto object-contain drop-shadow-2xl select-none pointer-events-none"
-              />
+                className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none"
+              >
+                <div className="relative overflow-hidden">
+                  <img
+                    src={art}
+                    alt=""
+                    className="h-28 xl:h-32 w-auto object-contain drop-shadow-2xl"
+                  />
+                  <span className="plan-medal-shine" />
+                </div>
+              </div>
             )}
 
             {/* The price, given the weight it has on a bill rather than being
