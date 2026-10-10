@@ -110,7 +110,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  HiChevronDown, HiChevronRight, HiExclamationCircle, HiLockClosed, HiRefresh,
+  HiCheck, HiChevronDown, HiChevronRight, HiExclamationCircle, HiLockClosed, HiRefresh,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import ReasonDialog from "../components/ReasonDialog";
@@ -135,6 +135,7 @@ const CARD = "bg-white rounded-2xl border shadow-xs overflow-hidden transition-a
 const LINK = "inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 shrink-0";
 /* The card's own Save was PRIMARY; the page's one Save lives in the dock now
    (see the footer comment). SECONDARY is still the reload button's. */
+const PRIMARY = "px-4 py-2 rounded-xl text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2";
 const SECONDARY = "px-4 py-2 rounded-xl text-sm font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 transition disabled:opacity-50 inline-flex items-center gap-2";
 
 function Pill({ tone = "slate", children }) {
@@ -169,7 +170,7 @@ const sameValue = (a, b) => {
 
 export default function SettingsGroupForm({
   group, entries, editTo, onSaved, onReload, showToast, surface, onDirtyChange, flash = false,
-  open: openProp, onToggle,
+  open: openProp, onToggle, standalone = false,
 }) {
   const rows = useMemo(() => entries || [], [entries]);
   // Memoised: it feeds the patch diff, and a fresh {} each render would make
@@ -181,7 +182,10 @@ export default function SettingsGroupForm({
   // to be able to open a card it is reporting on), and falls back to the
   // card's own state so this component still works on its own.
   const [localOpen, setLocalOpen] = useState(false);
-  const open = openProp ?? localOpen;
+  // On its own page there is no shutter to be behind: the page IS the group,
+  // its title is the page's title, and a card that could be collapsed to
+  // nothing would leave the reader on an empty screen.
+  const open = standalone ? true : (openProp ?? localOpen);
   const toggle = () => (onToggle ? onToggle(group.key) : setLocalOpen((v) => !v));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -437,17 +441,51 @@ export default function SettingsGroupForm({
               : "border-slate-100"
         }`}
       >
-        <Header
-          group={group}
-          rows={rows}
-          dirtyCount={dirtyKeys.length}
-          open={open}
-          onToggle={toggle}
-          bodyId={bodyId}
-          onReset={canWrite && resettableKeys.length > 0 ? resetToDefaults : null}
-          resetCount={resettableKeys.length}
-          busy={saving}
-        />
+        {/* The shutter header, and only in the list. On its own page the
+            breadcrumb and the page title already name the group, so a second
+            name with a chevron that cannot close anything would be two
+            headings and a dead control. */}
+        {!standalone && (
+          <Header
+            group={group}
+            rows={rows}
+            dirtyCount={dirtyKeys.length}
+            open={open}
+            onToggle={toggle}
+            bodyId={bodyId}
+            onReset={canWrite && resettableKeys.length > 0 ? resetToDefaults : null}
+            resetCount={resettableKeys.length}
+            busy={saving}
+          />
+        )}
+
+        {/* Standalone keeps the two things the shutter header carried that
+            the page title cannot: whether this group still sits on the
+            shipped defaults, and the one way to put it back. */}
+        {standalone && (
+          <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-slate-100">
+            {dirtyKeys.length > 0
+              ? <Pill tone="amber">{dirtyKeys.length} unsaved</Pill>
+              : (group.nonDefaultKeys || []).length > 0
+                ? <Pill tone="purple">Customised</Pill>
+                : null}
+            <span className={META}>
+              {rows.length} setting{rows.length === 1 ? "" : "s"}
+              {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
+            </span>
+            {canWrite && resettableKeys.length > 0 && (
+              <button
+                type="button"
+                onClick={resetToDefaults}
+                disabled={saving}
+                aria-label={`Put ${group.label} back to the default`}
+                className={`ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition`}
+              >
+                <HiRefresh className="w-3.5 h-3.5" /> Put back to default
+              </button>
+            )}
+          </div>
+        )}
 
         {conflict && (
           <div className={`mx-5 mt-4 ${open ? "" : "mb-4"} flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 px-4 py-3 text-xs text-slate-700`}>
@@ -645,7 +683,24 @@ export default function SettingsGroupForm({
                   Open {editTo.label} <HiChevronRight className="w-3.5 h-3.5" />
                 </Link>
               ) : <span className={META}>Changes here are saved to this area only.</span>}
-              {canWrite && dirty && (
+              {/* STANDALONE GETS ITS SAVE BACK. The footer's Save was removed
+                  because the list page also had a sticky dock, and one dirty
+                  card then showed two identical purple Save buttons doing the
+                  same write. On a group's own page there IS no dock, so this
+                  is the only one — and a page you can edit but not save is
+                  worse than the duplication ever was. */}
+              {standalone && canWrite && dirty ? (
+                <span className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={discard} disabled={saving} className={SECONDARY}>
+                    Discard
+                  </button>
+                  <button type="button" onClick={save} disabled={saving} className={PRIMARY}>
+                    {saving
+                      ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</>
+                      : <><HiCheck className="w-4 h-4" /> Save changes</>}
+                  </button>
+                </span>
+              ) : canWrite && dirty && (
                 <span className={`text-xs font-bold shrink-0 ${TEXT.value}`}>
                   {saving
                     ? "Saving…"

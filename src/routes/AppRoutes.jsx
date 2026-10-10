@@ -168,6 +168,8 @@ const CompanyProfilePage = lazy(() => import("../shared/screens/CompanyProfilePa
 // Company Settings is shared by HR and the manager: one screen, and the server
 // projects what each role may read (§2). Phase 1 is read-only.
 const OrgSettingsPage = lazy(() => import("../shared/screens/OrgSettingsPage"));
+const OrgSettingGroupPage = lazy(() => import("../shared/screens/OrgSettingGroupPage"));
+const OrgSettingsHistoryPage = lazy(() => import("../shared/screens/OrgSettingsHistoryPage"));
 const BillingOverviewPage = lazy(() => import("../roles/hr/billing/screens/BillingOverviewPage"));
 const BillingPaymentsPage = lazy(() => import("../roles/hr/billing/screens/BillingPaymentsPage"));
 const MyDocumentsPage = lazy(() => import("../shared/screens/MyDocumentsPage"));
@@ -346,6 +348,11 @@ function AppRoutes() {
             refuse platform admins too, so this is a capability one role has
             rather than a screen another role was denied. */}
         <Route path="/dashboard/hr/settings" element={<OrgSettingsPage />} />
+        {/* One group on its own page — the detail half of the settings
+            master-detail, mounted under each workspace's own prefix so a
+            link from the list never crosses the route gate (§2). */}
+        <Route path="/dashboard/hr/settings/history" element={<OrgSettingsHistoryPage />} />
+        <Route path="/dashboard/hr/settings/:groupKey" element={<OrgSettingGroupPage />} />
         <Route path="/dashboard/hr/billing" element={<BillingOverviewPage />} />
         <Route path="/dashboard/hr/billing/payments" element={<BillingPaymentsPage />} />
         <Route path="/dashboard/hr/attendance/directory" element={<HRAttendancePage />} />
@@ -498,6 +505,8 @@ function AppRoutes() {
         <Route path="/dashboard/manager/documents/requests" element={<TeamRequestsPage />} />
         <Route path="/dashboard/manager/my-documents" element={<MyDocumentsPage />} />
         <Route path="/dashboard/manager/settings" element={<OrgSettingsPage />} />
+        <Route path="/dashboard/manager/settings/history" element={<OrgSettingsHistoryPage />} />
+        <Route path="/dashboard/manager/settings/:groupKey" element={<OrgSettingGroupPage />} />
         <Route path="/dashboard/manager/company-documents" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/manager/company-documents/:documentId" element={<IssuedDocumentsPage />} />
         <Route path="/dashboard/manager/my-document-requests" element={<MyRequestsPage />} />
