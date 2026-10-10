@@ -3871,7 +3871,7 @@
     },
     "settings.hub": {
       "kind": "data",
-      "description": "Company Settings (OrgSettingsPage) — the settings hub: a section rail, editable group cards and one search. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields.",
+      "description": "Company Settings (OrgSettingsPage) — the settings hub: four glance tiles, a domain tab strip with one search over the whole catalogue, editable group cards and the change history. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields; tab.<module_key> keys are the open domain tab.",
       "workspaces": [
         "hr",
         "manager"
@@ -3927,6 +3927,70 @@
           "askMaya": {
             "enabled": true,
             "question": "What does the “changed from” channel mean on a settings change record, and why is it blank on most rows?"
+          }
+        },
+        "effect_timing": {
+          "tier": "onboarding",
+          "hint": "When a change here starts to bite. Some apply the moment you save; others wait for the next payroll run or the next record, so today’s figures don’t move.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do some company settings take effect immediately while others only apply from the next payroll run?"
+          }
+        },
+        "billing_notification_emails": {
+          "tier": "onboarding",
+          "hint": "Invoices and renewal notices reach your HR administrators whatever you put here. Add the accounts team so a renewal is never missed.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who should receive a company’s billing emails and tax invoices, and why do finance teams usually add a shared accounts address?"
+          }
+        },
+        "billing_reminder_lead_days": {
+          "tier": "onboarding",
+          "hint": "Each number is one warning before the plan ends. Clearing the list switches the warnings off altogether, so a plan can lapse with nobody told.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are subscription renewal reminders, how far ahead should they be sent, and what is the risk of turning them off?"
+          }
+        },
+        "tab.organization": {
+          "tier": "onboarding",
+          "hint": "Your company’s own record, and where its invoices and renewal reminders are sent. Getting the address wrong here puts it on every letter.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the Company and Billing area of settings control, and who receives the billing notices?"
+          }
+        },
+        "tab.payroll": {
+          "tier": "onboarding",
+          "hint": "The rules every payroll run follows: the pay cycle, what an unpaid day costs, who signs off what, and the deductions required by law.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which payroll settings should an HR admin check before running payroll for the first time, and what does each one affect?"
+          }
+        },
+        "tab.document": {
+          "tier": "onboarding",
+          "hint": "How documents and letters are made, approved, sent and kept — including how long a letter stays on file before it is deleted for good.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the document and letter settings control, and which of them can delete files permanently?"
+          }
+        },
+        "tab.attendance": {
+          "tier": "onboarding",
+          "hint": "Working days, hours and shifts. Most of this is set on its own screens, because a company can run several different attendance rules at once.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why are attendance rules managed on their own screens rather than as single company-wide settings?"
+          }
+        },
+        "tab.leave": {
+          "tier": "onboarding",
+          "hint": "The kinds of leave people can take and how much they get. Each kind has its own rules, so these live on the leave screens rather than here.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How are leave types and leave policies different, and where do I set how many days someone gets?"
           }
         }
       }

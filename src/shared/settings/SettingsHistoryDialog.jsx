@@ -14,14 +14,30 @@
 // came from) and `request_id`. Both are ours, not theirs — the same reason
 // billing never prints `settled_via`. A support engineer who needs the
 // correlation id has the logs.
+//
+// ─── THE 2026-10-10 PASS ───────────────────────────────────────────────────
+// The two facts a reader actually arrives with, which the first build left
+// them to work out:
+//   · WAS IT A MOVE OFF THE DEFAULT, OR A MOVE BACK TO IT? The badge says so
+//     in words, and the sentence under the pair says it again in context. This
+//     is read off the catalogue's own `default` (`isDefaultValue`), so it
+//     cannot drift from what a reset would actually do.
+//   · WHY THERE IS NO REASON. An absent `reason` was simply a missing
+//     section, which reads as "nobody said" when the truth is usually "we
+//     never asked" — only a high-risk change is made to carry one. The
+//     section is always there now and says which of the two it is.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { HiArrowRight, HiClock, HiPencilAlt, HiUser } from "react-icons/hi";
+import { HiAnnotation, HiArrowRight, HiClock, HiPencilAlt, HiUser } from "react-icons/hi";
 import DetailDialog, {
   DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailText,
 } from "../components/DetailDialog";
 import { fmtDateTime } from "../attendance/dates";
-import { changeActorName, changeSourceLabel, displaySettingValue, moduleLabel } from "./settingsMeta";
+import {
+  changeActorName, changeSourceLabel, displaySettingValue, isDefaultValue, moduleLabel,
+} from "./settingsMeta";
+import { settingBlurb, settingLabel } from "./settingsBlurbs";
+import { CAPTION, TEXT } from "./settingsText";
 
 /**
  * @param {object} props
@@ -35,13 +51,30 @@ export default function SettingsHistoryDialog({ item, entry, group, nameOf, onCl
   const actor = changeActorName(item?.actor, nameOf);
   const where = changeSourceLabel(item?.source);
 
+  /* Which direction this change went, relative to the value we ship. It is
+     the first thing an auditor wants and the hardest thing to see in a table
+     of before-and-after pairs. */
+  const blurb = settingBlurb(entry);
+  const backToDefault = isDefaultValue(item?.new_value, entry);
+  const movedOffDefault = !backToDefault && isDefaultValue(item?.old_value, entry);
+  const direction = backToDefault
+    ? "This put the setting back to the value we ship."
+    : movedOffDefault
+      ? "Until this change the setting was still on the value we ship."
+      : null;
+
   return (
     <DetailDialog
       eyebrow={group?.label || moduleLabel(item?.group)}
       icon={HiPencilAlt}
-      title={entry?.label || item?.setting_key}
+      title={settingLabel(entry) || item?.setting_key}
       subtitle={fmtDateTime(item?.occurred_at)}
-      badge={where ? <DetailPill tone="soft">{where}</DetailPill> : null}
+      /* One badge, the fact that is true of this record rather than of our
+         plumbing: whether it is now back on the default. Where it was changed
+         from is in "Who and when", where it belongs. */
+      badge={backToDefault
+        ? <DetailPill tone="soft">Back to the default</DetailPill>
+        : movedOffDefault ? <DetailPill tone="outline">Moved off the default</DetailPill> : null}
       width="medium"
       onClose={onClose}
       footer={
@@ -59,8 +92,13 @@ export default function SettingsHistoryDialog({ item, entry, group, nameOf, onCl
             { label: "Became", value: displaySettingValue(item?.new_value, entry) },
           ]}
         />
-        {entry?.description && (
-          <p className="text-[11px] text-slate-500 leading-relaxed mt-3">{entry.description}</p>
+        {/* What the setting DOES, in the same plain line the card under
+            Company Settings prints (settingsBlurbs.js), and which way this
+            change went. One shade, no colour. */}
+        {(direction || blurb) && (
+          <p className={`${CAPTION} mt-3`}>
+            {[blurb, direction].filter(Boolean).join(" ")}
+          </p>
         )}
       </DetailSection>
 
@@ -77,9 +115,19 @@ export default function SettingsHistoryDialog({ item, entry, group, nameOf, onCl
         />
       </DetailSection>
 
-      {/* Only when there is one. An absent reason is the norm on the legacy
-          stores, and an empty "Reason: N/A" row reads like something is wrong. */}
-      {item?.reason && <DetailText label="Why">{item.reason}</DetailText>}
+      {/* A reason is only ASKED FOR on a high-risk change (the gateway's 422
+          SETTINGS_REASON_REQUIRED), so "none recorded" is the normal case and
+          needs saying — otherwise the gap reads as somebody declining to
+          explain themselves. */}
+      {item?.reason ? (
+        <DetailText label="Why">{item.reason}</DetailText>
+      ) : (
+        <DetailSection title="Why" icon={HiAnnotation} collapsible={false}>
+          <p className={`text-sm ${TEXT.body}`}>
+            No reason was recorded. We only ask for one on the settings that can cost money or delete data.
+          </p>
+        </DetailSection>
+      )}
     </DetailDialog>
   );
 }

@@ -84,7 +84,7 @@ export default function useSettingsHub() {
   const model = useMemo(() => {
     const catalog = state.catalog;
     if (!catalog) {
-      return { groups: [], entriesByGroup: {}, groupsByKey: {}, entries: [], surfacesByModule: {}, unavailable: [], modules: [] };
+      return { groups: [], entriesByGroup: {}, groupsByKey: {}, entries: [], surfaces: [], surfacesByModule: {}, unavailable: [], modules: [] };
     }
 
     const catalogGroups = catalog.groups || [];
@@ -121,8 +121,12 @@ export default function useSettingsHub() {
       (entriesByGroup[entry.group_key] ||= []).push(entry);
     }
 
+    // Kept flat as well as bucketed: the hub's search reads across every
+    // module at once, and re-flattening the buckets on each keystroke would be
+    // the same work done twice.
+    const surfaces = catalog.surfaces || [];
     const surfacesByModule = {};
-    for (const surface of catalog.surfaces || []) {
+    for (const surface of surfaces) {
       (surfacesByModule[surface.module_key] ||= []).push(surface);
     }
 
@@ -134,7 +138,7 @@ export default function useSettingsHub() {
       ...Object.keys(surfacesByModule),
     ])].filter(Boolean);
 
-    return { groups, entriesByGroup, groupsByKey, entries, surfacesByModule, unavailable, modules };
+    return { groups, entriesByGroup, groupsByKey, entries, surfaces, surfacesByModule, unavailable, modules };
   }, [state.catalog, state.values]);
 
   /**

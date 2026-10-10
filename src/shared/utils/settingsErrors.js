@@ -167,16 +167,20 @@ export function offendingKeys(error) {
   return Array.isArray(keys) ? keys : [];
 }
 
-/**
- * The catalogue's own plain-language warnings for a high-risk change
- * (`details.warnings[]` on a 409). These are written by the backend for
- * exactly this moment, so they are shown VERBATIM rather than reworded — they
- * say what the change does, and we have no better source for that.
- */
-export function riskWarnings(error) {
-  const warnings = error?.data?.details?.warnings;
-  return Array.isArray(warnings) ? warnings.filter(Boolean) : [];
-}
+/* ─── `riskWarnings` IS GONE, ON PURPOSE ───────────────────────────────────
+   It returned `details.warnings[]` from a 409 and the confirm dialog printed
+   it verbatim, because those sentences are written for exactly that moment.
+   They are — for an integrator. What an HR admin got was "changes the
+   response class of the org-document publish endpoint from 200 to 202 …
+   clients must treat 202 as success and poll the materialisation-progress
+   endpoint" (user report, 2026-10-10).
+
+   A caution nobody can act on is worse than no caution: it trains people to
+   click through the dialog whose whole job is to slow them down. The cautions
+   are ours now — SETTING_WARNING in settings/settingsBlurbs.js, keyed by
+   setting key, with a plain fallback for a key we have no line for. The
+   server's keys (`offendingKeys`) are still trusted; only its prose is not.
+   Don't reinstate this to "keep the backend's wording". */
 
 /* ─── The change history: which refusals the screen must ACT on ────────────
    Two of #248's refusals are the screen's fault and are recoverable without
