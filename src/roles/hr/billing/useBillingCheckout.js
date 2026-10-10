@@ -76,8 +76,19 @@ export default function useBillingCheckout({ onSettled, showToast } = {}) {
   // Rule 2: one key per press, reused across retries of that press.
   const keyRef = useRef(null);
   // Don't set state after the dialog has gone — a verify can outlive it.
+  //
+  // The mount MUST re-arm this, not just the unmount disarm it. StrictMode
+  // mounts, runs the cleanup, and mounts again; an effect that only ever set
+  // the flag false left it false for the rest of the component's life, so
+  // `set()` became a permanent no-op and NOTHING the checkout learned —
+  // the quote, an error, a stage change — ever reached the screen. The
+  // symptom was a plan dialog that opened with a header and a Cancel button
+  // and no body, even though #238 had answered 200.
   const liveRef = useRef(true);
-  useEffect(() => () => { liveRef.current = false; }, []);
+  useEffect(() => {
+    liveRef.current = true;
+    return () => { liveRef.current = false; };
+  }, []);
 
   const set = useCallback((fn) => { if (liveRef.current) fn(); }, []);
 

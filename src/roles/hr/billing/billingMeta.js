@@ -205,10 +205,13 @@ export const eventTone = (type) =>
    #226 `usage` is `{ employees, managers, hrs }`, each `{ used, limit }` with a
    null limit meaning unlimited. The meters are the main reason an admin opens
    this page, so they are derived once here. */
+// `noun` is the mid-sentence form. It is spelled out rather than lower-cased
+// from `label`, because "HR" is an initialism and `toLowerCase()` turned it
+// into "1 of 2 hr admins".
 export const SEAT_ROLES = [
-  { key: "employees", label: "Employees" },
-  { key: "managers", label: "Managers" },
-  { key: "hrs", label: "HR admins" },
+  { key: "employees", label: "Employees", noun: "employees" },
+  { key: "managers", label: "Managers", noun: "managers" },
+  { key: "hrs", label: "HR admins", noun: "HR admins" },
 ];
 
 /** Role word for a #232/#237 seat violation, which names the singular role. */
@@ -222,7 +225,7 @@ export const VIOLATION_ROLE_LABEL = { employee: "Employees", manager: "Managers"
  * under it.
  */
 export function seatMeters(usage) {
-  return SEAT_ROLES.map(({ key, label }) => {
+  return SEAT_ROLES.map(({ key, label, noun }) => {
     const row = usage?.[key] || {};
     const used = Number(row.used) || 0;
     const limit = row.limit === null || row.limit === undefined ? null : Number(row.limit);
@@ -231,6 +234,7 @@ export function seatMeters(usage) {
     return {
       key,
       label,
+      noun,
       used,
       limit,
       unlimited,
@@ -261,6 +265,16 @@ export const featureName = (key) =>
 
 /** "1 manager" / "5 managers" — a seat line reading "1 HR admins" looks broken. */
 export const plural = (count, one, many) => `${count} ${Number(count) === 1 ? one : many}`;
+
+/**
+ * "5 of 20 employees · 2 of 5 managers · 1 of 2 HR admins" — what is actually
+ * being USED, for the one line the banner has room for. The allowance alone
+ * ("up to 20 employees") is the less useful of the two: an admin already knows
+ * what they bought, and what they came to check is how close they are to it.
+ * Takes rows from `seatMeters()`, so the arithmetic stays in one place.
+ */
+export const seatUsageLine = (meters = []) =>
+  meters.map((m) => `${m.text} ${m.noun || m.label}`).join(" · ");
 
 /** "Up to 100 employees · 15 managers · 5 HR admins". A null limit is unlimited. */
 export function seatLine(limits) {

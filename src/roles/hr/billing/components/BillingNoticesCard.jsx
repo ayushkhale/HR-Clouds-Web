@@ -24,10 +24,13 @@
 //     gets them. Saying so stops an admin adding themselves twice.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HiBell, HiCheck, HiMail, HiPlus, HiX } from "react-icons/hi";
-import { organizationAPI } from "../../../../shared/api";
-import { organizationErrorMessage } from "../../../../shared/utils/organizationErrors";
+import { settingsAPI } from "../../../../shared/api";
+import { isPreconditionFailed, settingsErrorMessage } from "../../../../shared/utils/settingsErrors";
+
+// The catalogue group that actually holds these two settings.
+const GROUP = "billing.notifications";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 import { Notice, PRIMARY_BTN, SECONDARY_BTN } from "./billingUi";
 
@@ -57,24 +60,47 @@ const LABEL = "block text-[11px] font-bold uppercase tracking-wider text-slate-6
  * @param {(details: object) => void} props.onSaved  takes the refreshed payload
  * @param {(msg: string, type?: string) => void} props.showToast
  */
-export default function BillingNoticesCard({ profile, onSaved, showToast }) {
-  const initialEmails = useMemo(
-    () => (Array.isArray(profile?.billing_notification_emails) ? profile.billing_notification_emails : []),
-    [profile],
-  );
-  // The server's own default is [7, 1]; an absent key means "never set", which
-  // behaves as that default, so the card shows it rather than an empty list.
-  const initialDays = useMemo(() => {
-    const raw = profile?.billing_reminder_lead_days;
-    return Array.isArray(raw) ? raw.map(Number) : [7, 1];
-  }, [profile]);
+export default function BillingNoticesCard({ onSaved, onClose, showToast }) {
+  // Loaded, not handed in — see this file's header for why the org profile
+  // is not the source.
+  const [loaded, setLoaded] = useState(null);   // { emails, days, etag }
+  const [loadError, setLoadError] = useState("");
 
-  const [emails, setEmails] = useState(initialEmails);
-  const [days, setDays] = useState(initialDays);
+  const initialEmails = useMemo(() => loaded?.emails || [], [loaded]);
+  const initialDays = useMemo(() => loaded?.days || [], [loaded]);
+
+  const [emails, setEmails] = useState([]);
+  const [days, setDays] = useState([]);
   const [draft, setDraft] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // One read of the group that actually holds these two settings (#245),
+  // which also hands back the per-group ETag every write needs.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await settingsAPI.getGroup(GROUP);
+        if (cancelled) return;
+        const values = res?.data?.values || {};
+        const next = {
+          emails: Array.isArray(values.billing_notification_emails) ? values.billing_notification_emails : [],
+          // An absent key means "never set", which behaves as the server's
+          // own default, so the card shows that rather than an empty list.
+          days: Array.isArray(values.billing_reminder_lead_days) ? values.billing_reminder_lead_days.map(Number) : [7, 1],
+          etag: res?.data?.etag || null,
+        };
+        setLoaded(next);
+        setEmails(next.emails);
+        setDays(next.days);
+      } catch (err) {
+        if (!cancelled) setLoadError(settingsErrorMessage(err, "We couldn’t read who gets your billing notices."));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const emailsChanged = !sameList(emails, initialEmails);
   const daysChanged = !sameList(days, initialDays);
@@ -114,31 +140,68 @@ export default function BillingNoticesCard({ profile, onSaved, showToast }) {
     setSaving(true);
     setError("");
     try {
-      // Partial: only the array that changed. An empty `days` array is still
-      // sent — it is how reminders are switched off.
-      const payload = {
+      // Only the array that changed. An empty `days` array is still sent —
+      // it is how reminders are switched off.
+      const values = {
         ...(emailsChanged ? { billing_notification_emails: emails } : {}),
         ...(daysChanged ? { billing_reminder_lead_days: days } : {}),
       };
-      const res = await organizationAPI.updateOrganizationProfile(payload);
-      // The PATCH answers with the refreshed details payload, so there is no
-      // second read and no stale card.
-      onSaved?.(res?.data || null);
+      const res = await settingsAPI.updateGroup(GROUP, { values }, loaded?.etag);
+      // The reply carries the saved values and a fresh ETag, so the card can
+      // be edited again without a re-read.
+      const saved = res?.data || {};
+      setLoaded({
+        emails: saved.values?.billing_notification_emails || emails,
+        days: (saved.values?.billing_reminder_lead_days || days).map(Number),
+        etag: saved.etag || loaded?.etag || null,
+      });
+      onSaved?.(saved);
       showToast?.("Saved. Billing notices will go to these addresses.");
     } catch (err) {
-      setError(organizationErrorMessage(err, "We couldn’t save that. Try again."));
+      // Somebody else changed them while this was open. Their edits stay on
+      // screen; only the assumption that nobody else was editing is lost.
+      setError(isPreconditionFailed(err)
+        ? settingsErrorMessage(err)
+        : settingsErrorMessage(err, "We couldn’t save that. Try again."));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5 space-y-5">
-      <div className="flex items-center gap-2">
-        <HiBell className="w-4 h-4 text-purple-500" />
-        <h2 className="text-sm font-bold text-slate-800">Billing notices</h2>
-        <FieldHelp surface={SURFACE} field="billing_notification_emails" label="who gets billing emails" className="mb-0" />
-      </div>
+    // A FORM, so it is a plain dialog rather than a DetailDialog (§3 — a form
+    // is not a record inspector), built to the house form-dialog shape: wide
+    // and gridded rather than a narrow column nobody can fill in, capped at
+    // the viewport, with the actions pinned to the bottom.
+    <div
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      role="presentation"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="billing-notices-title"
+        className="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+      >
+        <header className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 shrink-0">
+          <HiBell className="w-4 h-4 text-purple-500" />
+          <h2 id="billing-notices-title" className="text-sm font-bold text-slate-800">Billing notices</h2>
+          <FieldHelp surface={SURFACE} field="billing_notification_emails" label="who gets billing emails" className="mb-0" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="ml-auto p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+          >
+            <HiX className="w-4 h-4" />
+          </button>
+        </header>
+
+        <div className="px-5 py-5 space-y-5 overflow-y-auto">
+          {/* A failed read is NOT an empty list: saving over values we never
+              saw would wipe whoever is already on it (§7). */}
+          {loadError && <Notice tone="error">{loadError}</Notice>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ── Who ───────────────────────────────────────────────────────── */}
@@ -239,19 +302,28 @@ export default function BillingNoticesCard({ profile, onSaved, showToast }) {
         </div>
       </div>
 
-      {fieldError && <p className="text-[11px] font-semibold text-rose-600">{fieldError}</p>}
-      {error && <Notice tone="error">{error}</Notice>}
-
-      {dirty && (
-        <div className="flex flex-wrap items-center justify-end gap-3 pt-1 border-t border-slate-100">
-          <button type="button" onClick={reset} disabled={saving} className={SECONDARY_BTN}>Undo changes</button>
-          <button type="button" onClick={save} disabled={saving} className={PRIMARY_BTN}>
-            {saving
-              ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</>
-              : <><HiCheck className="w-4 h-4" /> Save notices</>}
-          </button>
+          {fieldError && <p className="text-[11px] font-semibold text-rose-600">{fieldError}</p>}
+          {error && <Notice tone="error">{error}</Notice>}
         </div>
-      )}
-    </section>
+
+        {/* Pinned, so a long email list never scrolls the actions away. Save
+            still only appears once something has actually changed — the PATCH
+            refuses an empty body. */}
+        <footer className="flex flex-wrap items-center justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
+          {dirty && loaded ? (
+            <>
+              <button type="button" onClick={reset} disabled={saving} className={SECONDARY_BTN}>Undo changes</button>
+              <button type="button" onClick={save} disabled={saving} className={PRIMARY_BTN}>
+                {saving
+                  ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</>
+                  : <><HiCheck className="w-4 h-4" /> Save notices</>}
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={onClose} className={SECONDARY_BTN}>Close</button>
+          )}
+        </footer>
+      </section>
+    </div>
   );
 }

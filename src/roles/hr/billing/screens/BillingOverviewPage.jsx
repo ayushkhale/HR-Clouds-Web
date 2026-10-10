@@ -42,12 +42,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  HiReceiptTax, HiRefresh, HiXCircle,
+  HiBell, HiReceiptTax, HiRefresh, HiXCircle,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
-import { billingAPI, organizationAPI } from "../../../../shared/api";
+import { billingAPI } from "../../../../shared/api";
 import { ErrorState, Toast, useToast } from "../../../../shared/attendance/ui";
 import { fmtDate } from "../../../../shared/attendance/dates";
 import { billingErrorMessage } from "../../../../shared/utils/billingErrors";
@@ -60,6 +60,7 @@ import PlanCatalogue from "../components/PlanCatalogue";
 import ChangePlanDialog from "../components/ChangePlanDialog";
 import CancelPlanDialog from "../components/CancelPlanDialog";
 import BillingNoticesCard from "../components/BillingNoticesCard";
+import PlanDetailDialog from "../components/PlanDetailDialog";
 
 const SURFACE = "billing.overview";
 
@@ -69,11 +70,6 @@ export default function BillingOverviewPage() {
   const [state, setState] = useState({ subscription: null, usage: null, lastPayment: null, loading: true, error: null });
   const [plans, setPlans] = useState([]);
   const [plansError, setPlansError] = useState(null);
-  // Only for the two billing settings on PATCH /organizations/profile (#97,
-  // #98). `null` means we haven't read it; a read that fails leaves it null and
-  // the card simply isn't offered, rather than offering to save over values we
-  // never saw (§7 — "nothing on file" and "couldn't load" are not the same).
-  const [orgProfile, setOrgProfile] = useState(null);
 
   // Which side of the billing-cycle toggle the catalogue is showing. It opens
   // on the cycle the organisation already pays on (set once the subscription
@@ -83,6 +79,8 @@ export default function BillingOverviewPage() {
   const cycleSet = useRef(false);
 
   // Dialogs
+  const [planDetailOpen, setPlanDetailOpen] = useState(false);
+  const [noticesOpen, setNoticesOpen] = useState(false);
   const [changing, setChanging] = useState(null);   // the plan being bought
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
@@ -126,18 +124,7 @@ export default function BillingOverviewPage() {
     }
   }, []);
 
-  const loadOrgProfile = useCallback(async () => {
-    try {
-      const res = await organizationAPI.getOrganizationDetails();
-      setOrgProfile(res?.data?.profile || null);
-    } catch {
-      // The notices card is the only thing that needs this, and it hides itself
-      // when the read didn't land.
-      setOrgProfile(null);
-    }
-  }, []);
-
-  useEffect(() => { loadSubscription(); loadPlans(); loadOrgProfile(); }, [loadSubscription, loadPlans, loadOrgProfile]);
+  useEffect(() => { loadSubscription(); loadPlans(); }, [loadSubscription, loadPlans]);
 
   const refresh = useCallback(() => { loadSubscription(); loadPlans(); }, [loadSubscription, loadPlans]);
 
@@ -241,9 +228,20 @@ export default function BillingOverviewPage() {
               What your organisation pays for, how much of it you’re using, and how to change it.
             </p>
           </div>
-          <Link to="/dashboard/hr/billing/payments" className={SECONDARY_BTN}>
-            <HiReceiptTax className="w-4 h-4" /> Payments & invoices
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {/* Billing notices used to be a full card at the very bottom of
+                the page, below the catalogue — a two-field form nobody
+                scrolls to, in the last place they'd look. It is a rare,
+                deliberate edit, so it earns a button and a dialog, not a
+                permanent slab of page. Offered only once the profile has
+                been read, so the dialog can never open over nothing (§7). */}
+            <button type="button" onClick={() => setNoticesOpen(true)} className={SECONDARY_BTN}>
+              <HiBell className="w-4 h-4" /> Billing notices
+            </button>
+            <Link to="/dashboard/hr/billing/payments" className={SECONDARY_BTN}>
+              <HiReceiptTax className="w-4 h-4" /> Payments & invoices
+            </Link>
+          </div>
         </div>
 
         {loading ? (
@@ -308,6 +306,7 @@ export default function BillingOverviewPage() {
               // already set to end has its Undo in the notice above instead.
               canCancel={sub.is_entitled && !free && !sub.cancel_at_period_end}
               onCancel={() => { setCancelError(""); setCancelling(true); }}
+              onOpenDetail={() => setPlanDetailOpen(true)}
               busy={acting}
               surface={SURFACE}
             />
@@ -345,16 +344,26 @@ export default function BillingOverviewPage() {
           )}
         </section>
 
-        {/* ── Who hears about invoices and renewals (#97, #98) ───────────── */}
-        {orgProfile && (
-          <BillingNoticesCard
-            profile={orgProfile}
-            onSaved={(details) => setOrgProfile(details?.profile || orgProfile)}
-            showToast={showToast}
-          />
-        )}
+
 
       </main>
+
+      {planDetailOpen && sub && (
+        <PlanDetailDialog
+          subscription={sub}
+          usage={usage}
+          lastPayment={lastPayment}
+          plans={plans}
+          onClose={() => setPlanDetailOpen(false)}
+        />
+      )}
+
+      {noticesOpen && (
+        <BillingNoticesCard
+          onClose={() => setNoticesOpen(false)}
+          showToast={showToast}
+        />
+      )}
 
       {changing && (
         <ChangePlanDialog plan={changing} checkout={checkout} onClose={closeChange} />

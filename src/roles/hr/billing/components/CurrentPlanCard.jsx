@@ -31,18 +31,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  HiBadgeCheck, HiCalendar, HiCash, HiCheck, HiExclamationCircle,
-  HiRefresh, HiSparkles, HiUserGroup,
+  HiBadgeCheck, HiCalendar, HiCash, HiChevronRight, HiExclamationCircle,
+  HiRefresh, HiSparkles,
 } from "react-icons/hi";
 import { fmtDate, fmtDateTime } from "../../../../shared/attendance/dates";
 import { formatMoney } from "../../../../shared/utils/formatUtils";
-import { isComingSoon } from "../../../../shared/config/plans";
+
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import {
-  CYCLE_LABEL, cycleEveryLabel, featureName, isFreePlan, paymentStatusMeta,
-  rankArtFor, seatLine, seatMeters, subscriptionStatusMeta,
+  CYCLE_LABEL, cycleEveryLabel, isFreePlan, paymentStatusMeta, rankArtFor,
+  seatMeters, seatUsageLine, subscriptionStatusMeta,
 } from "../billingMeta";
-import { BillingBadge, SeatMeter } from "./billingUi";
+import { BillingBadge } from "./billingUi";
 
 const HERO = "bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95]";
 const HERO_BTN = "px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-white/15 border border-white/25 hover:bg-white/25 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5 backdrop-blur-sm";
@@ -77,7 +77,7 @@ function Fact({ icon: Icon, label, value, hint, help, premium }) {
  */
 export default function CurrentPlanCard({
   subscription: sub, usage, lastPayment, plans = [], canCancel = false,
-  onCancel, busy = false, surface,
+  onCancel, onOpenDetail, busy = false, surface,
 }) {
   const plan = sub?.plan || null;
   const statusMeta = subscriptionStatusMeta(sub?.status);
@@ -90,9 +90,7 @@ export default function CurrentPlanCard({
 
   // The live catalogue row behind this subscription, for what the plan gives
   // them. No match (a plan withdrawn from sale) simply means no list.
-  const catalogRow = plans.find((p) => p.code === plan?.code) || null;
-  const features = catalogRow?.feature_keys || [];
-  const limits = catalogRow?.limits || null;
+
 
   // When the last payment happened, or — failing a date — what became of it.
   const lastPaymentWhen = !lastPayment
@@ -143,11 +141,12 @@ export default function CurrentPlanCard({
                   className="mb-0"
                 />
               </div>
-              {limits && (
-                <p className={`text-sm mt-1.5 ${premium ? "text-purple-100/90" : "text-slate-500"}`}>
-                  {seatLine(limits)}
-                </p>
-              )}
+              {/* What is USED, not what is allowed: the allowance is what they
+                  bought and already know; how close they are to it is what
+                  they came to check. The full meters are in the dialog. */}
+              <p className={`text-sm mt-1.5 ${premium ? "text-purple-100/90" : "text-slate-500"}`}>
+                {seatUsageLine(meters)}
+              </p>
             </div>
 
             {/* The rank mark, the same way the three dashboards carry their
@@ -185,11 +184,19 @@ export default function CurrentPlanCard({
               {/* Absent, not disabled, when the server wouldn't allow it (§2):
                   a free plan has nothing to stop (#235 CANNOT_CANCEL_FREE_PLAN)
                   and an already-cancelled one has nothing to cancel twice. */}
-              {canCancel && (
-                <button type="button" onClick={onCancel} disabled={busy} className={premium ? HERO_BTN : PLAIN_BTN}>
-                  <HiExclamationCircle className="w-3.5 h-3.5" /> Cancel plan
+              <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                {/* The benefit list and the seat meters used to be two more
+                    cards on the page. They are reference, read while deciding
+                    rather than on every visit, so they moved behind this. */}
+                <button type="button" onClick={onOpenDetail} className={premium ? HERO_BTN : PLAIN_BTN}>
+                  Plan details <HiChevronRight className="w-3.5 h-3.5" />
                 </button>
-              )}
+                {canCancel && (
+                  <button type="button" onClick={onCancel} disabled={busy} className={premium ? HERO_BTN : PLAIN_BTN}>
+                    <HiExclamationCircle className="w-3.5 h-3.5" /> Cancel plan
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -231,49 +238,6 @@ export default function CurrentPlanCard({
           />
         </dl>
       </section>
-
-      {/* ── What it gives you, and how much of it is left ─────────────────── */}
-      <div className={`grid gap-4 ${features.length > 0 ? "lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]" : "grid-cols-1"}`}>
-        {features.length > 0 && (
-          <section className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5">
-            <div className="flex items-center gap-2 mb-3.5">
-              <HiSparkles className="w-4 h-4 text-purple-500" />
-              <h3 className="text-sm font-bold text-slate-800">What your plan includes</h3>
-            </div>
-            <ul className="space-y-2">
-              {features.map((key) => (
-                <li key={key} className="flex items-start gap-2 text-xs text-slate-600">
-                  <span className="shrink-0 mt-0.5 w-4 h-4 rounded-full bg-violet-50 text-violet-600 inline-flex items-center justify-center">
-                    <HiCheck className="w-3 h-3" />
-                  </span>
-                  <span>
-                    {featureName(key)}
-                    {isComingSoon(key) ? <span className="text-slate-400"> (coming soon)</span> : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Seats sit beside the benefits because they are the limit ON them,
-            and the reason a plan change gets refused (#232). */}
-        <section className="bg-white rounded-2xl border border-slate-100 shadow-xs p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <HiUserGroup className="w-4 h-4 text-purple-500" />
-            <h3 className="text-sm font-bold text-slate-800">People on this plan</h3>
-            <FieldHelp surface={surface} field="usage" label="how people are counted" className="mb-0" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-7">
-            {meters.map((meter) => <SeatMeter key={meter.key} meter={meter} />)}
-          </div>
-          {meters.some((m) => m.over || m.full) && (
-            <p className="text-[11px] text-slate-500 mt-4 pt-3 border-t border-slate-100">
-              A plan change is refused while you have more people than the new plan allows. Move up a plan, or remove people first.
-            </p>
-          )}
-        </section>
-      </div>
     </div>
   );
 }

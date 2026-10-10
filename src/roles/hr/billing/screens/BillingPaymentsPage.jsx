@@ -26,7 +26,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  HiBadgeCheck, HiChevronDown, HiChevronLeft, HiClipboardList, HiDocumentText,
+  HiBadgeCheck, HiChevronDown, HiChevronLeft, HiChevronRight, HiClipboardList,
+  HiDocumentText,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
@@ -188,44 +189,63 @@ export default function BillingPaymentsPage() {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[820px]">
+              {/* Four columns, not six. The invoice serial leads because it
+                  is what a finance team quotes back at us, and the two facts
+                  that only qualify it — which plan, and what the payment was
+                  for — ride beneath it instead of taking a column each. On
+                  this organisation's real data those two columns were "N/A"
+                  all the way down. */}
+              <table className="w-full text-left text-sm min-w-[720px]">
                 <thead>
                   <tr className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 tracking-wider border-b border-slate-100">
-                    <th className="px-6 py-3.5">When</th>
-                    <th className="px-6 py-3.5">Plan</th>
-                    <th className="px-6 py-3.5">
-                      <span className="inline-flex items-center whitespace-nowrap">
-                        <HelpLabel text="What for" help={{ surface: SURFACE, field: "intent" }} />
-                      </span>
-                    </th>
-                    <th className="px-6 py-3.5 text-right">Amount</th>
-                    <th className="px-6 py-3.5">Status</th>
                     <th className="px-6 py-3.5">
                       <span className="inline-flex items-center whitespace-nowrap">
                         <HelpLabel text="Invoice" help={{ surface: SURFACE, field: "invoice_number" }} />
                       </span>
                     </th>
+                    <th className="px-6 py-3.5 text-right">Amount</th>
+                    <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5">Date</th>
+                    {/* The chevron's column. Headed blank, not "Actions":
+                        there is no action here, only the affordance that the
+                        row opens (§5 — drop an Actions column nobody uses). */}
+                    <th className="px-6 py-3.5 w-10" aria-hidden="true" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {state.rows.map((row) => (
-                    <tr key={row.id} {...rowPreviewProps(() => setSelected(row), "Payment details")}>
-                      <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap tabular-nums">
-                        {fmtDate(row.settled_at || row.created_at)}
-                      </td>
-                      <td className="px-6 py-3.5 font-semibold text-slate-800">{row.plan?.name || "N/A"}</td>
-                      <td className="px-6 py-3.5 text-slate-500">{intentLabel(row.intent)}</td>
-                      {/* The amount is what the reader came for, so it is the
-                          one thing on the row set above body size. */}
-                      <td className="px-6 py-3.5 text-right text-[15px] font-bold text-slate-900 tabular-nums whitespace-nowrap">
-                        {formatMoney(row.amount)}
-                      </td>
-                      <td className="px-6 py-3.5"><BillingBadge meta={paymentStatusMeta(row.status)} /></td>
-                      <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap tabular-nums text-[13px]">
-                        {row.invoice_number || <span className="text-slate-400 tracking-normal">Not yet</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {state.rows.map((row) => {
+                    // "Renewal · Starter Monthly", dropping whichever the
+                    // server left null rather than printing N/A twice.
+                    const detail = [
+                      row.intent ? intentLabel(row.intent) : null,
+                      row.plan?.name || null,
+                    ].filter(Boolean).join(" · ");
+                    return (
+                      <tr key={row.id} className="group" {...rowPreviewProps(() => setSelected(row), "Payment details")}>
+                        <td className="px-6 py-3.5 min-w-0">
+                          <p className="font-semibold text-slate-900 tabular-nums">
+                            {row.invoice_number || <span className="text-slate-400 font-medium">No invoice yet</span>}
+                          </p>
+                          {detail && <p className="text-[11px] text-slate-500 mt-0.5">{detail}</p>}
+                        </td>
+                        {/* The amount is what the reader came for, so it is
+                            the one thing on the row set above body size. */}
+                        <td className="px-6 py-3.5 text-right text-[15px] font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                          {formatMoney(row.amount)}
+                        </td>
+                        <td className="px-6 py-3.5"><BillingBadge meta={paymentStatusMeta(row.status)} /></td>
+                        <td className="px-6 py-3.5 text-slate-600 whitespace-nowrap tabular-nums">
+                          {fmtDate(row.settled_at || row.created_at)}
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <HiChevronRight
+                            className="w-4 h-4 text-slate-300 group-hover:text-purple-500 transition-colors inline-block"
+                            aria-hidden="true"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
