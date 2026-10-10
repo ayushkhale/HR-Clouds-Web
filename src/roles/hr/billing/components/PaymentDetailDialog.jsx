@@ -131,10 +131,16 @@ export default function PaymentDetailDialog({ transactionId, row, onClose }) {
   const lineItems = invoice?.line_items || [];
   const creditNotes = invoice?.credit_notes || [];
   const refunded = parseFloat(payment.refunded_amount) || 0;
+  // Settled per the SERVER's status, not per the presence of a timestamp:
+  // `settled_at` and `invoice_number` are both null on rows the API itself
+  // calls `success`, so reading settlement off a date gets it wrong.
+  const settled = INVOICEABLE.includes(String(payment.status));
 
   return (
     <DetailDialog
-      eyebrow={intentLabel(payment.intent)}
+      // `intent` is null on older rows, and an eyebrow reading "N/A" above
+      // the amount is noise — the dialog is better with no eyebrow at all.
+      eyebrow={payment.intent ? intentLabel(payment.intent) : undefined}
       icon={HiCreditCard}
       title={formatMoney(payment.amount)}
       subtitle={payment.settled_at ? `Paid ${fmtDateTime(payment.settled_at)}` : payment.created_at ? `Started ${fmtDateTime(payment.created_at)}` : undefined}
@@ -171,7 +177,15 @@ export default function PaymentDetailDialog({ transactionId, row, onClose }) {
             label: "Invoice",
             value: payment.invoice_number || (payment.status === "pending" ? "Not yet" : null),
             icon: HiReceiptTax,
-            hint: payment.invoice_number ? "A tax invoice you can give to your accounts team" : "Issued once the payment settles",
+            // "Issued once the payment settles" is only true while it hasn't.
+            // The live API returns settled payments with `invoice_number:
+            // null`, and that sentence then told an admin to wait for an
+            // invoice that is never coming. Settled-but-unnumbered says so.
+            hint: payment.invoice_number
+              ? "A tax invoice you can give to your accounts team"
+              : settled
+                ? "No invoice was issued for this payment"
+                : "Issued once the payment settles",
             help: { surface: "billing.payment_detail", field: "invoice_number" },
           },
         ]}

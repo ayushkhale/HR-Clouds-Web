@@ -39,8 +39,8 @@ import { formatMoney } from "../../../../shared/utils/formatUtils";
 import { isComingSoon } from "../../../../shared/config/plans";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import {
-  CYCLE_LABEL, cycleEveryLabel, featureName, isFreePlan, rankArtFor, seatLine,
-  seatMeters, subscriptionStatusMeta,
+  CYCLE_LABEL, cycleEveryLabel, featureName, isFreePlan, paymentStatusMeta,
+  rankArtFor, seatLine, seatMeters, subscriptionStatusMeta,
 } from "../billingMeta";
 import { BillingBadge, SeatMeter } from "./billingUi";
 
@@ -93,6 +93,13 @@ export default function CurrentPlanCard({
   const catalogRow = plans.find((p) => p.code === plan?.code) || null;
   const features = catalogRow?.feature_keys || [];
   const limits = catalogRow?.limits || null;
+
+  // When the last payment happened, or — failing a date — what became of it.
+  const lastPaymentWhen = !lastPayment
+    ? "Nothing has been charged"
+    : lastPayment.settled_at
+      ? fmtDateTime(lastPayment.settled_at)
+      : paymentStatusMeta(lastPayment.status).label;
 
   // Which rank mark this plan earns, from its position among the paid tiers
   // of the live catalogue (billingMeta). Null when the plan is no longer on
@@ -213,7 +220,14 @@ export default function CurrentPlanCard({
             icon={HiCash}
             label="Last payment"
             value={lastPayment ? formatMoney(lastPayment.amount) : "None yet"}
-            hint={lastPayment?.settled_at ? fmtDateTime(lastPayment.settled_at) : "Nothing has been charged"}
+            // The settled date is the nicest answer, but it is NOT reliably
+            // present: the live API returns rows with `status: "success"` and
+            // `settled_at: null`, and the old wording then printed "Nothing
+            // has been charged" directly beneath the amount that had been
+            // charged. The status is the thing we can always trust, so it is
+            // the fallback — never a sentence that contradicts the figure
+            // above it.
+            hint={lastPaymentWhen}
           />
         </dl>
       </section>
