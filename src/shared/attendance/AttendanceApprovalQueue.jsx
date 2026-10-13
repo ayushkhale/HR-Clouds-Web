@@ -21,6 +21,7 @@ import { HiCheckCircle, HiRefresh, HiSearch } from "react-icons/hi";
 import DecisionDialog, { DetailRow } from "./DecisionDialog.jsx";
 import { AnomalyDetails, OvertimeDetails, RegularizationDetails, recordOf } from "./DecisionContext.jsx";
 import { DECISION_TYPES, runDecision } from "./decisions.js";
+import { emitAttendanceChanged } from "./events.js";
 import { resolvePerson, useTeamNames } from "./useTeamNames.js";
 import { entityId, listFrom } from "./normalize.js";
 import { formatDayCount } from "../utils/formatUtils.js";
@@ -218,7 +219,6 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
   // ── Multi-select state ──────────────────────────────────────────────────
   const [checked, setChecked] = useState(new Set());
   const [bulkAction, setBulkAction] = useState(null);    // { key, label, requireRemarks }
-  const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
   // Clear selection when data reloads or filters change.
   const clearChecked = useCallback(() => setChecked(new Set()), []);
@@ -323,39 +323,40 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
     setBulkError("");
   };
 
-  const submitBulk = async (reason) => {
-    if (!bulkAction || bulkBusy) return;
-    setBulkBusy(true);
-    setBulkError("");
-    const ids = checkedVisible;
-    let ok = 0;
-    let skipped = 0;
-    const results = await settleWithLimit(
-      ids,
-      (id) => runDecision(type, bulkAction.key, id, reason),
-      { concurrency: BULK_CONCURRENCY },
-    );
-    results.forEach((r) => {
-      if (r.status === "fulfilled") { ok += 1; return; }
-      const err = r.reason;
-      if (isNotFound(err) || isAlreadyProcessed(err) || isHierarchyViolation(err)) { skipped += 1; return; }
-      // A genuine failure — surface the first one's message.
-      skipped += 1;
-    });
+  const submitBulk = (reason) => {
+    if (!bulkAction) return;
+    const action = bulkAction;
+    const ids = [...checkedVisible];
 
-    setBulkBusy(false);
+    // Fire-and-forget: close the dialog and clear selection immediately so the
+    // user isn't blocked. Each request is independent — one failure never stops
+    // the rest. The event bus is emitted once at the end, not per item.
     setBulkAction(null);
+    setBulkError("");
     clearChecked();
-    load();
 
-    const actionPast = BULK_LABELS[bulkAction.key]?.past || "processed";
-    if (skipped === 0) {
-      showToast(`${ok} ${ok === 1 ? "item" : "items"} ${actionPast}.`);
-    } else if (ok === 0) {
-      showToast(`All ${ids.length} items had already been handled. The queue has been refreshed.`);
-    } else {
-      showToast(`${ok} ${actionPast}, ${skipped} already handled and skipped.`);
-    }
+    settleWithLimit(
+      ids,
+      (id) => cfg.run(action.key, id, reason),
+      { concurrency: BULK_CONCURRENCY },
+    ).then((results) => {
+      let ok = 0;
+      let failed = 0;
+      results.forEach((r) => {
+        if (r.status === "fulfilled") { ok += 1; return; }
+        failed += 1;
+      });
+      emitAttendanceChanged(cfg.event);
+      load();
+      const actionPast = BULK_LABELS[action.key]?.past || "processed";
+      if (failed === 0) {
+        showToast(`${ok} ${ok === 1 ? "item" : "items"} ${actionPast}.`);
+      } else if (ok === 0) {
+        showToast(`All ${ids.length} failed — they may have already been handled.`);
+      } else {
+        showToast(`${ok} ${actionPast}, ${failed} failed.`);
+      }
+    });
   };
 
   const columns = COLUMNS[type].filter((c) => !c.when || c.when(state.items));
@@ -493,10 +494,9 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
           tone={bulkAction.tone === "rose" ? "danger" : "primary"}
           minLength={bulkAction.requireRemarks ? 3 : 0}
           optional={!bulkAction.requireRemarks}
-          busy={bulkBusy}
           error={bulkError}
           onSubmit={submitBulk}
-          onClose={() => { if (!bulkBusy) { setBulkAction(null); setBulkError(""); } }}
+          onClose={() => { setBulkAction(null); setBulkError(""); }}
         />
       )}
 
