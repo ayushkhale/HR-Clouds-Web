@@ -43,8 +43,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiBadgeCheck, HiCalendar, HiCheckCircle, HiDocumentText, HiDownload, HiExclamationCircle,
-  HiEye, HiInformationCircle, HiLockClosed, HiMail, HiPaperAirplane, HiRefresh, HiUser, HiX,
+  HiBadgeCheck, HiCalendar, HiCheckCircle, HiChevronDown, HiDocumentText, HiDownload,
+  HiExclamationCircle, HiEye, HiInformationCircle, HiLockClosed, HiMail, HiPaperAirplane,
+  HiRefresh, HiUser, HiX,
 } from "react-icons/hi";
 import AttachmentViewerDialog from "../components/AttachmentViewerDialog";
 import { PersonSelect } from "../components/PersonPicker";
@@ -67,6 +68,7 @@ import {
 } from "./letterIssueMeta";
 import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
 import LetterFixLink from "./LetterFixLink";
+import LetterPreviewDialog from "./LetterPreviewDialog";
 
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
@@ -119,6 +121,7 @@ export default function IssueLetterDialog({
   const [viewing, setViewing] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
+  const [previewing, setPreviewing] = useState(false);
   // Fields the server has refused as an override for this letter. Held in state
   // rather than read out of the session memory inside the memo, so React can see
   // it change — a memo over hidden mutable state never invalidates, and the box
@@ -388,7 +391,7 @@ export default function IssueLetterDialog({
       >
         <div
           role="dialog" aria-modal="true" aria-label={title}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
         >
           <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100 shrink-0">
             <div className="flex items-start gap-3 min-w-0">
@@ -446,29 +449,12 @@ export default function IssueLetterDialog({
             ) : (
               <>
                 <Step n={1} title="Which letter" blurb="Only the letters your organisation has switched on can be issued.">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {issuable.map((row) => {
-                      const picked = row.code === code;
-                      return (
-                        <button
-                          key={row.code}
-                          type="button"
-                          onClick={() => { setCode(row.code); setValues({}); setFailure(null); }}
-                          aria-pressed={picked}
-                          disabled={busy}
-                          className={`text-left rounded-xl border px-4 py-3 transition disabled:opacity-60 ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <HiDocumentText className={`w-4 h-4 shrink-0 ${picked ? "text-purple-600" : "text-slate-400"}`} />
-                            <span className="text-sm font-bold text-slate-800 truncate">{letterTitle(row)}</span>
-                          </span>
-                          <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">
-                            {row.has_saved_fields ? "Your saved wording is filled in automatically." : "Uses the standard wording."}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <LetterPicker
+                    rows={issuable}
+                    code={code}
+                    busy={busy}
+                    onPick={(c) => { setCode(c); setValues({}); setFailure(null); }}
+                  />
                 </Step>
 
                 <Step n={2} title="Who it is for" blurb="Everything about them — their name, job title, dates — is taken from their record, exactly as it stands today.">
@@ -661,6 +647,11 @@ export default function IssueLetterDialog({
                           : "It is published the moment you confirm."}
                 </p>
                 <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
+                {code && !detail.loading && !detail.error && (
+                  <button type="button" onClick={() => setPreviewing(true)} disabled={busy} className={SECONDARY_BTN}>
+                    <HiEye className="w-4 h-4" /> See the layout
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => issue({ confirmed: !!failure })}
@@ -684,6 +675,26 @@ export default function IssueLetterDialog({
           getViewUrl={api.orgGetViewUrl}
           errorMessage={documentErrorMessage}
           onClose={() => setViewing(null)}
+        />
+      )}
+
+      {/* #138 draws a watermarked page from MADE-UP details — never this
+          person's. The subtitle says so on the way in, because the person has
+          already been chosen two steps above and would otherwise read the
+          sample name as a mistake in their record. */}
+      {previewing && (
+        <LetterPreviewDialog
+          title={letterTitle(chosenRow)}
+          subtitle="Sample details on your letterhead — not this person’s"
+          render={() => {
+            const body = { use_saved_fields: true };
+            const overrides = overridesPayload(fields, values);
+            if (Object.keys(overrides).length) body.override_fields = overrides;
+            return api.previewLetterTemplate(code, body);
+          }}
+          note="Checks the wording and layout only. What you typed above is included; the name, pay and dates are invented."
+          onError={(err) => { if (isRendererNotConfigured(err)) onRendererOff?.(); }}
+          onClose={() => setPreviewing(false)}
         />
       )}
     </>
@@ -807,6 +818,108 @@ function FactList({ fields }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Letter picker with grouped, collapsible 4-col grid ─────────────────────
+// Groups are derived from the template code: `salary_revision_letter` → "Salary",
+// `experience_letter` → "Employment". A one-group catalog skips the header entirely.
+
+const GROUP_KEYWORDS = [
+  { match: /salary|compensation|ctc|increment|appraisal|revision|hike/i, label: "Salary" },
+  { match: /offer|appointment|joining|probation|confirmation/i, label: "Onboarding" },
+  { match: /experience|relieving|service|employment|separation|termination|resignation|exit/i, label: "Employment" },
+  { match: /warning|show_cause|pip|disciplinary|suspension|misconduct/i, label: "Disciplinary" },
+  { match: /transfer|relocation|deputation|secondment/i, label: "Transfer" },
+  { match: /promotion|redesignation|role_change/i, label: "Promotion" },
+  { match: /bonus|reward|incentive|recognition/i, label: "Rewards" },
+  { match: /intern|trainee|stipend/i, label: "Internship" },
+  { match: /noc|no_objection|clearance|address_proof|bank/i, label: "Certificates" },
+];
+
+function groupLabel(row) {
+  const haystack = `${row.code || ""} ${row.title || ""}`;
+  for (const g of GROUP_KEYWORDS) { if (g.match.test(haystack)) return g.label; }
+  return "Other";
+}
+
+function groupedTemplates(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    const label = groupLabel(row);
+    if (!map.has(label)) map.set(label, []);
+    map.get(label).push(row);
+  }
+  return [...map.entries()].map(([label, items]) => ({ label, items }));
+}
+
+function LetterPicker({ rows, code, busy, onPick }) {
+  const groups = useMemo(() => groupedTemplates(rows), [rows]);
+  const singleGroup = groups.length <= 1;
+  const [collapsed, setCollapsed] = useState(new Set());
+
+  const toggle = (label) => setCollapsed((prev) => {
+    const next = new Set(prev);
+    if (next.has(label)) next.delete(label); else next.add(label);
+    return next;
+  });
+
+  const pick = (c, label) => {
+    onPick(c);
+    if (!singleGroup) setCollapsed((prev) => new Set([...prev, label]));
+  };
+
+  return (
+    <div className="space-y-3">
+      {groups.map((g) => {
+        const isOpen = !collapsed.has(g.label);
+        const selectedInGroup = g.items.some((r) => r.code === code);
+        return (
+          <div key={g.label}>
+            {!singleGroup && (
+              <button
+                type="button"
+                onClick={() => toggle(g.label)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition text-left"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-bold text-slate-700">{g.label}</span>
+                  <span className="text-[10px] text-slate-400">{g.items.length}</span>
+                  {!isOpen && selectedInGroup && (
+                    <span className="text-[10px] font-bold text-purple-600">
+                      {letterTitle(g.items.find((r) => r.code === code))}
+                    </span>
+                  )}
+                </span>
+                <HiChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+            )}
+            {isOpen && (
+              <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 ${singleGroup ? "" : "mt-2"}`}>
+                {g.items.map((row) => {
+                  const picked = row.code === code;
+                  return (
+                    <button
+                      key={row.code}
+                      type="button"
+                      onClick={() => pick(row.code, g.label)}
+                      aria-pressed={picked}
+                      disabled={busy}
+                      className={`text-left rounded-xl border px-3 py-2.5 transition disabled:opacity-60 ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <HiDocumentText className={`w-4 h-4 shrink-0 ${picked ? "text-purple-600" : "text-slate-400"}`} />
+                        <span className="text-xs font-bold text-slate-800 truncate">{letterTitle(row)}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
