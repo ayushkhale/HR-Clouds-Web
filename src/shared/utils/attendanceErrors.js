@@ -140,6 +140,25 @@ export const isHierarchyViolation = (err) => {
   const code = attendanceErrorCode(err);
   return code === "HIERARCHY_VIOLATION" || code === "EMPLOYEE_NOT_IN_TEAM";
 };
+/**
+ * Message for a decision (approve / reject / resolve) the server refused.
+ *
+ * `orgWide` is passed by the HR-plane surfaces. HR decides across the whole
+ * organisation — attendance contract §2 C1: `getAccessibleUserIds()` returns
+ * `null`, meaning "no filter", for `hr` / `admin` / `super-admin`, so a
+ * reporting-line refusal is unreachable for them by design. If one arrives
+ * anyway, the endpoint scoped the caller as a line manager; that is not
+ * something the HR user can get past by choosing a different row, so saying
+ * "outside your reporting line" sends them hunting for a reporting line they
+ * do not have. Name the real situation instead.
+ */
+export function decisionErrorMessage(err, { orgWide = false, fallback } = {}) {
+  if (orgWide && isHierarchyViolation(err)) {
+    return "The server refused this decision because it treated you as a line manager rather than HR. Nothing is wrong with this record — report it to your system administrator.";
+  }
+  return attendanceErrorMessage(err, fallback);
+}
+
 export const isNotFound = (err) => {
   const code = attendanceErrorCode(err) || "";
   return code === "NOT_FOUND" || code.endsWith("_NOT_FOUND") || err?.status === 404;

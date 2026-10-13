@@ -9,7 +9,10 @@
 //  • Remarks reset every time the dialog opens for a new entity.
 //  • Per-action `requireRemarks` (reject always requires a reason).
 //  • Buttons disable while submitting — no duplicate decisions.
-//  • Errors are mapped through attendanceErrorMessage and shown inline.
+//  • Errors are mapped through attendanceErrorMessage and shown inline. A
+//    surface whose caller is not hierarchy-scoped (the HR queues) passes
+//    `mapError` so a reporting-line refusal is not reported to HR as if they
+//    had a reporting line — see decisionErrorMessage in attendanceErrors.js.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useId, useState } from "react";
@@ -40,6 +43,7 @@ const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wid
  *   remarksPlaceholder?: string,
  *   showRemarks?: boolean,
  *   size?: "md" | "lg",
+ *   mapError?: (err: unknown, fallback: string) => string,
  *   onSubmit: (actionKey: string, remarks: string) => Promise<void>,
  *   onClose: () => void,
  * }} props
@@ -56,6 +60,7 @@ export default function DecisionDialog({
   remarksPlaceholder = "Add context for the employee…",
   showRemarks = true,
   size = "md",
+  mapError = attendanceErrorMessage,
   onSubmit,
   onClose,
 }) {
@@ -104,7 +109,7 @@ export default function DecisionDialog({
     try {
       await onSubmit(action.key, trimmed);
     } catch (err) {
-      setError(attendanceErrorMessage(err, `Couldn't ${action.label.toLowerCase()} this request.`));
+      setError(mapError(err, `Couldn't ${action.label.toLowerCase()} this request.`));
       setBusyAction(null);
       return;
     }

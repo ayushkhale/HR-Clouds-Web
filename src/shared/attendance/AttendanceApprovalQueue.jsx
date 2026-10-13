@@ -10,14 +10,27 @@
 //   waiting to happen). A sticky bottom bar appears the moment at least one row
 //   is checked, showing the count and one button per action the type supports.
 //   On click, a ReasonDialog collects one shared reason and settleWithLimit
-//   fires them all with concurrency 4. A stale / already-processed / not-found
-//   item is counted as a skip, not a failure, and the toast says how many
-//   succeeded and how many were skipped — never "3 of 5 failed", which reads
-//   like something broke. The queue reloads at the end, once.
+//   fires them all with concurrency 4. Failures are grouped by REASON rather
+//   than just counted, and the commonest reason is spelled out above the
+//   table: "2 failed" gives a reviewer nothing to act on, and a row someone
+//   else has already handled is a different problem from a decision the
+//   server refused. The queue reloads at the end, once.
+//
+// Paging and the date window (2026-10-14):
+//   CONTRACT TRAP — none of these endpoints paginates or filters. `/team/
+//   anomalies`, `/regularizations/pending`, `/overtime/pending` and
+//   `/comp-offs/pending` accept NO query parameters at all (contract §6.2 /
+//   §6.3, "none accepted") and return every open row in one response. Adding
+//   `page`, `limit`, `from` or `to` to those calls changes nothing — whatever
+//   you send is discarded. So the page and the date window are applied HERE,
+//   over the list the server already sent. HR's queues are org-wide, so the
+//   anomaly one runs to hundreds of rows and used to render all of them at
+//   once; a page of 40 and a from/to window are what make it usable. The card
+//   count stays the true unresolved total — it must not follow the filters.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HiCheckCircle, HiRefresh, HiSearch } from "react-icons/hi";
+import { HiCalendar, HiCheckCircle, HiRefresh, HiSearch, HiX } from "react-icons/hi";
 import DecisionDialog, { DetailRow } from "./DecisionDialog.jsx";
 import { AnomalyDetails, OvertimeDetails, RegularizationDetails, recordOf } from "./DecisionContext.jsx";
 import { DECISION_TYPES, runDecision } from "./decisions.js";
@@ -28,8 +41,8 @@ import { formatDayCount } from "../utils/formatUtils.js";
 import { anomalyLabel, humanize } from "./enums.js";
 import { fmtClockTime, fmtDate, fmtHours, fmtMinutes, fmtTime, toLocalYMD, workedLabel, ymdOnly } from "./dates.js";
 import { useAttendanceChanged } from "./events.js";
-import { isAlreadyProcessed, isHierarchyViolation, isNotFound } from "../utils/attendanceErrors.js";
-import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, StatusBadge, Toast, useToast } from "./ui.jsx";
+import { decisionErrorMessage, isAlreadyProcessed, isHierarchyViolation, isNotFound } from "../utils/attendanceErrors.js";
+import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, Pagination, StatusBadge, Toast, useToast } from "./ui.jsx";
 import GenderAvatar from "../components/GenderAvatar.jsx";
 import { fetchAllOrgEmployees } from "../utils/orgEmployees.js";
 import { HelpLabel } from "../fieldHelp/FieldHelp.jsx";
@@ -37,6 +50,14 @@ import ReasonDialog from "../components/ReasonDialog.jsx";
 import { settleWithLimit } from "../utils/promisePool.js";
 
 const itemDate = (i) => ymdOnly(i.date || i.record_date || recordOf(i)?.date || i.earned_date || i.worked_date);
+/**
+ * The date a row is ABOUT — what it sorts by and what the date window matches.
+ * An anomaly can arrive with no `date` of its own (a flag raised off a punch
+ * that has no record yet), so it falls back to when the flag was raised. That
+ * is the same fallback the anomaly Date column prints: if the two disagreed,
+ * the window would hide rows while showing a date that sits inside it.
+ */
+const rowDate = (i) => itemDate(i) || ymdOnly(i.created_at) || "";
 const otMinutes = (i) => i.overtime_minutes ?? i.minutes ?? i.requested_minutes ?? (i.hours != null ? Math.round(Number(i.hours) * 60) : null);
 const creditDays = (i) => i.days_earned ?? i.credit_days ?? i.days ?? null;
 const expiry = (i) => ymdOnly(i.expiry_date || i.expires_on || i.valid_until);
@@ -163,7 +184,7 @@ const COLUMNS = {
     { header: "Expires", when: (items) => items.some((i) => expiry(i)), render: (i) => (expiry(i) ? fmtDate(expiry(i)) : "N/A") },
   ],
   anomaly: [
-    { header: "Date", render: (i) => fmtDate(itemDate(i) || ymdOnly(i.created_at)) },
+    { header: "Date", render: (i) => fmtDate(rowDate(i)) },
     { header: "Flag", render: (i) => anomalyLabel(i) },
     { header: "Severity", render: (i) => (i.severity ? <StatusBadge kind="severity" status={i.severity} /> : "N/A") },
     { header: "Details", render: (i) => <span className="block max-w-[260px] truncate" title={i.description}>{i.description || "N/A"}</span> },
@@ -181,6 +202,13 @@ const BULK_LABELS = {
 // Concurrency 4: enough to feel fast, low enough to stay within typical
 // rate-limit headers from the attendance endpoints.
 const BULK_CONCURRENCY = 4;
+
+// One page of rows. 40 is about one screen of scroll with the checkbox column,
+// and it keeps "select all" to a number a reviewer can still account for.
+const PAGE_SIZE = 40;
+
+// What a row is called when the footer counts them.
+const ROW_NOUN = { anomaly: "flag", regularization: "request", overtime: "request", compoff: "request" };
 
 /** fetchRecord: let the anomaly view read the day's record from the manager team history. */
 export function DecisionDetails({ type, item, person, fetchRecord = false }) {
@@ -207,14 +235,30 @@ export function DecisionDetails({ type, item, person, fetchRecord = false }) {
 export default function AttendanceApprovalQueue({ type, onCountChange, scope = "team" }) {
   const cfg = DECISION_TYPES[type];
   const names = useTeamNames();
-  const showRoleFilter = scope === "org";
+  // HR reviews the whole organisation: it gets the requester-role filter, and
+  // it is not hierarchy-scoped, which changes how a refusal is worded below.
+  const orgWide = scope === "org";
+  const showRoleFilter = orgWide;
   const roles = useOrgRoles(showRoleFilter);
   const [state, setState] = useState({ items: [], loading: true, error: null });
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  // Inclusive YYYY-MM-DD window over the row's own date. Empty = every date.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [staleNotice, setStaleNotice] = useState("");
+  // Why a bulk run could not finish — the server's reason, not just a count.
+  const [failureNote, setFailureNote] = useState("");
   const { toast, showToast, clearToast } = useToast();
+
+  // A reporting-line refusal means something different to HR than to a
+  // manager, so the queue maps its own errors (see decisionErrorMessage).
+  const mapError = useCallback(
+    (err, fallback) => decisionErrorMessage(err, { orgWide, fallback }),
+    [orgWide]
+  );
 
   // ── Multi-select state ──────────────────────────────────────────────────
   const [checked, setChecked] = useState(new Set());
@@ -226,9 +270,12 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
+    setFailureNote("");
     try {
       const res = await cfg.fetch();
-      const items = listFrom(res, cfg.listKeys).sort((a, b) => itemDate(a).localeCompare(itemDate(b)));
+      // Oldest first: a queue is worked from the top, and the oldest item is
+      // the one that has been waiting on someone the longest.
+      const items = listFrom(res, cfg.listKeys).sort((a, b) => rowDate(a).localeCompare(rowDate(b)));
       setState({ items, loading: false, error: null });
       onCountChange?.(type, items.length);
       prevLoadRef.current += 1;
@@ -246,30 +293,69 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
     [state.items, names, roles]
   );
 
+  // The date window narrows everything downstream, including the role counts —
+  // "Employees (12)" beside a list of 3 would be counting rows nobody can see.
+  const dated = useMemo(() => {
+    if (!from && !to) return people;
+    return people.filter(({ item }) => {
+      const d = rowDate(item);
+      // An undated row can't be claimed to fall inside a window; it comes back
+      // the moment the window is cleared, and the empty state says a filter is on.
+      if (!d) return false;
+      return (!from || d >= from) && (!to || d <= to);
+    });
+  }, [people, from, to]);
+
   const roleOptions = useMemo(() => {
-    const counts = people.reduce((acc, p) => ({ ...acc, [p.role]: (acc[p.role] || 0) + 1 }), {});
+    const counts = dated.reduce((acc, p) => ({ ...acc, [p.role]: (acc[p.role] || 0) + 1 }), {});
     return [
-      { value: "all", label: `All (${people.length})` },
+      { value: "all", label: `All (${dated.length})` },
       ...ROLE_OPTIONS.map(([value, label]) => ({ value, label: `${label} (${counts[value] || 0})` })),
     ];
-  }, [people]);
+  }, [dated]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return people.filter(({ person, role }) =>
+    return dated.filter(({ person, role }) =>
       (!showRoleFilter || roleFilter === "all" || role === roleFilter) &&
       (!q || person.name.toLowerCase().includes(q) || person.code.toLowerCase().includes(q))
     );
-  }, [people, search, roleFilter, showRoleFilter]);
+  }, [dated, search, roleFilter, showRoleFilter]);
+
+  // ── Paging ────────────────────────────────────────────────────────────────
+  // `safePage` is derived, not stored: a decision that empties the last page,
+  // or a narrower filter, must not leave the table blank on a page that no
+  // longer exists.
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [rows, safePage]
+  );
+  const goToPage = useCallback((next) => setPage(next), []);
+
+  // Any change to what is being listed starts again from the top.
+  useEffect(() => { setPage(1); }, [search, roleFilter, from, to]);
 
   // ── Checkbox helpers ──────────────────────────────────────────────────────
-  const visibleIds = useMemo(() => new Set(rows.map(({ item }) => entityId(item))), [rows]);
+  // "Visible" means this page. Checking 40 rows, paging away and then bulk-
+  // resolving rows you can no longer see is exactly the mistake the select-all
+  // guard exists to prevent, so the selection is pruned to the rows on screen.
+  const visibleIds = useMemo(() => new Set(pageRows.map(({ item }) => entityId(item))), [pageRows]);
+  useEffect(() => {
+    setChecked((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set();
+      prev.forEach((id) => { if (visibleIds.has(id)) next.add(id); });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleIds]);
   const checkedVisible = useMemo(() => {
     const ids = [];
     checked.forEach((id) => { if (visibleIds.has(id)) ids.push(id); });
     return ids;
   }, [checked, visibleIds]);
-  const allChecked = checkedVisible.length > 0 && checkedVisible.length === rows.length;
+  const allChecked = checkedVisible.length > 0 && checkedVisible.length === pageRows.length;
   const someChecked = checkedVisible.length > 0;
 
   const toggleOne = useCallback((id) => {
@@ -282,7 +368,6 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
 
   const toggleAll = useCallback(() => {
     if (allChecked) {
-      // Uncheck all visible (leave any checked rows from hidden filters alone).
       setChecked((prev) => {
         const next = new Set(prev);
         visibleIds.forEach((id) => next.delete(id));
@@ -309,7 +394,10 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
     } catch (err) {
       // Item gone, already actioned, or outside the manager's line: refresh
       // the queue so the stale row disappears, and keep the dialog's message.
-      if (isNotFound(err) || isHierarchyViolation(err) || isAlreadyProcessed(err)) {
+      // Not for an HR caller refused on the reporting line — that row has not
+      // changed and is still unresolved, so "the queue was refreshed because
+      // this request changed" would be telling them something untrue.
+      if (isNotFound(err) || isAlreadyProcessed(err) || (isHierarchyViolation(err) && !orgWide)) {
         setStaleNotice("The queue was refreshed because this request changed.");
         load();
       }
@@ -341,36 +429,59 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
       { concurrency: BULK_CONCURRENCY },
     ).then((results) => {
       let ok = 0;
-      let failed = 0;
+      // Why each one failed, counted. A bare "3 failed" tells the reviewer
+      // nothing they can act on, and the reasons differ: a row someone else
+      // just handled is not the same as a decision the server refused.
+      const reasons = new Map();
       results.forEach((r) => {
         if (r.status === "fulfilled") { ok += 1; return; }
-        failed += 1;
+        const why = mapError(r.reason, `Couldn’t ${action.label.toLowerCase()} this item.`);
+        reasons.set(why, (reasons.get(why) || 0) + 1);
       });
+      const failed = ids.length - ok;
       emitAttendanceChanged(cfg.event);
       load();
       const actionPast = BULK_LABELS[action.key]?.past || "processed";
       if (failed === 0) {
         showToast(`${ok} ${ok === 1 ? "item" : "items"} ${actionPast}.`);
-      } else if (ok === 0) {
-        showToast(`All ${ids.length} failed — they may have already been handled.`);
-      } else {
-        showToast(`${ok} ${actionPast}, ${failed} failed.`);
+        return;
       }
+      // The commonest reason, named in full above the table; the toast stays short.
+      const [why] = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0];
+      setFailureNote(failed === 1 ? why : `${failed} items were not ${actionPast}. ${why}`);
+      showToast(ok === 0 ? `Nothing was ${actionPast}.` : `${ok} ${actionPast}, ${failed} not ${actionPast}.`);
     });
   };
 
   const columns = COLUMNS[type].filter((c) => !c.when || c.when(state.items));
-  const filtered = !!search.trim() || (showRoleFilter && roleFilter !== "all");
+  const searching = !!search.trim();
+  const windowed = !!from || !!to;
+  const clearWindow = () => { setFrom(""); setTo(""); };
 
   return (
     <div>
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="relative w-full md:w-72">
+        <div className="flex flex-col md:flex-row md:items-center md:flex-wrap gap-3">
+          <div className="relative w-full md:w-64">
             <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or code…" className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100" />
           </div>
           {showRoleFilter && <FilterTabs options={roleOptions} value={roleFilter} onChange={setRoleFilter} />}
+          {/* Date window. Both ends are optional, so "everything before March"
+              and "March onwards" are a single field each, not a preset list. */}
+          <div className="flex items-center gap-1 border border-slate-200 rounded-xl pl-2.5 pr-1 py-1.5 bg-white text-xs font-semibold text-slate-600">
+            <HiCalendar className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label="From date" title="From date" className="w-28 bg-transparent outline-none" />
+            <span className="text-slate-300" aria-hidden="true">→</span>
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label="To date" title="To date" className="w-28 bg-transparent outline-none" />
+            {windowed ? (
+              <button type="button" onClick={clearWindow} aria-label="Clear the date filter" className="p-1 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition">
+                <HiX className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <span className="w-[22px]" aria-hidden="true" />
+            )}
+          </div>
         </div>
         <button type="button" onClick={load} disabled={state.loading} className="self-start lg:self-auto inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-purple-600 disabled:opacity-50">
           <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} /> Refresh
@@ -378,6 +489,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
       </div>
 
       {staleNotice && <InlineAlert tone="sky" className="m-4">{staleNotice}</InlineAlert>}
+      {failureNote && <InlineAlert tone="rose" className="m-4">{failureNote}</InlineAlert>}
 
       {state.error ? (
         <ErrorState error={state.error} onRetry={load} fallback={`Couldn't load pending ${cfg.label.toLowerCase()} items.`} />
@@ -388,8 +500,10 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
           icon={HiCheckCircle}
           title={state.items.length ? "No matches" : "All caught up"}
           message={state.items.length
-            ? `No pending items match your ${filtered && roleFilter !== "all" ? "filter" : "search"}.`
-            : `There are no pending ${cfg.label.toLowerCase()} items ${scope === "org" ? "in the organisation" : "for your team"}.`}
+            ? windowed && !searching && roleFilter === "all"
+              ? "Nothing pending falls in those dates. Widen the range, or clear it to see everything waiting."
+              : "No pending items match your filters."
+            : `There are no pending ${cfg.label.toLowerCase()} items ${orgWide ? "in the organisation" : "for your team"}.`}
         />
       ) : (
         <div className={`overflow-x-auto ${state.loading ? "opacity-60" : ""}`}>
@@ -412,7 +526,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {rows.map(({ item, person, role }) => {
+              {pageRows.map(({ item, person, role }) => {
                 const id = entityId(item);
                 const isChecked = checked.has(id);
                 const designation = item.user?.employee_profile?.designation;
@@ -452,6 +566,22 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* One page at a time. With a single page this prints the count only,
+          which is what tells HR how many are waiting behind the filters. */}
+      {rows.length > 0 && !state.error && (
+        <div className="px-5 py-3.5 border-t border-slate-100">
+          <Pagination
+            page={safePage}
+            totalPages={totalPages}
+            total={rows.length}
+            limit={PAGE_SIZE}
+            onPageChange={goToPage}
+            disabled={state.loading}
+            noun={ROW_NOUN[type] || "item"}
+          />
         </div>
       )}
 
@@ -510,6 +640,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
         actions={cfg.actions}
         notice={cfg.notice && <InlineAlert tone="sky">{cfg.notice}</InlineAlert>}
         remarksLabel={type === "anomaly" ? "Resolution note" : "Remarks for the employee"}
+        mapError={mapError}
         onSubmit={handleSubmit}
         onClose={() => setSelected(null)}
       >
