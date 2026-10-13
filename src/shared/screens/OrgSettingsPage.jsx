@@ -373,14 +373,26 @@ export default function OrgSettingsPage() {
                               <h3 className={`text-[11px] font-bold uppercase tracking-wider ${TEXT.label} mb-2 px-1`}>
                                 Managed on their own screens
                               </h3>
+                              {/* An ODD last card spans both columns. Three
+                                  of the five areas own exactly one policy
+                                  screen, and in a two-column grid that card
+                                  sat at half width with the other half empty
+                                  — the row looked unfinished rather than
+                                  deliberate. Spanning it fills the line, and
+                                  the same rule tidies the 3rd of three. */}
                               <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
-                                {section.surfaces.map(({ route, surfaces }) => (
-                                  <SurfaceHubCard
-                                    key={route.path}
-                                    surfaces={surfaces}
-                                    to={{ ...route, path: inWorkspace(route.path) }}
-                                  />
-                                ))}
+                                {section.surfaces.map(({ route, surfaces }, i) => {
+                                  const isLast = i === section.surfaces.length - 1;
+                                  const odd = section.surfaces.length % 2 === 1;
+                                  return (
+                                    <div key={route.path} className={isLast && odd ? "xl:col-span-2" : ""}>
+                                      <SurfaceHubCard
+                                        surfaces={surfaces}
+                                        to={{ ...route, path: inWorkspace(route.path) }}
+                                      />
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
