@@ -72,7 +72,7 @@ const commentsOf = (body) => (Array.isArray(body?.comments) ? body.comments : []
 /** A page read newest-first, turned back into reading order. */
 const oldestFirst = (list) => [...list].reverse();
 
-export default function TaskDiscussion({ task, plane = "me", onPosted }) {
+export default function TaskDiscussion({ task, plane = "me", onPosted, bare = false }) {
   const adapter = taskPlaneFor(plane);
   const taskId = task?.id;
   const open = canCommentOnTask(task);
@@ -181,28 +181,23 @@ export default function TaskDiscussion({ task, plane = "me", onPosted }) {
   const count = Number.isFinite(threadSize) ? threadSize : Number(task?.comments_count ?? NaN);
   const title = `Discussion${Number.isFinite(count) && count > 0 ? ` (${count})` : ""}`;
 
-  return (
-    <DetailSection
-      title={title}
-      icon={HiChatAlt2}
-      // Named explicitly: the section's own title carries the message count,
-      // and the ⓘ would otherwise introduce itself as "What is Discussion (5)?"
-      help={{ ...help("comments"), label: "the discussion" }}
-      action={count > 0 ? (
-        <button
-          type="button"
-          onClick={() => setMilestonesOnly((v) => !v)}
-          aria-pressed={milestonesOnly}
-          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition ${
-            milestonesOnly
-              ? "bg-purple-600 text-white border-purple-600"
-              : "bg-white text-slate-500 border-slate-200 hover:text-purple-700 hover:border-purple-200"
-          }`}
-        >
-          <HiStar className="w-3.5 h-3.5" /> Milestones only
-        </button>
-      ) : null}
+  const milestonesToggle = count > 0 ? (
+    <button
+      type="button"
+      onClick={() => setMilestonesOnly((v) => !v)}
+      aria-pressed={milestonesOnly}
+      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition ${
+        milestonesOnly
+          ? "bg-purple-600 text-white border-purple-600"
+          : "bg-white text-slate-500 border-slate-200 hover:text-purple-700 hover:border-purple-200"
+      }`}
     >
+      <HiStar className="w-3.5 h-3.5" /> Milestones only
+    </button>
+  ) : null;
+
+  const body = (
+    <>
       {error && <InlineAlert tone="rose" className="mb-3">{error}</InlineAlert>}
 
       {hasEarlier && (
@@ -242,6 +237,26 @@ export default function TaskDiscussion({ task, plane = "me", onPosted }) {
           <span>This task was called off, so nothing more can be added. Everything already said stays on the record.</span>
         </p>
       )}
+    </>
+  );
+
+  if (bare) {
+    return (
+      <div>
+        {milestonesToggle && <div className="flex justify-end mb-3">{milestonesToggle}</div>}
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <DetailSection
+      title={title}
+      icon={HiChatAlt2}
+      help={{ ...help("comments"), label: "the discussion" }}
+      action={milestonesToggle}
+    >
+      {body}
     </DetailSection>
   );
 }

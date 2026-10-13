@@ -304,34 +304,37 @@ export default function TaskDetailDialog({ task: initial, plane = "me", onClose,
         </>
       )}
 
-      {/* ── Discussion ────────────────────────────────────────────────────── */}
+      {/* ── Discussion (bare — the tab IS the section) ────────────────── */}
       {tab === "discussion" && (
-        <TaskDiscussion task={task} plane={plane} onPosted={load} />
+        <TaskDiscussion task={task} plane={plane} onPosted={load} bare />
       )}
 
-      {/* ── Files ─────────────────────────────────────────────────────────── */}
+      {/* ── Files (no section wrappers — tab label is enough) ─────────── */}
       {tab === "files" && (
-        <>
-          <DetailSection title={`Attachments${attachments.length ? ` (${attachments.length})` : ""}`} icon={HiPaperClip} collapsible={false}>
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <HiPaperClip className="w-4 h-4" /> Attachments{attachments.length ? ` (${attachments.length})` : ""}
+            </h3>
             <AttachmentTable attachments={attachments} />
-          </DetailSection>
-
-          <DetailSection title={`Reference links${links.length ? ` (${links.length})` : ""}`} icon={HiPaperClip} defaultOpen={links.length > 0}>
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <HiPaperClip className="w-4 h-4" /> Reference links{links.length ? ` (${links.length})` : ""}
+            </h3>
             <TaskLinkList links={links} />
-          </DetailSection>
-        </>
+          </div>
+        </div>
       )}
 
-      {/* ── Activity (HR only) ────────────────────────────────────────────── */}
+      {/* ── Activity (HR only — lightweight sub-headings, no sections) ── */}
       {tab === "activity" && showActivity && (
-        <>
+        <div className="space-y-6">
           {adapter.showsAudit && (
-            <DetailSection
-              title={`Everything that has happened${auditLogs.length ? ` (${auditLogs.length})` : ""}`}
-              icon={HiDatabase}
-              collapsible={false}
-              help={help("audit_logs")}
-            >
+            <div>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <HiDatabase className="w-4 h-4" /> Audit trail{auditLogs.length ? ` (${auditLogs.length})` : ""}
+              </h3>
               <DetailTable
                 columns={[
                   { header: "What happened", render: (row) => taskAuditActionLabel(row.action) },
@@ -345,16 +348,14 @@ export default function TaskDetailDialog({ task: initial, plane = "me", onClose,
                 rows={auditLogs}
                 empty="Nothing recorded yet."
               />
-            </DetailSection>
+            </div>
           )}
 
           {adapter.showsNotifications && (
-            <DetailSection
-              title={`Emails about this task${notifications.length ? ` (${notifications.length})` : ""}`}
-              icon={HiMail}
-              defaultOpen={false}
-              help={help("notifications")}
-            >
+            <div>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <HiMail className="w-4 h-4" /> Emails{notifications.length ? ` (${notifications.length})` : ""}
+              </h3>
               <DetailTable
                 columns={[
                   { header: "What was sent", render: (row) => taskNotificationEventLabel(row.event_type) },
@@ -365,9 +366,9 @@ export default function TaskDetailDialog({ task: initial, plane = "me", onClose,
                 rows={notifications}
                 empty="No emails queued for this task."
               />
-            </DetailSection>
+            </div>
           )}
-        </>
+        </div>
       )}
     </DetailDialog>
   );
