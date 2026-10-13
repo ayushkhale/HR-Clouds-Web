@@ -23,6 +23,14 @@ const LEAVE_ERROR_MESSAGES = {
   ACTIVE_BALANCES_EXIST: "Employees still hold balances for this leave type. Force-deactivate to proceed.",
   PENDING_REQUESTS_EXIST: "There are pending leave requests for this type. Approve or reject them all before deactivating.",
 
+  // The system Compensatory Off type (2026-10-11). Attendance credits comp-off
+  // against it, the nightly expiry and the payout both read it by code, so the
+  // backend refuses to let it be renamed away or switched off. The screen hides
+  // both controls, so these are the wording of last resort — reachable only by
+  // a stale page or a hand-made request.
+  SYSTEM_LEAVE_TYPE_CODE_IMMUTABLE: "This leave type’s code is fixed. Attendance uses it to credit comp-off, so it can’t be renamed — but you can change what it’s called on screen.",
+  SYSTEM_LEAVE_TYPE_IMMUTABLE: "This leave type can’t be switched off. Attendance credits comp-off against it, so the workspace needs it to stay.",
+
   // Templates & entitlements
   TEMPLATE_NOT_FOUND: "This policy template no longer exists. Refresh the list.",
   ENTITLEMENT_EXISTS: "This leave type already has a quota in this policy. Delete it first to reconfigure.",

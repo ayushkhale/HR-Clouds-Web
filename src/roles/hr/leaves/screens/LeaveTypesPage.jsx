@@ -3,8 +3,10 @@ import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
-  HiExclamation, HiBan, HiClipboardList, HiUserGroup, HiAdjustments,
+  HiExclamation, HiBan, HiClipboardList, HiUserGroup, HiAdjustments, HiLockClosed,
 } from "react-icons/hi";
+import { isSystemLeaveType } from "../../../../shared/utils/leaveConfig";
+import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
@@ -61,6 +63,9 @@ function Toggle({ checked, onChange, disabled }) {
 // ─── Leave Type Modal (Create / Edit) ────────────────────────────────────────
 function LeaveTypeModal({ editType, onClose, onSaved }) {
   const isEdit = !!editType;
+  // The platform-owned comp-off type. Only its CODE is locked; the name,
+  // document threshold, sandwich rule and eligibility all stay HR's.
+  const systemType = isEdit && isSystemLeaveType(editType.code);
   const [form, setForm] = useState({
     name: editType?.name || "",
     code: editType?.code || "",
@@ -113,7 +118,9 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
       if (err.data?.errorCode === "LEAVE_TYPE_EXISTS") {
         setError(`Code "${form.code.toUpperCase()}" already exists. Choose a unique code.`);
       } else {
-        setError(err.message || "Something went wrong.");
+        // Through the domain map (§6): a stale page could still PATCH the
+        // system type's code and get SYSTEM_LEAVE_TYPE_CODE_IMMUTABLE back.
+        setError(leaveErrorMessage(err));
       }
     } finally {
       setLoading(false);
@@ -159,8 +166,27 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
                       <label className={labelClass}>Code <span className="text-rose-400">*</span></label>
                       <FieldHelp {...help("code")} label="the leave code" className="mb-1.5" />
                     </div>
-                    <input type="text" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SL" maxLength={10} className={`${inputClass} font-mono uppercase`} />
-                    <p className="text-[10px] text-slate-400 mt-1">Unique, max 10 chars.</p>
+                    {/* The system comp-off type's code is fixed: attendance
+                        credits against it by code, so renaming it would
+                        silently break crediting (400
+                        SYSTEM_LEAVE_TYPE_CODE_IMMUTABLE). Read-only rather
+                        than hidden, because the code is still worth seeing —
+                        and everything else on this form stays editable. */}
+                    <input
+                      type="text"
+                      value={form.code}
+                      onChange={e => set("code", e.target.value.toUpperCase())}
+                      placeholder="e.g. SL"
+                      maxLength={10}
+                      readOnly={systemType}
+                      aria-readonly={systemType || undefined}
+                      className={`${inputClass} font-mono uppercase ${systemType ? "bg-slate-50 text-slate-500 cursor-not-allowed" : ""}`}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {systemType
+                        ? "Fixed — attendance uses this code to credit comp-off. You can still change the name above."
+                        : "Unique, max 10 chars."}
+                    </p>
                   </div>
                 </div>
 
@@ -488,7 +514,17 @@ export default function LeaveTypesPage() {
                               {t.description && <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[260px]">{t.description}</p>}
                             </td>
                             <td className="px-6 py-4">
-                              <span className="inline-block font-mono text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{t.code}</span>
+                              <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-block font-mono text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{t.code}</span>
+                                {/* The platform owns this one, not HR. Saying
+                                    so beside the code is what explains why the
+                                    row has no Deactivate (leaveConfig.js). */}
+                                {isSystemLeaveType(t.code) && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                    <HiLockClosed className="w-3 h-3" /> System
+                                  </span>
+                                )}
+                              </span>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full ${t.is_paid ? "bg-violet-50 text-violet-700" : "bg-rose-50 text-rose-600"}`}>
@@ -509,7 +545,13 @@ export default function LeaveTypesPage() {
                                 <button onClick={() => setModal(t)} className="text-slate-400 hover:text-purple-600 p-1.5 rounded-lg hover:bg-purple-50 transition" title="Edit">
                                   <HiPencil className="w-4 h-4" />
                                 </button>
-                                {t.is_active && (
+                                {/* ABSENT for the system type, not disabled:
+                                    the server answers 400
+                                    SYSTEM_LEAVE_TYPE_IMMUTABLE, and a control
+                                    that always fails is the button-that-403s
+                                    §2 exists to prevent. The "System" badge
+                                    beside the code says why it is missing. */}
+                                {t.is_active && !isSystemLeaveType(t.code) && (
                                   <button onClick={() => setDeleteTarget(t)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition" title="Deactivate">
                                     <HiTrash className="w-4 h-4" />
                                   </button>
@@ -533,11 +575,19 @@ export default function LeaveTypesPage() {
           icon={HiClipboardList}
           title={preview.name}
           subtitle={preview.code}
-          badge={<DetailPill tone="onDark">{preview.is_active ? "Active" : "Inactive"}</DetailPill>}
+          badge={
+            <span className="inline-flex items-center gap-1.5">
+              <DetailPill tone="onDark">{preview.is_active ? "Active" : "Inactive"}</DetailPill>
+              {isSystemLeaveType(preview.code) && <DetailPill tone="onDark">System</DetailPill>}
+            </span>
+          }
           onClose={() => setPreview(null)}
           footer={
             <>
-              {preview.is_active && (
+              {/* Same rule as the row: absent for the system type, because the
+                  server refuses it (SYSTEM_LEAVE_TYPE_IMMUTABLE). Editing it
+                  stays on offer — only its code is locked. */}
+              {preview.is_active && !isSystemLeaveType(preview.code) && (
                 <button onClick={() => setDeleteTarget(preview)} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
                   <HiTrash className="w-4 h-4" /> Deactivate
                 </button>
@@ -552,6 +602,12 @@ export default function LeaveTypesPage() {
             <DetailGrid
               items={[
                 { label: "Code", value: preview.code, help: help("code") },
+                // Only on the one type HR didn't make: it is the answer to
+                // "why can't I switch this off", and it belongs beside the
+                // code the badge sits next to.
+                ...(isSystemLeaveType(preview.code)
+                  ? [{ label: "Managed by", value: "The system", help: help("is_system") }]
+                  : []),
                 { label: "Pay", value: preview.is_paid ? "Paid" : "Unpaid (LWP)", help: help("is_paid") },
                 { label: "Weekends in between", value: preview.sandwich_rule_applies ? "Counted as leave" : "Not counted", help: help("sandwich_rule_applies") },
                 ["Document required after", preview.requires_document_threshold > 0 ? `After ${days(preview.requires_document_threshold)}` : "Not needed"],

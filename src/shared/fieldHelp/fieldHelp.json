@@ -2771,7 +2771,7 @@
     },
     "leaves.type_setup": {
       "kind": "form",
-      "description": "HR — Setup › Leave Types (LeaveTypesPage): the type dialog, the list headers and the type record inspector. `page` sits beside the h1. Name, description, the document threshold and who-can-apply explain themselves.",
+      "description": "HR — Setup › Leave Types (LeaveTypesPage): the type dialog, the list headers and the type record inspector. `page` sits beside the h1. Name, description, the document threshold and who-can-apply explain themselves. `is_system` renders only on the platform-owned comp-off type, in the inspector beside its code.",
       "workspaces": [
         "hr"
       ],
@@ -2790,6 +2790,14 @@
           "askMaya": {
             "enabled": true,
             "question": "What is a leave code used for?"
+          }
+        },
+        "is_system": {
+          "tier": "onboarding",
+          "hint": "Comp-off is credited against this type, so we set it up and keep it. You can rename it and change its rules, but not switch it off.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is the compensatory off leave type set up by the system instead of created by HR, and what can I still change about it?"
           }
         },
         "is_paid": {
