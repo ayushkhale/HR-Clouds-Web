@@ -114,7 +114,12 @@ export default function DetailDialog({ title, subtitle, eyebrow, icon: Icon, bad
             )}
             <div className="min-w-0">
               {eyebrow && <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600">{eyebrow}</p>}
-              <h3 className="font-bold text-slate-900 text-base truncate">{displayValue(title)}</h3>
+              {/* Two lines, not one: a record's title is the one thing the
+                  header has to say, and `truncate` cut a long one ("Secondary
+                  Phase 3 State Machine Verification Task…") at the first
+                  interesting word. Short titles are unaffected, so no dialog
+                  changes height unless it had something to show. */}
+              <h3 className="font-bold text-slate-900 text-base line-clamp-2 break-words">{displayValue(title)}</h3>
               {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
             </div>
           </div>

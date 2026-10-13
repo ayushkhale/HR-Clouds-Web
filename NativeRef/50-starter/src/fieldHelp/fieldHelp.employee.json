@@ -1,0 +1,483 @@
+{
+  "version": 2,
+  "generated_from": "src/shared/fieldHelp/fieldHelp.json",
+  "workspace": "employee",
+  "tiers": {
+    "onboarding": {
+      "description": "Beginner help for new HR admins (phase 5, 2026-10-01): every HR field a first-month admin could stall on. Exempt from the 4-per-screen cap. Thin it by removing a workspace here, not by deleting entries one by one.",
+      "workspaces": [
+        "hr"
+      ]
+    }
+  },
+  "surfaces": {
+    "payroll.tax_declaration": {
+      "kind": "form",
+      "description": "Investment declaration rows — My Tax & Investments › Declarations (MyTaxAndInvestmentsPage › DeclarationsTab)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "section": {
+          "hint": "The part of the income-tax law this saving comes under. It decides how much of it can lower your tax.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which income tax section should I choose when declaring an investment or expense, and what kinds of payments count under 80C, 80D, 80CCD(1B), HRA and LTA?"
+          }
+        },
+        "proof_reference": {
+          "hint": "A link or receipt number that shows you paid. HR checks it before the amount counts towards your tax saving.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What counts as proof for a tax-saving declaration, and how does HR check it?"
+          }
+        },
+        "verified_amount": {
+          "hint": "The amount HR accepted after checking your proof. It can be lower than what you declared if a receipt is missing or doesn’t cover it all.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can the amount HR accepts for my tax declaration be lower than what I declared?"
+          }
+        }
+      }
+    },
+    "payroll.tax_regime": {
+      "kind": "form",
+      "description": "Old vs new regime choice — My Tax & Investments › Regime (MyTaxAndInvestmentsPage › RegimeTab)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "regime_code": {
+          "hint": "The set of rules used to work out your income tax. Under the old one your declared savings count; under the new one most don’t.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between the old and new income tax regime, and how do I decide which one to choose for this financial year?"
+          }
+        }
+      }
+    },
+    "payroll.bank_details": {
+      "kind": "form",
+      "description": "Salary bank account editor — My Salary › Bank details (MySalaryPage)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "ifsc_code": {
+          "hint": "An 11-character code for your bank branch, such as SBIN0001234. It’s on your cheque book or passbook and in your bank’s app.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an IFSC code, and where can I find the one for my bank branch?"
+          }
+        },
+        "account_type": {
+          "hint": "Whether this is a savings or a current account. Salary almost always goes into a savings account.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should my salary be paid into a savings account or a current account, and what is the difference between them for salary payments?"
+          }
+        }
+      }
+    },
+    "attendance.regularization": {
+      "kind": "form",
+      "description": "Attendance correction request — My Attendance › Corrections › New request (RegularizationCard › RegularizationFormModal)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "work_mode": {
+          "hint": "Where you worked that day. Leave it as recorded unless it was logged wrongly — it only changes if the correction is approved.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When I request an attendance correction, what does the ‘Worked from’ option mean, and what is the difference between office, remote, field and hybrid work?"
+          }
+        }
+      }
+    },
+    "payroll.reimbursement_claim": {
+      "kind": "form",
+      "description": "Expense line in a reimbursement claim — My Reimbursements › New claim (MyReimbursementsPage › ClaimEditorDialog)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "category_id": {
+          "hint": "The type of expense, such as travel or food. Your organisation sets these, and each can have its own limit and receipt rule.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I choose the right expense category for a reimbursement claim, and when do I need to attach a receipt?"
+          }
+        }
+      }
+    },
+    "documents.upload": {
+      "kind": "form",
+      "description": "Add a document / upload a new version (shared DocumentUploadDialog — also used by HR and managers, hence the workspace gate)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "document_number": {
+          "hint": "The number printed on the document itself, such as a PAN or passport number. It’s stored securely; only the last 4 characters are shown.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does HR Clouds ask for the number printed on a document, and how is it kept safe?"
+          }
+        },
+        "is_confidential": {
+          "hint": "Hides this document from your manager — only you and HR can see it. Once it’s confidential, it can’t be made visible again.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens when I mark a document as confidential, who can still see it, and can I change it back later?"
+          }
+        }
+      }
+    },
+    "leaves.apply": {
+      "kind": "form",
+      "description": "Apply for leave drawer (LeaveDashboard › ApplyLeaveDrawer; also mounted under the HR and manager prefixes). Holds the form field plus the balance strip: `pending_hold` is summed client-side from requests still pending, and “Effective” = current_balance − pending_hold (explained in the same hint).",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "leave_type_id": {
+          "hint": "The kind of leave you’re taking, such as sick or casual. Each has its own balance and rules; days beyond your balance may be unpaid.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between leave types such as casual, sick and earned leave, and what happens if I apply for more days than my leave balance?"
+          }
+        },
+        "pending_hold": {
+          "hint": "Days in your requests still waiting for approval. They’re set aside, so “Effective” is what you can still apply for.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does pending hold mean on my leave balance, and when are held days given back or taken from my balance?"
+          }
+        }
+      }
+    },
+    "attendance.summary": {
+      "kind": "data",
+      "description": "Month headline figures from /attendance/graph-data › summary (EmployeeDashboard › My month)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "punctuality_percentage": {
+          "hint": "Of the days you clocked in this month, the share you arrived on time. Arriving within your grace period still counts as on time.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is on-time arrival worked out in attendance, and what is the grace period for clocking in late?"
+          }
+        }
+      }
+    },
+    "attendance.anomalies": {
+      "kind": "data",
+      "description": "My Flags list (/attendance/anomalies/mine) › “Flag” column — `type`, falling back to `anomaly_type`",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "type": {
+          "hint": "Your manager or HR reviews each flag and marks it sorted out. If one looks wrong, talk to them — you don’t need to raise it anywhere else.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it mean when my attendance is flagged, for example outside the office location or a break over the limit, and what should I do about it?"
+          }
+        }
+      }
+    },
+    "leaves.balances": {
+      "kind": "data",
+      "description": "Leave balance cards (/leaves/my-balances) — one ⓘ on the “Leave Balances” heading covers “given so far” (`total_accrued`) on every card",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "total_accrued": {
+          "hint": "“Given so far” is the leave added this year — all at once or month by month, depending on your policy. “Days left” is what you can still take.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is leave added to my balance during the year, and what happens to unused leave at the end of the year?"
+          }
+        }
+      }
+    },
+    "leaves.request_detail": {
+      "kind": "data",
+      "description": "Leave request detail dialog (/leaves/requests/:id) › “Unpaid” headline (`unpaid_days`)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "unpaid_days": {
+          "hint": "Days beyond your leave balance are taken without pay, so that month’s salary is lower. The split is worked out when you submit.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is leave without pay (LWP), when does leave become unpaid, and how does it reduce my salary?"
+          }
+        }
+      }
+    },
+    "payroll.my_salary": {
+      "kind": "data",
+      "description": "My Salary headline (/payroll/me/salary-structure). `take_home_monthly` is derived by statutoryTotals() — gross minus statutory and salary deductions.",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "annual_ctc": {
+          "hint": "The company’s total yearly cost for you, not what you’re paid. Deductions such as PF and tax come off first, so what reaches your bank is lower.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is CTC (cost to company), and why is my take-home pay lower than my CTC?"
+          }
+        },
+        "take_home_monthly": {
+          "hint": "An estimate from your salary structure. What actually reaches your bank each month can change with unpaid leave, attendance and tax.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can the salary that reaches my bank differ from month to month, and what affects my take-home pay?"
+          }
+        }
+      }
+    },
+    "payroll.statutory": {
+      "kind": "data",
+      "description": "Statutory deduction lines (StatutoryBreakdown AmountTable). Wired generically by `line.key` (pf, esi, pt, tds, pf_employer, esi_employer, edli, pf_admin) — only the keys listed here show an ⓘ.",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "pf": {
+          "hint": "Part of your pay saved into your provident fund account, with the company adding its own share. It’s your money, for retirement.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the provident fund (EPF) deduction from salary, how much is deducted, and how can I withdraw or check my PF balance?"
+          }
+        },
+        "pt": {
+          "hint": "A small tax charged by some states on salaried people. Whether it applies, and how much, depends on the state you work in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is professional tax, how is it calculated, and why does it differ between states?"
+          }
+        }
+      }
+    },
+    "payroll.payslip": {
+      "kind": "data",
+      "description": "Payslip detail dialog (/payroll/me/payslips/:runId) › figures.payable_days",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "payable_days": {
+          "hint": "The days you’re paid for this month. Unpaid leave and unrecorded absences bring it below the number of days in the month.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are paid days on a payslip, and why can they be fewer than the days in the month?"
+          }
+        }
+      }
+    },
+    "payroll.tax_summary": {
+      "kind": "data",
+      "description": "My Tax › Summary (/payroll/me/tax/summary)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "remaining_tds": {
+          "hint": "Income tax for the year that hasn’t been taken from your pay yet. It’s spread over the months left, so it changes if your pay or declarations do.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is income tax (TDS) deducted from my salary each month, and why does the monthly amount change during the year?"
+          }
+        },
+        "previous_employer": {
+          "hint": "Pay and tax from a job you left earlier this financial year. It’s added in so your tax for the whole year is worked out correctly.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does income from my previous employer this year affect my tax, and what is Form 12B?"
+          }
+        }
+      }
+    },
+    "payroll.tax_projection": {
+      "kind": "data",
+      "description": "My Tax › Projection (/payroll/me/tax/projection) › tax.standard_deduction",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "standard_deduction": {
+          "hint": "A fixed amount taken off your salary before tax is worked out. It’s given automatically — you don’t need to declare or prove anything.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the standard deduction on salary income, and how does it reduce my income tax?"
+          }
+        }
+      }
+    },
+    "payroll.form16": {
+      "kind": "data",
+      "description": "My Tax › Form 16 card",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "form16": {
+          "hint": "Your yearly tax certificate from the company. Part A lists the tax deposited for you; Part B shows how it was worked out. You use it to file your return.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is Form 16, what is the difference between Part A and Part B, and how do I use it to file my income tax return?"
+          }
+        }
+      }
+    },
+    "payroll.loans": {
+      "kind": "data",
+      "description": "Loan detail dialog (/payroll/me/loans) › “How interest is worked out” (`interest_method`)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "interest_method": {
+          "hint": "Flat charges interest on the full amount for the whole loan. “On what’s still owed” charges it only on the unpaid part, so it costs you less.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between flat interest and reducing balance interest on a salary loan?"
+          }
+        }
+      }
+    },
+    "payroll.encashment": {
+      "kind": "data",
+      "description": "Leave encashment detail (/payroll/me/encashments) › “Month divided by” (`divisor_days`)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "divisor_days": {
+          "hint": "Your monthly pay is divided by this many days to get one day’s rate. The number is set by your company’s policy.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the amount for leave encashment calculated, and what does dividing the month by a number of days mean?"
+          }
+        }
+      }
+    },
+    "payroll.reimbursement_limits": {
+      "kind": "data",
+      "description": "My Claims & Benefits › Limits tab (/payroll/me/reimbursements/categories) › “Period limit” column",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "period_limit": {
+          "hint": "The most you can claim in this category in each period, such as a month. It starts again each period; “Per claim” caps a single claim.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do reimbursement limits work, what is the difference between a per-claim limit and a period limit, and when do they reset?"
+          }
+        }
+      }
+    },
+    "documents.my_documents": {
+      "kind": "data",
+      "description": "My Personal Documents › status filter (document `status`)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "status": {
+          "hint": "In review: HR hasn’t checked it yet. Action required: HR sent it back — upload it again. Not finished: the upload didn’t complete.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the document statuses in review, action required, not finished and expiring soon mean, and what do I need to do for each?"
+          }
+        }
+      }
+    },
+    "documents.company_documents": {
+      "kind": "data",
+      "description": "My Company Documents › status filter (`compliance_state`: pending, overdue, completed, waived)",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "compliance_state": {
+          "hint": "Needs you: read, acknowledge or sign it. Overdue: its due date has passed. Excused: HR decided you don’t need to act on it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do I need to do with documents issued to me by the company, and what do needs you, overdue and excused mean?"
+          }
+        }
+      }
+    },
+    "organization.org_chart": {
+      "kind": "data",
+      "description": "Org Chart (OrgChartPage) — stat tiles, and the person dialog (OrgPersonDialog). depth, biggest_team, team_size and level are derived in orgChartMeta.js; reporting_to_id is the hierarchy node key.",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "depth": {
+          "hint": "How many layers there are from the top of the organisation down to the people furthest from it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the number of levels in an org chart say about an organisation?"
+          }
+        },
+        "biggest_team": {
+          "hint": "The most people who report directly to one person. People further down their line aren’t counted here.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a span of control, and how many direct reports is usual for one manager?"
+          }
+        },
+        "reporting_to_id": {
+          "hint": "Who this person reports to, all the way up. The manager directly above them is the one who reviews their leave and attendance requests.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a reporting line in a company, and how does the person I report to affect who reviews my leave and attendance requests?"
+          }
+        },
+        "team_size": {
+          "hint": "Everyone below this person on the chart: the people who report to them, the people who report to those people, and so on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between direct reports and everyone under a person in an org chart?"
+          }
+        },
+        "level": {
+          "hint": "How far down the chart this person sits. Level 1 is the top of the organisation; each step down adds one.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How are levels counted in an org chart?"
+          }
+        }
+      }
+    },
+    "organization.company_profile": {
+      "kind": "data",
+      "description": "Company Profile (CompanyProfilePage) — the People headline and the HR-only Tax & legal registration card. Keys are GET /organizations/details response keys.",
+      "workspaces": [
+        "employee"
+      ],
+      "fields": {
+        "total_active_members": {
+          "hint": "People who have joined and can sign in today. Invitations not yet accepted and people who have left aren’t counted.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who counts as an active member of the organisation in HR Clouds?"
+          }
+        }
+      }
+    }
+  }
+}

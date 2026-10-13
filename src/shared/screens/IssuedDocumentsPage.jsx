@@ -44,7 +44,17 @@
 //   · The deep link is the one entry point where the document may be absent:
 //     withdrawn, superseded, or addressed to somebody else. That reads as "no
 //     longer available to you", never as a failure to load, and the person is
-//     left on their list rather than on an error page.
+//     left on their list rather than on an error page. It is said in a notice
+//     that STAYS, not a toast: this arrival has no prior context to fall back
+//     on — the one document they came for is the whole reason they are here —
+//     and a message that fades after six seconds leaves them on a paginated
+//     list with no idea what happened. The two cases are also kept apart, as
+//     only one of them is worth retrying: a withdrawn document never comes
+//     back, a dropped connection does.
+//   · An arrival from outside the app has to show it registered the click. The
+//     dialog can only mount once #71 answers, so until then the page looks like
+//     an ordinary visit to the list. The opening shell covers that gap, after a
+//     short delay so a fast read never flashes it.
 // Login is already handled: ProtectedRoute sends an unauthenticated visitor to
 // `/auth/login?redirect=<this url>` and returns them here afterwards, which is
 // the guide's `returnUrl` requirement under this app's own parameter name.
@@ -53,10 +63,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  HiBadgeCheck, HiBell, HiCheckCircle, HiExclamationCircle, HiInbox, HiLockClosed, HiPencilAlt,
-  HiRefresh, HiShieldCheck,
+  HiBadgeCheck, HiBell, HiCheckCircle, HiDocumentText, HiExclamationCircle, HiInbox,
+  HiInformationCircle, HiLockClosed, HiPencilAlt, HiRefresh, HiShieldCheck,
 } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
+import DetailDialog from "../components/DetailDialog";
 import { documentsAPI } from "../api";
 import { FilterTabs, Pagination, Toast, useToast } from "../attendance/ui";
 import { fmtDate } from "../attendance/dates";
@@ -76,6 +87,18 @@ const PAGE = 24;
 const plane = ORG_PLANES.self;
 
 // `compliance_state` on #70 — completed | pending | overdue | waived.
+/**
+ * A deep link that leads nowhere: withdrawn, superseded, or addressed to
+ * somebody else. Not an error — a state, and the only thing the person came
+ * here for, so it is said in a notice that stays rather than a toast that
+ * fades after six seconds. Retrying can't change the answer, so there is no
+ * Try again on this one.
+ */
+const LINK_GONE = {
+  title: "That document isn’t available to you any more",
+  body: "The link you followed points to a document that has been withdrawn, replaced by a newer version, or addressed to somebody else. Everything issued to you is listed below.",
+};
+
 const FILTERS = [
   { value: "", label: "All" },
   { value: "pending", label: "Needs you" },
@@ -118,9 +141,13 @@ function IssuedCard({ row, typeName, onOpen }) {
       <DocIcon doc={doc} className="w-10 h-10" />
       <div className="min-w-0 flex-1 flex flex-col h-full">
         <div className="flex items-start justify-between gap-3">
-          <p className="font-semibold text-slate-800 truncate flex items-center gap-1.5 min-w-0">
-            <span className="truncate">{doc.title}</span>
-            {doc.is_confidential && <HiLockClosed className="w-3.5 h-3.5 text-purple-500 shrink-0" title="Confidential" />}
+          {/* Two lines, like the dialog header. A policy title is long by
+              nature ("Code of Conduct and Anti-Harassment Policy 2026 —
+              Revision 3") and at this card width one line cut it before the
+              word that tells the two revisions apart. */}
+          <p className="font-semibold text-slate-800 flex items-start gap-1.5 min-w-0">
+            <span className="line-clamp-2 break-words">{doc.title}</span>
+            {doc.is_confidential && <HiLockClosed className="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" title="Confidential" />}
           </p>
           {tracked && block.state
             ? <ComplianceStateBadge state={myComplianceState(row)} className="shrink-0" />
@@ -183,6 +210,11 @@ export default function IssuedDocumentsPage() {
   const [tallies, setTallies] = useState({ all: null, pending: null, overdue: null, completed: null });
   const [blocking, setBlocking] = useState(false);
   const [detail, setDetail] = useState(null);
+  // Deep link only: the #71 read is slow enough to need saying so, and what to
+  // say when it comes back with nothing. `attempt` re-runs the read.
+  const [opening, setOpening] = useState(false);
+  const [linkNotice, setLinkNotice] = useState(null);
+  const [attempt, setAttempt] = useState(0);
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -228,8 +260,13 @@ export default function IssuedDocumentsPage() {
   const listPath = myDocs?.company || null;
 
   useEffect(() => {
-    if (!documentId) return;
+    if (!documentId) return undefined;
     let cancelled = false;
+    setLinkNotice(null);
+    /* A spinner that appears and vanishes inside 200ms reads as a flicker, so
+       the shell waits a third of a second: nothing shows on a quick connection,
+       and on a slow one the click is never left looking like it did nothing. */
+    const slow = setTimeout(() => { if (!cancelled) setOpening(true); }, 350);
     (async () => {
       try {
         const res = await documentsAPI.getMyIssuedDocument(documentId);
@@ -239,21 +276,25 @@ export default function IssuedDocumentsPage() {
         const row = res?.data || null;
         if (cancelled) return;
         if (row?.document) setDetail({ row, action: null });
-        else showToast("That document is no longer available to you.", "error");
+        else setLinkNotice(LINK_GONE);
       } catch (error) {
         if (cancelled) return;
-        // Withdrawn, superseded or addressed to somebody else — a state, not a
-        // broken page. Say so and leave them on their list.
-        showToast(
+        setLinkNotice(
           error?.status === 404 || error?.status === 403
-            ? "That document is no longer available to you."
-            : documentErrorMessage(error, "We couldn’t open that document. It’s still in the list below."),
-          "error",
+            ? LINK_GONE
+            : {
+              title: "We couldn’t open the document from that link",
+              body: documentErrorMessage(error, "Something went wrong on the way. Try again, or find it in the list below."),
+              retry: true,
+            },
         );
+      } finally {
+        clearTimeout(slow);
+        if (!cancelled) setOpening(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [documentId, showToast]);
+    return () => { cancelled = true; clearTimeout(slow); };
+  }, [documentId, attempt]);
 
   /** Closing a deep-linked document takes the id out of the URL. */
   const closeDetail = useCallback(() => {
@@ -261,6 +302,17 @@ export default function IssuedDocumentsPage() {
     refresh();
     if (documentId && listPath) navigate(listPath, { replace: true });
   }, [documentId, listPath, navigate, refresh]);
+
+  /**
+   * Giving up on a deep link — the Close on the opening shell, or Dismiss on
+   * the notice. Dropping the id from the URL is what actually cancels the read:
+   * the effect's cleanup runs and whatever comes back is discarded.
+   */
+  const dropLink = useCallback(() => {
+    setOpening(false);
+    setLinkNotice(null);
+    if (documentId && listPath) navigate(listPath, { replace: true });
+  }, [documentId, listPath, navigate]);
 
   const index = useMemo(() => typeIndex(types), [types]);
   const totalPages = Math.max(1, Math.ceil((state.total || 0) / PAGE));
@@ -283,6 +335,34 @@ export default function IssuedDocumentsPage() {
             <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+
+        {/* Why the email link didn't land on a document. It sits above the
+            overdue banner because it is the reason this person is here at all.
+            Informational, not an error, so indigo (§5) unless the read itself
+            failed — that one is rose and can be retried. */}
+        {linkNotice && (
+          <div className={`flex flex-wrap items-start justify-between gap-3 rounded-2xl border px-4 py-3 ${linkNotice.retry ? "border-rose-200 bg-rose-50" : "border-indigo-200 bg-indigo-50"}`}>
+            <div className="flex items-start gap-3 min-w-0">
+              {linkNotice.retry
+                ? <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                : <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />}
+              <div className="min-w-0">
+                <p className={`text-sm font-bold ${linkNotice.retry ? "text-rose-800" : "text-indigo-900"}`}>{linkNotice.title}</p>
+                <p className={`text-xs mt-0.5 leading-relaxed ${linkNotice.retry ? "text-rose-700" : "text-indigo-800"}`}>{linkNotice.body}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {linkNotice.retry && (
+                <button type="button" onClick={() => setAttempt((a) => a + 1)} className="text-xs font-bold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-lg">
+                  Try again
+                </button>
+              )}
+              <button type="button" onClick={dropLink} className={`text-xs font-bold px-3 py-1.5 rounded-lg border bg-white ${linkNotice.retry ? "text-rose-700 border-rose-200 hover:bg-rose-50" : "text-indigo-700 border-indigo-200 hover:bg-indigo-50"}`}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {overdue > 0 && (
           <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${blocking ? "border-rose-300 bg-rose-100/70" : "border-rose-200 bg-rose-50"}`}>
@@ -363,6 +443,25 @@ export default function IssuedDocumentsPage() {
           </>
         )}
       </main>
+
+      {/* The record inspector arriving, before it has anything to show. It is
+          the same shell the real dialog uses, in the same place, so the swap is
+          a fill rather than a second dialog opening — and the person following
+          a link from their inbox can see straight away that it worked. */}
+      {opening && !detail && (
+        <DetailDialog
+          eyebrow="From your email"
+          icon={HiDocumentText}
+          title="Opening your document"
+          loading
+          onClose={dropLink}
+        >
+          <div className="space-y-3" aria-hidden="true">
+            <div className="h-16 rounded-2xl bg-slate-100 animate-pulse" />
+            <div className="h-28 rounded-2xl bg-slate-100 animate-pulse" />
+          </div>
+        </DetailDialog>
+      )}
 
       {detail && (
         <OrgDocumentDetailDialog

@@ -1,4 +1,4 @@
-import { TREND_COLORS } from "../../shared/attendance/dayStatus";
+import { TREND_COLORS_ON_DARK } from "../../shared/attendance/dayStatus";
 import { useInView, useReducedMotion, EASE_ENTER } from "../../shared/motion";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -103,9 +103,9 @@ function AttendanceChart() {
         <span className="text-[9px] font-semibold text-white/70 truncate">Team Performance</span>
         <div className="flex items-center gap-2 shrink-0">
           {[
-            ["Present", TREND_COLORS.present],
-            ["On leave", TREND_COLORS.on_leave],
-            ["Absent", TREND_COLORS.absent],
+            ["Present", TREND_COLORS_ON_DARK.present],
+            ["On leave", TREND_COLORS_ON_DARK.on_leave],
+            ["Absent", TREND_COLORS_ON_DARK.absent],
           ].map(([label, color]) => (
             <span key={label} className="flex items-center gap-1 text-[7px] text-white/45 whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-sm" style={{ background: color }} />
@@ -128,9 +128,9 @@ function AttendanceChart() {
                 : `transform 620ms ${EASE_ENTER} ${i * 45}ms`,
             }}
           >
-            <div style={{ height: `${d.absent}%`, background: TREND_COLORS.absent }} className="rounded-sm" />
-            <div style={{ height: `${d.leave}%`, background: TREND_COLORS.on_leave }} className="rounded-sm" />
-            <div style={{ height: `${d.present}%`, background: TREND_COLORS.present }} className="rounded-sm" />
+            <div style={{ height: `${d.absent}%`, background: TREND_COLORS_ON_DARK.absent }} className="rounded-sm" />
+            <div style={{ height: `${d.leave}%`, background: TREND_COLORS_ON_DARK.on_leave }} className="rounded-sm" />
+            <div style={{ height: `${d.present}%`, background: TREND_COLORS_ON_DARK.present }} className="rounded-sm" />
           </div>
         ))}
       </div>

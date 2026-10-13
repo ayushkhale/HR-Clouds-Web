@@ -151,7 +151,7 @@ export default function DecisionDialog({
         if (e.target === e.currentTarget && !busyAction) onClose();
       }}
     >
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? "max-w-6xl" : "max-w-lg"} max-h-[92vh] flex flex-col overflow-hidden`} role="dialog" aria-modal="true" aria-labelledby={`${fieldId}-title`}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? "max-w-6xl" : "max-w-2xl sm:max-w-3xl"} max-h-[92vh] flex flex-col overflow-hidden`} role="dialog" aria-modal="true" aria-labelledby={`${fieldId}-title`}>
         <div className={`flex items-center justify-between gap-4 border-b border-slate-100 shrink-0 ${wide ? "px-6 sm:px-10 py-6" : "px-6 py-5"}`}>
           <div className="min-w-0">
             <h3 id={`${fieldId}-title`} className="text-lg font-bold text-slate-800">{title}</h3>

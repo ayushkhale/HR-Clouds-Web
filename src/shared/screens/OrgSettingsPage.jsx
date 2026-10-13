@@ -101,6 +101,9 @@ import { useCurrentWorkspace } from "../attendance/paths";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import useSettingsHub from "../settings/useSettingsHub";
 import { settingLabel } from "../settings/settingsBlurbs";
+import { billingAPI } from "../api";
+import { rankArtFor, seatMeters, seatUsageLine, subscriptionStatusMeta } from "../../roles/hr/billing/billingMeta";
+import { fmtDate } from "../attendance/dates";
 import {
   displaySettingValue, groupIcon,
   moduleLabel, searchSettings, searchSurfaces, surfaceRouteFor, tabsFor,
@@ -298,6 +301,7 @@ export default function OrgSettingsPage() {
 
                   {!searching && (
                     <div className="min-w-0 space-y-7">
+                      <SettingsSubscriptionCard workspace={workspace} />
                       {/* The history is a destination like any other, so it is
                           a row in the list rather than a tab — and only for
                           HR, because #248 answers a manager 403 (§2). */}
@@ -545,5 +549,103 @@ function SettingsGroupRow({ group, count, to }) {
         className="shrink-0 w-4 h-4 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-0.5 transition"
       />
     </Link>
+  );
+}
+
+/**
+ * Current Plan & Subscription card for Settings (#3). Shows the plan tier 3D image
+ * (Bronze, Silver, Gold, Mythril), status, seat usage and renewal date.
+ */
+function SettingsSubscriptionCard({ workspace }) {
+  const [data, setData] = useState({ sub: null, usage: null, plans: [], loading: true });
+
+  useEffect(() => {
+    if (workspace !== "hr") return;
+    let alive = true;
+    Promise.allSettled([
+      billingAPI.getSubscription(),
+      billingAPI.getPlans(),
+    ]).then(([subRes, plansRes]) => {
+      if (!alive) return;
+      const subData = subRes.status === "fulfilled" ? subRes.value?.data : null;
+      const plansData = plansRes.status === "fulfilled" ? plansRes.value?.data?.plans : [];
+      setData({
+        sub: subData?.subscription || null,
+        usage: subData?.usage || null,
+        plans: plansData || [],
+        loading: false,
+      });
+    });
+    return () => { alive = false; };
+  }, [workspace]);
+
+  if (workspace !== "hr" || data.loading || !data.sub) return null;
+
+  const { sub, usage, plans } = data;
+  const plan = sub.plan || {};
+  const statusMeta = subscriptionStatusMeta(sub.status);
+  const rankImage = rankArtFor(plan.code, plans) || "https://cdn3d.iconscout.com/3d/premium/thumb/bronze-rank-3d-icon-png-download-8955734.png";
+  const meters = seatMeters(sub.limits, usage);
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#6D28D9] text-white shadow-md p-6 sm:p-7 border border-purple-400/20">
+      <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute right-40 -top-20 w-48 h-48 bg-fuchsia-500/15 rounded-full blur-2xl pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-start sm:items-center gap-5">
+          <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center p-1 bg-white/10 rounded-2xl border border-white/15 backdrop-blur-md shadow-inner">
+            <img
+              src={rankImage}
+              alt={plan.name || "Plan Badge"}
+              className="w-full h-full object-contain filter drop-shadow-md transition-transform hover:scale-105"
+            />
+          </div>
+
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-200/90 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
+                Current Subscription
+              </span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                statusMeta.tone === "emerald"
+                  ? "bg-violet-400/20 text-violet-100 border-violet-300/30"
+                  : statusMeta.tone === "amber"
+                  ? "bg-amber-400/20 text-amber-100 border-amber-300/30"
+                  : "bg-rose-400/20 text-rose-100 border-rose-300/30"
+              }`}>
+                {statusMeta.label}
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              {plan.name || "Starter Plan"}
+            </h3>
+            <p className="text-xs text-purple-200/90 font-medium">
+              {meters.length > 0 ? seatUsageLine(meters) : "All workspace features active"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 shrink-0 border-t md:border-t-0 md:border-l border-white/15 pt-4 md:pt-0 md:pl-6">
+          {sub.current_period_end && (
+            <div className="text-left md:text-right">
+              <span className="text-[10px] uppercase font-bold text-purple-200/80 block">
+                {sub.cancel_at_period_end ? "Expires on" : "Renews on"}
+              </span>
+              <span className="text-sm font-bold text-white block mt-0.5">
+                {fmtDate(sub.current_period_end, { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            </div>
+          )}
+          <Link
+            to="/dashboard/hr/billing"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-purple-900 hover:bg-purple-50 shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-100 whitespace-nowrap"
+          >
+            Manage Plan & Billing
+            <HiArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

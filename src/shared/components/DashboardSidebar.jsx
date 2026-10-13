@@ -4,10 +4,10 @@ import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSidebar } from "../contexts/SidebarContext";
-import { tokenHelper } from "../api";
+import { billingAPI, documentsAPI, payrollAPI, tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
-import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE } from "../attendance/paths";
+import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE, TASK_PATHS } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
 import {
@@ -70,6 +70,17 @@ function DashboardSidebar({ role = "guest" }) {
     return 0;
   });
 
+  const [paymentsDue, setPaymentsDue] = useState(false);
+  const [paymentsDismissed, setPaymentsDismissed] = useState(false);
+  const [unverifiedBankCount, setUnverifiedBankCount] = useState(0);
+  const [pendingDocsCount, setPendingDocsCount] = useState(0);
+
+  useEffect(() => {
+    if (location.pathname === "/dashboard/hr/billing/payments") {
+      setPaymentsDismissed(true);
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     if (role !== "manager") return undefined;
     let alive = true;
@@ -87,6 +98,32 @@ function DashboardSidebar({ role = "guest" }) {
     if (role !== "hr") return undefined;
     let alive = true;
     fetchHrInboxCounts().then((counts) => alive && setInboxCount(inboxTotal(counts))).catch(() => {});
+
+    // Check billing due date
+    billingAPI.getSubscription().then((res) => {
+      if (!alive) return;
+      const sub = res?.data?.subscription;
+      if (!sub) return;
+      const days = sub.days_remaining != null ? Number(sub.days_remaining) : null;
+      const isDue = (days !== null && days <= 7) || sub.status === "in_grace" || sub.status === "past_due";
+      setPaymentsDue(Boolean(isDue));
+    }).catch(() => {});
+
+    // Check document verification queue
+    documentsAPI.getVerificationQueue({ limit: 1 }).then((res) => {
+      if (!alive) return;
+      const count = res?.data?.total ?? res?.total ?? 0;
+      setPendingDocsCount(count);
+    }).catch(() => {});
+
+    // Check unverified bank accounts
+    payrollAPI.getBankAccounts({ page: 1, limit: 100 }).then((res) => {
+      if (!alive) return;
+      const list = res?.data?.items || res?.data?.accounts || res?.data?.bank_accounts || res?.items || [];
+      const unv = list.filter((a) => !a.is_verified).length;
+      setUnverifiedBankCount(unv);
+    }).catch(() => {});
+
     return () => {
       alive = false;
     };
@@ -95,7 +132,14 @@ function DashboardSidebar({ role = "guest" }) {
   // Approvals, rejections and resolutions anywhere in the app refresh the badge.
   useAttendanceChanged(INBOX_EVENT_KINDS, () => {
     if (role === "manager") fetchManagerInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
-    else if (role === "hr") fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
+    else if (role === "hr") {
+      fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
+      documentsAPI.getVerificationQueue({ limit: 1 }).then((res) => setPendingDocsCount(res?.data?.total ?? res?.total ?? 0)).catch(() => {});
+      payrollAPI.getBankAccounts({ page: 1, limit: 100 }).then((res) => {
+        const list = res?.data?.items || res?.data?.accounts || res?.data?.bank_accounts || res?.items || [];
+        setUnverifiedBankCount(list.filter((a) => !a.is_verified).length);
+      }).catch(() => {});
+    }
   });
 
   function handleLogout() {
@@ -135,7 +179,12 @@ function DashboardSidebar({ role = "guest" }) {
     const base = SELF_SERVICE_BASE[workspace];
     const pay = MY_PAY_PATHS[workspace];
     const docs = MY_DOCUMENT_PATHS[workspace];
+    const tasks = TASK_PATHS[workspace];
     return {
+      // Work somebody has been GIVEN, which every role is — including HR, whose
+      // own page sits here beside their leave and payslips rather than in the
+      // organisation-wide Tasks section below.
+      tasks: [link("My Tasks", tasks.mine, HiClipboardCheck)],
       time: [
         link("My Attendance", base, HiClock),
         link("My Leaves", pay.leaves, HiCalendar),
@@ -167,6 +216,7 @@ function DashboardSidebar({ role = "guest" }) {
       defaultCollapsed: true,
       items: [
         group("My Time", HiClock, me.time),
+        group("My Tasks", HiClipboardCheck, me.tasks),
         group("My Pay", HiCurrencyRupee, me.pay),
         group("My Documents", HiFolderOpen, me.documents),
       ],
@@ -181,6 +231,20 @@ function DashboardSidebar({ role = "guest" }) {
   // by choice: every billing endpoint but the plan catalogue is gated HR_ONLY
   // and refuses platform admins too, so a manager has no billing page rather
   // than a broken one (§2 — a capability a role lacks is absent, not broken).
+  // Work this person HANDS OUT and reviews (Task module #255–#267). One helper
+  // for both reviewing workspaces, so the two entries can't drift apart: a
+  // manager and HR see the same labels in the same order, and only the reach of
+  // the data behind them differs (§2). An employee has no such section at all —
+  // they review nobody.
+  const tasksSection = (workspace) => ({
+    title: "TASKS",
+    icon: HiClipboardCheck,
+    items: [
+      link("Tasks I Assigned", TASK_PATHS[workspace].assigned, HiPaperAirplane),
+      link("All Tasks", TASK_PATHS[workspace].all, HiClipboardList),
+    ],
+  });
+
   const companySection = (workspace) => ({
     title: "COMPANY",
     icon: HiLibrary,
@@ -194,7 +258,10 @@ function DashboardSidebar({ role = "guest" }) {
       // one people found depended on which they happened to open.
       ...(workspace === "hr" ? [
         link("Plan & Billing", "/dashboard/hr/billing", HiCreditCard),
-        link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax),
+        link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax, {
+          dot: paymentsDue && !paymentsDismissed,
+          onClick: () => setPaymentsDismissed(true),
+        }),
       ] : []),
     ],
   });
@@ -313,6 +380,7 @@ function DashboardSidebar({ role = "guest" }) {
             link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift),
           ],
         },
+        tasksSection("hr"),
         {
           // The monthly cycle, in order. Lock Attendance sits right before the
           // run because that is when it happens; Employee Salaries and bank
@@ -322,7 +390,10 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             step(1, "Before the month"),
             link("Employee Salaries", `${H}/payroll/employee-structures`, HiCurrencyRupee),
-            link("Bank Verification", `${H}/payroll/bank-verification`, HiShieldCheck),
+            link("Bank Verification", `${H}/payroll/bank-verification`, HiShieldCheck, {
+              badge: unverifiedBankCount > 0 ? unverifiedBankCount : null,
+              dot: unverifiedBankCount > 0,
+            }),
             step(2, "This month"),
             link("Salary Adjustments", `${H}/payroll/adjustments`, HiAdjustments),
             link("Bonus Rules", `${H}/payroll/bonus-rules`, HiGift),
@@ -348,7 +419,10 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiFolderOpen,
           items: [
             link("Document Requests", `${H}/documents/requests`, HiClipboardList),
-            link("Verification Queue", `${H}/documents/verification`, HiBadgeCheck),
+            link("Verification Queue", `${H}/documents/verification`, HiBadgeCheck, {
+              badge: pendingDocsCount > 0 ? pendingDocsCount : null,
+              dot: pendingDocsCount > 0,
+            }),
             link("Employee Documents", `${H}/documents/employees`, HiFolderOpen),
             link("Document Compliance", `${H}/documents/compliance`, HiClipboardCheck),
             link("Find a Document", `${H}/documents/search`, HiDocumentSearch),
@@ -431,6 +505,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
+        tasksSection("manager"),
         {
           title: "PAYROLL",
           icon: HiCurrencyRupee,
@@ -486,6 +561,7 @@ function DashboardSidebar({ role = "guest" }) {
         items: [link("Dashboard", "/dashboard/employee", HiViewGrid)],
       },
       { title: "MY TIME", icon: HiClock, items: me.time },
+      { title: "MY TASKS", icon: HiClipboardCheck, items: me.tasks },
       { title: "MY PAY", icon: HiCurrencyRupee, items: me.pay },
       { title: "MY DOCUMENTS", icon: HiFolderOpen, items: me.documents },
       companySection("employee"),
@@ -609,7 +685,10 @@ function DashboardSidebar({ role = "guest" }) {
       <Link
         key={item.path}
         to={item.path}
-        onClick={closeOnMobile}
+        onClick={(e) => {
+          item.onClick?.(e);
+          closeOnMobile();
+        }}
         data-nav=""
         data-nav-parent={parentKey}
         aria-current={isActive ? "page" : undefined}
@@ -622,11 +701,13 @@ function DashboardSidebar({ role = "guest" }) {
           {!compact && Icon && <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />}
           <span className="truncate">{item.label}</span>
         </span>
-        {item.badge && (
+        {item.badge ? (
           <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
             {item.badge}
           </span>
-        )}
+        ) : item.dot ? (
+          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse" />
+        ) : null}
       </Link>
     );
   };

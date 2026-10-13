@@ -4002,6 +4002,310 @@
           }
         }
       }
+    },
+    "tasks.my_tasks": {
+      "kind": "data",
+      "description": "My Tasks (MyTasksPage, #249) — the work somebody has been given. Mounted in all three workspaces. `page` sits beside the h1; `status` on the list's status column. The deadline, priority and kind-of-work columns explain themselves.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Work your manager or HR has given you. Opening a task tells them you’ve seen it, so they know it’s been picked up.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do assigned tasks work, and what happens after I hand one in for review?"
+          }
+        },
+        "status": {
+          "hint": "Not started and being worked on are yours to set. Waiting for review means it’s with your reviewer until they reply.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the different task states mean, and which ones can I change myself?"
+          }
+        }
+      }
+    },
+    "tasks.task_detail": {
+      "kind": "data",
+      "description": "The task record inspector (TaskDetailDialog, #250/#258/#267), shared by all three planes. Core entries cover the state, the rework count, the read receipt and the original deadline. The onboarding tier adds the derived and governance figures HR reads: extensions, on-time completion, handovers, the audit trail and the email outbox.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "status": {
+          "hint": "Where the task has got to. Only a reviewer can move it past Waiting for review — by approving it or sending it back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are the stages of a task, and who can move it from one to the next?"
+          }
+        },
+        "rework_count": {
+          "hint": "How many times this has been sent back for changes. Each round keeps the same deadline unless somebody moves it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens when a task is sent back for changes, and does its deadline change?"
+          }
+        },
+        "first_viewed_at": {
+          "hint": "When the person it’s for first opened the brief. Until then they may not know about it, whatever the deadline says.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does the system know whether somebody has opened a task that was given to them?"
+          }
+        },
+        "original_due_date": {
+          "hint": "The deadline this task started with. It’s kept even after the deadline moves, so you can see the work was given longer.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is the first deadline of a task kept after the deadline has been moved?"
+          }
+        },
+        "due_date": {
+          "tier": "onboarding",
+          "hint": "The deadline in force now. Past it, the task shows as past deadline until it’s approved or called off.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When does a task start showing as past its deadline, and does anything happen automatically?"
+          }
+        },
+        "extension_count": {
+          "tier": "onboarding",
+          "hint": "How many times the deadline has been moved. Useful when deciding whether a task is genuinely blocked or just drifting.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it tell me about a task if its deadline has been moved several times?"
+          }
+        },
+        "is_completed_on_time": {
+          "tier": "onboarding",
+          "hint": "Worked out when the task was approved: whether that approval happened on or before the deadline in force at the time.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is a task judged to have been finished on time — by when it was handed in or when it was approved?"
+          }
+        },
+        "reassignment_count": {
+          "tier": "onboarding",
+          "hint": "How many times this has changed hands. Each new person starts from an unopened task, and what was handed in stays on record.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to a task’s history and progress when it is handed to somebody else?"
+          }
+        },
+        "audit_logs": {
+          "tier": "onboarding",
+          "hint": "Every change to this task, newest first — who did it and when. It can’t be edited, so it’s what to read when there’s a dispute.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is recorded in a task’s history, and can any of it be changed or removed later?"
+          }
+        },
+        "notifications": {
+          "tier": "onboarding",
+          "hint": "Emails queued about this task. Queued means it is waiting for the sender to run, not that it has failed.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who gets emailed about a task, and what does it mean when a notice is still queued?"
+          }
+        }
+      }
+    },
+    "tasks.discussion": {
+      "kind": "form",
+      "description": "The conversation on one task (TaskDiscussion, #253/#254/#264). A section of the task record inspector, so it is seen in all three workspaces — by the assignee on their own task and by a reviewer on somebody else's. Written neutrally for both. The message box, the file picker and the timestamps explain themselves; what needed saying is the milestone flag we invented, the link rule the server enforces, and that nothing here can be taken back.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "comments": {
+          "hint": "Everything said about this task, oldest first. Nothing here can be edited or deleted — to correct something, say so in a new message.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who can read the discussion on a task, and can a comment be edited or removed afterwards?"
+          }
+        },
+        "is_progress_update": {
+          "hint": "Marks this as a step finished rather than a chat message, so the thread can be filtered down to real progress. It does not move the task along.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When should a task comment be marked as a milestone, and what changes when it is?"
+          }
+        },
+        "external_links": {
+          "hint": "Each link has to start with https:// and point to a public page. An address inside a private network is refused, to keep company systems out of reach.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is a link sometimes refused when it is added to a task comment?"
+          }
+        }
+      }
+    },
+    "tasks.assign": {
+      "kind": "form",
+      "description": "Give out a task (AssignTaskDialog, #255 for a manager / #265 for HR). The title, the person and the description explain themselves. The deadline carries the 15-minute rule, and category and priority both need saying because neither changes how the task behaves. The onboarding tier covers the staged file upload.",
+      "workspaces": [
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "due_date": {
+          "hint": "When the work is needed. It has to be at least 15 minutes away, and the time of day counts — past it the task reads as late.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does a task deadline need a time of day as well as a date?"
+          }
+        },
+        "category": {
+          "hint": "Groups the task for filtering and reporting. It changes nothing about how the task behaves for the person doing it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are task categories used for, and does the category change anything for the person assigned?"
+          }
+        },
+        "priority": {
+          "hint": "Tells the person what to do first. It doesn’t change the deadline or send anything extra — it’s guidance, not a rule.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Does setting a task to urgent change anything beyond how it looks to the person assigned?"
+          }
+        },
+        "external_links": {
+          "hint": "Pages the work needs — a sheet, a document, a report. They see these in the brief, and a link must start with https://",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do task reference links have to start with https, and who can open them?"
+          }
+        },
+        "attachment_tokens": {
+          "tier": "onboarding",
+          "hint": "Files sent with the brief. They upload as you pick them, so leaving this form open a long time can mean choosing them again.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How are files attached to a task, and what file types and sizes are allowed?"
+          }
+        }
+      }
+    },
+    "tasks.submit": {
+      "kind": "form",
+      "description": "Hand in your work (SubmitTaskDialog, #252). Mounted wherever My Tasks is, so all three workspaces. Written to the person about their own work.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "submission_note": {
+          "hint": "What your reviewer reads first. Say what you finished and anything they should check, not just that it’s done.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should I write when I hand in a task, and who reads it?"
+          }
+        },
+        "external_links": {
+          "hint": "Links to the work itself. These are added to the task’s links; nothing you add here removes what your reviewer put there.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to the links already on a task when I add my own while handing it in?"
+          }
+        },
+        "attachment_ids": {
+          "hint": "Files you’re handing in. They’re saved to the task as you pick them, so they stay even if you close this and come back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What file types can I hand in with a task, and how large can each one be?"
+          }
+        }
+      }
+    },
+    "tasks.review": {
+      "kind": "form",
+      "description": "The reviewer's reason prompts (TaskReviewDialogs, #259-#263). Each dialog already says in its own description who feels the consequence; the one field that needs a rule stated is the replacement deadline, shared by the hand-over and extend dialogs.",
+      "workspaces": [
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "new_due_date": {
+          "hint": "The deadline they get instead. It has to be later than the one in force, and the original deadline stays on the record.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When a task deadline is moved, what is the employee told and what is kept on the record?"
+          }
+        }
+      }
+    },
+    "tasks.assigned_tasks": {
+      "kind": "data",
+      "description": "Tasks I Assigned (TaskReviewScreen, scope assigned, #256), in the manager and HR workspaces alike. `page` beside the h1; `is_viewed` on the Opened column, which only this list has; `status` on the status column, written to whoever is reviewing.",
+      "workspaces": [
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Work you’ve handed out. Approving, sending back and moving a deadline all happen here, from the task itself.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What can I do to a task I have given somebody, and at what stage can I do each thing?"
+          }
+        },
+        "is_viewed": {
+          "hint": "When the person first opened the brief. Blank means they haven’t looked yet, which is worth chasing before the deadline.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How can I tell whether somebody has actually opened a task I gave them?"
+          }
+        },
+        "status": {
+          "hint": "Waiting for review is the one that needs you: the work is in and the task sits still until you approve it or send it back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which task states are waiting on me as the reviewer, and which are waiting on the employee?"
+          }
+        }
+      }
+    },
+    "tasks.all_tasks": {
+      "kind": "data",
+      "description": "All Tasks (TaskReviewScreen, scope all): #257 for a manager, their reporting line, and #266 for HR, the whole organisation. Same screen and labels in both; `department_id` is gated to HR because only #266 has that filter.",
+      "workspaces": [
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Every task within your reach, whoever gave it out — so nothing sits unopened or past its deadline without being noticed.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Whose tasks appear on this screen, and how is that different from the tasks I gave out myself?"
+          }
+        },
+        "status": {
+          "hint": "Waiting for review is the one that needs you: the work is in and the task sits still until you approve it or send it back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which task states are waiting on a reviewer, and which are waiting on the employee?"
+          }
+        },
+        "department_id": {
+          "workspaces": [
+            "hr"
+          ],
+          "hint": "Narrows the list to people in one department. Somebody with no department on file won’t appear under any of them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why might an employee be missing when I filter tasks by department?"
+          }
+        }
+      }
     }
   }
 }

@@ -12,9 +12,10 @@ import PayrollReimbursementsPage from "../payroll/screens/PayrollReimbursementsP
 import PayrollLoansPage from "../payroll/screens/PayrollLoansPage";
 import TaxDeclarationsPage from "../payroll/screens/TaxDeclarationsPage";
 import LetterProposalsPage from "../documents/screens/LetterProposalsPage";
+import TaskReviewScreen from "../../../shared/tasks/TaskReviewScreen";
 import {
   HiCash, HiClipboardCheck, HiClock, HiCurrencyRupee, HiDocumentText,
-  HiExclamationCircle, HiGift, HiLightningBolt, HiMail, HiReceiptRefund, HiRefresh,
+  HiExclamationCircle, HiGift, HiLightningBolt, HiMail, HiReceiptRefund, HiRefresh, HiClipboardList,
 } from "react-icons/hi";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
@@ -34,7 +35,29 @@ const GROUPS = [
     ],
   },
   {
+    // Its own group rather than a sixth card in Time & leave: six cards would
+    // have wrapped one onto a row of its own at every width.
+    //
+    // One card, so it SHARES A ROW with Payroll & tax (`row: "work"`): 1 + 4
+    // makes five cards on one line, the same five-across as Time & leave above
+    // it. Alone it sat on a line of its own with three empty slots beside it,
+    // which read as a loading state rather than a group with one thing in it.
+    title: "Tasks",
+    row: "work",
+    span: "xl:col-span-1",
+    // Full width of its own column once the row splits at xl; a quarter of the
+    // page below that, where it stacks above Payroll & tax like Documents does.
+    cols: "lg:grid-cols-4 xl:grid-cols-1",
+    items: [
+      // Deliverables handed in and waiting on a reviewer (#259/#260). Opens on
+      // the same queue the count came from, so the card and the panel agree.
+      { key: "tasks", label: "Task deliverables", hint: "Work handed in for your review", icon: HiClipboardList, render: () => <TaskReviewScreen viewer="hr" scope="all" initialStatus="in_review" /> },
+    ],
+  },
+  {
     title: "Payroll & tax",
+    row: "work",
+    span: "xl:col-span-4",
     cols: "lg:grid-cols-4",
     items: [
       { key: "salaryApprovals", label: "Salary approvals", hint: "Proposed salary structures", icon: HiCurrencyRupee, render: () => <PayrollApprovalsPage /> },
@@ -45,7 +68,10 @@ const GROUPS = [
   },
   {
     title: "Documents",
-    cols: "lg:grid-cols-4",
+    // Five across once the rows above are five across, so the lone card keeps
+    // the same column width as every other card rather than sitting a quarter
+    // of the page wide under a grid of fifths.
+    cols: "lg:grid-cols-4 xl:grid-cols-5",
     items: [
       // Approving one of these issues a real, numbered letter — so it is
       // reviewed in the same place as every other decision that waits on HR.
@@ -55,6 +81,19 @@ const GROUPS = [
 ];
 
 const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
+
+/**
+ * Consecutive groups carrying the same `row` are laid out side by side on one
+ * line; everything else is a row of its own. The open queue's panel belongs to
+ * the ROW, not to the section — an embedded page in a four-fifths column would
+ * have its own table squeezed while a fifth of the page sat empty beside it.
+ */
+const ROWS = GROUPS.reduce((rows, group) => {
+  const last = rows[rows.length - 1];
+  if (group.row && last?.[0]?.row === group.row) last.push(group);
+  else rows.push([group]);
+  return rows;
+}, []);
 
 export default function HRInboxPage() {
   const [counts, setCounts] = useState(() => peekHrInboxCounts() || {});
@@ -113,14 +152,24 @@ export default function HRInboxPage() {
           </button>
         </div>
 
-        {GROUPS.map((group) => {
-          const showPanel = selected && group.items.includes(selected);
+        {ROWS.map((row) => {
+          const showPanel = selected && row.some((g) => g.items.includes(selected));
           return (
-            <section key={group.title} className="space-y-4">
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{group.title}</h2>
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${group.cols}`}>
-                {group.items.map((item) => (
-                  <InboxCard key={item.key} item={item} count={counts[item.key]} loading={loading} selected={item.key === selectedKey} onSelect={pick} />
+            <section key={row.map((g) => g.title).join("+")} className="space-y-4">
+              {/* Five columns, so a paired row's cards line up with the five in
+                  Time & leave. One group to a row keeps its own full width. */}
+              {/* Below xl the pair stacks, so it takes the same breathing room
+                  between its two headings that any two groups get (space-y-8). */}
+              <div className={row.length > 1 ? "grid grid-cols-1 xl:grid-cols-5 gap-x-4 gap-y-8 xl:gap-y-4" : ""}>
+                {row.map((group) => (
+                  <div key={group.title} className={`space-y-4 min-w-0 ${group.span || ""}`}>
+                    <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{group.title}</h2>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${group.cols}`}>
+                      {group.items.map((item) => (
+                        <InboxCard key={item.key} item={item} count={counts[item.key]} loading={loading} selected={item.key === selectedKey} onSelect={pick} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
 

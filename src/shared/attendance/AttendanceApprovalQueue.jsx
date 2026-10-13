@@ -323,7 +323,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
         entityKey={selected ? entityId(selected) : undefined}
         title={type === "anomaly" ? "Resolve attendance flag" : `Review ${cfg.label.toLowerCase()} request`}
         subtitle={selected ? resolvePerson(selected, names).name : ""}
-        size={type === "compoff" ? "md" : "lg"}
+        size="lg"
         actions={cfg.actions}
         notice={cfg.notice && <InlineAlert tone="sky">{cfg.notice}</InlineAlert>}
         remarksLabel={type === "anomaly" ? "Resolution note" : "Remarks for the employee"}

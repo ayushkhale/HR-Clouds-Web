@@ -49,7 +49,7 @@ const ITEM_STATUS = {
   excluded: { label: "Excluded", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
 };
 
-const dayCount = (v) => formatDayCount(toCount(v), { fallback: "0 days" });
+const dayCount = (v) => formatDayCount(toCount(v), { fallback: "0d" });
 const minutesLabel = (mins) => {
   const m = Math.round(toCount(mins));
   if (!m) return "0m";

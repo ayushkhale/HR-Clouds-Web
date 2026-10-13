@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import InboxCard from "../../../shared/components/InboxCard";
-import { attendanceAPI, leaveAPI } from "../../../shared/api";
+import { attendanceAPI, leaveAPI, tasksAPI } from "../../../shared/api";
+import { EmbeddedPageContext } from "../../../shared/contexts/EmbeddedPageContext";
+import TaskReviewScreen from "../../../shared/tasks/TaskReviewScreen";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import AttendanceApprovalQueue from "../../../shared/attendance/AttendanceApprovalQueue";
 import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
-import { listFrom } from "../../../shared/attendance/normalize";
+import { listFrom, normalizePaginated } from "../../../shared/attendance/normalize";
 import { ATTENDANCE_EVENTS, INBOX_EVENT_KINDS, emitAttendanceChanged, useAttendanceChanged } from "../../../shared/attendance/events";
 import {
   HiCheckCircle, HiXCircle, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
-  HiInformationCircle, HiRefresh,
+  HiInformationCircle, HiRefresh, HiClipboardList,
 } from "react-icons/hi";
 
 // Same shape as the HR inbox: one card per queue, the chosen one opens below.
@@ -18,13 +20,24 @@ import {
 // rules and refresh behaviour as the per-type pages); leave keeps its own cards.
 const GROUP = {
   title: "Time & leave",
-  cols: "lg:grid-cols-3 xl:grid-cols-5",
+  // Six cards now that task deliverables are a queue here too.
+  cols: "lg:grid-cols-3 xl:grid-cols-6",
   items: [
     { key: "leaves", label: "Leave requests", hint: "Leave and cancellation requests", icon: HiDocumentText },
     { key: "regularizations", label: DICTIONARY.TERMS.REGULARIZATION + "s", hint: "Missed or wrong punches to fix", icon: HiClock, queue: "regularization" },
     { key: "overtime", label: "Overtime", hint: "Extra hours waiting for approval", icon: HiCalendar, queue: "overtime" },
     { key: "compOffs", label: DICTIONARY.TERMS.COMP_OFF, hint: "Holiday work to credit", icon: HiGift, queue: "compoff" },
     { key: "anomalies", label: "Attendance flags", hint: "Unusual attendance to resolve", icon: HiExclamationCircle, queue: "anomaly" },
+    // Work the team has handed in and that waits on this manager (#259/#260).
+    // Opened on the same queue the count came from, so the card and the panel
+    // never disagree — and embedded, so it brings no second top bar.
+    {
+      key: "tasks",
+      label: "Task deliverables",
+      hint: "Work handed in for your review",
+      icon: HiClipboardList,
+      render: () => <TaskReviewScreen viewer="manager" scope="all" initialStatus="in_review" />,
+    },
   ],
 };
 const ATTENDANCE_TABS = Object.fromEntries(GROUP.items.filter((i) => i.queue).map((i) => [i.key, i.queue]));
@@ -74,10 +87,23 @@ function ManagerApprovalsInbox() {
     }
   }, []);
 
+  // Deliverables waiting on this manager. `team-tasks` is hierarchy-scoped
+  // server-side, so this is exactly the set they may approve (#257).
+  const fetchTaskCount = useCallback(async () => {
+    try {
+      const res = await tasksAPI.getTeamTasks({ status: "in_review", limit: 1 });
+      setCounts((c) => ({ ...c, tasks: normalizePaginated(res, ["tasks"]).total }));
+    } catch {
+      // A queue that won't load shows N/A, never a confident zero.
+      setCounts((c) => ({ ...c, tasks: null }));
+    }
+  }, []);
+
   const refresh = useCallback(() => {
     fetchAttendanceCounts();
     fetchLeaves();
-  }, [fetchAttendanceCounts, fetchLeaves]);
+    fetchTaskCount();
+  }, [fetchAttendanceCounts, fetchLeaves, fetchTaskCount]);
 
   useEffect(() => { refresh(); }, [refresh]);
   useAttendanceChanged(INBOX_EVENT_KINDS, refresh);
@@ -195,12 +221,14 @@ function ManagerApprovalsInbox() {
                 <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center"><selected.icon className="w-4 h-4" /></span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Pending {selected.label.toLowerCase()}</h3>
-                  <p className="text-[11px] text-slate-400">{selected.queue ? "Click a row to review and decide." : "Approve or reject each request below."}</p>
+                  <p className="text-[11px] text-slate-400">{selected.queue || selected.render ? "Click a row to review and decide." : "Approve or reject each request below."}</p>
                 </div>
               </div>
               {selected.queue
                 ? <AttendanceApprovalQueue key={selected.key} type={selected.queue} onCountChange={onQueueCount} />
-                : renderLeaves()}
+                : selected.render
+                  ? <EmbeddedPageContext.Provider value>{selected.render()}</EmbeddedPageContext.Provider>
+                  : renderLeaves()}
             </div>
           )}
         </section>
@@ -209,7 +237,7 @@ function ManagerApprovalsInbox() {
       {/* Leave Action Modal */}
       {actionModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg sm:max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-800">{actionModal.title}</h3>
               <button onClick={closeLeaveModal} className="text-slate-400 hover:text-slate-600">

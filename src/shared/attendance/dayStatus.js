@@ -36,6 +36,54 @@ export function metric(value) {
 /** `true` when the backend synthesized this day rather than reading a punch. */
 export const isSynthesizedDay = (record) => !!record && (record.id === null || record.id === undefined);
 
+/* ─── The chart's three bars ─────────────────────────────────────────────────
+   One hue, three steps (user decision, 2026-10-14): the darkest purple is the
+   people who were there, the mid tone the people who weren't due in, and the
+   palest the people who should have been and weren't. Read top to bottom the
+   scale says "fewer and fewer of the day accounted for", so a page of bars can
+   be scanned by weight alone — the eye doesn't have to learn three hues first.
+
+   This replaced a yellow/burgundy pair and, before it, a violet→cyan ramp
+   across the week. Don't put either back: the ramp tinted a bar by its POSITION
+   while these tint it by its MEANING, and the two can't both be true of the
+   same bar. §5 makes rose the colour of a problem, but absence here is one
+   slice of a stacked day beside two others, not an error state — the palest
+   purple is the deliberate choice, not a missed mapping.
+
+   Each bar is outlined in the next step down its own ramp (TREND_STROKES).
+   Bars touch (`barGap={0}`), so the outline is what separates one from the
+   next, and it is the only thing that makes the palest bar visible at all on a
+   white card. */
+export const TREND_COLORS = {
+  present: "#5B21B6",  // violet-800 — dark
+  on_leave: "#8B5CF6", // violet-500 — mid
+  absent: "#DDD6FE",   // violet-200 — very light
+};
+
+/** The outline for each bar: the same hue, darker, so it never adds a colour. */
+export const TREND_STROKES = {
+  present: "#4C1D95",  // violet-900
+  on_leave: "#6D28D9", // violet-700
+  absent: "#A78BFA",   // violet-400
+};
+
+/**
+ * The same three steps for a chart drawn on a DARK card — the landing page's
+ * dashboard preview is the only one.
+ *
+ * It is the scale read from the other end, not a different palette. Visual
+ * weight runs opposite to lightness on a dark surface: the darkest purple is
+ * the heaviest mark on white and nearly invisible on near-black, so Present
+ * takes the palest step there to stay the bar you see first. Same hue, same
+ * hierarchy, same chart — flipping it is what keeps the preview looking like
+ * the product instead of an inversion of it.
+ */
+export const TREND_COLORS_ON_DARK = {
+  present: "#DDD6FE",  // violet-200
+  on_leave: "#A78BFA", // violet-400
+  absent: "#6D28D9",   // violet-700
+};
+
 /**
  * The nine chips, in legend order. Every tone is purple-family except `rose`,
  * which stays red for absence — the one thing on this grid that is a problem.
@@ -44,24 +92,15 @@ export const isSynthesizedDay = (record) => !!record && (record.id === null || r
  * StatusBadge. Both live here so a chip can never look like one thing in the
  * grid and another in the table.
  */
-// Chart series colours for the attendance trend charts (HR and manager read
-// the same three). Validated as a set: lightness band, chroma floor, and
-// colour-blind separation between every neighbouring pair.
-export const TREND_COLORS = {
-  present: "#7C3AED",  // purple
-  on_leave: "#A78BFA", // mid purple
-  absent: "#C026D3",   // reddish purple
-};
-
 export const DAY_CHIPS = {
   present:    { label: "Present",    tone: "emerald", heat: "bg-purple-700 border-purple-700 text-white" },
   late:       { label: "Late",       tone: "amber",   heat: "bg-purple-400 border-purple-400 text-white" },
   half_day:   { label: "Half day",   tone: "blue",    heat: "bg-purple-300 border-purple-300 text-purple-950" },
-  on_leave:   { label: "On leave",   tone: "purple",  heat: "bg-violet-200 border-violet-300 text-violet-900" },
-  absent:     { label: "Absent",     tone: "rose",    heat: "bg-purple-950 border-purple-950 text-white" },
+  on_leave:   { label: "On leave",   tone: "amber",   heat: "bg-amber-100 border-amber-300 text-amber-800" },
+  absent:     { label: "Absent",     tone: "rose",    heat: "bg-rose-500 border-rose-500 text-white" },
   holiday:    { label: "Holiday",    tone: "indigo",  heat: "bg-purple-100 border-purple-300 text-purple-700" },
   weekly_off: { label: "Weekly off", tone: "slate",   heat: "bg-slate-200 border-slate-200 text-slate-600" },
-  no_data:    { label: "No data",    tone: "slate",   heat: "bg-slate-700 border-slate-700 text-slate-100" },
+  no_data:    { label: "No data",    tone: "slate",   heat: "bg-slate-100 border-slate-200 text-slate-400" },
   upcoming:   { label: "Upcoming",   tone: "slate",   heat: "bg-slate-50 border-slate-200 text-slate-400" },
 };
 

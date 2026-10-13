@@ -177,6 +177,11 @@ const IssuedDocumentsPage = lazy(() => import("../shared/screens/IssuedDocuments
 const MyRequestsPage = lazy(() => import("../shared/screens/MyRequestsPage"));
 const AllMyDocumentsPage = lazy(() => import("../shared/screens/AllMyDocumentsPage"));
 const FormsLibraryPage = lazy(() => import("../shared/screens/FormsLibraryPage"));
+// Task Assignment (#249–#270). My Tasks is self-service and mounts in all three
+// workspaces; the two review pages only in the two workspaces that can review.
+const MyTasksPage = lazy(() => import("../shared/screens/MyTasksPage"));
+const AssignedTasksPage = lazy(() => import("../shared/screens/AssignedTasksPage"));
+const AllTasksPage = lazy(() => import("../shared/screens/AllTasksPage"));
 const DocumentVerificationPage = lazy(() => import("../roles/hr/documents/screens/DocumentVerificationPage"));
 const EmployeeDocumentsPage = lazy(() => import("../roles/hr/documents/screens/EmployeeDocumentsPage"));
 const DocumentTypesPage = lazy(() => import("../roles/hr/documents/screens/DocumentTypesPage"));
@@ -456,6 +461,13 @@ function AppRoutes() {
         <Route path="/dashboard/hr/my-document-requests" element={<MyRequestsPage />} />
         <Route path="/dashboard/hr/my-documents/all" element={<AllMyDocumentsPage />} />
         <Route path="/dashboard/hr/forms" element={<FormsLibraryPage />} />
+
+        {/* HR tasks. `/tasks/me` accepts every tenant role, so an HR admin gets
+            their own My Tasks page here rather than being sent to the employee
+            workspace, which the route gate refuses by design (§2). */}
+        <Route path="/dashboard/hr/my-tasks" element={<MyTasksPage />} />
+        <Route path="/dashboard/hr/tasks/assigned" element={<AssignedTasksPage />} />
+        <Route path="/dashboard/hr/tasks/all" element={<AllTasksPage />} />
       </Route>
 
       {/* ─── MANAGER WORKSPACE ─── */}
@@ -512,6 +524,12 @@ function AppRoutes() {
         <Route path="/dashboard/manager/my-document-requests" element={<MyRequestsPage />} />
         <Route path="/dashboard/manager/my-documents/all" element={<AllMyDocumentsPage />} />
         <Route path="/dashboard/manager/forms" element={<FormsLibraryPage />} />
+
+        {/* Manager tasks — the same three screens HR gets, hierarchy-scoped by
+            the endpoints rather than by a different page (§2). */}
+        <Route path="/dashboard/manager/my-tasks" element={<MyTasksPage />} />
+        <Route path="/dashboard/manager/tasks/assigned" element={<AssignedTasksPage />} />
+        <Route path="/dashboard/manager/tasks/all" element={<AllTasksPage />} />
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}
@@ -538,6 +556,10 @@ function AppRoutes() {
         <Route path="/dashboard/employee/document-requests" element={<MyRequestsPage />} />
         <Route path="/dashboard/employee/documents/all" element={<AllMyDocumentsPage />} />
         <Route path="/dashboard/employee/forms" element={<FormsLibraryPage />} />
+
+        {/* An employee is given work but never reviews anyone's, so the two
+            review pages are absent here rather than mounted and empty (§2). */}
+        <Route path="/dashboard/employee/tasks" element={<MyTasksPage />} />
       </Route>
 
       {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}

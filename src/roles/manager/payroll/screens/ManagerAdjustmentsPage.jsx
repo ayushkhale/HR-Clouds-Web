@@ -16,6 +16,8 @@ import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { interestMethodLabel } from "../../../hr/payroll/runMeta";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -258,53 +260,69 @@ export default function ManagerAdjustmentsPage() {
 
   const submitAdj = async (e) => {
     e.preventDefault();
-    if (!adjForm.user_id) return showToast("Choose a team member", "error");
+    const uid = typeof adjForm.user_id === "string" ? adjForm.user_id.trim() : "";
+    if (!uid) return showToast("Choose a team member", "error");
+    const amount = parseFloat(adjForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return showToast("Enter a valid adjustment amount", "error");
+    if (!adjForm.reason.trim()) return showToast("A reason is required", "error");
     try {
-      await payrollAPI.proposeTeamAdjustment(adjForm.user_id, {
+      await payrollAPI.proposeTeamAdjustment(uid, {
         period_month: period(adjForm),
         adjustment_type: adjForm.adjustment_type,
         category: adjForm.category,
         component_name: adjForm.component_name || (adjForm.adjustment_type === "earning" ? "Spot Award" : "Deduction"),
-        amount: parseFloat(adjForm.amount),
+        amount,
         reason: adjForm.reason.trim(),
       });
       showToast("Adjustment proposed to HR");
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id: uid, action: "propose" });
       setModal(null);
       loadData();
     } catch (err) {
-      showToast(err.message || "Failed to propose", "error");
+      showToast(payrollErrorMessage(err, "Failed to propose adjustment"), "error");
     }
   };
 
   const submitBonus = async (e) => {
     e.preventDefault();
+    if (!bonusForm.name.trim()) return showToast("Enter a rule name", "error");
     if (bonusForm.user_ids.length === 0) return showToast("Select at least one report", "error");
+    const val = parseFloat(bonusForm.value);
+    if (!Number.isFinite(val) || val <= 0) return showToast("Enter a valid bonus value", "error");
+    if (!bonusForm.reason.trim()) return showToast("A reason is required", "error");
     try {
       await payrollAPI.proposeTeamBonusRule({
         name: bonusForm.name.trim(),
         period_month: period(bonusForm),
         bonus_type: bonusForm.bonus_type,
-        value: parseFloat(bonusForm.value),
+        value: val,
         eligibility_source: "manual",
         eligibility_config: { user_ids: bonusForm.user_ids },
         reason: bonusForm.reason.trim(),
       });
       showToast("Bonus proposal sent to HR");
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { action: "propose" });
       setModal(null);
       loadData();
     } catch (err) {
-      showToast(err.message || "Failed to propose bonus", "error");
+      showToast(payrollErrorMessage(err, "Failed to propose bonus"), "error");
     }
   };
 
   const submitLoan = async (e) => {
     e.preventDefault();
-    if (!loanForm.user_id) return showToast("Choose a team member", "error");
+    const uid = typeof loanForm.user_id === "string" ? loanForm.user_id.trim() : "";
+    if (!uid) return showToast("Choose a team member", "error");
+    const principal = parseFloat(loanForm.principal_amount);
+    if (!Number.isFinite(principal) || principal <= 0) return showToast("Enter a valid loan amount", "error");
+    const tenure = parseInt(loanForm.tenure_months);
+    if (!Number.isFinite(tenure) || tenure <= 0) return showToast("Enter a valid tenure in months", "error");
+    if (!loanForm.reason.trim()) return showToast("A reason is required", "error");
     try {
-      await payrollAPI.recommendTeamLoan(loanForm.user_id, {
+      await payrollAPI.recommendTeamLoan(uid, {
         loan_type: loanForm.loan_type,
-        principal_amount: parseFloat(loanForm.principal_amount),
-        tenure_months: parseInt(loanForm.tenure_months),
+        principal_amount: principal,
+        tenure_months: tenure,
         // recommendLoanSchema strips unknown keys, so this must be interest_rate.
         interest_rate: parseFloat(loanForm.interest_rate) || 0,
         interest_method: loanForm.interest_method,
@@ -312,10 +330,11 @@ export default function ManagerAdjustmentsPage() {
         reason: loanForm.reason.trim(),
       });
       showToast("Loan recommendation sent to HR");
+      emitAttendanceChanged(ATTENDANCE_EVENTS.LOAN, { id: uid, action: "recommend" });
       setModal(null);
       loadData();
     } catch (err) {
-      showToast(err.message || "Failed to recommend loan", "error");
+      showToast(payrollErrorMessage(err, "Failed to recommend loan"), "error");
     }
   };
 
@@ -324,9 +343,10 @@ export default function ManagerAdjustmentsPage() {
     try {
       await payrollAPI.cancelTeamAdjustment(id);
       showToast("Proposal cancelled");
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id, action: "cancel" });
       loadData();
     } catch (err) {
-      showToast(err.message || "Failed to cancel", "error");
+      showToast(payrollErrorMessage(err, "Failed to cancel proposal"), "error");
     }
   };
 

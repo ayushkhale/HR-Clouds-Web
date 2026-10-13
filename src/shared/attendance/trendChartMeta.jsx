@@ -2,36 +2,166 @@
 // attendance/trendChartMeta.jsx — What every daily attendance chart shares, so the
 // HR, manager and employee dashboards read the same way.
 //
-//   · Sundays carry a faint vertical "SUNDAY", so an empty bar on a weekly off
-//     reads as expected rather than as everyone being absent. HR had this and
-//     the other two dashboards didn't, which made the same data look worse
-//     depending on who was looking at it.
+//   · Sundays with data carry a white "SUNDAY" label ABOVE the tallest bar of
+//     that day. A Sunday with no data keeps a faint grey vertical label behind
+//     the empty slot, so the weekly off reads as expected rather than absence.
 //   · Every day of the month gets a bar slot, data or not (fillMonthDays). The
 //     server can return only the days it has records for; drawing just those
-//     made a half hold three fat bars one month and fifteen thin ones the next.
-//     A fixed 15 / 15–16 slots keeps the chart the same shape every time.
-//   · A month is paged in two halves, 1–15 and 16–end. It opens on the half containing
-//     today: opening on the 1st–15th on the 28th showed two-week-old data
-//     first and hid what people actually came to see.
+//     made a page hold three fat bars one month and fifteen thin ones the next.
+//     A fixed 15–16 slots keeps the chart the same shape every time.
+//   · A month is paged into two halves. It opens on the half containing today:
+//     opening on the 1st on the 28th showed two-week-old data first and hid
+//     what people actually came to see.
 //
 // Recharts only draws a ReferenceLine that is a direct child of the chart, so
 // the markers come back as an array of elements, not a wrapper component.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { ReferenceLine } from "recharts";
-import { monthRange, parseYMDLocal, todayYMD } from "./dates";
+import { fmtDate, monthRange, parseYMDLocal, todayYMD } from "./dates";
 import { num } from "./normalize";
-import SundayLabel from "./SundayLabel";
+import SundayLabel, { SundayAboveLabel } from "./SundayLabel";
+import { TREND_COLORS, TREND_STROKES } from "./dayStatus";
 
-export const CHART_PAGE_SIZE = 15;
+/* ─── The bars ───────────────────────────────────────────────────────────── */
 
-// Two halves, always: 1–15 and 16 to the end. Plain 15-day pages made a
-// 31-day month three pages, the last holding the 31st alone — and on the
-// 31st the chart opened on that single bar.
-/** How many halves `rows` (one month of days) splits into: 1 or 2. */
-export const chartPageCount = (rows) => (rows.length > CHART_PAGE_SIZE ? 2 : 1);
-/** The rows of half `page` (0 or 1). */
-export const chartPageRows = (rows, page) => (page <= 0 ? rows.slice(0, CHART_PAGE_SIZE) : rows.slice(CHART_PAGE_SIZE));
+// Just enough to round the cap without the bar reading as a pill — at 16px
+// wide and 1–200 people tall, 3px is a softened corner and 6px is a lozenge.
+const TREND_BAR_RADIUS = 3;
+
+// How wide one bar may grow. A literal, not an object, so it can be exported
+// out of a file that also exports components without tripping react-refresh.
+export const TREND_BAR_MAX_SIZE = 16;
+
+// Which step of the palette each series wears. The chart's keys are the API's
+// and the palette's are the status names; this is the one place they meet, so
+// HR and the manager can't drift a shade apart (§2).
+const TREND_BAR_SERIES = {
+  final_present_count: "present",
+  final_leave_count: "on_leave",
+  final_absent_count: "absent",
+};
+
+/**
+ * One bar: flat bottom, rounded top, outlined in its own darker step.
+ *
+ * It reads its own colours off `dataKey` rather than taking them as props, so a
+ * screen only ever says WHICH series it is drawing. The alternative — a helper
+ * that hands back fill and stroke — has to be exported as a function, and this
+ * file already exports components; one more non-component export is one more
+ * react-refresh warning for the next person to wade through.
+ *
+ * It is a hand-drawn path rather than `<Bar radius>` because of one defect that
+ * came back twice: Recharts paints the rounded cap even when the bar's value is
+ * ZERO, so every day with nobody absent drew a 3px nub along the axis and the
+ * chart read as a trickle of absences that didn't exist. (The caps were dropped
+ * entirely in 2026-10 for exactly this, and restored on 2026-10-14 with the
+ * guard below.) Returning `null` at no height is the fix — a day with none of
+ * something draws nothing, which is also what §5's "never render a dash" means
+ * for a chart.
+ *
+ * The left/right edges are inset by half the stroke so the outline lands inside
+ * the bar's own slot: bars touch (`barGap={0}`), and without the inset the two
+ * strokes overlap into one thick line that belongs to neither.
+ */
+export function TrendBar({ x, y, width, height, dataKey, strokeWidth = 1 }) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return null;
+  const series = TREND_BAR_SERIES[dataKey] || "present";
+  const r = Math.min(TREND_BAR_RADIUS, w / 2, h);
+  const inset = strokeWidth / 2;
+  const left = Number(x) + inset;
+  const right = Number(x) + w - inset;
+  const top = Number(y) + inset;
+  const bottom = Number(y) + h;
+  const d = `M${left},${bottom}V${top + r}Q${left},${top} ${left + r},${top}H${right - r}Q${right},${top} ${right},${top + r}V${bottom}Z`;
+  return (
+    <path
+      d={d}
+      fill={TREND_COLORS[series]}
+      stroke={TREND_STROKES[series]}
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+  );
+}
+
+/**
+ * Horizontal message blob hover tooltip for attendance trends.
+ *
+ * It is the same light card as the ⓘ field-help popover — white, purple-100
+ * hairline, soft shadow — so a hover bubble anywhere in the product looks like
+ * the same object. The dark slate version it replaced (2026-10-14) was the one
+ * black surface on an otherwise white dashboard.
+ *
+ * The three counts are labelled P / L / A, not Present / Leave / Absent: the
+ * bubble sits over the bars it describes, and the full words made it wide
+ * enough to cover half the chart. The coloured dot beside each letter is the
+ * same colour as the bar — fill AND outline, because the palest of the three is
+ * invisible on white without its outline — which is what actually identifies
+ * it, so the letter only has to be a reminder. The whole word is still there
+ * for a screen reader, which gets no colour at all.
+ */
+export function TrendTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  const row = payload[0]?.payload || {};
+  const dateStr = row.date || label;
+  const present = row.final_present_count ?? 0;
+  const leave = row.final_leave_count ?? 0;
+  const absent = row.final_absent_count ?? 0;
+
+  return (
+    <div className="pointer-events-none select-none z-50 animate-in fade-in duration-150">
+      <div className="flex items-center gap-3 px-3.5 py-2 bg-white rounded-xl shadow-lg border border-purple-100 text-xs font-semibold whitespace-nowrap">
+        <span className="font-bold text-slate-900 border-r border-purple-100 pr-2.5">
+          {fmtDate(dateStr, { weekday: "short", day: "numeric", month: "short" })}
+        </span>
+        <div className="flex items-center gap-3">
+          {[["P", "Present", "present", present],
+            ["L", "Leave", "on_leave", leave],
+            ["A", "Absent", "absent", absent]].map(([initial, word, series, count]) => (
+              <span key={word} className="inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full border" style={{ backgroundColor: TREND_COLORS[series], borderColor: TREND_STROKES[series] }} />
+                <span className="text-slate-500" aria-hidden="true">{initial}</span>
+                <span className="sr-only">{word}</span>
+                <span className="font-bold text-slate-900 tabular-nums">{count}</span>
+              </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A month is read in two halves, "1/2" and "2/2". 15–16 bars fit with every
+// date still printed at the chart's current width (changed from 4 pages of
+// 7–8 bars on 2026-10-14: the user found 7 bars too little context — a
+// fortnight is a natural reading unit and the axis labels still clear at 15).
+//
+// Two pages, not "every 15 days": a 31-day month would otherwise be three
+// pages, the last holding just the 31st alone. Dividing into two gives
+// 14/14 in February and 16/15 in a long month — always a fortnight, give or
+// take a day, and always the same two tabs.
+export const CHART_PAGES = 2;
+
+// Below this the month is short enough to read in one go (it never happens for
+// a real calendar month — it is the guard that keeps a stub or an empty
+// fixture from being split into four pages of two bars).
+const MIN_PAGED_ROWS = 8;
+
+const pageSize = (total) => Math.ceil(total / CHART_PAGES);
+
+/** How many pages `rows` (one month of days) splits into: 1 or 4. */
+export const chartPageCount = (rows) => (rows.length >= MIN_PAGED_ROWS ? CHART_PAGES : 1);
+
+/** The rows of page `page` (0-based). */
+export const chartPageRows = (rows, page) => {
+  if (rows.length < MIN_PAGED_ROWS) return rows;
+  const size = pageSize(rows.length);
+  const start = Math.min(Math.max(page, 0), CHART_PAGES - 1) * size;
+  return rows.slice(start, start + size);
+};
 
 /**
  * One row per calendar day of `period` ({ year, month }), in order. Days the
@@ -56,10 +186,12 @@ export function fillMonthDays(rows, period, make, key = "date") {
  *
  * The counts are `null`, NOT `0`. Nothing was measured on a day that hasn't
  * happened, and zero would claim it was measured and found empty (the same
- * null-is-not-zero rule as `metric()` in dayStatus.js). It also fixes a visible
- * defect: a Recharts `<Bar radius={[3,3,0,0]}>` with value 0 still paints its
- * rounded cap, so every future day drew a small stub bar and the back half of
- * the month looked like real attendance data. Recharts skips a null outright.
+ * null-is-not-zero rule as `metric()` in dayStatus.js). It also keeps a visible
+ * defect away: a rounded cap gets painted even on a bar whose value is 0, so a
+ * month of future days drew a row of stubs and the back half of the chart
+ * looked like real attendance data. `TrendBar` now refuses to draw at no
+ * height, which covers a real zero too, but the nulls stay — Recharts skips a
+ * null outright, and "not yet" is still not the same fact as "nobody".
  * `trendYAxis` reads these through `Number()`, where null lands on 0, so the
  * axis is unaffected.
  */
@@ -87,20 +219,47 @@ export function leaveCountOf(day) {
 
 export const isSunday = (ymd) => parseYMDLocal(String(ymd || "").slice(0, 10))?.getDay() === 0;
 
+/** Whether a day row has at least one non-null bar. */
+const hasData = (row) =>
+  (row.final_present_count != null && row.final_present_count > 0) ||
+  (row.final_leave_count != null && row.final_leave_count > 0) ||
+  (row.final_absent_count != null && row.final_absent_count > 0);
+
 /**
- * One transparent ReferenceLine per Sunday in `rows`, labelled "SUNDAY".
- * zIndex sits below the bars (300) so the label never hides data.
+ * Sundays in `rows`, rendered two different ways (user decision, 2026-10-14):
+ *
+ * • **With data:** the word "SUNDAY" sits ABOVE the tallest bar in white,
+ *   `isFront` so it paints over the gridlines. The label is a Recharts
+ *   `<ReferenceLine>` whose custom label component positions the text at a
+ *   fixed Y offset above the plot area — not on the bar itself, because
+ *   `viewBox.y` of a ReferenceLine is the plot's top edge (it doesn't know
+ *   the bar height). The white text reads against the coloured bars.
+ *
+ * • **Without data:** the old faint vertical "SUNDAY" behind the empty slot
+ *   (`SundayLabel`), so the weekly off reads as expected.
  */
 export function sundayMarkers(rows, key = "date") {
   return rows
     .filter((row) => isSunday(row[key]))
-    .map((row) => <ReferenceLine key={`sun-${row[key]}`} x={row[key]} stroke="transparent" zIndex={250} label={SundayLabel} />);
+    .map((row) => {
+      const withBars = hasData(row);
+      return (
+        <ReferenceLine
+          key={`sun-${row[key]}`}
+          x={row[key]}
+          stroke="transparent"
+          isFront={withBars}
+          zIndex={withBars ? 350 : 250}
+          label={withBars ? SundayAboveLabel : SundayLabel}
+        />
+      );
+    });
 }
 
 /**
- * The half of the month to open on. The current month opens on the half that
+ * The page of the month to open on. The current month opens on the week that
  * holds today (or the last day on or before it, if today has no row yet); any
- * other month opens on its first half, the natural place to start reading.
+ * other month opens on its first page, the natural place to start reading.
  */
 export function defaultChartPage(rows, period, key = "date") {
   const today = todayYMD();
@@ -110,7 +269,8 @@ export function defaultChartPage(rows, period, key = "date") {
   // but as a string it sorts after "2026-09-29".
   let last = -1;
   rows.forEach((row, i) => { const day = String(row[key] || "").slice(0, 10); if (day && day <= today) last = i; });
-  return last < CHART_PAGE_SIZE ? 0 : chartPageCount(rows) - 1;
+  if (last < 0 || rows.length < MIN_PAGED_ROWS) return 0;
+  return Math.min(Math.floor(last / pageSize(rows.length)), chartPageCount(rows) - 1);
 }
 
 /* ─── Y axis ───────────────────────────────────────────────────────────── */
@@ -123,6 +283,9 @@ export const TREND_BAR_KEYS = ["final_present_count", "final_leave_count", "fina
 const NICE_STEPS = [1, 2, 5];
 const MIN_INTERVALS = 3;
 const MAX_INTERVALS = 6;
+// Up to twelve gridlines is still a readable axis; past that the labels start
+// touching. Below it, every whole number gets its own tick.
+const TICK_PER_UNIT_MAX = 12;
 
 /**
  * Domain and ticks for a daily attendance chart, with headroom above the tallest
@@ -146,6 +309,14 @@ export function trendYAxis(rows, keys = TREND_BAR_KEYS) {
   // One whole person of headroom on a small team; 5% on a big one, so a
   // 200-person org doesn't get a two-pixel gap above a full day.
   const wanted = max + (max <= 10 ? 1 : Math.max(2, Math.ceil(max * 0.05)));
+
+  // A tick per person while they still fit — 1, 2, 3, 4 rather than 0, 2, 4,
+  // 6, 8. The axis counts people, and on a team of eight a reader shouldn't
+  // have to halve a gridline to find out whether a bar is five or six.
+  if (wanted <= TICK_PER_UNIT_MAX) {
+    return { domain: [0, wanted], ticks: Array.from({ length: wanted + 1 }, (_, i) => i) };
+  }
+
   let step = 0;
   let top = Infinity;
   for (let pow = 0; pow < 9; pow += 1) {

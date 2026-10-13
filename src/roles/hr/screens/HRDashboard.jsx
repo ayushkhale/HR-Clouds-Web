@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
@@ -11,8 +11,8 @@ import AttendanceCard from "../../employee/components/AttendanceCard";
 import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
 import { SELF_SERVICE_BASE } from "../../../shared/attendance/paths";
 import { DICTIONARY } from "../../../shared/config/dictionary";
-import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
-import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, leaveCountOf, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
+import { TREND_COLORS, TREND_STROKES } from "../../../shared/attendance/dayStatus";
+import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, leaveCountOf, sundayMarkers, TrendBar, TREND_BAR_MAX_SIZE, TrendTooltip, trendYAxis } from "../../../shared/attendance/trendChartMeta";
 import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { employeeCode, initials, listFrom, num, personName, unwrap } from "../../../shared/attendance/normalize";
@@ -182,7 +182,6 @@ function HRDashboard() {
   const [graph, reloadGraph] = useWidget(() => attendanceAPI.getDashboardGraphData(period.month, period.year), [period.month, period.year]);
   // null = not paged by hand yet, so the chart opens on the half holding today.
   const [chartPage, setChartPage] = useState(null);
-  const chartScrollTimeout = useRef(0);
 
   useEffect(() => { if (!live.loading && !live.error) setLiveAt(new Date()); }, [live.loading, live.error]);
   useEffect(() => { setChartPage(null); }, [period.month, period.year]);
@@ -215,12 +214,10 @@ function HRDashboard() {
   // draw a bar flush with the top gridline.
   const yAxis = trendYAxis(chartData);
 
-  const handleChartWheel = (e) => {
-    const t = Date.now();
-    if (t - chartScrollTimeout.current < 400) return;
-    if ((e.deltaX > 15 || e.deltaY > 15) && safePage < totalChartPages - 1) { setChartPage(safePage + 1); chartScrollTimeout.current = t; }
-    else if ((e.deltaX < -15 || e.deltaY < -15) && safePage > 0) { setChartPage(safePage - 1); chartScrollTimeout.current = t; }
-  };
+  // The chart used to page on a wheel or trackpad swipe. It went: a two-finger
+  // scroll down the dashboard, passing over the chart, silently changed the
+  // week on the way past, and a horizontal nudge on a trackpad did it without
+  // the page moving at all. The arrows are the only way to change the week.
 
   const { today, shift, loading: todayLoading, error: todayError, refresh: refreshToday } = useTodayAttendance();
 
@@ -282,8 +279,11 @@ function HRDashboard() {
               />
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-4">
-                  {[[DICTIONARY.STATUS.PRESENT, TREND_COLORS.present], ["Leave", TREND_COLORS.on_leave], [DICTIONARY.STATUS.ABSENT, TREND_COLORS.absent]].map(([label, dot]) => (
-                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: dot }} /> {label}</span>
+                  {/* Each chip is the bar's fill inside the bar's outline. The
+                      outline isn't decoration: the palest of the three is all
+                      but invisible on a white card without it. */}
+                  {[[DICTIONARY.STATUS.PRESENT, "present"], ["Leave", "on_leave"], [DICTIONARY.STATUS.ABSENT, "absent"]].map(([label, series]) => (
+                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full border" style={{ backgroundColor: TREND_COLORS[series], borderColor: TREND_STROKES[series] }} /> {label}</span>
                   ))}
                 </div>
                 {totalChartPages > 1 && (
@@ -297,7 +297,7 @@ function HRDashboard() {
               {/* mt-4: breathing room between the legend row and the top gridline.
                   The plot is absolutely positioned, so it would paint straight over
                   padding on this wrapper — the gap has to be margin. */}
-              <div className="relative w-full flex-1 min-h-[16rem] mt-4" onWheel={handleChartWheel}>
+              <div className="relative w-full flex-1 min-h-[16rem] mt-4">
                 <div className="absolute inset-0">
                     {graph.loading ? (
                       <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
@@ -310,18 +310,21 @@ function HRDashboard() {
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+                        <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }} barGap={0} barCategoryGap="14%">
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval="preserveStartEnd" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval={0} />
                           {sundayMarkers(chartData)}
                           <YAxis allowDecimals={false} domain={yAxis.domain} ticks={yAxis.ticks} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
-                          <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
-                          <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Tooltip cursor={{ fill: "#f8fafc" }} content={<TrendTooltip />} position={{ y: -10 }} />
+                          {/* A screen says only WHICH series it draws: TrendBar
+                              reads its own fill, outline and cap off the data
+                              key, so HR and the manager can't drift (§2). */}
+                          <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
                           {/* Not expected to work: leave + weekly-off + holiday. The server
                               keeps these out of final_absent_count, so the three bars never
                               double-count a day. */}
-                          <Bar dataKey="final_leave_count" name={DICTIONARY.STATUS.LEAVE_AND_OFF} fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
-                          <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="final_leave_count" name={DICTIONARY.STATUS.LEAVE_AND_OFF} shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
+                          <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}

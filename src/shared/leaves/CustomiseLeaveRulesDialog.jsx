@@ -59,7 +59,7 @@ function policyNote(policyDefault, key, { days = false } = {}) {
   if (!policyDefault) return "";
   const v = policyDefault[key];
   if (v === null || v === undefined) return "";
-  if (days) return `Policy: ${formatDayCount(v, { lower: true, fallback: "0 days" })}`;
+  if (days) return `Policy: ${formatDayCount(v, { lower: true, fallback: "0d" })}`;
   return `Policy: ${v}`;
 }
 

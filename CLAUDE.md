@@ -203,11 +203,13 @@ than typing it on each screen.
 
 **A day is whole or half, never a decimal.** `formatDayCount()`
 (`shared/utils/formatUtils.js`) is the only way to print a day count, in leave,
-comp-off, payout, payroll and attendance alike: `0.5` → **"1 Half Day"**, `2.5` →
-**"2 Days and 1 Half Day"**, with `{ lower: true }` mid-sentence. Never `2.5`,
-`2½` or "2 and a half". The phrase carries its own unit, so a tile or column
-beside it must not add a "days" caption — say "left", "paid", "unpaid". Eight
-hand-rolled copies of this disagreed with each other once; don't write a ninth.
+comp-off, payout, payroll and attendance alike: `0.5` → **"1/2 d"**, `1` →
+**"1d"**, `2.5` → **"2d and 1/2 d"** (shortened 2026-10-13 from the spelled-out
+"2 Days and 1 Half Day", which was three times as wide in a table cell).
+Never `2.5`, `2½` or "2 and a half". The phrase carries its own unit, so a tile
+or column beside it must not add a "days" caption — say "left", "paid",
+"unpaid"; a `fallback` is `"0d"`, not `"0 Days"`. Eight hand-rolled copies of
+this disagreed with each other once; don't write a ninth.
 
 Use `’` (U+2019) in JSX text — `react/no-unescaped-entities` is on.
 

@@ -162,6 +162,39 @@ export const MY_PAY_PATHS = {
 };
 
 /**
+ * Task Assignment routes per workspace (Task module Phases 2–3, #249–#270).
+ *
+ * `mine` is self-service and mounts in every workspace, for the same reason
+ * leave and payslips do: `/tasks/me` accepts any tenant role, so an HR admin
+ * is given work like anyone else and needs a page of their own to do it on.
+ *
+ * `assigned` and `all` are the review pair, and only the two workspaces that
+ * can review have them — an employee never approves anyone's deliverable, so
+ * those pages are absent there rather than mounted and empty (§2).
+ *
+ * `all` deliberately ends in `/all` rather than sitting at `/tasks`: the two
+ * review pages are siblings, and a parent path would keep "All Tasks"
+ * highlighted while you stand on "Tasks I Assigned".
+ */
+export const TASK_PATHS = {
+  employee: {
+    mine: "/dashboard/employee/tasks",
+    assigned: null,
+    all: null,
+  },
+  manager: {
+    mine: "/dashboard/manager/my-tasks",
+    assigned: "/dashboard/manager/tasks/assigned",
+    all: "/dashboard/manager/tasks/all",
+  },
+  hr: {
+    mine: "/dashboard/hr/my-tasks",
+    assigned: "/dashboard/hr/tasks/assigned",
+    all: "/dashboard/hr/tasks/all",
+  },
+};
+
+/**
  * The whole-organisation pages every role can read: the Org Chart and the
  * Company Profile (added 30 Sep 2026). Both endpoints are open to every tenant
  * role and return the same org for all of them, so each workspace mounts the
@@ -191,6 +224,11 @@ export function useMyPayPaths() {
 /** The self-service Documents links for whichever workspace is rendered. */
 export function useMyDocumentPaths() {
   return MY_DOCUMENT_PATHS[useCurrentWorkspace()] || null;
+}
+
+/** The task links for whichever workspace is rendered (`assigned`/`all` are null for an employee). */
+export function useTaskPaths() {
+  return TASK_PATHS[useCurrentWorkspace()] || null;
 }
 
 export function selfServicePath(workspace, page = "history") {

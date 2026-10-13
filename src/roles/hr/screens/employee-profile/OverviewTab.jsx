@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HiCheckCircle, HiExclamationCircle, HiClock, HiTrendingUp, HiCalendar, HiChevronLeft, HiChevronRight,
-  HiLightningBolt, HiRefresh,
+  HiLightningBolt, HiRefresh, HiInformationCircle,
 } from "react-icons/hi";
 import { memberAttendanceApi } from "../../../../shared/attendance/memberAttendance";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
@@ -187,28 +187,41 @@ export default function OverviewTab({ userId, employeeRole, viewer = "hr" }) {
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const ymd = `${period.year}-${String(period.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              // Dense payload: the row carries the reason, so a day is only
-              // synthesized locally when the response is short (an older
-              // backend, or a page that didn't cover this day).
               const record = byDate[ymd] || { date: ymd, status: "not_marked" };
               const chip = dayChip(record, today);
               const late = metric(record.late_minutes);
-              const hint = [
-                fmtDate(ymd, { weekday: "long", day: "numeric", month: "short" }),
-                chip.label,
-                late > 0 ? `${fmtMinutes(late)} late` : "",
-              ].filter(Boolean).join(" · ");
               return (
-                <div
-                  key={day}
-                  title={hint}
-                  className={`w-full aspect-square rounded-md border flex items-center justify-center text-[10px] sm:text-xs font-bold ${chip.heat}`}
-                >
-                  {day}
+                <div key={day} className="relative group flex items-center justify-center">
+                  <div
+                    className={`w-full aspect-square rounded-md border flex items-center justify-center text-[10px] sm:text-xs font-bold transition-all group-hover:scale-105 group-hover:z-10 group-hover:shadow-md cursor-default ${chip.heat}`}
+                  >
+                    {day}
+                  </div>
+                  {/* Horizontal message blob tooltip */}
+                  <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900/95 text-white rounded-xl shadow-xl border border-white/10 backdrop-blur-md text-[10px] font-semibold whitespace-nowrap">
+                      <span className="text-slate-300 font-bold">{fmtDate(ymd, { weekday: "short", day: "numeric", month: "short" })}</span>
+                      <span className="text-slate-500">·</span>
+                      <span className="text-white">{chip.label}</span>
+                      {late > 0 && (
+                        <>
+                          <span className="text-slate-500">·</span>
+                          <span className="text-amber-300 font-bold">{fmtMinutes(late)} late</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="w-2 h-2 bg-slate-900/95 rotate-45 -mt-1 border-r border-b border-white/10" />
+                  </div>
                 </div>
               );
             })}
           </div>
+          {!state.loading && !state.error && (!state.history.length || (num(s.present_days) === 0 && num(s.on_leave_days) === 0 && num(s.absent_days) === 0)) && (
+            <div className="mt-4 p-3 bg-purple-50/50 border border-purple-100/80 rounded-2xl flex items-center gap-2.5 text-xs text-purple-700">
+              <HiInformationCircle className="w-4 h-4 text-purple-600 shrink-0" />
+              <span>No attendance recorded for {label}. Days will update as punches and shifts are logged.</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

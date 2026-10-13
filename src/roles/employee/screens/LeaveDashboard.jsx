@@ -219,12 +219,12 @@ function BalanceCards({ balances }) {
           </div>
           <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
           <div className="flex items-end gap-1 mb-4">
-             <span className="text-2xl font-black tracking-tight text-slate-800 leading-tight">{formatDayCount(b.current_balance, { fallback: "0 Days" })}</span>
+             <span className="text-2xl font-black tracking-tight text-slate-800 leading-tight">{formatDayCount(b.current_balance, { fallback: "0d" })}</span>
              <span className="text-xs font-semibold text-slate-400 mb-0.5 tracking-normal">left</span>
           </div>
           <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[11px] font-semibold text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{formatDayCount(b.total_accrued, { lower: true, fallback: "0 days" })} given so far</span>
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{formatDayCount(b.total_used, { lower: true, fallback: "0 days" })} used</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{formatDayCount(b.total_accrued, { lower: true, fallback: "0d" })} given so far</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{formatDayCount(b.total_used, { lower: true, fallback: "0d" })} used</span>
           </div>
         </div>
       ))}

@@ -88,6 +88,24 @@
 
 
 @layer utilities {
+  /* A full-screen overlay is positioned against the VIEWPORT; it is not part of
+     its parent's stack, so no parent may give it a margin.
+     Every dialog in this app renders inline, wherever the screen happens to
+     mount it, rather than through a portal. Mount one as a later child of a
+     `space-y-*` column — which is what most screens are — and Tailwind's
+     `.space-y-5 > :not([hidden]) ~ :not([hidden])` lands a `margin-top: 20px`
+     on `fixed inset-0`. The dim layer then starts 20px down the screen and the
+     page header shows through above it, in a bright strip across the top. It
+     is also 20px short at the bottom, so the overlay no longer covers what it
+     is meant to block. The client-site form showed this (2026-10-13); roughly
+     a hundred other dialogs are one `space-y-*` parent away from the same bug.
+     `!important` is needed, not laziness: the space-y selector carries two
+     attribute selectors and outscores `.fixed.inset-0`. Nothing that fills the
+     viewport ever wants a margin, so there is no case this rule gets wrong. */
+  .fixed.inset-0 {
+    margin: 0 !important;
+  }
+
   /* Hides the scrollbar on a strip that carries its own affordances (arrows and
      edge fades) — the profile tab strip, the document tab rows, the sticky
      profile column. It was used in half a dozen places before it was ever

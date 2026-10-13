@@ -233,7 +233,7 @@ function EmployeeDashboard() {
                           {sundayMarkers(chartData)}
                           <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={AXIS_TICK} tickFormatter={(v) => `${v}h`} />
                           <Tooltip cursor={{ fill: "#f8fafc" }} content={<HoursTooltip />} />
-                          <Bar dataKey="hours" name="Hours worked" fill={HOURS_BAR} maxBarSize={12} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="hours" name="Hours worked" fill={HOURS_BAR} maxBarSize={18} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
