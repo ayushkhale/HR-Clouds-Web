@@ -210,6 +210,18 @@ export default function TaskDetailDialog({ task: initial, plane = "me", onClose,
     return null;
   })();
 
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState("overview");
+  const showActivity = adapter.showsAudit || adapter.showsNotifications;
+  const fileCount = attachments.length + links.length;
+
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "discussion", label: "Discussion" },
+    { id: "files", label: "Files", count: fileCount },
+    ...(showActivity ? [{ id: "activity", label: "Activity", count: auditLogs.length + notifications.length }] : []),
+  ];
+
   return (
     <DetailDialog
       eyebrow="Task"
@@ -228,105 +240,134 @@ export default function TaskDetailDialog({ task: initial, plane = "me", onClose,
     >
       {error && <InlineAlert tone="rose">{error}</InlineAlert>}
 
-      {/* The brief comes FIRST, before the tiles, and does not collapse. It is
-          the one thing a person opens a task to read; underneath three stat
-          tiles and a chevron it read as a footnote to its own deadline. The
-          tiles are the facts about the task — they follow it. */}
-      <DetailSection title="What needs to be done" icon={HiPencilAlt} collapsible={false}>
-        <TaskBrief description={task?.description} />
-      </DetailSection>
+      {/* Tab strip: short labels, never wraps, scrolls if it must. */}
+      <div className="overflow-x-auto no-scrollbar -mx-6 px-6 border-b border-slate-200 mb-4">
+        <div className="flex gap-1 min-w-0">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`shrink-0 px-4 py-2.5 text-xs font-bold tracking-wide transition-colors whitespace-nowrap border-b-2 ${
+                tab === t.id
+                  ? "border-purple-600 text-purple-700"
+                  : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span className={`ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                  tab === t.id ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <DetailStats items={stats} />
+      {/* ── Overview ──────────────────────────────────────────────────────── */}
+      {tab === "overview" && (
+        <>
+          <DetailSection title="What needs to be done" icon={HiPencilAlt} collapsible={false}>
+            <TaskBrief description={task?.description} />
+          </DetailSection>
 
-      <DetailSection title="Who and when" icon={HiUserGroup}>
-        <DetailGrid items={people} cols={4} />
-      </DetailSection>
+          <DetailStats items={stats} />
 
-      <DetailSection title="How it’s going" icon={HiRefresh}>
-        <DetailGrid items={progress} cols={4} />
-      </DetailSection>
+          <DetailSection title="Who and when" icon={HiUserGroup}>
+            <DetailGrid items={people} cols={4} />
+          </DetailSection>
 
-      {deadlineRows && (
-        <DetailSection title="The deadline has moved" icon={HiCalendar}>
-          <DetailGrid items={deadlineRows} cols={3} />
-        </DetailSection>
+          <DetailSection title="How it’s going" icon={HiRefresh}>
+            <DetailGrid items={progress} cols={4} />
+          </DetailSection>
+
+          {deadlineRows && (
+            <DetailSection title="The deadline has moved" icon={HiCalendar}>
+              <DetailGrid items={deadlineRows} cols={3} />
+            </DetailSection>
+          )}
+
+          {task?.cancellation_reason && (
+            <DetailSection title="Why it was called off" icon={HiBan}>
+              <DetailText>{task.cancellation_reason}</DetailText>
+            </DetailSection>
+          )}
+
+          {closedRows && (
+            <DetailSection title={String(task?.status).toLowerCase() === "completed" ? "Signed off" : "Called off"} icon={HiCheckCircle}>
+              <DetailGrid items={closedRows} cols={3} />
+            </DetailSection>
+          )}
+        </>
       )}
 
-      {task?.cancellation_reason && (
-        <DetailSection title="Why it was called off" icon={HiBan}>
-          <DetailText>{task.cancellation_reason}</DetailText>
-        </DetailSection>
+      {/* ── Discussion ────────────────────────────────────────────────────── */}
+      {tab === "discussion" && (
+        <TaskDiscussion task={task} plane={plane} onPosted={load} />
       )}
 
-      {closedRows && (
-        <DetailSection title={String(task?.status).toLowerCase() === "completed" ? "Signed off" : "Called off"} icon={HiCheckCircle}>
-          <DetailGrid items={closedRows} cols={3} />
-        </DetailSection>
+      {/* ── Files ─────────────────────────────────────────────────────────── */}
+      {tab === "files" && (
+        <>
+          <DetailSection title={`Attachments${attachments.length ? ` (${attachments.length})` : ""}`} icon={HiPaperClip} collapsible={false}>
+            <AttachmentTable attachments={attachments} />
+          </DetailSection>
+
+          <DetailSection title={`Reference links${links.length ? ` (${links.length})` : ""}`} icon={HiPaperClip} defaultOpen={links.length > 0}>
+            <TaskLinkList links={links} />
+          </DetailSection>
+        </>
       )}
 
-      {/* The conversation sits after everything that states a fact about the
-          task and before the artefacts it refers to, because it is the only
-          section a reader can ACT in — and it is never folded by default for
-          the same reason: a collapsed discussion hides the only way to say
-          something. Its own files and links are the ones on the messages; the
-          two sections below are the task's. */}
-      <TaskDiscussion task={task} plane={plane} onPosted={load} />
+      {/* ── Activity (HR only) ────────────────────────────────────────────── */}
+      {tab === "activity" && showActivity && (
+        <>
+          {adapter.showsAudit && (
+            <DetailSection
+              title={`Everything that has happened${auditLogs.length ? ` (${auditLogs.length})` : ""}`}
+              icon={HiDatabase}
+              collapsible={false}
+              help={help("audit_logs")}
+            >
+              <DetailTable
+                columns={[
+                  { header: "What happened", render: (row) => taskAuditActionLabel(row.action) },
+                  { header: "Who", render: (row) => personNameOrNA(row.actor) },
+                  { header: "When", render: (row) => fmtDateTime(row.created_at) },
+                  {
+                    header: "Moved it to",
+                    render: (row) => (row.to_status ? taskStatusLabel(row.to_status) : null),
+                  },
+                ]}
+                rows={auditLogs}
+                empty="Nothing recorded yet."
+              />
+            </DetailSection>
+          )}
 
-      <DetailSection title={`Reference links${links.length ? ` (${links.length})` : ""}`} icon={HiPaperClip} defaultOpen={links.length > 0}>
-        <TaskLinkList links={links} />
-      </DetailSection>
-
-      <DetailSection
-        title={`Files${attachments.length ? ` (${attachments.length})` : ""}`}
-        icon={HiPaperClip}
-        defaultOpen={attachments.length > 0}
-      >
-        <AttachmentTable attachments={attachments} />
-      </DetailSection>
-
-      {/* HR only: #267 is the one read that returns these. The other planes get
-          no empty section — a capability a role lacks is absent, not blank. */}
-      {adapter.showsAudit && (
-        <DetailSection
-          title={`Everything that has happened${auditLogs.length ? ` (${auditLogs.length})` : ""}`}
-          icon={HiDatabase}
-          defaultOpen={false}
-          help={help("audit_logs")}
-        >
-          <DetailTable
-            columns={[
-              { header: "What happened", render: (row) => taskAuditActionLabel(row.action) },
-              { header: "Who", render: (row) => personNameOrNA(row.actor) },
-              { header: "When", render: (row) => fmtDateTime(row.created_at) },
-              {
-                header: "Moved it to",
-                render: (row) => (row.to_status ? taskStatusLabel(row.to_status) : null),
-              },
-            ]}
-            rows={auditLogs}
-            empty="Nothing recorded yet."
-          />
-        </DetailSection>
-      )}
-
-      {adapter.showsNotifications && (
-        <DetailSection
-          title={`Emails about this task${notifications.length ? ` (${notifications.length})` : ""}`}
-          icon={HiMail}
-          defaultOpen={false}
-          help={help("notifications")}
-        >
-          <DetailTable
-            columns={[
-              { header: "What was sent", render: (row) => taskNotificationEventLabel(row.event_type) },
-              { header: "How it went", render: (row) => taskNotificationStatusLabel(row.status) },
-              { header: "Sent on", render: (row) => (row.sent_at ? fmtDateTime(row.sent_at) : null) },
-              { header: "Tries", render: (row) => displayValue(row.attempts), align: "right" },
-            ]}
-            rows={notifications}
-            empty="No emails queued for this task."
-          />
-        </DetailSection>
+          {adapter.showsNotifications && (
+            <DetailSection
+              title={`Emails about this task${notifications.length ? ` (${notifications.length})` : ""}`}
+              icon={HiMail}
+              defaultOpen={false}
+              help={help("notifications")}
+            >
+              <DetailTable
+                columns={[
+                  { header: "What was sent", render: (row) => taskNotificationEventLabel(row.event_type) },
+                  { header: "How it went", render: (row) => taskNotificationStatusLabel(row.status) },
+                  { header: "Sent on", render: (row) => (row.sent_at ? fmtDateTime(row.sent_at) : null) },
+                  { header: "Tries", render: (row) => displayValue(row.attempts), align: "right" },
+                ]}
+                rows={notifications}
+                empty="No emails queued for this task."
+              />
+            </DetailSection>
+          )}
+        </>
       )}
     </DetailDialog>
   );
