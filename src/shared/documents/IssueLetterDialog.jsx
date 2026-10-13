@@ -73,18 +73,46 @@ import LetterPreviewDialog from "./LetterPreviewDialog";
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 
-/** A titled block of the form. Same look as the Create Attendance Policy sections. */
-function Step({ n, title, blurb, children }) {
+/**
+ * A titled block of the form. Same look as the Create Attendance Policy sections.
+ *
+ * Passing `onToggle` makes the step fold, which exists for one reason: the letter
+ * catalog is the tallest thing on this form and is answered once, in the first
+ * second. Folding it on a pick puts "who it is for" and the date on screen
+ * without a scroll, and `summary` keeps the answer visible so the fold never
+ * hides what was chosen.
+ */
+function Step({ n, title, blurb, summary, open = true, onToggle, children }) {
+  const collapsible = typeof onToggle === "function";
   return (
     <section>
       <div className="flex items-baseline gap-2.5 mb-3">
         <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-[11px] font-bold flex items-center justify-center shrink-0 tabular-nums">{n}</span>
-        <div className="min-w-0">
-          <h3 className="text-sm font-bold text-slate-800">{title}</h3>
-          {blurb && <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{blurb}</p>}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-800 shrink-0">{title}</h3>
+            {collapsible && !open && summary && (
+              <span className="inline-flex items-center gap-1.5 min-w-0 text-xs font-bold text-purple-700">
+                <HiDocumentText className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{summary}</span>
+              </span>
+            )}
+            {collapsible && (
+              <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={open}
+                className="ml-auto inline-flex items-center gap-1 shrink-0 text-[11px] font-bold text-purple-600 hover:text-purple-700 hover:underline"
+              >
+                {open ? "Hide" : "Change"}
+                <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+              </button>
+            )}
+          </div>
+          {blurb && open && <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{blurb}</p>}
         </div>
       </div>
-      <div className="pl-0 sm:pl-[34px]">{children}</div>
+      {open && <div className="pl-0 sm:pl-[34px]">{children}</div>}
     </section>
   );
 }
@@ -122,6 +150,11 @@ export default function IssueLetterDialog({
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
   const [previewing, setPreviewing] = useState(false);
+  // The catalog is the tallest step and is answered once, in the first second,
+  // so it folds on a pick. Derived rather than raw: it must never read as
+  // folded while nothing is chosen, or dropping a preselected letter that turns
+  // out not to be issuable would hide the catalog with no way back to it.
+  const [pickerFolded, setPickerFolded] = useState(!!templateCode);
   // Fields the server has refused as an override for this letter. Held in state
   // rather than read out of the session memory inside the memo, so React can see
   // it change — a memo over hidden mutable state never invalidates, and the box
@@ -251,6 +284,7 @@ export default function IssueLetterDialog({
   }, [fields, values, issuedOn, saved]);
 
   const chosenRow = useMemo(() => issuable.find((row) => row.code === code) || null, [issuable, code]);
+  const pickerOpen = !code || !pickerFolded;
   const person = useMemo(
     () => people.find((p) => (p.user_id ?? p.id) === subject) || null,
     [people, subject],
@@ -448,13 +482,37 @@ export default function IssueLetterDialog({
               </div>
             ) : (
               <>
-                <Step n={1} title="Which letter" blurb="Only the letters your organisation has switched on can be issued.">
-                  <LetterPicker
-                    rows={issuable}
-                    code={code}
-                    busy={busy}
-                    onPick={(c) => { setCode(c); setValues({}); setFailure(null); }}
-                  />
+                <Step
+                  n={1}
+                  title="Which letter"
+                  blurb="Only the letters your organisation has switched on can be issued."
+                  summary={letterTitle(chosenRow)}
+                  open={pickerOpen}
+                  onToggle={code ? () => setPickerFolded((f) => !f) : undefined}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    {issuable.map((row) => {
+                      const picked = row.code === code;
+                      return (
+                        <button
+                          key={row.code}
+                          type="button"
+                          onClick={() => { setCode(row.code); setValues({}); setFailure(null); setPickerFolded(true); }}
+                          aria-pressed={picked}
+                          disabled={busy}
+                          className={`text-left rounded-xl border px-4 py-3 transition disabled:opacity-60 ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <HiDocumentText className={`w-4 h-4 shrink-0 ${picked ? "text-purple-600" : "text-slate-400"}`} />
+                            <span className="text-sm font-bold text-slate-800 truncate">{letterTitle(row)}</span>
+                          </span>
+                          <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">
+                            {row.has_saved_fields ? "Your saved wording is filled in automatically." : "Uses the standard wording."}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </Step>
 
                 <Step n={2} title="Who it is for" blurb="Everything about them — their name, job title, dates — is taken from their record, exactly as it stands today.">
@@ -818,108 +876,6 @@ function FactList({ fields }) {
           </span>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ── Letter picker with grouped, collapsible 4-col grid ─────────────────────
-// Groups are derived from the template code: `salary_revision_letter` → "Salary",
-// `experience_letter` → "Employment". A one-group catalog skips the header entirely.
-
-const GROUP_KEYWORDS = [
-  { match: /salary|compensation|ctc|increment|appraisal|revision|hike/i, label: "Salary" },
-  { match: /offer|appointment|joining|probation|confirmation/i, label: "Onboarding" },
-  { match: /experience|relieving|service|employment|separation|termination|resignation|exit/i, label: "Employment" },
-  { match: /warning|show_cause|pip|disciplinary|suspension|misconduct/i, label: "Disciplinary" },
-  { match: /transfer|relocation|deputation|secondment/i, label: "Transfer" },
-  { match: /promotion|redesignation|role_change/i, label: "Promotion" },
-  { match: /bonus|reward|incentive|recognition/i, label: "Rewards" },
-  { match: /intern|trainee|stipend/i, label: "Internship" },
-  { match: /noc|no_objection|clearance|address_proof|bank/i, label: "Certificates" },
-];
-
-function groupLabel(row) {
-  const haystack = `${row.code || ""} ${row.title || ""}`;
-  for (const g of GROUP_KEYWORDS) { if (g.match.test(haystack)) return g.label; }
-  return "Other";
-}
-
-function groupedTemplates(rows) {
-  const map = new Map();
-  for (const row of rows) {
-    const label = groupLabel(row);
-    if (!map.has(label)) map.set(label, []);
-    map.get(label).push(row);
-  }
-  return [...map.entries()].map(([label, items]) => ({ label, items }));
-}
-
-function LetterPicker({ rows, code, busy, onPick }) {
-  const groups = useMemo(() => groupedTemplates(rows), [rows]);
-  const singleGroup = groups.length <= 1;
-  const [collapsed, setCollapsed] = useState(new Set());
-
-  const toggle = (label) => setCollapsed((prev) => {
-    const next = new Set(prev);
-    if (next.has(label)) next.delete(label); else next.add(label);
-    return next;
-  });
-
-  const pick = (c, label) => {
-    onPick(c);
-    if (!singleGroup) setCollapsed((prev) => new Set([...prev, label]));
-  };
-
-  return (
-    <div className="space-y-3">
-      {groups.map((g) => {
-        const isOpen = !collapsed.has(g.label);
-        const selectedInGroup = g.items.some((r) => r.code === code);
-        return (
-          <div key={g.label}>
-            {!singleGroup && (
-              <button
-                type="button"
-                onClick={() => toggle(g.label)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition text-left"
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-bold text-slate-700">{g.label}</span>
-                  <span className="text-[10px] text-slate-400">{g.items.length}</span>
-                  {!isOpen && selectedInGroup && (
-                    <span className="text-[10px] font-bold text-purple-600">
-                      {letterTitle(g.items.find((r) => r.code === code))}
-                    </span>
-                  )}
-                </span>
-                <HiChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-              </button>
-            )}
-            {isOpen && (
-              <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 ${singleGroup ? "" : "mt-2"}`}>
-                {g.items.map((row) => {
-                  const picked = row.code === code;
-                  return (
-                    <button
-                      key={row.code}
-                      type="button"
-                      onClick={() => pick(row.code, g.label)}
-                      aria-pressed={picked}
-                      disabled={busy}
-                      className={`text-left rounded-xl border px-3 py-2.5 transition disabled:opacity-60 ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <HiDocumentText className={`w-4 h-4 shrink-0 ${picked ? "text-purple-600" : "text-slate-400"}`} />
-                        <span className="text-xs font-bold text-slate-800 truncate">{letterTitle(row)}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
