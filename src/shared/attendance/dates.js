@@ -238,16 +238,25 @@ export function workedLabel(record, fallback = "0m") {
 
 // The server writes "8h 0m" and "0h 0m"; fmtMinutes writes "8h" and "0m". The
 // same day showed both ways on the dashboard and on My Attendance.
+//
+// A NEGATIVE one is clamped to "0m" (employee audit E-02, 2026-10-14): on a day
+// whose breaks outlast the punches the server sends `effective_hours: -0.04`
+// and `worked_duration_formatted: "-1h 58m"`. `fmtHours` has always clamped the
+// number, but the preferred string skipped past the old pattern — it needed a
+// digit first — and "-1h 58m" reached the screen verbatim. Nobody works a
+// negative duration; it reads as no measured time, same as the fallback.
 function tidyDuration(text) {
-  const m = /^(\d+)h (\d+)m$/.exec(text);
-  if (!m) return text;
-  return fmtMinutes(Number(m[1]) * 60 + Number(m[2]), "0m");
+  const m = /^(-)?(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?$/.exec(text.trim());
+  if (!m || (m[2] === undefined && m[3] === undefined)) return text;
+  return fmtMinutes(m[1] ? 0 : Number(m[2] || 0) * 60 + Number(m[3] || 0), "0m");
 }
 
 /** A month's total worked time: `total_worked_duration_formatted`, else `total_hours_worked`. */
 export function totalWorkedLabel(summary, fallback = "0m") {
   const text = typeof summary?.total_worked_duration_formatted === "string" ? summary.total_worked_duration_formatted.trim() : "";
-  if (text) return text;
+  // Through the same tidier as a day's label: one house shape for both, and a
+  // month whose days include a negative one can total below zero too.
+  if (text) return tidyDuration(text);
   return fmtHours(summary?.total_hours_worked, fallback);
 }
 

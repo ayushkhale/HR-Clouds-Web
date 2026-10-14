@@ -11,6 +11,7 @@ import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -147,14 +148,17 @@ export default function TeamSalaryPage() {
     setSubmitting(true);
     try {
       const id = memberId(proposeMember);
-      if (!id) throw new Error("Couldn't tell who this proposal is for. Reload the page and try again.");
+      if (!id || typeof id !== "string" || !id.trim()) throw new Error("Couldn't tell who this proposal is for. Reload the page and try again.");
+      const ctc = parseFloat(form.annual_ctc);
+      if (!Number.isFinite(ctc) || ctc <= 0) throw new Error("Enter a valid annual CTC amount.");
       await payrollAPI.proposeTeamMemberStructure(id, {
-        annual_ctc: form.annual_ctc,
+        annual_ctc: ctc,
         effective_from: form.effective_from,
         revision_type: form.revision_type,
         revision_reason: form.revision_reason.trim(),
       });
       showToast("Revision proposed — awaiting HR approval");
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id, action: "propose" });
       setProposeMember(null);
       if (tab === "proposals") loadProposals();
     } catch (err) {
@@ -169,6 +173,7 @@ export default function TeamSalaryPage() {
     try {
       await payrollAPI.cancelMyProposal(p.id);
       showToast("Proposal cancelled");
+      emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id: p.id, action: "cancel" });
       loadProposals();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to cancel proposal"), "error");

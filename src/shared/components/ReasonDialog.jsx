@@ -19,6 +19,10 @@ const MAX_LENGTH = 1000;
  * @param {string} [props.confirmLabel]
  * @param {"primary"|"danger"} [props.tone]
  * @param {number} [props.minLength]             trimmed length required
+ * @param {boolean} [props.optional]             the note is not required: drops the
+ *   asterisk and the minimum, and submits "" when left blank. For an action the
+ *   server accepts without a reason but records one when given (approving a task
+ *   deliverable, #259) — the alternative was a second near-identical dialog.
  * @param {number} [props.maxLength]             the server's cap (default 1000)
  * @param {boolean} [props.busy]
  * @param {string} [props.error]                 server error to show inline
@@ -35,6 +39,7 @@ export default function ReasonDialog({
   confirmLabel = "Confirm",
   tone = "primary",
   minLength = 3,
+  optional = false,
   maxLength = MAX_LENGTH,
   busy = false,
   error = "",
@@ -73,7 +78,8 @@ export default function ReasonDialog({
   }, []);
 
   const trimmed = reason.trim();
-  const tooShort = trimmed.length < minLength;
+  const required = optional ? 0 : minLength;
+  const tooShort = trimmed.length < required;
   const disabled = busy || tooShort || !canSubmit;
 
   const submit = (e) => {
@@ -113,7 +119,7 @@ export default function ReasonDialog({
           {children}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">
-              {label} <span className="text-rose-500">*</span>
+              {label} {optional ? <span className="text-slate-400 normal-case font-semibold">(optional)</span> : <span className="text-rose-500">*</span>}
             </label>
             <textarea
               ref={fieldRef}
@@ -127,7 +133,7 @@ export default function ReasonDialog({
             />
             <div className="flex items-center justify-between mt-1.5 text-[11px]">
               <span className={touched && tooShort ? "text-rose-600 font-semibold" : "text-slate-400"}>
-                {touched && tooShort ? `Please write at least ${minLength} characters.` : "This is saved in the audit log."}
+                {touched && tooShort ? `Please write at least ${required} characters.` : "This is saved in the audit log."}
               </span>
               <span className="text-slate-400 tabular-nums">{reason.length}/{maxLength}</span>
             </div>

@@ -63,21 +63,33 @@ function breakdownOf(structure) {
     .slice()
     .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || String(a.component_name).localeCompare(String(b.component_name)));
   const sum = (arr, key) => arr.reduce((s, c) => s + amount(c[key]), 0);
-  const earnings = comps.filter((c) => c.component_type === "earning");
+  // Display buckets: anything that is not a deduction is an earning line, which
+  // is how the shared SalaryStructurePanel splits the same structure for HR and
+  // the manager (role parity). An `employer_contribution` component was dropped
+  // from both tables while `figures.monthly_gross` still counted it, so the
+  // Earnings heading read a total above the rows under it and the employee saw
+  // one component fewer than HR did for the same structure (employee audit E-08).
+  const earnings = comps.filter((c) => c.component_type !== "deduction");
   const deductions = comps.filter((c) => c.component_type === "deduction");
+  // Gross and the take-home estimate fall back on contractual cash only: an
+  // employer contribution never reaches the bank, so it must not inflate a
+  // take-home figure on the no-statutory path below.
+  const cashEarnings = comps.filter((c) => c.component_type === "earning");
   const statutory = normalizeStatutory(structure);
   const componentDeductions = sum(deductions, "monthly_amount");
   // One derivation shared with StatutoryBreakdownPanel, so the headline cards
   // and the panel below them can never show different take-home figures.
   const totals = statutoryTotals(statutory, {
-    monthlyGross: amount(structure?.monthly_gross) || sum(earnings, "monthly_amount"),
+    monthlyGross: amount(structure?.monthly_gross) || sum(cashEarnings, "monthly_amount"),
     componentDeductions,
   });
   const { gross: monthlyGross, deductions: monthlyDeductions, statutoryDeductions, net: monthlyNet } = totals;
-  const annualGross = sum(earnings, "annual_amount");
+  const annualGross = sum(cashEarnings, "annual_amount");
+  // The earnings table's own total, which must equal the rows it heads.
+  const monthlyEarnings = sum(earnings, "monthly_amount");
   const annualDeductions = sum(deductions, "annual_amount");
   return {
-    earnings, deductions, comps, statutory,
+    earnings, deductions, comps, statutory, monthlyEarnings,
     monthlyGross, annualGross, monthlyDeductions, annualDeductions,
     componentDeductions, statutoryDeductions,
     monthlyNet,
@@ -328,12 +340,12 @@ export default function MySalaryPage() {
                       <p className="text-[11px] text-purple-100 mt-0.5">{takeHomeHint(breakdown)}</p>
                     </div>
                     {[
-                      ["Gross / month", formatMoney(breakdown.monthlyGross), `${breakdown.earnings.length} earning${breakdown.earnings.length === 1 ? "" : "s"}`],
+                      ["Gross / month", formatMoney(breakdown.monthlyGross), `${breakdown.earnings.length} earning${breakdown.earnings.length === 1 ? "" : "s"}`, "monthly_gross"],
                       ["Deductions / month", `− ${formatMoney(breakdown.monthlyDeductions)}`, deductionHint(breakdown)],
                       ["Take-home / year", formatMoney(breakdown.annualNet), breakdown.statutory ? "Estimated at this month's rate" : "Before PF, ESI, tax and variable pay"],
-                    ].map(([label, value, hint]) => (
+                    ].map(([label, value, hint, helpField]) => (
                       <div key={label} className="rounded-2xl border border-slate-200/80 bg-white px-5 py-4">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{helpField ? <HelpLabel text={label} help={{ surface: "payroll.my_salary", field: helpField, label: "gross pay" }} /> : label}</p>
                         <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{value}</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>
                       </div>
@@ -349,7 +361,7 @@ export default function MySalaryPage() {
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-bold text-slate-800">Earnings</h3>
-                            <span className="text-xs font-bold text-purple-700 tabular-nums">{formatMoney(breakdown.monthlyGross)} / month</span>
+                            <span className="text-xs font-bold text-purple-700 tabular-nums">{formatMoney(breakdown.monthlyEarnings)} / month</span>
                           </div>
                           <ComponentTable rows={breakdown.earnings} />
                         </div>
@@ -519,7 +531,7 @@ export default function MySalaryPage() {
             )}
 
             {/* The long tables start folded; their totals are in the headers. */}
-            <DetailSection title={`Earnings · ${formatMoney(b.monthlyGross)} / month`} icon={HiTrendingUp} defaultOpen={false}>
+            <DetailSection title={`Earnings · ${formatMoney(b.monthlyEarnings)} / month`} icon={HiTrendingUp} defaultOpen={false}>
               <ComponentTable rows={b.earnings} />
             </DetailSection>
 

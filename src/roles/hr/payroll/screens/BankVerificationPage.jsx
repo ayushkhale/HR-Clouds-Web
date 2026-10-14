@@ -91,7 +91,7 @@ async function fetchAllBankAccounts() {
 
 const STATE = {
   verified: { label: "Verified", pill: "bg-violet-50 text-violet-700 border-violet-200" },
-  unverified: { label: "Awaiting verification", pill: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
+  unverified: { label: "Awaiting verification", pill: "bg-rose-50 text-rose-700 border-rose-200 font-bold" },
   none: { label: "No account on file", pill: "bg-slate-50 text-slate-500 border-slate-200" },
   error: { label: "Couldn't load", pill: "bg-rose-50 text-rose-600 border-rose-200" },
   loading: { label: "Checking…", pill: "bg-slate-50 text-slate-400 border-slate-200" },
@@ -313,7 +313,7 @@ export default function BankVerificationPage() {
           {[
             { key: "", label: "All employees", value: employees.length, tone: "text-slate-800" },
             { key: "verified", label: "Verified", value: counts.verified, tone: "text-violet-600" },
-            { key: "unverified", label: "Awaiting", value: counts.unverified, tone: "text-fuchsia-600" },
+            { key: "unverified", label: "Awaiting", value: counts.unverified, tone: counts.unverified > 0 ? "text-rose-600 font-bold" : "text-slate-600" },
             { key: "none", label: "No account", value: counts.none, tone: "text-slate-500" },
           ].map((t) => (
             <button
@@ -353,9 +353,13 @@ export default function BankVerificationPage() {
                   {rows.map((u) => {
                     const id = userId(u);
                     const acct = acctByUser[id];
-                    const state = accountState(acct, accountsFailed);
+                    const isPending = state === "unverified";
                     return (
-                      <tr key={id} {...rowPreviewProps(() => openPreview(u), `View ${userName(u)}'s bank account`)}>
+                      <tr
+                        key={id}
+                        {...rowPreviewProps(() => openPreview(u), `View ${userName(u)}'s bank account`)}
+                        className={`transition-colors ${isPending ? "bg-rose-50/30 hover:bg-rose-50/50" : "hover:bg-slate-50/50"}`}
+                      >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <span className="w-9 h-9 rounded-full overflow-hidden shrink-0 text-xs"><GenderAvatar person={u} name={userName(u)} /></span>

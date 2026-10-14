@@ -41,18 +41,43 @@
 //    Everything typed in survives, because re-entering it all would be the
 //    one thing guaranteed to make somebody start clicking.
 //
+//  · THE PREVIEW IS ONE PERSON'S, AND IT SAYS SO. #271 draws a real letter for
+//    ONE subject, so a batch can only ever be previewed through one of its
+//    recipients — the first one chosen. That is still the check worth doing:
+//    what differs between the copies is read from each person's own record, so
+//    the wording, the layout and the overrides typed in here are exactly what
+//    everyone gets. The preview names whose letter it is and how many others
+//    are in the batch, because "I previewed it and it was right" must never
+//    come to mean "every copy was checked". Before anybody is chosen, #138's
+//    made-up sample is all that can be drawn, and it says so too.
+//
 //  · AND THERE IS A SWITCH ABOVE BOTH (30 Sep 2026). Ops can pause every
 //    "whole set of PDFs" call with one flag; #143 then answers `503
 //    PDF_BULK_GENERATION_DISABLED` before reading anything. Nothing advertises
 //    it, so the first refusal is remembered for the session
 //    (shared/pdf/bulkGeneration.js): the form says it's paused, Send is off,
 //    and it is never retried on its own. Batches accepted earlier still finish.
+//
+//  · NEITHER BUTTON CALLS AN UNFINISHED FORM (14 Oct 2026, CLAUDE.md §11).
+//    Send and the preview send the same overrides to endpoints that validate
+//    them identically, so both check before calling and take the person to the
+//    first box that needs them — the preview used to fire regardless and come
+//    back a 400 phrased in payload keys, which is the bug that wrote §11. It
+//    matters most here: #143 reads nothing and queues NOBODY if one detail is
+//    wrong. The hourly allowance and the platform pause above still disable
+//    Send, because no amount of typing fixes either.
+//
+// STEP 1 AND THE NUMBERED BLOCKS ARE SHARED with the single-issue form, in
+// LetterCatalogStep.jsx and LetterFormStep.jsx — the two are one product seen
+// twice, and the copies here had drifted (no search, no fold, two cards across
+// instead of four) while still carrying the comment that said they matched.
+// Change the shared file, not one caller.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiBadgeCheck, HiCalendar, HiChartBar, HiClock, HiDocumentText, HiExclamationCircle,
+  HiBadgeCheck, HiCalendar, HiChartBar, HiClock, HiExclamationCircle, HiEye,
   HiInformationCircle, HiMail, HiPaperAirplane, HiRefresh, HiUserGroup, HiX,
 } from "react-icons/hi";
 import { PersonMultiSelect } from "../components/PersonPicker";
@@ -61,22 +86,42 @@ import { departmentName } from "../attendance/normalize";
 import { todayYMD } from "../attendance/dates";
 import {
   bulkSubjectLimit, bulkValidationFailures, documentErrorMessage, isBulkRateLimited,
-  isBulkValidationFailed, isRendererNotConfigured, letterIssueErrorMessage, retryAfterSeconds,
+  isBulkValidationFailed, isFeatureNotDeployed, isLetterFieldRejected, isRendererNotConfigured,
+  letterErrorFieldKey, letterIssueErrorMessage, retryAfterSeconds,
 } from "../utils/documentErrors";
-import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
+import { focusFirstProblem, hasProblems } from "../utils/formGuard";
+import { FIELD, FIELD_INVALID, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { letterTemplateOf, letterTemplatesOf, letterTitle } from "./letterMeta";
 import {
   issueDateMax, issueDateMin, issueDateNote, issueDateProblem, letterOverridableFields, onlyRequiredMissing,
-  overrideProblems, overridesFromSaved, overridesPayload, refusedFields,
+  overrideProblems, overrideValueProblems, overridesFromSaved, overridesPayload, refusedFields,
+  rememberNotOverridable,
 } from "./letterIssueMeta";
+import LetterCatalogStep from "./LetterCatalogStep";
+import Step from "./LetterFormStep";
 import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
 import LetterFixLink from "./LetterFixLink";
+import LetterPreviewDialog from "./LetterPreviewDialog";
 import { BULK_PAUSED_NOTE, markBulkGenerationAvailable, noteBulkRefusal, useBulkGenerationPaused } from "../pdf/bulkGeneration";
 import { BULK_MAX_SUBJECTS_FALLBACK, bulkBatchOf, cooldownLabel } from "./letterProposalMeta";
 
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
 const AUTOMATION_PATH = "/dashboard/hr/documents/automation";
+
+// The two answers that are not a box, written once: each is the blocking
+// message, the red line under its own control AND the footer note. Worded for
+// a batch, which is the only thing this form says differently from its sibling.
+const PICK_LETTER = "Choose which letter you are sending.";
+const PICK_PEOPLE = "Choose who it goes to.";
+
+/**
+ * Where each problem key lives on screen, for the form guard (CLAUDE.md §11).
+ * The `_`-prefixed keys are the form's own; everything else is one of the
+ * letter's own fields, which LetterOverrideFields ids as `bl-<payload key>`.
+ */
+const OWN_FIELD_IDS = { _code: "bl-letters", _subjects: "bl-people", _date: "bl-date" };
+const idOfProblem = (key) => OWN_FIELD_IDS[key] || `bl-${key}`;
 
 /**
  * The wait after a 429, when the server didn't say how long.
@@ -88,22 +133,6 @@ const AUTOMATION_PATH = "/dashboard/hr/documents/automation";
 function minutesLeftThisHour() {
   const now = new Date();
   return (60 - now.getMinutes()) * 60 - now.getSeconds();
-}
-
-/** A titled block of the form, matching the single-issue dialog exactly. */
-function Step({ n, title, blurb, children }) {
-  return (
-    <section>
-      <div className="flex items-baseline gap-2.5 mb-3">
-        <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-[11px] font-bold flex items-center justify-center shrink-0 tabular-nums">{n}</span>
-        <div className="min-w-0">
-          <h3 className="text-sm font-bold text-slate-800">{title}</h3>
-          {blurb && <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{blurb}</p>}
-        </div>
-      </div>
-      <div className="pl-0 sm:pl-[34px]">{children}</div>
-    </section>
-  );
 }
 
 /**
@@ -135,11 +164,35 @@ export default function BulkIssueLettersDialog({
   // pressed again; `secondsLeft` is only what the clock on screen shows.
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  // Which preview is open, and the two are not interchangeable: "sample" is
+  // #138 (made-up details, nobody needed) and "draft" is #271 (the first
+  // recipient's own record, watermarked, nothing queued). See `openPreview`.
+  const [previewing, setPreviewing] = useState(null);
+  // Set when #271 turns out not to exist on this server (a release behind: an
+  // unrouted path, no JSON envelope). The real draft is then not on offer at
+  // all and the button goes back to the sample render, rather than 404ing
+  // again every time somebody presses it.
+  const [draftOff, setDraftOff] = useState(false);
+  // Fields the server has refused as an override for this letter. Held in
+  // state rather than read out of the session memory inside the memo, so React
+  // can see it change — a memo over hidden mutable state never invalidates,
+  // and the box would stay on screen after the refusal that removed it.
+  const [refused, setRefused] = useState([]);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const busyRef = useRef(false);
   busyRef.current = busy;
+
+  /**
+   * Whether one of OUR OWN overlays is on top — here, a preview. Escape then
+   * belongs to that overlay alone. Without this the form's own listener fires
+   * as well — both are capture listeners on `document`, where stopPropagation
+   * does nothing to a sibling on the same node — so one key would dismiss the
+   * preview AND throw away the whole form behind it.
+   */
+  const overlayRef = useRef(false);
+  overlayRef.current = !!previewing;
 
   // Escape closes this form and goes no further — captured, because this can
   // sit over the register's own listeners. Ignored while the batch is being
@@ -147,6 +200,7 @@ export default function BulkIssueLettersDialog({
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
+      if (overlayRef.current) return;
       e.stopPropagation();
       if (!busyRef.current) onCloseRef.current?.();
     };
@@ -205,10 +259,15 @@ export default function BulkIssueLettersDialog({
   }, [api, code]);
 
   const template = detail.data?.template || null;
+  // Recomputed from the refusal memory, so a box the server has already
+  // rejected for this letter never comes back.
   const fields = useMemo(
-    () => (template ? letterOverridableFields(template, code, refusedFields(code)) : []),
-    [template, code],
+    () => (template ? letterOverridableFields(template, code, refused) : []),
+    [template, code, refused],
   );
+  // Whatever the server has already refused for THIS letter, so switching
+  // between letters never carries one letter's refusals into another's form.
+  useEffect(() => { setRefused(refusedFields(code)); }, [code]);
 
   // Values for boxes that no longer exist are dropped, so a removed field can't
   // be sent from stale state.
@@ -275,13 +334,37 @@ export default function BulkIssueLettersDialog({
   const waiting = secondsLeft > 0;
   const ready = !!code && subjects.length > 0 && !detail.loading && !detail.error
     && Object.keys(problems).length === 0 && !waiting && !bulkPaused;
-  const onlyMissingRequired = !!code && subjects.length > 0 && !detail.loading && !detail.error
-    && onlyRequiredMissing(problems) && !waiting && !bulkPaused;
+
+  /**
+   * Everything standing between this form and the request, in one map the form
+   * guard can walk — including the two answers that aren't a box, under keys
+   * prefixed so they can never collide with a template field (whose own names
+   * the server requires to start with a lowercase letter).
+   *
+   * The hourly allowance and the platform pause are deliberately NOT in here:
+   * nothing the person types fixes either, so those keep the button off.
+   */
+  const blockers = () => {
+    const out = { ...problems };
+    if (!code) out._code = PICK_LETTER;
+    if (subjects.length === 0) out._subjects = PICK_PEOPLE;
+    return out;
+  };
 
   // ── Queue it ───────────────────────────────────────────────────────────────
   const queue = async () => {
-    setAttempted(true);
-    if (!ready || busy) return;
+    if (busy) return;
+    // The press is what checks, and what turns the form red (§11). An
+    // unfinished batch never reaches #143: it reveals what is missing and takes
+    // the person to the first of it — which matters more here than anywhere,
+    // because #143 reads nothing and queues nobody if one detail is wrong.
+    const stopping = blockers();
+    if (hasProblems(stopping)) {
+      setAttempted(true);
+      focusFirstProblem(stopping, idOfProblem);
+      return;
+    }
+    if (!ready) return;
 
     const ok = await window.confirm(
       `Send “${letterTitle(chosenRow)}” to ${subjects.length} ${subjects.length === 1 ? "person" : "people"}?\n\n`
@@ -332,6 +415,76 @@ export default function BulkIssueLettersDialog({
     }
   };
 
+  /**
+   * The #271 body for the FIRST person in the batch. Built from the same values
+   * as `queue()` — same overrides, same date rule — because its only job is to
+   * be the letter this form would produce. Two traps, both 400s:
+   *   · no `idempotency_key` (#271 rejects unknown keys and keeps its own
+   *     isolated preview cache);
+   *   · the key is `field_overrides`, as on the issue and bulk calls — NOT
+   *     #138's `override_fields`. The two preview endpoints genuinely disagree.
+   */
+  const previewBody = () => {
+    const body = { template_code: code, subject_user_id: subjects[0] };
+    const overrides = overridesPayload(fields, values);
+    if (Object.keys(overrides).length) body.field_overrides = overrides;
+    if (issuedOn && issuedOn !== todayYMD() && !issueDateProblem(issuedOn)) body.effective_date = issuedOn;
+    return body;
+  };
+
+  /**
+   * Whether a real draft can be drawn at all. #271 needs one subject and a date
+   * the server would accept; without those it can only answer 400, so the
+   * sample render (#138) is the honest fallback and its own dialog says the
+   * details are made up.
+   *
+   * The button's WORDS come from this same flag, never from `subjects` alone — a
+   * button that says "See this letter" and then shows a stranger's invented
+   * salary is the one outcome this screen cannot afford.
+   */
+  const canDraft = subjects.length > 0 && !issueDateProblem(issuedOn) && !draftOff;
+
+  /**
+   * Nothing is drawn from an unfinished form (CLAUDE.md §11).
+   *
+   * #271 validates the overrides exactly as #143 does — which is the whole
+   * reason previewing before three hundred letters is worth doing — so a real
+   * draft is blocked by everything Send is blocked by. It used to go out
+   * regardless and come back a 400 phrased in payload keys. The sample carries
+   * only the boxes and invents the rest, so an empty required box is what it is
+   * FOR; a value the server won't take refuses either render, and blocks both.
+   */
+  const openPreview = () => {
+    const stopping = canDraft ? blockers() : overrideValueProblems(problems);
+    if (hasProblems(stopping)) {
+      setAttempted(true);
+      focusFirstProblem(stopping, idOfProblem);
+      return;
+    }
+    setPreviewing(canDraft ? "draft" : "sample");
+  };
+
+  /**
+   * The server has named a field it will not accept: remember it for the
+   * session, drop the box, keep what was typed elsewhere.
+   *
+   * Worth doing from a PREVIEW, because #271 validates overrides exactly as
+   * #143 does — a refusal found here is one the whole batch would have hit, and
+   * finding it before three hundred letters do is the point of previewing.
+   */
+  const absorbFieldRefusal = (err) => {
+    if (!isLetterFieldRejected(err)) return;
+    const key = letterErrorFieldKey(err);
+    if (!key) return;
+    rememberNotOverridable(code, key);
+    setValues((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setRefused(refusedFields(code));
+  };
+
   /** Take out exactly the people the server refused, and keep the rest. */
   const dropRejected = () => {
     const drop = new Set(rejected.map((row) => row.subjectUserId).filter(Boolean));
@@ -341,315 +494,377 @@ export default function BulkIssueLettersDialog({
   };
 
   const nameOfPerson = (id) => people.find((p) => (p.user_id ?? p.id) === id)?.name || "";
+  // Whose letter the draft preview draws. Never an id (§4), and never blank:
+  // somebody can only be in `subjects` once the roster has loaded, but a
+  // directory row without a name must still read as a person.
+  const firstPerson = subjects.length ? (nameOfPerson(subjects[0]) || "the first person on the list") : "";
 
   return (
-    <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4"
-      onMouseDown={(e) => e.target === e.currentTarget && !busy && onCloseRef.current?.()}
-    >
+    <>
       <div
-        role="dialog" aria-modal="true" aria-label="Send a letter to many people"
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+        className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4"
+        onMouseDown={(e) => e.target === e.currentTarget && !busy && onCloseRef.current?.()}
       >
-        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100 shrink-0">
-          <div className="flex items-start gap-3 min-w-0">
-            <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-              <HiUserGroup className="w-5 h-5" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-lg font-bold text-slate-800 truncate">Send a letter to many people</h2>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                One letter, the same wording, a numbered copy each. They are prepared in the background.
-              </p>
+        <div
+          role="dialog" aria-modal="true" aria-label="Send a letter to many people"
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+        >
+          <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100 shrink-0">
+            <div className="flex items-start gap-3 min-w-0">
+              <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                <HiUserGroup className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-slate-800 truncate">Send a letter to many people</h2>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  One letter, the same wording, a numbered copy each. They are prepared in the background.
+                </p>
+              </div>
             </div>
+            <button
+              type="button" onClick={() => onCloseRef.current?.()} disabled={busy}
+              className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg disabled:opacity-40" aria-label="Close"
+            >
+              <HiX className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button" onClick={() => onCloseRef.current?.()} disabled={busy}
-            className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg disabled:opacity-40" aria-label="Close"
-          >
-            <HiX className="w-5 h-5" />
-          </button>
-        </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 space-y-7">
-          {catalog.error ? (
-            <div className="text-center py-10">
-              <HiExclamationCircle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-700 max-w-md mx-auto">
-                {documentErrorMessage(catalog.error, "Couldn’t load the letters you can issue.")}
-              </p>
-              <button type="button" onClick={loadCatalog} className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition">
-                <HiRefresh className="w-4 h-4" /> Try again
-              </button>
-            </div>
-          ) : catalog.loading ? (
-            <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
-          ) : issuable.length === 0 ? (
-            <div className="text-center py-10 max-w-md mx-auto">
-              <span className="w-12 h-12 rounded-full bg-fuchsia-50 text-fuchsia-500 flex items-center justify-center mx-auto mb-3"><HiMail className="w-6 h-6" /></span>
-              <p className="text-sm font-bold text-slate-800">No letter is switched on yet</p>
-              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                A letter has to be switched on for your organisation before it can be issued to anybody.
-              </p>
-              <Link to={TEMPLATES_PATH} onClick={() => onCloseRef.current?.()} className={`${SECONDARY_BTN} mt-4`}>
-                <HiBadgeCheck className="w-4 h-4" /> Go to Letter Templates
-              </Link>
-            </div>
-          ) : (
-            <>
-              <Step n={1} title="Which letter" blurb="Everyone in this batch gets the same one.">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {issuable.map((row) => {
-                    const picked = row.code === code;
-                    return (
-                      <button
-                        key={row.code}
-                        type="button"
-                        onClick={() => { setCode(row.code); setValues({}); setFailure(null); setRejected([]); }}
-                        aria-pressed={picked}
-                        disabled={busy}
-                        className={`text-left rounded-xl border px-4 py-3 transition disabled:opacity-60 ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <HiDocumentText className={`w-4 h-4 shrink-0 ${picked ? "text-purple-600" : "text-slate-400"}`} />
-                          <span className="text-sm font-bold text-slate-800 truncate">{letterTitle(row)}</span>
-                        </span>
-                        <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">
-                          {row.has_saved_fields ? "Your saved wording is filled in automatically." : "Uses the standard wording."}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Step>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 space-y-7">
+            {catalog.error ? (
+              <div className="text-center py-10">
+                <HiExclamationCircle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-700 max-w-md mx-auto">
+                  {documentErrorMessage(catalog.error, "Couldn’t load the letters you can issue.")}
+                </p>
+                <button type="button" onClick={loadCatalog} className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition">
+                  <HiRefresh className="w-4 h-4" /> Try again
+                </button>
+              </div>
+            ) : catalog.loading ? (
+              <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl animate-pulse" />)}</div>
+            ) : issuable.length === 0 ? (
+              <div className="text-center py-10 max-w-md mx-auto">
+                <span className="w-12 h-12 rounded-full bg-fuchsia-50 text-fuchsia-500 flex items-center justify-center mx-auto mb-3"><HiMail className="w-6 h-6" /></span>
+                <p className="text-sm font-bold text-slate-800">No letter is switched on yet</p>
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                  A letter has to be switched on for your organisation before it can be issued to anybody.
+                </p>
+                <Link to={TEMPLATES_PATH} onClick={() => onCloseRef.current?.()} className={`${SECONDARY_BTN} mt-4`}>
+                  <HiBadgeCheck className="w-4 h-4" /> Go to Letter Templates
+                </Link>
+              </div>
+            ) : (
+              <>
+                <LetterCatalogStep
+                  id="bl-letters"
+                  rows={issuable}
+                  value={code}
+                  problem={attempted && !code ? PICK_LETTER : ""}
+                  disabled={busy}
+                  blurb="Everyone in this batch gets the same one."
+                  onPick={(next) => { setCode(next); setValues({}); setFailure(null); setRejected([]); }}
+                />
 
-              {/* Who and when share one row: three stacked steps pushed this
-                  form past a 1366×768 screen before a letter was even chosen,
-                  and a form that scrolls before you start is a bug (§3). */}
-              <Step
-                n={2}
-                title="Who it goes to, and when"
-                blurb="Everything on each letter — name, job title, dates — is taken from that person’s own record."
-              >
-                <div className="grid lg:grid-cols-[minmax(0,1fr)_14rem] gap-x-6 gap-y-4 items-start">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <label htmlFor="bl-people" className={`${LABEL} mb-0`}>People</label>
-                    <FieldHelp
-                      surface="documents.letter_bulk"
-                      field="subject_user_ids"
-                      label="who it goes to"
-                      ariaLabel="How many people can be in one batch?"
-                      size="sm"
+                {/* Who and when share one row: three stacked steps pushed this
+                    form past a 1366×768 screen before a letter was even chosen,
+                    and a form that scrolls before you start is a bug (§3). */}
+                <Step
+                  n={2}
+                  title="Who it goes to, and when"
+                  blurb="Everything on each letter — name, job title, dates — is taken from that person’s own record."
+                >
+                  <div className="grid lg:grid-cols-[minmax(0,1fr)_14rem] gap-x-6 gap-y-4 items-start">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label htmlFor="bl-people" className={`${LABEL} mb-0`}>People</label>
+                      <FieldHelp
+                        surface="documents.letter_bulk"
+                        field="subject_user_ids"
+                        label="who it goes to"
+                        ariaLabel="How many people can be in one batch?"
+                        size="sm"
+                      />
+                    </div>
+                    <PersonMultiSelect
+                      id="bl-people"
+                      invalid={attempted && subjects.length === 0}
+                      people={people}
+                      value={subjects}
+                      onChange={(next) => { setSubjects(next); setFailure(null); setRejected([]); }}
+                      max={ceiling}
+                      disabled={busy}
+                      loading={peopleStatus === "loading"}
+                      error={peopleStatus === "error" ? "Couldn’t load the list of people. Refresh the page and try again." : ""}
+                      placeholder="Search by name or employee code"
+                      aria-label="People this letter goes to"
                     />
-                  </div>
-                  <PersonMultiSelect
-                    id="bl-people"
-                    people={people}
-                    value={subjects}
-                    onChange={(next) => { setSubjects(next); setFailure(null); setRejected([]); }}
-                    max={ceiling}
-                    disabled={busy}
-                    loading={peopleStatus === "loading"}
-                    error={peopleStatus === "error" ? "Couldn’t load the list of people. Refresh the page and try again." : ""}
-                    placeholder="Search by name or employee code"
-                    aria-label="People this letter goes to"
-                  />
-                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-                    <p className={`text-[11px] leading-relaxed ${atCeiling ? "font-semibold text-fuchsia-700" : "text-slate-500"}`}>
-                      {subjects.length} of up to {ceiling} chosen
-                      {atCeiling ? " — that is as many as your organisation allows in one batch. Send this one, then send the rest." : ""}
-                    </p>
-                    {subjects.length > 0 && (
-                      <button type="button" onClick={() => setSubjects([])} disabled={busy} className="text-[11px] font-bold text-purple-600 hover:underline">
-                        Clear everyone
-                      </button>
+                    {attempted && subjects.length === 0 && (
+                      <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{PICK_PEOPLE}</p>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                      <p className={`text-[11px] leading-relaxed ${atCeiling ? "font-semibold text-fuchsia-700" : "text-slate-500"}`}>
+                        {subjects.length} of up to {ceiling} chosen
+                        {atCeiling ? " — that is as many as your organisation allows in one batch. Send this one, then send the rest." : ""}
+                      </p>
+                      {subjects.length > 0 && (
+                        <button type="button" onClick={() => setSubjects([])} disabled={busy} className="text-[11px] font-bold text-purple-600 hover:underline">
+                          Clear everyone
+                        </button>
+                      )}
+                    </div>
+
+                    {departments.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add a whole team</p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {departments.map((group) => (
+                            <button
+                              key={group.name}
+                              type="button"
+                              onClick={() => addDepartment(group.ids)}
+                              disabled={busy || atCeiling}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-100 bg-purple-50 text-purple-700 text-[11px] font-semibold hover:bg-purple-100 disabled:opacity-50"
+                            >
+                              {group.name}
+                              <span className="text-purple-400 tabular-nums">{group.ids.length}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
 
-                  {departments.length > 0 && (
-                    <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add a whole team</p>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {departments.map((group) => (
-                          <button
-                            key={group.name}
-                            type="button"
-                            onClick={() => addDepartment(group.ids)}
-                            disabled={busy || atCeiling}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-100 bg-purple-50 text-purple-700 text-[11px] font-semibold hover:bg-purple-100 disabled:opacity-50"
-                          >
-                            {group.name}
-                            <span className="text-purple-400 tabular-nums">{group.ids.length}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0">
-                  <label htmlFor="bl-date" className={LABEL}>Date of issue</label>
-                  <div className="relative">
-                    <HiCalendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="bl-date" type="date" value={issuedOn} disabled={busy}
-                      min={issueDateMin()} max={issueDateMax()}
-                      onChange={(e) => setIssuedOn(e.target.value)}
-                      className={`${FIELD} !pl-10`}
-                    />
-                  </div>
-                  {problems._date ? (
-                    <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{problems._date}</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                      {issueDateNote(issuedOn) || "Today. The same date goes on every letter in the batch."}
-                    </p>
-                  )}
-                </div>
-                </div>
-              </Step>
-
-              {code && (
-                <Step
-                  n={3}
-                  title="What only you can say"
-                  blurb="The same wording goes on every copy — anything that differs from person to person is taken from their record instead."
-                >
-                  {detail.error ? (
-                    <p className="flex items-start gap-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-3">
-                      <HiExclamationCircle className="w-4 h-4 shrink-0 mt-px" />
-                      {documentErrorMessage(detail.error, "Couldn’t load what this letter asks for.")}
-                    </p>
-                  ) : detail.loading ? (
-                    <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
-                  ) : fields.length > 0 ? (
-                    <>
-                      <LetterIssueReminder code={code} className="mb-4" />
-                      <LetterOverrideFields
-                        idPrefix="bl"
-                        fields={fields}
-                        values={values}
-                        saved={saved}
-                        problems={problems}
-                        revealRequired={attempted}
-                        disabled={busy}
-                        onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
-                        defaultHint={() => "The same on every letter in this batch."}
+                  <div className="min-w-0">
+                    <label htmlFor="bl-date" className={LABEL}>Date of issue</label>
+                    <div className="relative">
+                      <HiCalendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        id="bl-date" type="date" value={issuedOn} disabled={busy}
+                        min={issueDateMin()} max={issueDateMax()}
+                        onChange={(e) => setIssuedOn(e.target.value)}
+                        className={`${FIELD} !pl-10 ${problems._date ? FIELD_INVALID : ""}`}
                       />
-                    </>
-                  ) : (
-                    <p className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 leading-relaxed">
-                      <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
-                      There is nothing to type in for this letter — every word of it comes from each person’s record, your letterhead and the wording you saved in{" "}
-                      <Link to={TEMPLATES_PATH} className="font-bold text-purple-600 hover:underline">Letter Templates</Link>.
-                    </p>
-                  )}
+                    </div>
+                    {problems._date ? (
+                      <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{problems._date}</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                        {issueDateNote(issuedOn) || "Today. The same date goes on every letter in the batch."}
+                      </p>
+                    )}
+                  </div>
+                  </div>
                 </Step>
-              )}
-            </>
-          )}
 
-          {waiting && (
-            <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3.5" role="status" aria-live="polite">
-              <div className="flex items-start gap-3">
-                <HiClock className="w-5 h-5 text-fuchsia-500 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-fuchsia-800">Nothing was queued — your organisation has sent a lot this hour</p>
-                  <p className="text-sm text-fuchsia-800 mt-0.5 leading-relaxed">
-                    There is a limit on how many batches can be started in one hour, and it has been reached. Nobody was
-                    sent anything twice, and everything you’ve filled in here is still here.
-                  </p>
-                  <p className="text-sm font-bold text-fuchsia-900 mt-2.5 tabular-nums">
-                    You can send this batch in {cooldownLabel(secondsLeft)}.
-                  </p>
-                  <p className="text-[11px] text-fuchsia-700 mt-1 leading-relaxed">
-                    The allowance refreshes at the top of the hour, not an hour from now. Pressing Send before then uses
-                    up part of the next allowance without queueing anything, so the button waits with you.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 mt-3">
-                    <Link to={AUTOMATION_PATH} onClick={() => onCloseRef.current?.()} className={SECONDARY_BTN}>
-                      <HiChartBar className="w-4 h-4" /> See how the earlier batches are getting on
-                    </Link>
-                    <Link to={SETTINGS_PATH} onClick={() => onCloseRef.current?.()} className={SECONDARY_BTN}>
-                      Change the hourly limit
-                    </Link>
+                {code && (
+                  <Step
+                    n={3}
+                    title="What only you can say"
+                    blurb="The same wording goes on every copy — anything that differs from person to person is taken from their record instead."
+                  >
+                    {detail.error ? (
+                      <p className="flex items-start gap-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-3">
+                        <HiExclamationCircle className="w-4 h-4 shrink-0 mt-px" />
+                        {documentErrorMessage(detail.error, "Couldn’t load what this letter asks for.")}
+                      </p>
+                    ) : detail.loading ? (
+                      <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+                    ) : fields.length > 0 ? (
+                      <>
+                        <LetterIssueReminder code={code} className="mb-4" />
+                        <LetterOverrideFields
+                          idPrefix="bl"
+                          fields={fields}
+                          values={values}
+                          saved={saved}
+                          problems={problems}
+                          revealRequired={attempted}
+                          disabled={busy}
+                          onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
+                          defaultHint={() => "The same on every letter in this batch."}
+                        />
+                      </>
+                    ) : (
+                      <p className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 leading-relaxed">
+                        <HiInformationCircle className="w-4 h-4 text-purple-500 shrink-0 mt-px" />
+                        There is nothing to type in for this letter — every word of it comes from each person’s record, your letterhead and the wording you saved in{" "}
+                        <Link to={TEMPLATES_PATH} className="font-bold text-purple-600 hover:underline">Letter Templates</Link>.
+                      </p>
+                    )}
+                  </Step>
+                )}
+              </>
+            )}
+
+            {waiting && (
+              <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3.5" role="status" aria-live="polite">
+                <div className="flex items-start gap-3">
+                  <HiClock className="w-5 h-5 text-fuchsia-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-fuchsia-800">Nothing was queued — your organisation has sent a lot this hour</p>
+                    <p className="text-sm text-fuchsia-800 mt-0.5 leading-relaxed">
+                      There is a limit on how many batches can be started in one hour, and it has been reached. Nobody was
+                      sent anything twice, and everything you’ve filled in here is still here.
+                    </p>
+                    <p className="text-sm font-bold text-fuchsia-900 mt-2.5 tabular-nums">
+                      You can send this batch in {cooldownLabel(secondsLeft)}.
+                    </p>
+                    <p className="text-[11px] text-fuchsia-700 mt-1 leading-relaxed">
+                      The allowance refreshes at the top of the hour, not an hour from now. Pressing Send before then uses
+                      up part of the next allowance without queueing anything, so the button waits with you.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <Link to={AUTOMATION_PATH} onClick={() => onCloseRef.current?.()} className={SECONDARY_BTN}>
+                        <HiChartBar className="w-4 h-4" /> See how the earlier batches are getting on
+                      </Link>
+                      <Link to={SETTINGS_PATH} onClick={() => onCloseRef.current?.()} className={SECONDARY_BTN}>
+                        Change the hourly limit
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {bulkPaused && (
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5" role="status">
-              <div className="flex items-start gap-3">
-                <HiInformationCircle className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-indigo-900">Sending to many people at once is paused</p>
-                  <p className="text-sm text-indigo-800 mt-0.5 leading-relaxed">
-                    {BULK_PAUSED_NOTE} Nothing was queued. Issue these letters one at a time for now — what you chose here is kept until you close this form.
-                  </p>
+            {bulkPaused && (
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5" role="status">
+                <div className="flex items-start gap-3">
+                  <HiInformationCircle className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-indigo-900">Sending to many people at once is paused</p>
+                    <p className="text-sm text-indigo-800 mt-0.5 leading-relaxed">
+                      {BULK_PAUSED_NOTE} Nothing was queued. Issue these letters one at a time for now — what you chose here is kept until you close this form.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {failure && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5" role="alert">
-              <div className="flex items-start gap-3">
-                <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-rose-800">Nothing was queued</p>
-                  <p className="text-sm text-rose-700 mt-0.5 leading-relaxed">{failure.message}</p>
-                  <LetterFixLink err={failure.err} onNavigate={() => onCloseRef.current?.()} />
+            {failure && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5" role="alert">
+                <div className="flex items-start gap-3">
+                  <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-rose-800">Nothing was queued</p>
+                    <p className="text-sm text-rose-700 mt-0.5 leading-relaxed">{failure.message}</p>
+                    <LetterFixLink err={failure.err} onNavigate={() => onCloseRef.current?.()} />
 
-                  {rejected.length > 0 && (
-                    <>
-                      <ul className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
-                        {rejected.map((row, i) => (
-                          <li key={row.subjectUserId || i} className="text-xs text-rose-800">
-                            <span className="font-bold">{nameOfPerson(row.subjectUserId) || "Someone in this list"}</span>
-                            {" — "}
-                            {row.reason || "can’t be sent this letter."}
-                          </li>
-                        ))}
-                      </ul>
-                      <button type="button" onClick={dropRejected} className={`${SECONDARY_BTN} mt-3`}>
-                        Take {rejected.length === 1 ? "that person" : `those ${rejected.length}`} out and keep the rest
-                      </button>
-                    </>
-                  )}
+                    {rejected.length > 0 && (
+                      <>
+                        <ul className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+                          {rejected.map((row, i) => (
+                            <li key={row.subjectUserId || i} className="text-xs text-rose-800">
+                              <span className="font-bold">{nameOfPerson(row.subjectUserId) || "Someone in this list"}</span>
+                              {" — "}
+                              {row.reason || "can’t be sent this letter."}
+                            </li>
+                          ))}
+                        </ul>
+                        <button type="button" onClick={dropRejected} className={`${SECONDARY_BTN} mt-3`}>
+                          Take {rejected.length === 1 ? "that person" : `those ${rejected.length}`} out and keep the rest
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div className="shrink-0 flex flex-wrap items-center gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-          <p className="mr-auto text-[11px] text-slate-500 max-w-sm leading-relaxed">
-            {bulkPaused
-              ? "Paused on this server for now — issue letters one at a time."
-              : waiting
-              ? `Waiting ${cooldownLabel(secondsLeft)} for your organisation’s hourly allowance to refresh.`
-              : !code
-                ? "Choose which letter you are sending."
-                : subjects.length === 0
-                  ? "Choose who it goes to."
-                  : Object.keys(problems).length
-                    ? (onlyRequiredMissing(problems) ? "Fill in the details marked * above." : "Fix what is highlighted above.")
-                    : <>Each one is numbered as it is drawn. The limit is set in <Link to={SETTINGS_PATH} className="font-bold text-purple-600 hover:underline">Document Settings</Link>.</>}
-          </p>
-          <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
-          <button type="button" onClick={queue} disabled={(!ready && !onlyMissingRequired) || busy} className={PRIMARY_BTN}>
-            <HiPaperAirplane className="w-4 h-4" />
-            {busy
-              ? "Queueing…"
-              : waiting
-                ? `Try again in ${cooldownLabel(secondsLeft)}`
-                : `Send to ${subjects.length || 0} ${subjects.length === 1 ? "person" : "people"}`}
-          </button>
+          <div className="shrink-0 flex flex-wrap items-center gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+            <p className="mr-auto text-[11px] text-slate-500 max-w-sm leading-relaxed">
+              {bulkPaused
+                ? "Paused on this server for now — issue letters one at a time."
+                : waiting
+                ? `Waiting ${cooldownLabel(secondsLeft)} for your organisation’s hourly allowance to refresh.`
+                : !code
+                  ? PICK_LETTER
+                  : subjects.length === 0
+                    ? PICK_PEOPLE
+                    : Object.keys(problems).length
+                      ? (onlyRequiredMissing(problems) ? "Fill in the details marked * above." : "Fix what is highlighted above.")
+                      : <>Each one is numbered as it is drawn. The limit is set in <Link to={SETTINGS_PATH} className="font-bold text-purple-600 hover:underline">Document Settings</Link>.</>}
+            </p>
+            <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
+            {code && !detail.loading && !detail.error && (
+              <button
+                type="button"
+                onClick={openPreview}
+                disabled={busy}
+                className={SECONDARY_BTN}
+                title={canDraft
+                  ? `Draws the real letter for ${firstPerson}, watermarked. Nothing is queued or sent.`
+                  : "Shows the layout with made-up details. Choose who it goes to, and a valid date, to see a real one."}
+              >
+                <HiEye className="w-4 h-4" /> {canDraft ? "See this letter" : "See the layout"}
+              </button>
+            )}
+            {/* Live whenever the person could finish the form: the press checks
+                it and takes them to what is missing (§11). Off only for what
+                pressing cannot fix — a batch in flight, the hourly allowance,
+                the platform pause, a field list that wouldn't load. */}
+            <button
+              type="button"
+              onClick={queue}
+              disabled={busy || waiting || bulkPaused || detail.loading || !!detail.error}
+              className={PRIMARY_BTN}
+            >
+              <HiPaperAirplane className="w-4 h-4" />
+              {busy
+                ? "Queueing…"
+                : waiting
+                  ? `Try again in ${cooldownLabel(secondsLeft)}`
+                  : `Send to ${subjects.length || 0} ${subjects.length === 1 ? "person" : "people"}`}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Siblings of the form, never children: their own Escape and backdrop
+          must not reach the form underneath.
+
+          Two previews, and the difference is the whole point of having both:
+          #271 draws the FIRST recipient's letter from their own record, so it
+          is the one to check before sending; #138 draws the same template from
+          MADE-UP details and is all that is possible before anybody is chosen.
+          Each says which it is, and the draft says WHOSE it is — one
+          colleague's figures read as everybody's would be worse than no
+          preview at all. */}
+      {previewing === "draft" && (
+        <LetterPreviewDialog
+          title={letterTitle(chosenRow)}
+          subtitle={subjects.length > 1
+            ? `How it will read for ${firstPerson}, and ${subjects.length - 1} more`
+            : `How it will read for ${firstPerson}`}
+          subject={firstPerson}
+          render={() => api.previewSubjectLetter(previewBody())}
+          note={subjects.length > 1
+            ? `Drawn for ${firstPerson} only — the first of the ${subjects.length} people in this batch. Everyone else gets this same wording and layout, with their own name, dates and figures.`
+            : "This is what Send will produce: the same wording, details and date. Only the PREVIEW stamp is different."}
+          onError={(err) => {
+            if (isRendererNotConfigured(err)) onRendererOff?.();
+            if (isFeatureNotDeployed(err)) setDraftOff(true);
+            absorbFieldRefusal(err);
+          }}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
+
+      {previewing === "sample" && (
+        <LetterPreviewDialog
+          title={letterTitle(chosenRow)}
+          subtitle={subjects.length ? "Sample details on your letterhead — nobody’s own" : "Sample details on your letterhead"}
+          render={() => {
+            const body = { use_saved_fields: true };
+            const overrides = overridesPayload(fields, values);
+            if (Object.keys(overrides).length) body.override_fields = overrides;
+            return api.previewLetterTemplate(code, body);
+          }}
+          note="Checks the wording and layout only. What you typed above is included; the names, pay and dates are invented."
+          onError={(err) => { if (isRendererNotConfigured(err)) onRendererOff?.(); }}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
+    </>
   );
 }

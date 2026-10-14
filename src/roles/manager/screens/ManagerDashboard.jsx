@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
@@ -13,9 +13,9 @@ import { departmentName, employeeCode, listFrom, num, personName, unwrap } from 
 import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, monthLabel, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { DepartmentCard } from "../../hr/screens/HRDashboard";
-import { TREND_COLORS } from "../../../shared/attendance/dayStatus";
 import { DICTIONARY } from "../../../shared/config/dictionary";
-import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, leaveCountOf, sundayMarkers, trendYAxis } from "../../../shared/attendance/trendChartMeta";
+import { TREND_COLORS, TREND_STROKES } from "../../../shared/attendance/dayStatus";
+import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMonthDays, leaveCountOf, sundayMarkers, TrendBar, TREND_BAR_MAX_SIZE, TrendTooltip, trendYAxis } from "../../../shared/attendance/trendChartMeta";
 import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
@@ -141,7 +141,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Shift</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">In</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Out</th>
-                    <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide"><HelpLabel text="Lateness" help={{ surface: "attendance.team", field: "late_minutes", label: "lateness", overlay: true }} /></th>
+                    <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide">Lateness</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -224,7 +224,6 @@ function ManagerDashboard() {
   const [graph, setGraph] = useState({ data: null, loading: true, error: null });
   // null = not paged by hand yet, so the chart opens on the half holding today.
   const [chartPage, setChartPage] = useState(null);
-  const chartScrollTimeout = useRef(0);
   const team = useTeamToday();
   const reloadTeam = team.load;
   const departments = useMemo(() => departmentBreakdown(team.records), [team.records]);
@@ -291,24 +290,30 @@ function ManagerDashboard() {
   // doesn’t draw a bar flush with the top gridline — same axis as HR’s chart.
   const yAxis = trendYAxis(chartData);
 
-  const handleChartWheel = (e) => {
-    const t = Date.now();
-    if (t - chartScrollTimeout.current < 400) return;
-    if ((e.deltaX > 15 || e.deltaY > 15) && safeChartPage < totalChartPages - 1) {
-      setChartPage(safeChartPage + 1);
-      chartScrollTimeout.current = t;
-    } else if ((e.deltaX < -15 || e.deltaY < -15) && safeChartPage > 0) {
-      setChartPage(safeChartPage - 1);
-      chartScrollTimeout.current = t;
-    }
-  };
+  // The chart used to page on a wheel or trackpad swipe. It went: a two-finger
+  // scroll down the dashboard, passing over the chart, silently changed the
+  // week on the way past, and a horizontal nudge on a trackpad did it without
+  // the page moving at all. The arrows are the only way to change the week.
 
   const s = summary.data || {};
+  // `team_size` and `counts` are documented as numbers on this endpoint
+  // (md_updates/2026-10-04_employee_and_manager_attendance_calculation_and_api_sync.md),
+  // but the live response ships both null while the final_* buckets are
+  // populated (manager panel audit M-14). `num()` turns that null into a 0,
+  // and a tile reading "Team members 0" states a measurement where the server
+  // said nothing at all — the same trap as a missing deductions figure
+  // printing ₹0. So: the server's number when it sent one, else count the
+  // team list this screen has already loaded (the roster the tile is about),
+  // else N/A (§5 — never a dash, never a made-up zero).
+  const fromTeam = (rows) => (team.error ? "N/A" : rows);
   const stats = [
-    { label: "Team members", value: num(s.team_size), icon: HiUserGroup },
+    { label: "Team members", value: s.team_size == null ? fromTeam(team.records.length) : num(s.team_size), icon: HiUserGroup },
     { label: "Present today", value: num(s.final_present_count), icon: HiCheckCircle, tag: "Present" },
-    { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent", help: { surface: "attendance.team", field: "final_absent_count", ariaLabel: "Who counts as absent today?", size: "sm", overlay: true } },
-    { label: "Late arrivals", value: num(s.counts?.late), icon: HiClock, tag: "Late" },
+    { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent" },
+    // Lateness is client-derived by contract §8 — there is no `late` status, it
+    // is `late_minutes > 0` — which is what the Lateness column in the table
+    // below already does, so the tile and the rows it heads now agree.
+    { label: "Late arrivals", value: s.counts?.late == null ? fromTeam(team.records.filter((r) => num(r.late_minutes) > 0).length) : num(s.counts.late), icon: HiClock, tag: "Late" },
     // From today's team list: the summary's `counts` keys aren't documented
     // beyond `late`, so these are counted from each member's own status.
     { label: "On leave today", value: team.error ? "N/A" : team.records.filter((r) => r.status === "on_leave").length, icon: HiCalendar, tag: "Leave" },
@@ -351,8 +356,11 @@ function ManagerDashboard() {
               />
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-4">
-                  {[[DICTIONARY.STATUS.PRESENT, TREND_COLORS.present], ["Leave", TREND_COLORS.on_leave], [DICTIONARY.STATUS.ABSENT, TREND_COLORS.absent]].map(([label, dot]) => (
-                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full" style={{ background: dot }} /> {label}</span>
+                  {/* Each chip is the bar's fill inside the bar's outline. The
+                      outline isn't decoration: the palest of the three is all
+                      but invisible on a white card without it. */}
+                  {[[DICTIONARY.STATUS.PRESENT, "present"], ["Leave", "on_leave"], [DICTIONARY.STATUS.ABSENT, "absent"]].map(([label, series]) => (
+                    <span key={label} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap"><span className="w-2 h-2 rounded-full border" style={{ backgroundColor: TREND_COLORS[series], borderColor: TREND_STROKES[series] }} /> {label}</span>
                   ))}
                 </div>
                 {totalChartPages > 1 && (
@@ -366,7 +374,7 @@ function ManagerDashboard() {
               {/* mt-4: breathing room between the legend row and the top gridline.
                   The plot is absolutely positioned, so it would paint straight over
                   padding on this wrapper — the gap has to be margin. */}
-              <div className="relative w-full flex-1 min-h-[16rem] mt-4" onWheel={handleChartWheel}>
+              <div className="relative w-full flex-1 min-h-[16rem] mt-4">
                 <div className="absolute inset-0">
                     {graph.loading ? (
                       <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
@@ -379,18 +387,21 @@ function ManagerDashboard() {
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+                        <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }} barGap={0} barCategoryGap="14%">
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval="preserveStartEnd" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval={0} />
                           {sundayMarkers(chartData)}
                           <YAxis allowDecimals={false} domain={yAxis.domain} ticks={yAxis.ticks} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} />
-                          <Tooltip cursor={{ fill: "#f8fafc" }} labelFormatter={(val) => fmtDate(val, { weekday: "short", day: "numeric", month: "short" })} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} labelStyle={{ fontWeight: "bold", color: "#1e293b", marginBottom: "4px" }} />
-                          <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} fill={TREND_COLORS.present} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Tooltip cursor={{ fill: "#f8fafc" }} content={<TrendTooltip />} position={{ y: -10 }} />
+                          {/* A screen says only WHICH series it draws: TrendBar
+                              reads its own fill, outline and cap off the data
+                              key, so HR and the manager can't drift (§2). */}
+                          <Bar dataKey="final_present_count" name={DICTIONARY.STATUS.PRESENT} shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
                           {/* Not expected to work: leave + weekly-off + holiday. The server
                               keeps these out of final_absent_count, so the three bars never
                               double-count a day. */}
-                          <Bar dataKey="final_leave_count" name={DICTIONARY.STATUS.LEAVE_AND_OFF} fill={TREND_COLORS.on_leave} maxBarSize={8} radius={[3, 3, 0, 0]} />
-                          <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} fill={TREND_COLORS.absent} maxBarSize={8} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="final_leave_count" name={DICTIONARY.STATUS.LEAVE_AND_OFF} shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
+                          <Bar dataKey="final_absent_count" name={DICTIONARY.STATUS.ABSENT} shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}

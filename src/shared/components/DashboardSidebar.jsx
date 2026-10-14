@@ -4,10 +4,10 @@ import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSidebar } from "../contexts/SidebarContext";
-import { tokenHelper } from "../api";
+import { billingAPI, documentsAPI, payrollAPI, tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
-import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE } from "../attendance/paths";
+import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE, TASK_PATHS } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
 import {
@@ -70,6 +70,17 @@ function DashboardSidebar({ role = "guest" }) {
     return 0;
   });
 
+  const [paymentsDue, setPaymentsDue] = useState(false);
+  const [paymentsDismissed, setPaymentsDismissed] = useState(false);
+  const [unverifiedBankCount, setUnverifiedBankCount] = useState(0);
+  const [pendingDocsCount, setPendingDocsCount] = useState(0);
+
+  useEffect(() => {
+    if (location.pathname === "/dashboard/hr/billing/payments") {
+      setPaymentsDismissed(true);
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     if (role !== "manager") return undefined;
     let alive = true;
@@ -87,6 +98,32 @@ function DashboardSidebar({ role = "guest" }) {
     if (role !== "hr") return undefined;
     let alive = true;
     fetchHrInboxCounts().then((counts) => alive && setInboxCount(inboxTotal(counts))).catch(() => {});
+
+    // Check billing due date
+    billingAPI.getSubscription().then((res) => {
+      if (!alive) return;
+      const sub = res?.data?.subscription;
+      if (!sub) return;
+      const days = sub.days_remaining != null ? Number(sub.days_remaining) : null;
+      const isDue = (days !== null && days <= 7) || sub.status === "in_grace" || sub.status === "past_due";
+      setPaymentsDue(Boolean(isDue));
+    }).catch(() => {});
+
+    // Check document verification queue
+    documentsAPI.getVerificationQueue({ limit: 1 }).then((res) => {
+      if (!alive) return;
+      const count = res?.data?.total ?? res?.total ?? 0;
+      setPendingDocsCount(count);
+    }).catch(() => {});
+
+    // Check unverified bank accounts
+    payrollAPI.getBankAccounts({ page: 1, limit: 100 }).then((res) => {
+      if (!alive) return;
+      const list = res?.data?.items || res?.data?.accounts || res?.data?.bank_accounts || res?.items || [];
+      const unv = list.filter((a) => !a.is_verified).length;
+      setUnverifiedBankCount(unv);
+    }).catch(() => {});
+
     return () => {
       alive = false;
     };
@@ -95,7 +132,14 @@ function DashboardSidebar({ role = "guest" }) {
   // Approvals, rejections and resolutions anywhere in the app refresh the badge.
   useAttendanceChanged(INBOX_EVENT_KINDS, () => {
     if (role === "manager") fetchManagerInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
-    else if (role === "hr") fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
+    else if (role === "hr") {
+      fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
+      documentsAPI.getVerificationQueue({ limit: 1 }).then((res) => setPendingDocsCount(res?.data?.total ?? res?.total ?? 0)).catch(() => {});
+      payrollAPI.getBankAccounts({ page: 1, limit: 100 }).then((res) => {
+        const list = res?.data?.items || res?.data?.accounts || res?.data?.bank_accounts || res?.items || [];
+        setUnverifiedBankCount(list.filter((a) => !a.is_verified).length);
+      }).catch(() => {});
+    }
   });
 
   function handleLogout() {
@@ -135,7 +179,24 @@ function DashboardSidebar({ role = "guest" }) {
     const base = SELF_SERVICE_BASE[workspace];
     const pay = MY_PAY_PATHS[workspace];
     const docs = MY_DOCUMENT_PATHS[workspace];
+    const tasks = TASK_PATHS[workspace];
     return {
+      // Work somebody has been GIVEN, which every role is — including HR, whose
+      // own page sits here beside their leave and payslips rather than in the
+      // organisation-wide Tasks section below.
+      //
+      // TWO entries, so this behaves like every other "My …" group instead of
+      // the one flat link in the menu (user decision, 14 Oct 2026 — a single
+      // item renders as a bold link, not a dropdown). They are the two pages
+      // the API can actually give a person about their own work: the whole list,
+      // and the one cut the page's own status tabs can't make, `is_overdue`.
+      // Statuses deliberately did NOT become sidebar entries: the page already
+      // has a tab per status, and duplicating them here would leave the sidebar
+      // highlighting "Waiting for review" while the open tab said "All".
+      tasks: [
+        link("My Tasks", tasks.mine, HiClipboardCheck),
+        link("Overdue Tasks", tasks.overdue, HiExclamationCircle),
+      ],
       time: [
         link("My Attendance", base, HiClock),
         link("My Leaves", pay.leaves, HiCalendar),
@@ -167,6 +228,7 @@ function DashboardSidebar({ role = "guest" }) {
       defaultCollapsed: true,
       items: [
         group("My Time", HiClock, me.time),
+        group("My Tasks", HiClipboardCheck, me.tasks),
         group("My Pay", HiCurrencyRupee, me.pay),
         group("My Documents", HiFolderOpen, me.documents),
       ],
@@ -181,6 +243,20 @@ function DashboardSidebar({ role = "guest" }) {
   // by choice: every billing endpoint but the plan catalogue is gated HR_ONLY
   // and refuses platform admins too, so a manager has no billing page rather
   // than a broken one (§2 — a capability a role lacks is absent, not broken).
+  // Work this person HANDS OUT and reviews (Task module #255–#267). One helper
+  // for both reviewing workspaces, so the two entries can't drift apart: a
+  // manager and HR see the same labels in the same order, and only the reach of
+  // the data behind them differs (§2). An employee has no such section at all —
+  // they review nobody.
+  const tasksSection = (workspace) => ({
+    title: "TASKS",
+    icon: HiClipboardCheck,
+    items: [
+      link("Tasks I Assigned", TASK_PATHS[workspace].assigned, HiPaperAirplane),
+      link("All Tasks", TASK_PATHS[workspace].all, HiClipboardList),
+    ],
+  });
+
   const companySection = (workspace) => ({
     title: "COMPANY",
     icon: HiLibrary,
@@ -194,7 +270,10 @@ function DashboardSidebar({ role = "guest" }) {
       // one people found depended on which they happened to open.
       ...(workspace === "hr" ? [
         link("Plan & Billing", "/dashboard/hr/billing", HiCreditCard),
-        link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax),
+        link("Payments & Invoices", "/dashboard/hr/billing/payments", HiReceiptTax, {
+          dot: paymentsDue && !paymentsDismissed,
+          onClick: () => setPaymentsDismissed(true),
+        }),
       ] : []),
     ],
   });
@@ -202,10 +281,20 @@ function DashboardSidebar({ role = "guest" }) {
   // ── The three menus ──────────────────────────────────────────────────────
   // One shape for every role, so a manager promoted to HR gains menu items
   // rather than learning a new menu. Sections run in the same order in every
-  // workspace (Setup, People, Time & Leave, Payroll, the two document groups,
-  // Tax, Insights, Company, Me) and a role simply has fewer of them. Inside a section,
-  // items run in the order the work is done, not alphabetically: the first
-  // item is the thing you have to do first.
+  // workspace — Main, ME, then the work: Setup, People/Organisation,
+  // Time & Leave, Tasks, Payroll, the two document groups, Tax, Insights,
+  // Company — and a role simply has fewer of them. Inside a section, items run
+  // in the order the work is done, not alphabetically: the first item is the
+  // thing you have to do first.
+  //
+  // ME SITS SECOND, directly under Dashboard and Inbox (user decision,
+  // 14 Oct 2026). It used to be last, which put an HR admin's own payslip at
+  // the bottom of the longest menu in the product. It is the one section every
+  // role has and the one every role opens for themselves, so it goes where it
+  // can be reached without scrolling — in all three workspaces, or the
+  // promotion from manager to HR would move it (§2). It keeps
+  // `defaultCollapsed`: expanded, its four groups would push the work
+  // sections off the screen, which is the problem it was moved to solve.
   const getNavSections = () => {
     if (role === "guest") {
       return [
@@ -239,6 +328,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Inbox", `${H}/inbox`, HiInboxIn, inboxBadge),
           ],
         },
+        meSection("hr"),
         {
           // Done once, then rarely touched — so it stays collapsed, and each
           // area is its own dropdown listed in the order it has to be set up.
@@ -313,6 +403,7 @@ function DashboardSidebar({ role = "guest" }) {
             link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift),
           ],
         },
+        tasksSection("hr"),
         {
           // The monthly cycle, in order. Lock Attendance sits right before the
           // run because that is when it happens; Employee Salaries and bank
@@ -322,7 +413,10 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             step(1, "Before the month"),
             link("Employee Salaries", `${H}/payroll/employee-structures`, HiCurrencyRupee),
-            link("Bank Verification", `${H}/payroll/bank-verification`, HiShieldCheck),
+            link("Bank Verification", `${H}/payroll/bank-verification`, HiShieldCheck, {
+              badge: unverifiedBankCount > 0 ? unverifiedBankCount : null,
+              dot: unverifiedBankCount > 0,
+            }),
             step(2, "This month"),
             link("Salary Adjustments", `${H}/payroll/adjustments`, HiAdjustments),
             link("Bonus Rules", `${H}/payroll/bonus-rules`, HiGift),
@@ -348,7 +442,10 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiFolderOpen,
           items: [
             link("Document Requests", `${H}/documents/requests`, HiClipboardList),
-            link("Verification Queue", `${H}/documents/verification`, HiBadgeCheck),
+            link("Verification Queue", `${H}/documents/verification`, HiBadgeCheck, {
+              badge: pendingDocsCount > 0 ? pendingDocsCount : null,
+              dot: pendingDocsCount > 0,
+            }),
             link("Employee Documents", `${H}/documents/employees`, HiFolderOpen),
             link("Document Compliance", `${H}/documents/compliance`, HiClipboardCheck),
             link("Find a Document", `${H}/documents/search`, HiDocumentSearch),
@@ -387,7 +484,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         companySection("hr"),
-        meSection("hr"),
       ];
     }
 
@@ -404,14 +500,32 @@ function DashboardSidebar({ role = "guest" }) {
             link("Inbox", `${M}/requests/inbox`, HiInboxIn, inboxBadge),
           ],
         },
+        meSection("manager"),
         {
-          title: "PEOPLE",
+          // Called ORGANISATION, not PEOPLE, because it holds the places as well
+          // as the people: the team, plus the two kinds of location a manager
+          // can look up. HR keeps PEOPLE (invites + employees) and files the
+          // same two location pages under SETUP → Organisation, where HR also
+          // creates them — the one place the two menus diverge, and only
+          // because HR's half of this is setup work and the manager's is
+          // reference (§2). Client Sites moved here out of TIME & LEAVE: it is
+          // a place, not a request queue.
+          title: "ORGANISATION",
           icon: HiUserGroup,
-          forceDropdown: true,
           items: [
             // Member profiles live under /team/member/, not /team/, because
             // /team/today and /team/history are separate sidebar entries.
             { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
+            // Both are the SAME screens HR gets, under this workspace's own
+            // prefix. A manager registers and assigns client sites for their own
+            // reports; office locations are read-only here because POST/PUT on
+            // /organizations/locations are HR-only, so the page carries no Add
+            // button rather than one that 403s.
+            // Same order as HR's Setup › Organisation group: your own offices
+            // first, then the third-party sites. A promotion must not reshuffle
+            // the menu (§2).
+            link("Office Locations", `${M}/attendance/locations`, HiLocationMarker),
+            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
         {
@@ -425,12 +539,9 @@ function DashboardSidebar({ role = "guest" }) {
             link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
             link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
             link(COMP_OFF, `${M}/requests/comp-offs`, HiGift),
-            // Same label and the same screen HR gets, under this workspace's
-            // own prefix — a manager registers and assigns client sites for
-            // their own reports (CLAUDE.md §2).
-            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
+        tasksSection("manager"),
         {
           title: "PAYROLL",
           icon: HiCurrencyRupee,
@@ -474,7 +585,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         companySection("manager"),
-        meSection("manager"),
       ];
     }
 
@@ -486,6 +596,7 @@ function DashboardSidebar({ role = "guest" }) {
         items: [link("Dashboard", "/dashboard/employee", HiViewGrid)],
       },
       { title: "MY TIME", icon: HiClock, items: me.time },
+      { title: "MY TASKS", icon: HiClipboardCheck, items: me.tasks },
       { title: "MY PAY", icon: HiCurrencyRupee, items: me.pay },
       { title: "MY DOCUMENTS", icon: HiFolderOpen, items: me.documents },
       companySection("employee"),
@@ -609,7 +720,10 @@ function DashboardSidebar({ role = "guest" }) {
       <Link
         key={item.path}
         to={item.path}
-        onClick={closeOnMobile}
+        onClick={(e) => {
+          item.onClick?.(e);
+          closeOnMobile();
+        }}
         data-nav=""
         data-nav-parent={parentKey}
         aria-current={isActive ? "page" : undefined}
@@ -622,11 +736,13 @@ function DashboardSidebar({ role = "guest" }) {
           {!compact && Icon && <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />}
           <span className="truncate">{item.label}</span>
         </span>
-        {item.badge && (
+        {item.badge ? (
           <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
             {item.badge}
           </span>
-        )}
+        ) : item.dot ? (
+          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse" />
+        ) : null}
       </Link>
     );
   };
@@ -833,7 +949,7 @@ function DashboardSidebar({ role = "guest" }) {
                   className={settingsActive ? UTILITY_LINK_ACTIVE : UTILITY_LINK}
                 >
                   <HiCog className={`w-5 h-5 ${settingsActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                  <span>Company Settings</span>
+                  <span>Settings</span>
                 </Link>
               )}
               <Link

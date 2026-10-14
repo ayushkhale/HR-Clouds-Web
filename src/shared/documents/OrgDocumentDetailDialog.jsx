@@ -662,7 +662,14 @@ export default function OrgDocumentDetailDialog({
             It stopped applying on {fmtDate(doc.effective_to)}. Publish a new version, or withdraw it to take it off the list.
           </Banner>
         )}
-        {doc?.status === "published" && recipientCount === 0 && (
+        {/* Audience trouble is HR's and the proposing manager's business, like
+            the "Who gets it" section below — and `recipient_count` is one of
+            the targeting fields the employee plane WITHHOLDS by contract
+            (#70/#71), not a zero. Without this gate it is absent, reads as 0,
+            and every recipient opening a document that plainly did reach them
+            is told nobody received it and sent to a Top up button they don't
+            have. Gate on the plane, never on the missing number (§7). */}
+        {plane.key !== "self" && doc?.status === "published" && recipientCount === 0 && (
           <Banner tone="fuchsia" icon={HiExclamationCircle} title="Nobody received this">
             The audience matched no one when it was published. Check the audience below, then use Top up to issue it to the people who now match.
           </Banner>

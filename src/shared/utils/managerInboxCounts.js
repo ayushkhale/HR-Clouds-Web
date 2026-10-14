@@ -11,7 +11,7 @@ import { tokenHelper } from "../api";
 import { HR_INBOX_QUEUES } from "./hrInboxCounts";
 
 const CACHE_MS = 60_000;
-const MANAGER_KEYS = ["leaves", "regularizations", "overtime", "compOffs", "anomalies"];
+const MANAGER_KEYS = ["leaves", "regularizations", "overtime", "compOffs", "anomalies", "tasks"];
 export const MANAGER_INBOX_QUEUES = HR_INBOX_QUEUES.filter((q) => MANAGER_KEYS.includes(q.key));
 
 let cache = { token: null, at: 0, counts: null, promise: null };

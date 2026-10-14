@@ -959,6 +959,47 @@ export const documentsAPI = {
    */
   issueLetter: (body) => post(`${HR}/letters`, body),
   /**
+   * #271 Draw the letter that #139 WOULD issue, for the real person, and hand
+   * back the PDF without issuing anything (change record
+   * md_updates/2026-10-14_letter_subject_preview_and_payroll_pdf_preview_api.md).
+   *
+   * This is the only preview that carries a real employee's facts. #138 is the
+   * other one and it is the opposite: made-up details, no `subject_user_id`.
+   * Which one a screen calls decides what it may truthfully tell HR, so never
+   * swap them to save a branch.
+   *
+   * Body is #139's minus the key that mints letters: `{ template_code,
+   * subject_user_id, effective_date?, field_overrides? }`. Two traps:
+   *   · `idempotency_key` is REJECTED (`unknown(false)`) — a 400, not ignored.
+   *     The server keys its own isolated cache (`letter:preview:*`) so a preview
+   *     render can never be served back as an issued letter.
+   *   · the key is `field_overrides`, as in #139 — NOT #138's `override_fields`.
+   *     The two preview endpoints genuinely disagree, and an unknown key here
+   *     is a 400.
+   *
+   * Nothing is written: no `org_documents` row, no S3 object, and above all no
+   * reference number is spent, so this may be called as often as the hourly cap
+   * allows. That cap is `letter_preview_rate_per_hour` (setting #83, default
+   * 60) and it is SHARED with #134 and #138 — sample renders and real drafts
+   * draw down one pool, so don't re-render on every keystroke. The page comes
+   * back stamped PREVIEW on every page.
+   *
+   * Refusals worth handling by name: 404 LETTER_TEMPLATE_UNKNOWN, 404
+   * DOCUMENT_NOT_FOUND (the subject — not a letter id), 409
+   * LETTER_TEMPLATE_DISABLED, 422 PDF_DATA_INCOMPLETE (`details.missing_fields`
+   * — the subject's profile is short of a fact the letter needs), 422
+   * LETTER_FIELD_UNKNOWN / LETTER_FIELD_OVERRIDE_PROHIBITED (the change record
+   * also writes it LETTER_FIELD_NOT_OVERRIDABLE in one place — documentErrors
+   * accepts both spellings rather than betting on one), 429
+   * PREVIEW_RATE_LIMITED, 502/503 PDF_RENDERER_UNAVAILABLE.
+   */
+  previewSubjectLetter: (body) =>
+    fetchFileBlob(`${HR}/letters/preview`, {
+      method: "POST",
+      body: body || {},
+      filename: `${String(body?.template_code || "letter")}-draft.pdf`,
+    }),
+  /**
    * #140 The register of letters this organisation has issued — only generated
    * rows, never an upload. `{ items, pagination: { page, limit, total,
    * total_pages } }`.

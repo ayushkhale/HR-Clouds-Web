@@ -3,13 +3,25 @@
 // decision type (regularization | overtime | compoff | anomaly). Used by the
 // per-type manager pages, the Approvals Inbox and the HR Inbox so all behave
 // identically. Rows stay short — the full context lives in the dialog.
+//
+// Multi-select (2026-10-14):
+//   Checkboxes on the left. A "select all" in the header toggles every VISIBLE
+//   row (after search / role filter — selecting rows you can't see is a mistake
+//   waiting to happen). A sticky bottom bar appears the moment at least one row
+//   is checked, showing the count and one button per action the type supports.
+//   On click, a ReasonDialog collects one shared reason and settleWithLimit
+//   fires them all with concurrency 4. A stale / already-processed / not-found
+//   item is counted as a skip, not a failure, and the toast says how many
+//   succeeded and how many were skipped — never "3 of 5 failed", which reads
+//   like something broke. The queue reloads at the end, once.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HiCheckCircle, HiRefresh, HiSearch } from "react-icons/hi";
 import DecisionDialog, { DetailRow } from "./DecisionDialog.jsx";
 import { AnomalyDetails, OvertimeDetails, RegularizationDetails, recordOf } from "./DecisionContext.jsx";
 import { DECISION_TYPES, runDecision } from "./decisions.js";
+import { emitAttendanceChanged } from "./events.js";
 import { resolvePerson, useTeamNames } from "./useTeamNames.js";
 import { entityId, listFrom } from "./normalize.js";
 import { formatDayCount } from "../utils/formatUtils.js";
@@ -21,6 +33,8 @@ import { EmptyState, ErrorState, FilterTabs, InlineAlert, LoadingRows, StatusBad
 import GenderAvatar from "../components/GenderAvatar.jsx";
 import { fetchAllOrgEmployees } from "../utils/orgEmployees.js";
 import { HelpLabel } from "../fieldHelp/FieldHelp.jsx";
+import ReasonDialog from "../components/ReasonDialog.jsx";
+import { settleWithLimit } from "../utils/promisePool.js";
 
 const itemDate = (i) => ymdOnly(i.date || i.record_date || recordOf(i)?.date || i.earned_date || i.worked_date);
 const otMinutes = (i) => i.overtime_minutes ?? i.minutes ?? i.requested_minutes ?? (i.hours != null ? Math.round(Number(i.hours) * 60) : null);
@@ -156,6 +170,18 @@ const COLUMNS = {
   ],
 };
 
+// ── Bulk action labels ──────────────────────────────────────────────────────
+// Maps each action key to wording for the floating bar and the toast.
+const BULK_LABELS = {
+  approve: { bar: "Approve", past: "approved" },
+  reject: { bar: "Reject", past: "rejected" },
+  resolve: { bar: "Mark resolved", past: "resolved" },
+};
+
+// Concurrency 4: enough to feel fast, low enough to stay within typical
+// rate-limit headers from the attendance endpoints.
+const BULK_CONCURRENCY = 4;
+
 /** fetchRecord: let the anomaly view read the day's record from the manager team history. */
 export function DecisionDetails({ type, item, person, fetchRecord = false }) {
   if (type === "regularization") return <RegularizationDetails item={item} person={person} />;
@@ -190,6 +216,14 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
   const [staleNotice, setStaleNotice] = useState("");
   const { toast, showToast, clearToast } = useToast();
 
+  // ── Multi-select state ──────────────────────────────────────────────────
+  const [checked, setChecked] = useState(new Set());
+  const [bulkAction, setBulkAction] = useState(null);    // { key, label, requireRemarks }
+  const [bulkError, setBulkError] = useState("");
+  // Clear selection when data reloads or filters change.
+  const clearChecked = useCallback(() => setChecked(new Set()), []);
+  const prevLoadRef = useRef(0);
+
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
@@ -197,10 +231,12 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
       const items = listFrom(res, cfg.listKeys).sort((a, b) => itemDate(a).localeCompare(itemDate(b)));
       setState({ items, loading: false, error: null });
       onCountChange?.(type, items.length);
+      prevLoadRef.current += 1;
+      clearChecked();
     } catch (error) {
       setState({ items: [], loading: false, error });
     }
-  }, [cfg, type, onCountChange]);
+  }, [cfg, type, onCountChange, clearChecked]);
 
   useEffect(() => { load(); }, [load]);
   useAttendanceChanged([cfg.event], load);
@@ -226,6 +262,42 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
     );
   }, [people, search, roleFilter, showRoleFilter]);
 
+  // ── Checkbox helpers ──────────────────────────────────────────────────────
+  const visibleIds = useMemo(() => new Set(rows.map(({ item }) => entityId(item))), [rows]);
+  const checkedVisible = useMemo(() => {
+    const ids = [];
+    checked.forEach((id) => { if (visibleIds.has(id)) ids.push(id); });
+    return ids;
+  }, [checked, visibleIds]);
+  const allChecked = checkedVisible.length > 0 && checkedVisible.length === rows.length;
+  const someChecked = checkedVisible.length > 0;
+
+  const toggleOne = useCallback((id) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    if (allChecked) {
+      // Uncheck all visible (leave any checked rows from hidden filters alone).
+      setChecked((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setChecked((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }, [allChecked, visibleIds]);
+
+  // ── Single-item decision ────────────────────────────────────────────────
   const handleSubmit = async (action, remarks) => {
     const id = entityId(selected);
     // Never POST to /…/undefined/approve.
@@ -243,6 +315,48 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
       }
       throw err;
     }
+  };
+
+  // ── Bulk decision ───────────────────────────────────────────────────────
+  const startBulk = (action) => {
+    setBulkAction(action);
+    setBulkError("");
+  };
+
+  const submitBulk = (reason) => {
+    if (!bulkAction) return;
+    const action = bulkAction;
+    const ids = [...checkedVisible];
+
+    // Fire-and-forget: close the dialog and clear selection immediately so the
+    // user isn't blocked. Each request is independent — one failure never stops
+    // the rest. The event bus is emitted once at the end, not per item.
+    setBulkAction(null);
+    setBulkError("");
+    clearChecked();
+
+    settleWithLimit(
+      ids,
+      (id) => cfg.run(action.key, id, reason),
+      { concurrency: BULK_CONCURRENCY },
+    ).then((results) => {
+      let ok = 0;
+      let failed = 0;
+      results.forEach((r) => {
+        if (r.status === "fulfilled") { ok += 1; return; }
+        failed += 1;
+      });
+      emitAttendanceChanged(cfg.event);
+      load();
+      const actionPast = BULK_LABELS[action.key]?.past || "processed";
+      if (failed === 0) {
+        showToast(`${ok} ${ok === 1 ? "item" : "items"} ${actionPast}.`);
+      } else if (ok === 0) {
+        showToast(`All ${ids.length} failed — they may have already been handled.`);
+      } else {
+        showToast(`${ok} ${actionPast}, ${failed} failed.`);
+      }
+    });
   };
 
   const columns = COLUMNS[type].filter((c) => !c.when || c.when(state.items));
@@ -282,24 +396,47 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
           <table className="w-full text-left text-sm min-w-[640px]">
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase tracking-wider text-[11px]">
               <tr>
+                {/* Select-all checkbox — toggles every VISIBLE row. */}
+                <th className="pl-5 pr-2 py-3.5 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                    onChange={toggleAll}
+                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                    aria-label={allChecked ? "Deselect all" : "Select all"}
+                  />
+                </th>
                 <th className="px-5 py-3.5">Employee</th>
                 {columns.map((c) => <th key={c.header} className="px-5 py-3.5"><HelpLabel text={c.header} help={c.help} /></th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {rows.map(({ item, person, role }) => {
+                const id = entityId(item);
+                const isChecked = checked.has(id);
                 const designation = item.user?.employee_profile?.designation;
                 const secondary = [person.code, designation || (showRoleFilter && role ? ROLE_OPTIONS.find(([v]) => v === role)?.[1].replace(/s$/, "") : "")].filter(Boolean).join(" · ");
                 const open = () => { setStaleNotice(""); setSelected(item); };
                 return (
                   <tr
-                    key={entityId(item)}
+                    key={id}
                     tabIndex={0}
                     aria-haspopup="dialog"
-                    className="hover:bg-purple-50/40 focus:bg-purple-50/60 outline-none transition-colors cursor-pointer"
+                    className={`outline-none transition-colors cursor-pointer ${isChecked ? "bg-purple-50/60" : "hover:bg-purple-50/40 focus:bg-purple-50/60"}`}
                     onClick={open}
                     onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); } }}
                   >
+                    {/* Row checkbox — click stops here, not on the row. */}
+                    <td className="pl-5 pr-2 py-3.5 w-10" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleOne(id)}
+                        className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                        aria-label={`Select ${person.name}`}
+                      />
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 text-xs"><GenderAvatar person={item} name={person.name} /></div>
@@ -318,12 +455,58 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
         </div>
       )}
 
+      {/* ── Floating bulk action bar ──────────────────────────────────────── */}
+      {someChecked && (
+        <div className="sticky bottom-0 z-30 border-t border-purple-200 bg-purple-50/95 backdrop-blur-md px-5 py-3 flex items-center justify-between gap-4">
+          <span className="text-sm font-bold text-purple-900">
+            {checkedVisible.length} {checkedVisible.length === 1 ? "item" : "items"} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={clearChecked} className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+              Clear
+            </button>
+            {cfg.actions.map((action) => {
+              const label = BULK_LABELS[action.key]?.bar || action.label;
+              const danger = action.tone === "rose";
+              return (
+                <button
+                  key={action.key}
+                  type="button"
+                  onClick={() => startBulk(action)}
+                  className={`px-5 py-2 text-xs font-bold rounded-xl transition ${danger ? "bg-rose-600 hover:bg-rose-700 text-white" : "bg-purple-600 hover:bg-purple-700 text-white"}`}
+                >
+                  {label} ({checkedVisible.length})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk reason dialog ────────────────────────────────────────────── */}
+      {bulkAction && (
+        <ReasonDialog
+          title={`${BULK_LABELS[bulkAction.key]?.bar || bulkAction.label} ${checkedVisible.length} ${checkedVisible.length === 1 ? "item" : "items"}`}
+          description={`This will apply to all ${checkedVisible.length} selected items with the same reason.`}
+          label={type === "anomaly" ? "Resolution note" : "Remarks for the employees"}
+          placeholder={type === "anomaly" ? "Write a shared resolution note…" : "Add context for all selected employees…"}
+          confirmLabel={`${BULK_LABELS[bulkAction.key]?.bar || bulkAction.label} all`}
+          tone={bulkAction.tone === "rose" ? "danger" : "primary"}
+          minLength={bulkAction.requireRemarks ? 3 : 0}
+          optional={!bulkAction.requireRemarks}
+          error={bulkError}
+          onSubmit={submitBulk}
+          onClose={() => { setBulkAction(null); setBulkError(""); }}
+        />
+      )}
+
+      {/* ── Single-item decision dialog ──────────────────────────────────── */}
       <DecisionDialog
         open={!!selected}
         entityKey={selected ? entityId(selected) : undefined}
         title={type === "anomaly" ? "Resolve attendance flag" : `Review ${cfg.label.toLowerCase()} request`}
         subtitle={selected ? resolvePerson(selected, names).name : ""}
-        size={type === "compoff" ? "md" : "lg"}
+        size="lg"
         actions={cfg.actions}
         notice={cfg.notice && <InlineAlert tone="sky">{cfg.notice}</InlineAlert>}
         remarksLabel={type === "anomaly" ? "Resolution note" : "Remarks for the employee"}

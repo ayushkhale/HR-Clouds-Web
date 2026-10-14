@@ -7,7 +7,7 @@
 // A queue that fails to load counts as `null` (shown as N/A), never as 0.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { attendanceAPI, documentsAPI, leaveAPI, payrollAPI, tokenHelper } from "../api";
+import { attendanceAPI, documentsAPI, leaveAPI, payrollAPI, tasksAPI, tokenHelper } from "../api";
 import { normalizePaginated } from "../attendance/normalize";
 import { isProposalQueueMissing } from "./documentErrors";
 import { currentFY } from "../../roles/hr/payroll/fyUtils";
@@ -15,7 +15,7 @@ import { currentFY } from "../../roles/hr/payroll/fyUtils";
 // Ten queues cost eleven requests, so this is deliberately long: the badge is a
 // hint, not a live figure. Decisions refresh it through attendance events, and
 // the HR Inbox has its own Refresh button.
-const CACHE_MS = 5 * 60_000;
+const CACHE_MS = 60_000;
 
 const total = (keys) => (res) => normalizePaginated(res, keys).total;
 
@@ -26,6 +26,14 @@ export const HR_INBOX_QUEUES = [
   { key: "overtime", load: () => attendanceAPI.getManagerPendingOvertime().then(total(["requests", "overtime"])) },
   { key: "compOffs", load: () => attendanceAPI.getManagerCompOffs().then(total(["comp_offs", "compOffs", "requests"])) },
   { key: "anomalies", load: () => attendanceAPI.getManagerAnomalies().then(total(["anomalies"])) },
+  {
+    // Deliverables handed in and waiting on a reviewer (Task Phase 3, #259).
+    // `team-tasks` is the shared read on purpose: it hierarchy-filters a
+    // manager to their own reports and returns the whole organisation for HR
+    // (#257), which is exactly the scope each of them may approve.
+    key: "tasks",
+    load: () => tasksAPI.getTeamTasks({ status: "in_review", limit: 1 }).then(total(["tasks"])),
+  },
   { key: "salaryApprovals", load: () => payrollAPI.getProposals({ status: "proposed" }).then(total(["proposals", "records"])) },
   {
     key: "claims",

@@ -5,10 +5,16 @@ import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiCalendar, HiChevronLeft, HiChevronRight,
+  HiCheckCircle, HiExclamationCircle, HiX, HiCalendar, HiChevronLeft, HiChevronRight, HiDocumentText,
 } from "react-icons/hi";
 import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
 import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailText, rowPreviewProps } from "../../../shared/components/DetailDialog";
+import AttachmentLink from "../../../shared/documents/AttachmentLink";
+import { fmtDate } from "../../../shared/attendance/dates";
+import { humanize } from "../../../shared/attendance/enums";
+import { personName } from "../../../shared/attendance/normalize";
+import { useEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
 
 const HISTORY_LIMIT = 20;
 
@@ -102,6 +108,82 @@ function RejectModal({ request, onClose, onRejected }) {
   );
 }
 
+// ─── Decided request: the record inspector ───────────────────────────────────
+// Team History used to be a wall of cards that answered nothing: clicking one
+// did nothing, so the reason, the paid/unpaid split, the attachment and who
+// decided it were all unreachable from this screen (manager audit M-31, M-15).
+// Same field set and wording as HR's leave preview, so a manager promoted to HR
+// reads the same record (§2) — minus the actions, because a decided request has
+// none.
+function LeaveHistoryPreview({ request, onClose }) {
+  const { nameOf } = useEmployeeDirectory();
+  const name = leaveApplicantName(request);
+  const reviewer = personName(request.reviewer || request.approver || request.decided_by, "")
+    || (request.reviewed_by || request.approved_by ? nameOf(request.reviewed_by || request.approved_by) : "");
+  const decidedOn = request.reviewed_at || request.approved_at || request.decided_at || request.updated_at;
+  const isCancelled = request.status === "cancelled" || request.status === "terminated_cancelled";
+
+  return (
+    <DetailDialog
+      eyebrow="Leave request"
+      icon={HiCalendar}
+      title={name}
+      subtitle={request.leave_type?.name || "Leave"}
+      badge={<DetailPill tone="onDark">{humanize(request.status) || "N/A"}</DetailPill>}
+      onClose={onClose}
+      footer={
+        <DetailFooterNote>
+          {isCancelled
+            ? "This request was cancelled, so there is nothing left to decide."
+            : "This request has already been decided — it is here as a record."}
+        </DetailFooterNote>
+      }
+    >
+      <DetailSection title="Leave details" icon={HiCalendar}>
+        <DetailGrid
+          items={[
+            ["Leave type", request.leave_type?.name || "Leave"],
+            ["From", fmtDate(request.start_date, { day: "numeric", month: "short", year: "numeric" })],
+            ["To", fmtDate(request.end_date, { day: "numeric", month: "short", year: "numeric" })],
+            ["Total", formatDayCount(request.total_days)],
+            ["Half day", request.is_half_day ? humanize(request.half_day_type) : "No"],
+            { label: "Paid", value: formatDayCount(request.paid_days ?? request.total_days), help: { surface: "leaves.approval", field: "paid_split", label: "paid and unpaid days" } },
+            ["Unpaid", formatDayCount(request.unpaid_days ?? 0)],
+            ["Applied on", fmtDate(request.created_at || request.requested_at, { day: "numeric", month: "short", year: "numeric" })],
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection
+        title="Reason"
+        icon={HiDocumentText}
+        action={request.document_url && (
+          <AttachmentLink
+            url={request.document_url}
+            label="View document"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-lg transition"
+          />
+        )}
+      >
+        <DetailText>{request.reason}</DetailText>
+        {request.rejection_reason && <div className="mt-4"><DetailText label="Rejected because">{request.rejection_reason}</DetailText></div>}
+        {request.cancellation_reason && <div className="mt-4"><DetailText label="Cancelled because">{request.cancellation_reason}</DetailText></div>}
+      </DetailSection>
+
+      {(reviewer || decidedOn) && (
+        <DetailSection title="Decision" icon={HiCheckCircle} defaultOpen={false}>
+          <DetailGrid
+            items={[
+              ...(reviewer ? [["Decided by", reviewer]] : []),
+              ...(decidedOn ? [["Decided on", fmtDate(decidedOn, { day: "numeric", month: "short", year: "numeric" })]] : []),
+            ]}
+          />
+        </DetailSection>
+      )}
+    </DetailDialog>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManagerLeavePage() {
   const [activeTab, setActiveTab] = useState("pending");
@@ -112,6 +194,7 @@ export default function ManagerLeavePage() {
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
+  const [historyPreview, setHistoryPreview] = useState(null);
   const [toast, setToast] = useState(null);
 
   function showToast(message, type = "success") {
@@ -140,8 +223,16 @@ export default function ManagerLeavePage() {
 
   useEffect(() => { loadRequests(); }, [loadRequests]);
 
+  // Every switch that will refetch marks the list busy in the SAME update that
+  // changes it. `loadRequests` only sets `loading` once the effect runs, i.e.
+  // one render too late: switching to Team History drew the already-settled
+  // `loading: false` against an empty `historyRequests` and flashed "No History
+  // Found" before the request even left (manager audit M-32). The same render
+  // would otherwise show the previous filter's rows under the new filter.
+  function switchTab(tab) { if (tab !== activeTab) { setLoading(true); setActiveTab(tab); } }
   // Changing the status filter resets to page 1 in one update so loadRequests fires once.
-  function changeHistoryStatus(v) { setHistoryStatus(v); setHistoryPage(1); }
+  function changeHistoryStatus(v) { setLoading(true); setHistoryStatus(v); setHistoryPage(1); }
+  function goToHistoryPage(next) { setLoading(true); setHistoryPage(next); }
 
   async function handleApprove(id) {
     setApproving(id);
@@ -192,13 +283,13 @@ export default function ManagerLeavePage() {
             
             <div className="flex bg-slate-100 p-1 rounded-xl">
               <button 
-                onClick={() => setActiveTab("pending")} 
+                onClick={() => switchTab("pending")} 
                 className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === "pending" ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Pending Approvals
               </button>
               <button 
-                onClick={() => setActiveTab("history")} 
+                onClick={() => switchTab("history")} 
                 className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === "history" ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Team History
@@ -265,7 +356,11 @@ export default function ManagerLeavePage() {
                 {historyRequests.map(req => {
                   const name = leaveApplicantName(req);
                   return (
-                    <div key={req.id} className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div
+                      key={req.id}
+                      {...rowPreviewProps(() => setHistoryPreview(req), `Leave request from ${name}`)}
+                      className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:border-purple-200 hover:bg-purple-50/30 focus:bg-purple-50/40 outline-none focus:ring-2 focus:ring-purple-100 transition-colors"
+                    >
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-bold text-slate-800">{name}</h4>
@@ -276,7 +371,7 @@ export default function ManagerLeavePage() {
                               req.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
                               req.status === 'cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
                               'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'}`}>
-                            {req.status?.replace('_', ' ').toUpperCase()}
+                            {humanize(req.status)}
                           </span>
                         </div>
                         <p className="text-xs text-slate-500">
@@ -295,11 +390,11 @@ export default function ManagerLeavePage() {
               <div className="flex items-center justify-between mt-6">
                 <p className="text-xs text-slate-400">Page {historyPage}</p>
                 <div className="flex gap-2">
-                  <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
+                  <button onClick={() => goToHistoryPage(Math.max(1, historyPage - 1))} disabled={historyPage === 1}
                     className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
                     <HiChevronLeft className="w-4 h-4" /> Prev
                   </button>
-                  <button onClick={() => setHistoryPage(p => p + 1)} disabled={historyRequests.length < HISTORY_LIMIT}
+                  <button onClick={() => goToHistoryPage(historyPage + 1)} disabled={historyRequests.length < HISTORY_LIMIT}
                     className="flex items-center gap-1 text-xs font-semibold text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
                     Next <HiChevronRight className="w-4 h-4" />
                   </button>
@@ -368,6 +463,10 @@ export default function ManagerLeavePage() {
             </div>
           )}
         </main>
+
+      {historyPreview && (
+        <LeaveHistoryPreview request={historyPreview} onClose={() => setHistoryPreview(null)} />
+      )}
 
       {/* Reject Modal */}
       {rejectTarget && (

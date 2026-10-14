@@ -16,7 +16,7 @@
 //
 // The bus is app-wide despite living in `attendance/`: the inbox counts a
 // manager or HR sees span leave, claims, loans, salary proposals, tax
-// declarations and letter proposals too, and each of those decisions has to clear the badge and the
+// declarations, letter proposals and delegated tasks too, and each of those decisions has to clear the badge and the
 // inbox card without a reload. Every kind below marked in INBOX_EVENT_KINDS is
 // emitted the moment such a decision succeeds.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,6 +39,8 @@ export const ATTENDANCE_EVENTS = Object.freeze({
   TAX_DECLARATION: "tax_declaration",
   // A manager's letter proposal waiting on HR (PDF Generation Phase 4, #148).
   LETTER_PROPOSAL: "letter_proposal",
+  // A delegated task handed in and waiting on its reviewer (Task Phase 3, #259).
+  TASK: "task",
 });
 
 /**
@@ -57,6 +59,7 @@ export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.SALARY_PROPOSAL,
   ATTENDANCE_EVENTS.TAX_DECLARATION,
   ATTENDANCE_EVENTS.LETTER_PROPOSAL,
+  ATTENDANCE_EVENTS.TASK,
 ];
 
 const listeners = new Set();

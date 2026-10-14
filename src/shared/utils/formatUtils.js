@@ -14,12 +14,15 @@ export const formatDecimalHours = (val) => {
 // days, so it is never printed. A value that is not a multiple of a half is a
 // backend bug; it is snapped to the nearest half instead of leaking a decimal.
 //
-// ONE rendering, everywhere, and it spells the half out:
-//   0.5 → "1 Half Day"      2   → "2 Days"
-//   1   → "1 Day"           2.5 → "2 Days and 1 Half Day"
-// No decimal, no "2½", no "2 and a half" — this is the only form the screen is
-// allowed to use. Because the phrase carries its own unit, a tile must NOT put
-// a "days" caption beside it; say "left", "paid", "unpaid" instead.
+// ONE rendering, everywhere, and it writes the half as a fraction (changed
+// 2026-10-13 — the spelled-out form was three times the width in a table cell
+// and wrapped a column heading onto two lines):
+//   0.5 → "1/2 d"           2   → "2d"
+//   1   → "1d"              2.5 → "2d and 1/2 d"
+// No decimal, no "2½", no "2 and a half", no "2.5 days" — this is the only
+// form the screen is allowed to use. Because the phrase carries its own unit,
+// a tile must NOT put a "days" caption beside it; say "left", "paid",
+// "unpaid" instead.
 // Eight near-identical local copies of this used to disagree with each other;
 // don't write a ninth.
 const halvesOf = (val) => {
@@ -29,19 +32,22 @@ const halvesOf = (val) => {
 };
 
 /**
- * "1 Half Day" / "1 Day" / "2 Days and 1 Half Day". Pass `lower` mid-sentence,
- * where Title Case would read as a proper noun.
+ * "1/2 d" / "1d" / "2d and 1/2 d".
+ *
+ * `lower` is kept because ~40 call sites pass it and the form used to be Title
+ * Case ("2 Days and 1 Half Day"); there is no longer a capital to lower, so it
+ * is a no-op. Leave it in rather than touching every caller to drop it.
  */
 export const formatDayCount = (val, { fallback = "N/A", lower = false } = {}) => {
   const parsed = halvesOf(val);
   if (!parsed) return fallback;
   const { halves, sign } = parsed;
-  let text = "0 Days";
+  let text = "0d";
   if (halves > 0) {
     const whole = Math.floor(halves / 2);
     const parts = [];
-    if (whole > 0) parts.push(`${sign}${whole} ${whole === 1 ? "Day" : "Days"}`);
-    if (halves % 2 === 1) parts.push(`${whole > 0 ? "" : sign}1 Half Day`);
+    if (whole > 0) parts.push(`${sign}${whole}d`);
+    if (halves % 2 === 1) parts.push(`${whole > 0 ? "" : sign}1/2 d`);
     text = parts.join(" and ");
   }
   return lower ? text.toLowerCase() : text;

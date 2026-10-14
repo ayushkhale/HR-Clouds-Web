@@ -23,7 +23,7 @@ import { fmtDate, fmtDateTime } from "../../../../shared/attendance/dates";
 import { formatMoney } from "../../../../shared/utils/formatUtils";
 import { isComingSoon } from "../../../../shared/config/plans";
 import {
-  cycleEveryLabel, featureName, isFreePlan, paymentStatusMeta, priceLabel,
+  cycleEveryLabel, featureName, isFreeTier, paymentStatusMeta, planPriceLabel,
   seatLine, seatMeters, subscriptionStatusMeta,
 } from "../billingMeta";
 import { SeatMeter } from "./billingUi";
@@ -40,12 +40,24 @@ export default function PlanDetailDialog({ subscription: sub, usage, lastPayment
   const plan = sub?.plan || null;
   const statusMeta = subscriptionStatusMeta(sub?.status);
   const meters = seatMeters(usage);
-  const free = isFreePlan(plan);
+  // Costs nothing AND is on public sale. A negotiated plan arrives as ₹0 on a
+  // lifetime cycle too, and calling that one "free" misstates the deal (§4 of
+  // this file's sibling, CurrentPlanCard).
+  const freeTier = isFreeTier(plan, plans);
+  const lifetime = String(plan?.billing_cycle || "").toLowerCase() === "lifetime";
   const ending = Boolean(sub?.cancel_at_period_end);
 
+  // #225 carries only public rows, so a private, internal or withdrawn plan has
+  // no catalogue row at all. #226's own plan object is the snapshot of what was
+  // agreed and carries the same keys, so it is the fallback rather than an empty
+  // list — the benefit section used to vanish entirely for those plans even
+  // though the server had sent all thirteen features.
   const catalogRow = plans.find((p) => p.code === plan?.code) || null;
-  const features = catalogRow?.feature_keys || [];
-  const limits = catalogRow?.limits || null;
+  const features = catalogRow?.feature_keys || plan?.feature_keys || [];
+  const snapshotLimits = plan && ("max_employees" in plan || "max_managers" in plan || "max_hrs" in plan)
+    ? { max_employees: plan.max_employees ?? null, max_managers: plan.max_managers ?? null, max_hrs: plan.max_hrs ?? null }
+    : null;
+  const limits = catalogRow?.limits || snapshotLimits;
 
   const lastPaymentWhen = !lastPayment
     ? "Nothing has been charged"
@@ -58,7 +70,7 @@ export default function PlanDetailDialog({ subscription: sub, usage, lastPayment
       eyebrow="Your plan"
       icon={HiBadgeCheck}
       title={plan?.name || "N/A"}
-      subtitle={priceLabel(plan?.amount, plan?.billing_cycle)}
+      subtitle={planPriceLabel(plan, plans)}
       badge={<DetailPill tone={sub?.is_entitled ? "solid" : "muted"}>{statusMeta.label}</DetailPill>}
       width="medium"
       onClose={onClose}
@@ -80,9 +92,18 @@ export default function PlanDetailDialog({ subscription: sub, usage, lastPayment
           },
           {
             label: "Charged",
-            value: ending ? "Not again" : free ? "Never — this plan is free" : cycleEveryLabel(plan?.billing_cycle),
+            value: ending ? "Not again" : cycleEveryLabel(plan?.billing_cycle),
             icon: HiRefresh,
-            hint: ending ? "You stopped it renewing" : free ? "No card is needed" : "On the renewal date above",
+            // Four different reasons the answer can be "Never", and they are not
+            // interchangeable: a free plan has no card, a lifetime one is paid
+            // for, and a cancelled one stopped on purpose.
+            hint: ending
+              ? "You stopped it renewing"
+              : freeTier
+                ? "No card is needed"
+                : lifetime
+                  ? "Nothing further is charged"
+                  : "On the renewal date above",
           },
           {
             label: "Last payment",
@@ -109,8 +130,9 @@ export default function PlanDetailDialog({ subscription: sub, usage, lastPayment
         )}
       </DetailSection>
 
-      {/* Absent when the plan is no longer in the catalogue — a feature list
-          we can't read is better missing than guessed (§7). */}
+      {/* Absent only when neither the catalogue row nor the subscription's own
+          snapshot lists anything — a feature list we can't read is better
+          missing than guessed (§7). */}
       {features.length > 0 && (
         <DetailSection title="What your plan includes" icon={HiSparkles} collapsible={false}>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">

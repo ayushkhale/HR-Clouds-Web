@@ -189,6 +189,10 @@ export const DOCUMENT_ERROR_MESSAGES = {
   LETTER_TEMPLATE_DISABLED: "This letter is switched off for your organisation, so it can't be issued. Switch it on in Letter Templates first.",
   LETTER_FIELD_UNKNOWN: "One of the details typed in isn't part of this letter, so nothing was issued. Refresh the page and fill it in again.",
   LETTER_FIELD_NOT_OVERRIDABLE: "That detail comes straight from the person's record and can't be typed in here. Correct it on their profile, then issue the letter.",
+  // #271's change record tabulates this spelling for the same refusal its own
+  // test suite calls LETTER_FIELD_NOT_OVERRIDABLE (2026-10-14 §2.6 vs §5.1).
+  // Both are mapped rather than betting on which one the server sends.
+  LETTER_FIELD_OVERRIDE_PROHIBITED: "That detail comes straight from the person's record and can't be typed in here. Correct it on their profile, then issue the letter.",
   LETTER_FACTS_MISSING: "This person's record is missing something the letter has to print, so nothing was issued. Fill it in on their profile and try again.",
   LETTER_NOT_REISSUABLE: "Only the letter that is currently in force can be reissued. This one has already been replaced by a newer version, or withdrawn — open the newest version and reissue that.",
   LETTER_REFERENCE_CONFLICT: "Two letters were numbered at the same moment. Nothing was issued and no number was used up — try again.",
@@ -262,7 +266,12 @@ export function documentErrorMessage(err, fallback = "Something went wrong. Plea
     return "Can't reach the server. Check your internet connection and try again.";
   }
   const message = typeof err?.message === "string" ? err.message : "";
-  if (message && !/^Request failed: \d+$/.test(message)) return message;
+  // Both wrappers invent a message when the refusal carried no JSON body at all:
+  // `request()` says "Request failed: 404" and `download.js` says "Download
+  // failed (403 Forbidden)". Neither is something to show anybody — and the
+  // second one says "download" on screens that were only ever showing a page —
+  // so a bodyless refusal falls through to the caller's own words.
+  if (message && !/^Request failed: \d+$/.test(message) && !/^Download failed \(/.test(message)) return message;
   return fallback;
 }
 
@@ -596,7 +605,7 @@ export function letterIssueErrorMessage(err, fallback = "Couldn’t issue this l
   if (code === "DOCUMENT_TYPE_INACTIVE") {
     return "The kind of document this letter is filed under has been switched off, so the letter can’t be issued. Switch it back on in Document Types, then issue the letter.";
   }
-  if (code === "LETTER_FIELD_NOT_OVERRIDABLE") {
+  if (code === "LETTER_FIELD_NOT_OVERRIDABLE" || code === "LETTER_FIELD_OVERRIDE_PROHIBITED") {
     const field = letterErrorField(err);
     return field
       ? `“${field}” comes straight from this person’s record and can’t be typed in here. Correct it on their profile, then issue the letter.`
@@ -607,6 +616,39 @@ export function letterIssueErrorMessage(err, fallback = "Couldn’t issue this l
     return field
       ? `“${field}” isn’t part of this letter, so nothing was issued. It has been removed — issue the letter again.`
       : DOCUMENT_ERROR_MESSAGES.LETTER_FIELD_UNKNOWN;
+  }
+  return letterErrorMessage(err, fallback);
+}
+
+/**
+ * Error text for the real-subject draft (#271) — the preview that uses the
+ * person's own record rather than made-up details.
+ *
+ * It needs its own words, between the other two mappers, for one reason:
+ * nothing was ever going to be issued here, so `letterIssueErrorMessage`'s
+ * reassurance ("nothing was issued, no number was used up") answers a question
+ * nobody asked and plants the idea that pressing Preview might have issued
+ * something. What HR actually learns from a refused draft is whether the letter
+ * is fit to issue at all — and the two refusals that matter say precisely which
+ * detail is not, so those are rebuilt around the names the server sent and
+ * point at where each one is fixed. Everything else reads as it does on the
+ * Phase 1 preview buttons.
+ */
+export function letterDraftErrorMessage(err, fallback = "Couldn’t draw this draft.") {
+  const code = documentErrorCode(err);
+
+  if (code === "PDF_DATA_INCOMPLETE") {
+    const missing = incompleteLetterFields(err);
+    return missing.length
+      ? `This letter needs ${listPhrase(missing)}, and ${missing.length === 1 ? "it is" : "they are"} blank — so it can’t be drawn, and it can’t be issued either. Fill ${missing.length === 1 ? "it" : "them"} in above and preview again.`
+      : "One of the details this letter needs is blank, so it can’t be drawn — or issued — yet. Fill in the missing wording and preview again.";
+  }
+  if (code === "LETTER_FACTS_MISSING") {
+    const missing = missingLetterFacts(err);
+    const places = missingLetterFactPlaces(err);
+    return missing.length
+      ? `This person’s record is missing ${listPhrase(missing)}, and the letter has to print ${missing.length === 1 ? "it" : "them"}. Add ${missing.length === 1 ? "it" : "them"} in ${listPhrase(places)} — the letter can’t be issued until you do.`
+      : DOCUMENT_ERROR_MESSAGES.LETTER_FACTS_MISSING;
   }
   return letterErrorMessage(err, fallback);
 }
@@ -731,7 +773,7 @@ export const isLetterIssueRetryable = (err) =>
  * `letterOverridableFields()` for why the frontend can be wrong about this.
  */
 export const isLetterFieldRejected = (err) =>
-  ["LETTER_FIELD_UNKNOWN", "LETTER_FIELD_NOT_OVERRIDABLE"].includes(documentErrorCode(err));
+  ["LETTER_FIELD_UNKNOWN", "LETTER_FIELD_NOT_OVERRIDABLE", "LETTER_FIELD_OVERRIDE_PROHIBITED"].includes(documentErrorCode(err));
 
 /**
  * The server never answered, so nobody can say whether the letter went out.

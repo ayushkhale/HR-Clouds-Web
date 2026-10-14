@@ -428,8 +428,18 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
 
         {/* Field staff punch against their client sites UNION their base office,
             so both are listed together. Without this an out-of-bounds flag gives
-            them nothing to act on (§4 API 9). Hidden for everyone else. */}
-        {phase === "idle" && isFieldWorker(contractMode) && (contract?.records?.length > 0 || contract?.assigned_office) && (
+            them nothing to act on (§4 API 9).
+            GATED ON THE SITES THE SERVER RETURNED, NOT ON THE WORK MODE WE READ
+            (§7). It used to need `isFieldWorker(contractMode)`, and
+            `normalizeWorkMode` answers "office" for anything it doesn't
+            recognise — including a payload with no `work_mode` at all — so an
+            employee who had been assigned client sites saw none of them. If
+            /my-field-assignments came back with sites on it, this person has
+            sites; the base office still needs the mode, because listing "HQ ·
+            your base" to a purely office-based employee says nothing.
+            It also shows in every phase, not just before clocking in: clocking
+            OUT is geofenced too, so where they may stand matters all day. */}
+        {(contract?.records?.length > 0 || (isFieldWorker(contractMode) && contract?.assigned_office)) && (
           <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Where you can clock in</p>
             <ul className="space-y-1">

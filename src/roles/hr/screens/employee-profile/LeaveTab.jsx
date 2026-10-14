@@ -61,11 +61,11 @@ export function BalanceCard({ balance, index }) {
           </span>
         )}
       </div>
-      <p className={`text-xl font-extrabold leading-tight ${color.accent} mb-1`}>{formatDayCount(current, { fallback: "0 Days" })}</p>
+      <p className={`text-xl font-extrabold leading-tight ${color.accent} mb-1`}>{formatDayCount(current, { fallback: "0d" })}</p>
       <p className="text-xs text-slate-500 font-medium">left</p>
       <div className="mt-3 pt-3 border-t border-white/70 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(earned, { lower: true, fallback: "0 days" })}</span> given so far</span>
-        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(taken, { lower: true, fallback: "0 days" })}</span> taken</span>
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(earned, { lower: true, fallback: "0d" })}</span> given so far</span>
+        <span className="whitespace-nowrap"><span className="font-semibold text-slate-700">{formatDayCount(taken, { lower: true, fallback: "0d" })}</span> taken</span>
       </div>
     </div>
   );
@@ -276,9 +276,9 @@ export default function LeaveTab({ userId, employeeName = "" }) {
                         {b.leave_type?.code && <span className="font-mono text-[10px] font-bold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">{b.leave_type.code}</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm font-bold text-slate-700">{formatDayCount(b.current_balance, { fallback: "0 days" })}</td>
+                    <td className="px-6 py-3 text-sm font-bold text-slate-700">{formatDayCount(b.current_balance, { fallback: "0d" })}</td>
                     <td className="px-6 py-3 text-xs text-slate-500">
-                      {formatDayCount(b.total_accrued, { lower: true, fallback: "0 days" })} given · {formatDayCount(b.total_used, { lower: true, fallback: "0 days" })} taken
+                      {formatDayCount(b.total_accrued, { lower: true, fallback: "0d" })} given · {formatDayCount(b.total_used, { lower: true, fallback: "0d" })} taken
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex justify-end">

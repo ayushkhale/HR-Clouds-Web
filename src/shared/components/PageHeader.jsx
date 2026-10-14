@@ -14,6 +14,17 @@
 // the box instead of shrinking the banner, so the three stay identical whatever
 // art is dropped in later. `max-w-*` stops a very wide asset eating the text.
 //
+// `imageAlign` is how a WIDE asset gets fixed. The default treatment assumes a
+// cut-out character standing on its own baseline, which is why the art bleeds
+// off the bottom edge. A letterboxed photo or scene has no baseline, so the
+// bleed crops real picture and the art hangs low with dead space above it —
+// which is what the employee banner looked like. `imageAlign="center"` drops
+// the bleed and centres the art in its box instead, and takes the box height
+// down one step to pay for the margin it no longer has, so the BANNER height is
+// unchanged: 7rem − 1.5rem = 5.5rem, 10rem − 2rem = 8rem (sm:h-32), and
+// 12rem − 2rem = 10rem (md:h-40). Change one of those numbers and you must
+// change its partner, or this role's banner stops matching the others.
+//
 // New header information goes INSIDE this banner rather than above or below it,
 // and at the same size in every role.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,9 +36,11 @@
  * @param {React.ReactNode} props.title
  * @param {React.ReactNode} [props.subtitle]
  * @param {string} [props.image]       decorative art, bled off the bottom edge
+ * @param {"bottom"|"center"} [props.imageAlign]  "center" for a wide/letterboxed
+ *   asset that has no baseline to stand on; keeps the banner the same height
  * @param {React.ReactNode} [props.rightContent]  used when there is no art
  */
-function PageHeader({ badgeText, badgeIcon: BadgeIcon, title, subtitle, image, rightContent }) {
+function PageHeader({ badgeText, badgeIcon: BadgeIcon, title, subtitle, image, imageAlign = "bottom", rightContent }) {
   return (
     <div className="bg-gradient-to-r from-[#5B21B6] via-[#6328D7] to-[#4C1D95] rounded-3xl p-4 sm:p-5 text-white relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
       <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
@@ -49,7 +62,10 @@ function PageHeader({ badgeText, badgeIcon: BadgeIcon, title, subtitle, image, r
           src={image}
           alt=""
           aria-hidden="true"
-          className="relative z-10 shrink-0 h-28 sm:h-40 md:h-48 w-auto max-w-[9rem] sm:max-w-[13rem] md:max-w-[16rem] object-contain object-bottom drop-shadow-2xl sm:mr-8 md:mr-16 -mb-6 sm:-mb-8"
+          className={`relative z-10 shrink-0 w-auto max-w-[9rem] sm:max-w-[13rem] md:max-w-[16rem] object-contain drop-shadow-2xl sm:mr-8 md:mr-16 ${imageAlign === "center"
+            ? "h-[5.5rem] sm:h-32 md:h-40 object-center"
+            : "h-28 sm:h-40 md:h-48 object-bottom -mb-6 sm:-mb-8"
+            }`}
         />
       ) : rightContent ? (
         <div className="relative z-10 flex shrink-0 w-full sm:w-auto">{rightContent}</div>

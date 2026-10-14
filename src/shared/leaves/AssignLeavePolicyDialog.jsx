@@ -330,7 +330,7 @@ function OnePersonAssign({
         <li key={row.leave_type_id || row.id} className="flex items-center justify-between gap-3 px-3.5 py-2">
           <span className="text-sm font-semibold text-slate-700 min-w-0 truncate">{row.leave_type?.name || "Leave"}</span>
           <span className="text-xs text-slate-500 shrink-0 tabular-nums">
-            {formatDayCount(row.current_balance, { lower: true, fallback: "0 days" })} left
+            {formatDayCount(row.current_balance, { lower: true, fallback: "0d" })} left
           </span>
         </li>
       ))}

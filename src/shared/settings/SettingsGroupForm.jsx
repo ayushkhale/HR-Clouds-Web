@@ -110,7 +110,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  HiCheck, HiChevronDown, HiChevronRight, HiExclamationCircle, HiLockClosed, HiRefresh,
+  HiChevronDown, HiChevronRight, HiExclamationCircle, HiLockClosed, HiRefresh,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import ReasonDialog from "../components/ReasonDialog";
@@ -135,7 +135,6 @@ const CARD = "bg-white rounded-2xl border shadow-xs overflow-hidden transition-a
 const LINK = "inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 shrink-0";
 /* The card's own Save was PRIMARY; the page's one Save lives in the dock now
    (see the footer comment). SECONDARY is still the reload button's. */
-const PRIMARY = "px-4 py-2 rounded-xl text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2";
 const SECONDARY = "px-4 py-2 rounded-xl text-sm font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 transition disabled:opacity-50 inline-flex items-center gap-2";
 
 function Pill({ tone = "slate", children }) {
@@ -170,7 +169,7 @@ const sameValue = (a, b) => {
 
 export default function SettingsGroupForm({
   group, entries, editTo, onSaved, onReload, showToast, surface, onDirtyChange, flash = false,
-  open: openProp, onToggle, standalone = false,
+  open: openProp, onToggle,
 }) {
   const rows = useMemo(() => entries || [], [entries]);
   // Memoised: it feeds the patch diff, and a fresh {} each render would make
@@ -182,10 +181,7 @@ export default function SettingsGroupForm({
   // to be able to open a card it is reporting on), and falls back to the
   // card's own state so this component still works on its own.
   const [localOpen, setLocalOpen] = useState(false);
-  // On its own page there is no shutter to be behind: the page IS the group,
-  // its title is the page's title, and a card that could be collapsed to
-  // nothing would leave the reader on an empty screen.
-  const open = standalone ? true : (openProp ?? localOpen);
+  const open = openProp ?? localOpen;
   const toggle = () => (onToggle ? onToggle(group.key) : setLocalOpen((v) => !v));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -441,51 +437,18 @@ export default function SettingsGroupForm({
               : "border-slate-100"
         }`}
       >
-        {/* The shutter header, and only in the list. On its own page the
-            breadcrumb and the page title already name the group, so a second
-            name with a chevron that cannot close anything would be two
-            headings and a dead control. */}
-        {!standalone && (
-          <Header
-            group={group}
-            rows={rows}
-            dirtyCount={dirtyKeys.length}
-            open={open}
-            onToggle={toggle}
-            bodyId={bodyId}
-            onReset={canWrite && resettableKeys.length > 0 ? resetToDefaults : null}
-            resetCount={resettableKeys.length}
-            busy={saving}
-          />
-        )}
-
-        {/* Standalone keeps the two things the shutter header carried that
-            the page title cannot: whether this group still sits on the
-            shipped defaults, and the one way to put it back. */}
-        {standalone && (
-          <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-slate-100">
-            {dirtyKeys.length > 0
-              ? <Pill tone="amber">{dirtyKeys.length} unsaved</Pill>
-              : (group.nonDefaultKeys || []).length > 0
-                ? <Pill tone="purple">Customised</Pill>
-                : null}
-            <span className={META}>
-              {rows.length} setting{rows.length === 1 ? "" : "s"}
-              {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
-            </span>
-            {canWrite && resettableKeys.length > 0 && (
-              <button
-                type="button"
-                onClick={resetToDefaults}
-                disabled={saving}
-                aria-label={`Put ${group.label} back to the default`}
-                className={`ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition`}
-              >
-                <HiRefresh className="w-3.5 h-3.5" /> Put back to default
-              </button>
-            )}
-          </div>
-        )}
+        <Header
+          group={group}
+          rows={rows}
+          dirtyCount={dirtyKeys.length}
+          canWrite={canWrite}
+          open={open}
+          onToggle={toggle}
+          bodyId={bodyId}
+          onReset={canWrite && resettableKeys.length > 0 ? resetToDefaults : null}
+          resetCount={resettableKeys.length}
+          busy={saving}
+        />
 
         {conflict && (
           <div className={`mx-5 mt-4 ${open ? "" : "mb-4"} flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 px-4 py-3 text-xs text-slate-700`}>
@@ -533,9 +496,15 @@ export default function SettingsGroupForm({
               see `fieldShelves`, which reads them off the keys. A card too
               small to be worth shelving comes back as a single unlabelled
               shelf, which renders as the plain grid it always was.
-              Inside a shelf: one field per line on a phone, two from `sm`,
-              three from `xl`, and `fieldSpan` gives the two kinds that can't
-              live in one cell the room they need. */}
+              Inside a shelf: one field per line on a phone and TWO from `sm`,
+              and `fieldSpan` gives the kinds that can't live in one cell the
+              room they need.
+
+              It used to go to three from `xl`, which was right while the card
+              was the width of the page. The card is half the page now (the
+              hub's two-column wall, same as Payroll Settings), so a third
+              column would be about 190px — narrower than the select controls
+              that have to sit in it. Two is what the width will carry. */}
           <div className="px-5 py-4 space-y-4">
             {shelves.map((shelf, shelfIndex) => (
             <section key={shelf.key} className={shelf.label && shelfIndex > 0 ? "pt-3 border-t border-slate-100" : ""}>
@@ -547,7 +516,7 @@ export default function SettingsGroupForm({
                 </span>
               </h4>
             )}
-            <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5 items-start">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 items-start">
             {shelf.rows.map((entry) => {
               const risk = riskMeta(entry.risk);
               const changed = (group.nonDefaultKeys || []).includes(entry.key);
@@ -683,24 +652,7 @@ export default function SettingsGroupForm({
                   Open {editTo.label} <HiChevronRight className="w-3.5 h-3.5" />
                 </Link>
               ) : <span className={META}>Changes here are saved to this area only.</span>}
-              {/* STANDALONE GETS ITS SAVE BACK. The footer's Save was removed
-                  because the list page also had a sticky dock, and one dirty
-                  card then showed two identical purple Save buttons doing the
-                  same write. On a group's own page there IS no dock, so this
-                  is the only one — and a page you can edit but not save is
-                  worse than the duplication ever was. */}
-              {standalone && canWrite && dirty ? (
-                <span className="flex items-center gap-2 shrink-0">
-                  <button type="button" onClick={discard} disabled={saving} className={SECONDARY}>
-                    Discard
-                  </button>
-                  <button type="button" onClick={save} disabled={saving} className={PRIMARY}>
-                    {saving
-                      ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</>
-                      : <><HiCheck className="w-4 h-4" /> Save changes</>}
-                  </button>
-                </span>
-              ) : canWrite && dirty && (
+              {canWrite && dirty && (
                 <span className={`text-xs font-bold shrink-0 ${TEXT.value}`}>
                   {saving
                     ? "Saving…"
@@ -770,58 +722,49 @@ export default function SettingsGroupForm({
  * exactly the same height and the two columns stack without gaps.
  */
 function Header({
-  group, rows, dirtyCount = 0, open, onToggle, bodyId,
+  group, rows, dirtyCount = 0, canWrite = false, open, onToggle, bodyId,
   onReset, resetCount = 0, busy = false,
 }) {
   const changed = (group.nonDefaultKeys || []).length;
   const Icon = groupIcon(group);
   const blurb = groupBlurb(group);
   return (
-    <header className={`flex gap-1 pr-2 ${open ? "items-start border-b border-slate-100" : "items-center"}`}>
+    <header className={`flex items-start gap-1 pr-2 ${open ? "border-b border-slate-100" : ""}`}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={bodyId}
-        className={`flex-1 min-w-0 flex gap-3 px-4 text-left rounded-2xl hover:bg-slate-50/70 transition-colors ${open ? "items-start py-4" : "items-center py-3"}`}
+        className="flex-1 min-w-0 flex items-start gap-3 px-5 py-4 text-left rounded-2xl hover:bg-slate-50/70 transition-colors"
       >
-        <span className="shrink-0 w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
-          <Icon className="w-4 h-4" />
+        <span className="shrink-0 w-9 h-9 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
+          <Icon className="w-[18px] h-[18px]" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="text-[15px] font-semibold text-slate-900 truncate">{group.label}</span>
-            {/* One pill, and only when it SAYS something. "Default" was on
-                twelve of the fifteen payroll cards — a badge on everything is
-                a badge on nothing, and it was the single biggest source of
-                noise in a closed list. Unsaved beats customised; nothing at
-                all is the resting state. */}
+            {/* One pill, the most urgent fact first: unsaved beats customised,
+                customised beats "still as it ships". Three pills in a row
+                would be a legend, not a status. */}
             {dirtyCount > 0
               ? <Pill tone="amber">{dirtyCount} unsaved</Pill>
               : changed > 0
                 ? <Pill tone="purple">Customised</Pill>
-                : null}
+                : canWrite ? <Pill tone="slate">Default</Pill> : null}
           </span>
-          {/* Closed, a card is ONE LINE: its name. The sentence explaining it
-              and the date it last moved are both reference — worth reading
-              about the one group you are opening, worth nothing repeated
-              fifteen times down a list you are scanning for a name. */}
-          {open && blurb && <span className={`block ${BLURB} mt-1`}>{blurb}</span>}
-          {open && (
-            <span className={`block ${META} mt-1.5`}>
-              {rows.length} setting{rows.length === 1 ? "" : "s"}
-              {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
+          {blurb && (
+            <span className={`block ${BLURB} mt-1 ${open ? "" : "line-clamp-1"}`}>
+              {blurb}
             </span>
           )}
+          <span className={`block ${META} mt-1.5`}>
+            {rows.length} setting{rows.length === 1 ? "" : "s"}
+            {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
+          </span>
         </span>
-        {/* The size of the group, quietly, so a closed row still says how
-            much is behind it without spending a line on it. */}
-        {!open && (
-          <span className={`shrink-0 ${META} tabular-nums`}>{rows.length}</span>
-        )}
         <HiChevronDown
           aria-hidden="true"
-          className={`shrink-0 w-4 h-4 text-slate-400 transition-transform ${open ? "mt-1 rotate-180" : ""}`}
+          className={`shrink-0 w-4 h-4 mt-1 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -832,7 +775,7 @@ function Header({
           disabled={busy}
           title={`Put ${resetCount === 1 ? "this setting" : `these ${resetCount} settings`} back to the value we ship`}
           aria-label={`Put ${group.label} back to the default`}
-          className={`shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition ${open ? "mt-4" : "my-auto"}`}
+          className={`mt-4 shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition`}
         >
           <HiRefresh className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Put back to default</span>

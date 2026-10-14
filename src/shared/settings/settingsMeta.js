@@ -437,7 +437,7 @@ export function rangeHint(entry) {
 
 /** `source` → where the change was made, in words. */
 export const CHANGE_SOURCE = {
-  settings_api: "Company Settings",
+  settings_api: "Settings",
   module_api: "The area's own screen",
   system: "Automatically",
 };
@@ -753,10 +753,11 @@ export const isSwitchControl = (entry) => entry?.data_type === "boolean" && isEd
  */
 export function fieldSpan(entry) {
   if (!entry) return "";
-  // A chip list takes the whole row: two of them side by side in a 3-column
-  // grid left a ragged third column (the Company & Billing card is exactly
-  // two of them), and the control caps its own input width instead.
-  if (entry.data_type === "array") return "sm:col-span-2 xl:col-span-3";
+  // A chip list takes the whole row: two of them side by side left a ragged
+  // column (the Company & Billing card is exactly two of them), and the
+  // control caps its own input width instead. The shelf grid is two columns
+  // wide now that the card is half the page, so "the whole row" is two cells.
+  if (entry.data_type === "array") return "sm:col-span-2";
   if (entry.data_type === "enum" && segmentedOptions(entry)) return "sm:col-span-2 xl:col-span-1";
   return "";
 }
@@ -877,25 +878,23 @@ export function fieldShelves(entries, min = 6) {
   return shelves;
 }
 
-/* ─── THE WALL IS ONE COLUMN ───────────────────────────────────────────────
-   `packColumns` and `cardWeight` used to live here: they cut the cards into
-   two columns and chose the boundary from how tall each card was about to be,
-   so the page re-levelled itself as cards opened. Both are deleted, because
-   re-levelling is exactly what the user then reported as a bug — opening one
-   card moved the boundary, and a card nobody had touched jumped from the foot
-   of one column to the head of the other ("notification tab jumping from
-   position", 2026-10-10).
+/* ─── THE WALL IS TWO LANES, AND `packColumns` IS STILL DELETED ────────
+   `packColumns` and `cardWeight` used to live here. They cut the cards into two
+   columns and chose the boundary from how tall each card was about to be, so
+   the page re-levelled itself as cards opened — and re-levelling is what the
+   user then reported as a bug: opening one card moved the boundary, and a card
+   nobody had touched jumped from the foot of one column to the head of the
+   other ("notification tab jumping from position", 2026-10-10).
 
-   There is no two-column layout that both fills itself and holds still: a
-   fixed split leaves a card-sized hole beside an open card, and any split that
-   closes the hole has to move a card to do it. One full-width column has
-   neither failure — closed cards are a single height, so the stack is flush,
-   and opening one pushes the rest down without moving anything sideways. The
-   width it gives back is spent inside the card (`fieldSpan`: three fields to a
-   line from `xl`), which is where it was wanted.
+   The wall is two columns again (14 Oct 2026), but nothing here came back. The
+   page lays the cards into two LANES by index — `lanes` in OrgSettingsPage —
+   so a card's column is decided before anything is open and cannot change when
+   something folds. No heights are measured, which is the whole point.
 
-   If a later change wants two columns again, it is buying one of those two
-   bugs back with it. See OrgSettingsPage. */
+   Don't reintroduce a height-aware packer to even the lanes up. The lanes ARE
+   uneven once a card is open; that space is at the foot of a column, not a hole
+   in the middle of the wall, and every scheme that fills it has to move a card
+   to do so. */
 
 /* ─── A day in the change history ──────────────────────────────────────────
    The history is a log, and a log's rows share a date: printing "9 Oct 2026,

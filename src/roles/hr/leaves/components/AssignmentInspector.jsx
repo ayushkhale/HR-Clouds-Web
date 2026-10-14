@@ -142,9 +142,9 @@ export default function AssignmentInspector({ row, onClose, onChangePolicy, onEn
         items={[
           {
             label: "Leave left this year",
-            value: balances.status === "error" ? "Couldn’t load" : balances.status === "loading" ? "Loading…" : formatDayCount(totalLeft, { fallback: "0 Days" }),
+            value: balances.status === "error" ? "Couldn’t load" : balances.status === "loading" ? "Loading…" : formatDayCount(totalLeft, { fallback: "0d" }),
             icon: HiCalendar,
-            hint: balances.status === "ok" ? `${formatDayCount(totalTaken, { lower: true, fallback: "0 days" })} taken` : undefined,
+            hint: balances.status === "ok" ? `${formatDayCount(totalTaken, { lower: true, fallback: "0d" })} taken` : undefined,
           },
           {
             label: "Kinds of leave",
@@ -237,7 +237,7 @@ export default function AssignmentInspector({ row, onClose, onChangePolicy, onEn
       )}
 
       <DetailSection
-        title={balances.status === "ok" ? `Leave left this year — ${formatDayCount(totalLeft, { lower: true, fallback: "0 days" })}` : "Leave left this year"}
+        title={balances.status === "ok" ? `Leave left this year — ${formatDayCount(totalLeft, { lower: true, fallback: "0d" })}` : "Leave left this year"}
         icon={HiCalendar}
         defaultOpen={false}
       >
@@ -249,9 +249,9 @@ export default function AssignmentInspector({ row, onClose, onChangePolicy, onEn
           <DetailTable
             columns={[
               { header: "Kind of leave", render: (b) => b.leave_type?.name },
-              { header: "Left", align: "right", render: (b) => formatDayCount(num(b.current_balance), { fallback: "0 Days" }) },
-              { header: "Given so far", align: "right", render: (b) => formatDayCount(num(b.total_accrued), { lower: true, fallback: "0 days" }) },
-              { header: "Taken", align: "right", render: (b) => formatDayCount(num(b.total_used), { lower: true, fallback: "0 days" }) },
+              { header: "Left", align: "right", render: (b) => formatDayCount(num(b.current_balance), { fallback: "0d" }) },
+              { header: "Given so far", align: "right", render: (b) => formatDayCount(num(b.total_accrued), { lower: true, fallback: "0d" }) },
+              { header: "Taken", align: "right", render: (b) => formatDayCount(num(b.total_used), { lower: true, fallback: "0d" }) },
             ]}
             rows={balances.rows}
             rowKey={(b) => b.id || b.leave_type_id}

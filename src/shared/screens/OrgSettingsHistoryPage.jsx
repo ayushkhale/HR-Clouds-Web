@@ -41,7 +41,7 @@ export default function OrgSettingsHistoryPage() {
             to={listPath}
             className="font-medium text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-2"
           >
-            <HiCog className="w-4 h-4" /> Company Settings
+            <HiCog className="w-4 h-4" /> Settings
           </Link>
           <HiChevronRight className="w-3.5 h-3.5 text-slate-300" aria-hidden="true" />
           <span className="font-semibold text-slate-900">Change history</span>
