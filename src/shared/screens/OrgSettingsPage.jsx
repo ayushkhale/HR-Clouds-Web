@@ -71,19 +71,30 @@
 //     ~260px on a 1366 screen. On the title line it is the page's other
 //     primary control, which is what it actually is.
 //   · THE TABS OWN THEIR LINE, in alphabetical order (see `tabsFor`).
-//   · CARDS ARE ONE COLUMN OF FULL-WIDTH BRICKS (fourth pass, same day), and
-//     this took three goes to get right. Grid rows left a card-sized hole
-//     beside an opened card — "no hole in the wall". Two columns cut
-//     half-and-half left most of a screen empty beside an open card — "this
-//     blank space should self-adjust". Two columns with the boundary chosen
-//     from the cards' heights fixed the space and broke something worse: open
-//     a card and a card the reader had not touched jumped from the foot of one
-//     column to the head of the other ("notification tab jumping from
-//     position"). There is no two-column layout that both fills itself and
-//     holds still. One column has neither fault — closed cards are a single
-//     height so the stack is flush, and opening one pushes the rest down
-//     without moving anything sideways. The width goes inside the card, where
-//     it was wanted: three fields to a line from `xl` (`fieldSpan`).
+//   · THE WALL IS TWO COURSES OF BRICKS (14 Oct 2026), and it took five goes
+//     to get there. The full history, because each attempt was a bug report
+//     about the one before it:
+//       1. A grid of rows with `items-start`: a folded card beside an open one
+//          left a card-sized hole — "no hole in the wall".
+//       2. Two columns cut half-and-half: most of a screen empty beside an
+//          open card — "this blank space should self-adjust".
+//       3. Two columns packed by the cards' heights (`packColumns`): it filled
+//          the space and broke something worse — open a card and a card the
+//          reader had not touched jumped from the foot of one column to the
+//          head of the other ("notification tab jumping from position").
+//       4. One full-width column: no holes and nothing moves, but eleven
+//          stacked bricks on the Payroll tab, and the user read it as a list
+//          rather than the wall Payroll Settings has.
+//       5. Two LANES: each column its own flush stack, a card's column taken
+//          from its index alone. No pairing, so nothing can be paired with a
+//          card of another height; no re-levelling, so nothing can jump.
+//     Payroll Settings reaches the same look from `xl:grid-cols-2` with grid's
+//     default stretch, which puts the spare height inside the shorter card.
+//     That holds there because its sections are OPEN by default; these are
+//     shutters, so see `lanes` for why stretch is not transferable. The width
+//     inside a half-page card is two fields to a line (`fieldSpan`), and the
+//     shelf headings inside the card are what keep an eleven-field group
+//     readable at that width.
 // The cards are also shutters now, closed by default: the Payroll tab is
 // eleven groups, and a page that opens as an index of eleven rows is one an
 // admin can aim at. See SettingsGroupForm for what that does and doesn't
@@ -214,6 +225,46 @@ export default function OrgSettingsPage() {
     () => groups.filter((g) => g.module_key === activeTab),
     [groups, activeTab],
   );
+
+  /* ── THE WALL IS TWO LANES, NOT A GRID OF ROWS ──────────────────────────
+     Payroll Settings lays its cards out as `xl:grid-cols-2` and leaves grid's
+     default stretch on, so the two cards in a row are paired to the taller
+     one and the spare height sits INSIDE the shorter card instead of beside
+     it. That works there because its sections are open by default and roughly
+     the same height.
+
+     Here the cards are shutters, CLOSED by default, so the pathological case
+     is the normal one: a 64px folded row sharing a row with a 700px open card
+     would either balloon into 700px of empty white (stretch) or leave a
+     700px hole beside it (`items-start`, which is what this page shipped and
+     what was reported). Row pairing is the thing that can't survive folding.
+
+     So there are no rows. Each column is its own flush stack — bricks laid in
+     two courses — and a card's column comes from its INDEX, never from
+     anyone's height, so opening one can never move another (that was
+     `packColumns`, deleted on 10 Oct after "notification tab jumping from
+     position"). Opening a card lengthens its own column and nothing else.
+
+     Three details that are easy to undo by accident:
+       · Below `xl` the lanes are `display: contents`, so the cards become the
+         grid's own children again and a single column holds all of them. The
+         inline `order` is what keeps them in catalogue order there, since the
+         DOM order is lane-major. Don't drop either half of that pair.
+       · ONE card spans both columns. Company & Billing is a single card, and
+         at half width its row read as unfinished (the same complaint fixed
+         for the old list in "Let a lone policy-screen card fill its row").
+       · Tab order at `xl` is down one column and then the other, as it is in
+         any multi-column layout. The cards are independent `<section>`s with
+         their own headings, so that reads correctly; it is only wrong if
+         somebody makes one card depend on the one beside it. */
+  const lanes = useMemo(() => {
+    const indexed = visibleGroups.map((group, index) => ({ group, index }));
+    if (indexed.length < 2) return [indexed];
+    return [
+      indexed.filter(({ index }) => index % 2 === 0),
+      indexed.filter(({ index }) => index % 2 === 1),
+    ];
+  }, [visibleGroups]);
 
   // Policy surfaces grouped by the screen that manages them, so four registry
   // entries backed by one table become one card rather than four.
@@ -509,43 +560,44 @@ export default function OrgSettingsPage() {
                         )}
                       </div>
 
-                      {/* TWO COLUMNS, the same grid Payroll Settings uses
-                          (user instruction, 14 Oct 2026: "make it like payroll
-                          settings completely"). One full-width column meant
-                          eleven stacked bricks on the Payroll tab and far too
-                          much scrolling for a page you come to to check one
-                          rule.
-
-                          `items-start` and NOT the stretch Payroll uses, because
-                          these cards are CLOSED by default and opened one at a
-                          time. Stretched, opening one would balloon whichever
-                          closed card happened to share its row — a card the
-                          reader never touched growing to the height of the one
-                          they did. Closed cards are all one height, so the wall
-                          is flush until somebody opens something, and then the
-                          space sits beside the card they opened, which is where
-                          it belongs. */}
+                      {/* The wall: two courses of bricks at `xl`, one below
+                          it. See `lanes` above for why this is two stacks and
+                          not a grid of rows — in one sentence, a folded card
+                          must not be paired with an open one. */}
                       {visibleGroups.length > 0 && (
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-                          {visibleGroups.map((group) => {
-                            const route = editRouteFor(group);
-                            return (
-                              <SettingsGroupForm
-                                key={group.key}
-                                group={group}
-                                entries={entriesByGroup[group.key]}
-                                editTo={route ? { ...route, path: inWorkspace(route.path) } : null}
-                                onSaved={applyWrite}
-                                onReload={() => reload()}
-                                showToast={showToast}
-                                surface={SURFACE}
-                                onDirtyChange={dock.register}
-                                flash={flash === group.key}
-                                open={openCards.has(group.key)}
-                                onToggle={toggleCard}
-                              />
-                            );
-                          })}
+                          {lanes.map((lane, laneIndex) => (
+                            <div
+                              key={laneIndex}
+                              className={`contents xl:block xl:space-y-4 ${
+                                lanes.length === 1 ? "xl:col-span-2" : ""
+                              }`}
+                            >
+                              {lane.map(({ group, index }) => {
+                                const route = editRouteFor(group);
+                                return (
+                                  // `order` only bites below `xl`, where the
+                                  // lane is `display: contents` and these are
+                                  // the grid's own children.
+                                  <div key={group.key} className="min-w-0" style={{ order: index }}>
+                                    <SettingsGroupForm
+                                      group={group}
+                                      entries={entriesByGroup[group.key]}
+                                      editTo={route ? { ...route, path: inWorkspace(route.path) } : null}
+                                      onSaved={applyWrite}
+                                      onReload={() => reload()}
+                                      showToast={showToast}
+                                      surface={SURFACE}
+                                      onDirtyChange={dock.register}
+                                      flash={flash === group.key}
+                                      open={openCards.has(group.key)}
+                                      onToggle={toggleCard}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
                         </div>
                       )}
 
