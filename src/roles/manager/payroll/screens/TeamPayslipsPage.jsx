@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
-import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiDocumentReport, HiUserGroup, HiDocumentDownload, HiCurrencyRupee, HiCalendar, HiReceiptTax, HiGift } from "react-icons/hi";
+import { downloadRenderedPdf, previewRenderedPdf } from "../../../../shared/pdf/renderedPdf";
+import PdfPreviewDialog from "../../../../shared/pdf/PdfPreviewDialog";
+import { HiCheckCircle, HiExclamationCircle, HiEye, HiX, HiDocumentReport, HiUserGroup, HiDocumentDownload, HiCurrencyRupee, HiCalendar, HiReceiptTax, HiGift } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailPill, DetailSection, DetailStats, DetailTable, rowPreviewProps } from "../../../../shared/components/DetailDialog";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { isPayrollPdfRetryable, payrollErrorMessage, payrollPdfViewMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
@@ -34,6 +35,10 @@ const slipPeriod = (s) => s.period_month || s.payroll_run?.period_month;
 // same document doesn't change shape depending on who is reading it.
 function PayslipDetailModal({ userId, runId, period, memberName, onClose, showToast }) {
   const [data, setData] = useState(undefined);
+  // Parity with HR's Payslips & Documents (2026-10-14): the same payslip can be
+  // read on screen there, so it can be read on screen here. #186 honours
+  // `?disposition=inline`; only the scope of who may ask differs.
+  const [viewing, setViewing] = useState(false);
   useEffect(() => {
     let cancelled = false;
     payrollAPI.getReportPayslip(userId, runId)
@@ -58,6 +63,7 @@ function PayslipDetailModal({ userId, runId, period, memberName, onClose, showTo
   ];
 
   return (
+    <>
     <DetailDialog
       eyebrow="Payslip"
       icon={HiDocumentReport}
@@ -66,6 +72,11 @@ function PayslipDetailModal({ userId, runId, period, memberName, onClose, showTo
       badge={item.net_pay != null ? <DetailPill tone="onDark">{formatMoney(item.net_pay)} net</DetailPill> : undefined}
       loading={data === undefined}
       onClose={onClose}
+      footer={
+        <button type="button" onClick={() => setViewing(true)} className="px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2">
+          <HiEye className="w-4 h-4" /> View payslip
+        </button>
+      }
     >
       {data !== undefined && (
         <>
@@ -133,6 +144,31 @@ function PayslipDetailModal({ userId, runId, period, memberName, onClose, showTo
         </>
       )}
     </DetailDialog>
+
+    {/* A sibling of the detail, never a child: z-[165] over z-[140]. */}
+    {viewing && (
+      <PdfPreviewDialog
+        eyebrow="Payslip"
+        icon={HiDocumentReport}
+        title={memberName || formatPeriod(period)}
+        subtitle={memberName ? formatPeriod(period) : undefined}
+        render={() => previewRenderedPdf(payrollFiles.managerPayslipPdf(userId, runId), {
+          filename: `payslip-${period || "month"}.pdf`,
+        })}
+        errorMessage={payrollPdfViewMessage}
+        fallback="Couldn't open this document."
+        retryable={isPayrollPdfRetryable}
+        fallbackName={`payslip-${period || "month"}.pdf`}
+        onClose={() => setViewing(false)}
+        footnote={
+          <>
+            <span className="font-bold text-slate-600">This is the payslip itself, shown here instead of saved.</span>{" "}
+            It is the same copy the person has. Only released payslips can be opened — a held one is refused.
+          </>
+        }
+      />
+    )}
+    </>
   );
 }
 

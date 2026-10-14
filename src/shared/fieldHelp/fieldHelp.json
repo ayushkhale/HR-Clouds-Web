@@ -3216,7 +3216,7 @@
     },
     "payroll.payslip_admin": {
       "kind": "data",
-      "description": "HR — Payroll › Payslips & Documents (PayrollPayslipsPage) and a run’s Payslips & delivery panel (RunPayslipsPanel). `page` beside the h1; the tab strip (`tab.payslips` / `tab.annual` / `tab.form16`, one ⓘ beside the tablist); `version` and `is_visible` on both payslip tables.",
+      "description": "HR — Payroll › Payslips & Documents (PayrollPayslipsPage) and a run’s Payslips & delivery panel (RunPayslipsPanel). `page` beside the h1; the tab strip (`tab.payslips` / `tab.annual` / `tab.form16`, one ⓘ beside the tablist); `version` and `is_visible` on both payslip tables; `active_only` beside the “Only current versions” tick box.",
       "workspaces": [
         "hr"
       ],
@@ -3267,6 +3267,14 @@
           "askMaya": {
             "enabled": true,
             "question": "When can employees see their payslips, and how does releasing them work?"
+          }
+        },
+        "active_only": {
+          "tier": "onboarding",
+          "hint": "On by default, so each month shows the payslip that counts now. Untick it to also see versions that were replaced or withdrawn.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a current payslip version, and why are the older ones kept?"
           }
         }
       }
