@@ -6,6 +6,13 @@
       "workspaces": [
         "hr"
       ]
+    },
+    "settings": {
+      "description": "Every organisation setting explains itself in its own info popover (user decision, 14 Oct 2026): the one-line sentence that used to be printed under each control moved in here, so a card reads as a form again rather than as a page of prose. Exempt from the 4-per-screen cap for the same reason the onboarding tier is — that cap exists to keep info icons off everyday data, and a settings card is the opposite of everyday data. Thin it by dropping a workspace here, never by deleting entries one at a time.",
+      "workspaces": [
+        "hr",
+        "manager"
+      ]
     }
   },
   "surfaces": {
@@ -3919,7 +3926,7 @@
     },
     "settings.hub": {
       "kind": "data",
-      "description": "Settings (OrgSettingsPage) — the settings hub: the plan panel, a domain tab strip with one search over the whole catalogue, editable group cards as shutters, and the change history. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields; tab.<module_key> keys are the open domain tab.",
+      "description": "Settings (OrgSettingsPage) — the settings hub: the plan panel, a domain tab strip with one search over the whole catalogue, editable group cards as shutters, and the change history. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields; tab.<module_key> keys are the open domain tab. As of 14 Oct 2026 most of the fields here are the SETTINGS THEMSELVES, on the `settings` tier: the hub used to print a one-line description under every control and now shows an ⓘ instead, so a setting's key (which for these singleton stores is its database column) is the field key. Add the entry in the same commit as the setting, or the new control arrives on the page with nothing to explain it — settingsBlurbs.js has the rules the sentences are written to.",
       "workspaces": [
         "hr",
         "manager"
@@ -3935,7 +3942,7 @@
         },
         "non_default_keys": {
           "tier": "onboarding",
-          "hint": "“Changed” means someone set this away from the value the system ships with. It’s the quickest way to see what your organisation has customised.",
+          "hint": "“Customised” means someone has set something in this group away from the value we ship with. The fields themselves are marked “Changed”.",
           "askMaya": {
             "enabled": true,
             "question": "What does it mean when a setting is marked as changed from the default, and why does that matter when auditing a company's configuration?"
@@ -4039,6 +4046,1094 @@
           "askMaya": {
             "enabled": true,
             "question": "How are leave types and leave policies different, and where do I set how many days someone gets?"
+          }
+        },
+        "payroll_cycle": {
+          "tier": "settings",
+          "hint": "How often a pay period runs.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why would a company pay monthly rather than twice a month, and what changes in payroll if we switch?"
+          }
+        },
+        "period_start_day": {
+          "tier": "settings",
+          "hint": "The day of the month a pay period starts.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a pay period, and what happens to attendance and pay if the day it starts on moves?"
+          }
+        },
+        "attendance_cutoff_day": {
+          "tier": "settings",
+          "hint": "The last day of attendance that counts towards that month’s pay.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an attendance cut-off, and what happens to days worked after it?"
+          }
+        },
+        "pay_day": {
+          "tier": "settings",
+          "hint": "The day of the month people are paid.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should a company think about when choosing the day people are paid?"
+          }
+        },
+        "pay_day_in_next_month": {
+          "tier": "settings",
+          "hint": "Pay a month’s salary in the month after it was worked, rather than inside it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between paying a month’s salary inside that month and paying it the month after?"
+          }
+        },
+        "currency": {
+          "tier": "settings",
+          "hint": "The currency every salary and payslip figure is shown in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the currency setting affect across payslips and reports, and can it be changed later?"
+          }
+        },
+        "financial_year_start_month": {
+          "tier": "settings",
+          "hint": "The month the financial year starts. Every year-so-far total counts from here.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does the month the financial year starts matter for income tax and year-so-far totals?"
+          }
+        },
+        "manager_can_view_team_compensation": {
+          "tier": "settings",
+          "hint": "Allow managers to see the pay of the people who report to them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should a manager be able to see about their team’s pay, and what should stay private?"
+          }
+        },
+        "payroll_require_separate_checker": {
+          "tier": "settings",
+          "hint": "Make a second HR person approve every pay change, so nobody approves their own.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a separate checker on pay changes, and why do companies insist on one?"
+          }
+        },
+        "manager_direct_compensation_authority": {
+          "tier": "settings",
+          "hint": "Let a manager’s pay change for their own report take effect without HR approving it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What can go wrong if managers can change their team’s pay without HR approving it?"
+          }
+        },
+        "lop_basis": {
+          "tier": "settings",
+          "hint": "What one day of pay is worked out from, which sets what an unpaid day costs.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is one day of pay worked out, and how does that change what an unpaid day costs somebody?"
+          }
+        },
+        "net_pay_rounding": {
+          "tier": "settings",
+          "hint": "Round what reaches the bank to whole rupees.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is take-home pay rounded, and what happens to the few paise either way?"
+          }
+        },
+        "in_progress_treatment": {
+          "tier": "settings",
+          "hint": "How a day somebody never clocked out of is counted when pay is worked out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How should a day somebody never clocked out of be counted when their pay is worked out?"
+          }
+        },
+        "overtime_payable": {
+          "tier": "settings",
+          "hint": "Pay people for overtime hours that have been approved.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What has to be true before overtime can be paid, and who has to approve it?"
+          }
+        },
+        "overtime_rate_multiplier": {
+          "tier": "settings",
+          "hint": "How many times the normal hourly rate an overtime hour is paid at.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is an overtime rate normally set, and what do the rules expect of an employer?"
+          }
+        },
+        "overtime_hourly_basis": {
+          "tier": "settings",
+          "hint": "Which part of the salary the overtime hourly rate is worked out from.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is an hourly rate worked out from a monthly salary, and which parts of pay should count?"
+          }
+        },
+        "standard_working_hours_per_day": {
+          "tier": "settings",
+          "hint": "The hours in a full working day, used to turn a salary into an hourly rate.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are standard working hours used for in pay and in attendance?"
+          }
+        },
+        "negative_net_handling": {
+          "tier": "settings",
+          "hint": "What to do when deductions come to more than the pay.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should happen when somebody’s deductions come to more than their pay for the month?"
+          }
+        },
+        "loan_max_amount": {
+          "tier": "settings",
+          "hint": "The most that can be lent to one person. Leave it empty for no limit.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should a company weigh up before setting a limit on staff loans?"
+          }
+        },
+        "loan_max_tenure_months": {
+          "tier": "settings",
+          "hint": "The longest a loan may be repaid over.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does the length of a loan change the monthly repayment that comes out of pay?"
+          }
+        },
+        "loan_max_interest_rate": {
+          "tier": "settings",
+          "hint": "The highest interest rate a loan may carry.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What interest can a company charge on a staff loan, and does a low rate have tax effects?"
+          }
+        },
+        "loan_default_interest_rate": {
+          "tier": "settings",
+          "hint": "The interest rate used when a loan request doesn’t name one.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why have a default interest rate for staff loans at all?"
+          }
+        },
+        "loan_interest_method": {
+          "tier": "settings",
+          "hint": "Whether interest is charged on the whole loan or only on what is still to repay.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between charging interest on the whole loan and on what is still to repay?"
+          }
+        },
+        "loan_max_concurrent_per_employee": {
+          "tier": "settings",
+          "hint": "How many loans one person may be repaying at the same time.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why limit how many loans one person can be repaying at the same time?"
+          }
+        },
+        "pt_state_source": {
+          "tier": "settings",
+          "hint": "Which state’s professional tax a person pays.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is professional tax, and how is the state that applies to somebody decided?"
+          }
+        },
+        "default_tax_regime": {
+          "tier": "settings",
+          "hint": "The tax regime people are on until they pick one themselves.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between the two tax regimes for an employee?"
+          }
+        },
+        "allow_employee_regime_switch": {
+          "tier": "settings",
+          "hint": "Let people change their own tax regime. HR can always change it for them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When can an employee change their tax regime, and what happens to tax already deducted?"
+          }
+        },
+        "tax_declaration_window_start_month": {
+          "tier": "settings",
+          "hint": "The month people can start declaring the investments they plan to make.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an investment declaration, and why does it open at a particular time of year?"
+          }
+        },
+        "tax_declaration_window_end_month": {
+          "tier": "settings",
+          "hint": "The last month people can declare the investments they plan to make.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to somebody who misses the investment declaration window?"
+          }
+        },
+        "tax_proof_deadline_month": {
+          "tier": "settings",
+          "hint": "The month proof of those investments has to be in by.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does HR need proof of declared investments, and what happens if none arrives?"
+          }
+        },
+        "tax_proof_deadline_day": {
+          "tier": "settings",
+          "hint": "The day of that month proof of those investments has to be in by.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to somebody’s tax if their investment proof arrives after the deadline?"
+          }
+        },
+        "tds_monthly_rounding": {
+          "tier": "settings",
+          "hint": "How the income tax taken each month is rounded.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the income tax taken each month rounded, and does it even out over the year?"
+          }
+        },
+        "income_tax_enabled": {
+          "tier": "settings",
+          "hint": "Work out income tax and hold it back from every payslip.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is income tax deducted from salary, and what is the company responsible for?"
+          }
+        },
+        "tds_no_pan_rate": {
+          "tier": "settings",
+          "hint": "The higher tax rate used for somebody with no PAN on file.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is tax charged at a higher rate for somebody with no PAN on file?"
+          }
+        },
+        "tds_no_pan_enforced": {
+          "tier": "settings",
+          "hint": "Charge that higher rate to people who have no PAN on file.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to an employee with no PAN once the higher tax rate is charged?"
+          }
+        },
+        "cess_rate": {
+          "tier": "settings",
+          "hint": "The extra percentage added on top of the income tax worked out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the cess added on top of income tax, and who decides it?"
+          }
+        },
+        "pf_enabled": {
+          "tier": "settings",
+          "hint": "Take Provident Fund out of pay, and add the company’s share.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is Provident Fund, and what does a company have to contribute to it?"
+          }
+        },
+        "pf_employee_rate": {
+          "tier": "settings",
+          "hint": "The share of the PF pay taken from the employee.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How much Provident Fund comes out of an employee’s pay, and where does that money go?"
+          }
+        },
+        "pf_employer_rate": {
+          "tier": "settings",
+          "hint": "The share of the PF pay the company puts in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does a company put into Provident Fund on top of the employee’s own share?"
+          }
+        },
+        "pf_wage_ceiling": {
+          "tier": "settings",
+          "hint": "The most of a month’s pay that PF is worked out on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the Provident Fund wage ceiling, and what does it change for a higher earner?"
+          }
+        },
+        "pf_restrict_to_ceiling": {
+          "tier": "settings",
+          "hint": "Work PF out up to that ceiling only, instead of on the whole salary.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between working Provident Fund out up to the ceiling and on the whole salary?"
+          }
+        },
+        "pf_lop_reduces_ceiling": {
+          "tier": "settings",
+          "hint": "Lower that ceiling for anybody with unpaid days in the month.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do unpaid days change the Provident Fund worked out for that month?"
+          }
+        },
+        "pf_include_overtime": {
+          "tier": "settings",
+          "hint": "Count overtime pay when working PF out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should overtime pay count towards Provident Fund, and who decides that?"
+          }
+        },
+        "eps_enabled": {
+          "tier": "settings",
+          "hint": "Put part of the company’s PF share into the pension scheme.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the pension scheme that sits inside Provident Fund, and who benefits from it?"
+          }
+        },
+        "eps_rate": {
+          "tier": "settings",
+          "hint": "The share of the pension pay that goes to the pension scheme.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How much of a company’s Provident Fund share goes to the pension scheme instead?"
+          }
+        },
+        "eps_wage_ceiling": {
+          "tier": "settings",
+          "hint": "The most of a month’s pay the pension share is worked out on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does the pension share have a ceiling of its own, separate from Provident Fund?"
+          }
+        },
+        "edli_enabled": {
+          "tier": "settings",
+          "hint": "Add the company’s life-cover charge that goes with PF.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the life cover that goes with Provident Fund, and who is covered by it?"
+          }
+        },
+        "edli_rate": {
+          "tier": "settings",
+          "hint": "The share of pay charged for that life cover.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who pays for the life cover that goes with Provident Fund, and what does it pay out?"
+          }
+        },
+        "edli_wage_ceiling": {
+          "tier": "settings",
+          "hint": "The most of a month’s pay the life-cover charge is worked out on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is the life-cover charge worked out only up to a ceiling?"
+          }
+        },
+        "pf_admin_charge_rate": {
+          "tier": "settings",
+          "hint": "The share of pay the company pays to have the PF account run.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are Provident Fund administration charges, and who pays them?"
+          }
+        },
+        "pf_admin_charge_min": {
+          "tier": "settings",
+          "hint": "The smallest amount charged to run the PF account, whatever the rate comes to.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is there a smallest Provident Fund administration charge whatever the rate comes to?"
+          }
+        },
+        "esi_enabled": {
+          "tier": "settings",
+          "hint": "Take ESI out of pay, and add the company’s share.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is ESI, who has to be covered by it, and what does it pay for?"
+          }
+        },
+        "esi_employee_rate": {
+          "tier": "settings",
+          "hint": "The share of pay taken from the employee for ESI.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How much ESI comes out of an employee’s pay, and what does it entitle them to?"
+          }
+        },
+        "esi_employer_rate": {
+          "tier": "settings",
+          "hint": "The share of pay the company puts in for ESI.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does a company contribute towards ESI for each covered employee?"
+          }
+        },
+        "esi_wage_threshold": {
+          "tier": "settings",
+          "hint": "The monthly pay above which somebody stops being covered by ESI.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to somebody’s cover when their pay rises above the ESI threshold?"
+          }
+        },
+        "esi_include_overtime": {
+          "tier": "settings",
+          "hint": "Count overtime pay when working ESI out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should overtime pay count when ESI is worked out?"
+          }
+        },
+        "pt_enabled": {
+          "tier": "settings",
+          "hint": "Take professional tax out of pay, at the rate for the person’s state.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is professional tax, which states charge it, and who pays it?"
+          }
+        },
+        "reimbursement_approval_levels": {
+          "tier": "settings",
+          "hint": "How many people have to approve an expense claim before it can be paid.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How many approvals should an expense claim need, and who should give them?"
+          }
+        },
+        "reimbursement_payout_lookahead_months": {
+          "tier": "settings",
+          "hint": "How far ahead an approved claim may be scheduled for payment.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why would an approved expense claim be scheduled for a later month’s pay?"
+          }
+        },
+        "benefit_deductions_enabled": {
+          "tier": "settings",
+          "hint": "Take the employee’s share of their benefit plans through payroll.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an employee’s share of a benefit plan, and how is it collected?"
+          }
+        },
+        "payslip_auto_publish": {
+          "tier": "settings",
+          "hint": "Show people their payslip as soon as the run is approved.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does publishing a payslip mean for the employee, and when should it happen?"
+          }
+        },
+        "payslip_auto_email": {
+          "tier": "settings",
+          "hint": "Email each payslip out as well as showing it in the app.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should payslips be emailed as well as shown in the app, and what are the risks?"
+          }
+        },
+        "payslip_prerender_on_publish": {
+          "tier": "settings",
+          "hint": "Build the payslip files when they are published, so downloads are instant.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference for an employee between a payslip built in advance and one built when asked for?"
+          }
+        },
+        "pdf_bulk_inline_miss_threshold": {
+          "tier": "settings",
+          "hint": "How many missing files a bulk download builds on the spot before it queues the job.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens when a bulk payslip download needs files that have not been built yet?"
+          }
+        },
+        "pdf_cache_retention_days": {
+          "tier": "settings",
+          "hint": "How long a built file is kept before it has to be built again.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why are built payslip files deleted after a while, and is anything lost when they are?"
+          }
+        },
+        "pdf_render_engine": {
+          "tier": "settings",
+          "hint": "Kept from an older release. Nothing uses it any more.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does a setting sometimes stay in the list after nothing uses it any more?"
+          }
+        },
+        "fnf_leave_encashment_enabled": {
+          "tier": "settings",
+          "hint": "Pay out unused leave in a leaver’s final pay.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a leave payout in somebody’s final pay, and when does the law require one?"
+          }
+        },
+        "fnf_encashment_leave_type_codes": {
+          "tier": "settings",
+          "hint": "Which kinds of leave can be paid out when somebody leaves.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which kinds of leave are usually paid out when somebody leaves, and which are not?"
+          }
+        },
+        "fnf_encashment_rate_basis": {
+          "tier": "settings",
+          "hint": "Which part of the salary a paid-out leave day is worked out from.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which part of the salary should a paid-out leave day be worked out from?"
+          }
+        },
+        "fnf_encashment_divisor": {
+          "tier": "settings",
+          "hint": "The number of days a month’s salary is split into to price one leave day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the price of one leave day worked out from a monthly salary?"
+          }
+        },
+        "fnf_encashment_max_days": {
+          "tier": "settings",
+          "hint": "The most leave days one leaver can be paid for.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why cap how many leave days a leaver can be paid for?"
+          }
+        },
+        "fnf_encashment_component_id": {
+          "tier": "settings",
+          "hint": "The pay line a leave payout shows up on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does it matter which line of the payslip a leave payout appears on?"
+          }
+        },
+        "fnf_notice_recovery_enabled": {
+          "tier": "settings",
+          "hint": "Charge a leaver for notice they didn’t serve.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Can a company charge somebody for notice they did not serve, and when is that fair?"
+          }
+        },
+        "fnf_notice_recovery_rate_basis": {
+          "tier": "settings",
+          "hint": "Which part of the salary short notice is charged at.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which part of the salary should unserved notice be charged at?"
+          }
+        },
+        "fnf_default_notice_period_days": {
+          "tier": "settings",
+          "hint": "The notice period put on a new exit unless somebody changes it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a notice period, and who decides how long somebody has to serve?"
+          }
+        },
+        "fnf_notice_recovery_component_id": {
+          "tier": "settings",
+          "hint": "The pay line short notice shows up on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does it matter which line of the payslip a charge for short notice appears on?"
+          }
+        },
+        "fnf_loan_recovery_mode": {
+          "tier": "settings",
+          "hint": "How a loan somebody still owes is settled when they leave.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to a staff loan somebody is still repaying when they leave?"
+          }
+        },
+        "compoff_encashment_enabled": {
+          "tier": "settings",
+          "hint": "Pay people for earned days off instead of making them take the day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an earned day off, and what does paying one out instead mean for the employee?"
+          }
+        },
+        "compoff_encashment_rate_basis": {
+          "tier": "settings",
+          "hint": "Which part of the salary a paid-out earned day is worked out from.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which part of the salary should a paid-out earned day be worked out from?"
+          }
+        },
+        "compoff_encashment_divisor": {
+          "tier": "settings",
+          "hint": "The number of days a month’s salary is split into to price one earned day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the price of one earned day worked out from a monthly salary?"
+          }
+        },
+        "compoff_encashment_max_days_per_fy": {
+          "tier": "settings",
+          "hint": "The most earned days one person can be paid for in a year.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why limit how many earned days one person can be paid for in a year?"
+          }
+        },
+        "compoff_encashment_component_id": {
+          "tier": "settings",
+          "hint": "The pay line an earned-day payout shows up on.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does it matter which line of the payslip an earned-day payout appears on?"
+          }
+        },
+        "payroll_auto_draft_enabled": {
+          "tier": "settings",
+          "hint": "Start each month’s payroll draft on its own.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a payroll draft, and what is still left for HR to do if one starts on its own?"
+          }
+        },
+        "payroll_auto_draft_day": {
+          "tier": "settings",
+          "hint": "The day of the month that draft is started.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When in the month is it sensible to start a payroll draft?"
+          }
+        },
+        "payroll_cutoff_reminder_enabled": {
+          "tier": "settings",
+          "hint": "Remind HR on the day attendance stops counting for the month.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does HR need reminding on the day attendance stops counting for the month?"
+          }
+        },
+        "payroll_payday_reminder_enabled": {
+          "tier": "settings",
+          "hint": "Remind HR before pay day that the run still has to go out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What has to happen between a payroll draft and money reaching people’s banks?"
+          }
+        },
+        "tax_declaration_reminder_enabled": {
+          "tier": "settings",
+          "hint": "Remind people to declare their investments before the window shuts.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why are employees reminded to declare their investments before the window shuts?"
+          }
+        },
+        "payroll_attachment_retention_days": {
+          "tier": "settings",
+          "hint": "How long files attached to payroll are kept before they are deleted.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How long should files attached to payroll be kept, and what has to be kept for the law?"
+          }
+        },
+        "manager_can_view_team_documents": {
+          "tier": "settings",
+          "hint": "Allow managers to view their team’s documents.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which of their team’s documents should a manager be able to see, and which should they not?"
+          }
+        },
+        "manager_direct_document_authority": {
+          "tier": "settings",
+          "hint": "Let a manager issue a document to their own report without HR approving it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What can go wrong if a manager can issue a document to their own report without HR checking it?"
+          }
+        },
+        "document_require_separate_checker": {
+          "tier": "settings",
+          "hint": "Make somebody other than the preparer check a document before it goes out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why should somebody other than the person who prepared a document check it before it goes out?"
+          }
+        },
+        "manager_can_propose_letters": {
+          "tier": "settings",
+          "hint": "Let managers ask for a letter to be issued to somebody in their team.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between a manager proposing a letter and HR issuing one?"
+          }
+        },
+        "document_view_url_ttl_seconds": {
+          "tier": "settings",
+          "hint": "How long a link to open a document keeps working.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does a link to a document stop working after a while, and what should somebody do then?"
+          }
+        },
+        "document_upload_url_ttl_seconds": {
+          "tier": "settings",
+          "hint": "How long somebody has to finish an upload once it has started.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does an upload stop part-way if it is left too long, and is anything lost?"
+          }
+        },
+        "document_max_file_size_bytes": {
+          "tier": "settings",
+          "hint": "The largest file anybody can upload.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How large should an upload be allowed to be, and what does somebody see if their file is too big?"
+          }
+        },
+        "document_scan_required": {
+          "tier": "settings",
+          "hint": "Check every upload for viruses before it can be used.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does scanning every upload protect the company from, and does it hold anything up?"
+          }
+        },
+        "document_retention_days": {
+          "tier": "settings",
+          "hint": "How long a document is kept before it is deleted for good.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How long should an employee’s documents be kept, and what does the law expect?"
+          }
+        },
+        "letter_record_retention_days": {
+          "tier": "settings",
+          "hint": "How long an issued letter is kept before it is deleted for good.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How long should a copy of a letter the company issued be kept?"
+          }
+        },
+        "employee_can_delete_verified_documents": {
+          "tier": "settings",
+          "hint": "Let people delete their own documents even after HR has checked them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are the risks of letting people delete documents HR has already checked?"
+          }
+        },
+        "document_default_verification_required": {
+          "tier": "settings",
+          "hint": "Have HR check a newly uploaded document before it counts as on file.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it mean for HR to verify a document, and what waits until that is done?"
+          }
+        },
+        "document_offboarding_archive_mode": {
+          "tier": "settings",
+          "hint": "What happens to somebody’s documents once they have left.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should happen to somebody’s documents once they have left the company?"
+          }
+        },
+        "document_offboarding_exit_pack_scope": {
+          "tier": "settings",
+          "hint": "Which documents go into the pack a leaver is given.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an exit pack, and what should go into one?"
+          }
+        },
+        "document_acknowledgement_due_days": {
+          "tier": "settings",
+          "hint": "How long somebody has to confirm they have read a document.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it mean for an employee to acknowledge a document, and why is it recorded?"
+          }
+        },
+        "document_acknowledgement_blocking": {
+          "tier": "settings",
+          "hint": "Hold other steps up until the person confirms they have read it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should be held up until somebody confirms they have read a document?"
+          }
+        },
+        "document_signature_provider": {
+          "tier": "settings",
+          "hint": "Who handles the signing when a document needs a signature.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an e-signature provider, and is a document signed that way valid?"
+          }
+        },
+        "document_expiry_reminder_days": {
+          "tier": "settings",
+          "hint": "How many days before a document runs out the reminders go out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which employee documents run out, and how much warning should people get?"
+          }
+        },
+        "document_notify_hr_on_upload": {
+          "tier": "settings",
+          "hint": "Tell HR whenever somebody uploads a document.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should HR hear about every document somebody uploads, or only some of them?"
+          }
+        },
+        "document_notify_expiry": {
+          "tier": "settings",
+          "hint": "Tell people when one of their documents is about to run out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should an employee do when one of their documents is about to run out?"
+          }
+        },
+        "document_notify_pending_acknowledgement": {
+          "tier": "settings",
+          "hint": "Chase people who haven’t confirmed they read a document.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How often should people be chased to confirm they have read a document?"
+          }
+        },
+        "document_notify_request_raised": {
+          "tier": "settings",
+          "hint": "Tell somebody as soon as a document is asked of them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a document request, and what is the employee expected to do about it?"
+          }
+        },
+        "document_notify_request_overdue": {
+          "tier": "settings",
+          "hint": "Chase people whose document is past the date it was asked for.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should happen when a document somebody was asked for is late?"
+          }
+        },
+        "document_notify_letter_issued": {
+          "tier": "settings",
+          "hint": "Tell somebody when a letter has been issued to them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should somebody be told as soon as a letter is issued to them?"
+          }
+        },
+        "document_request_default_due_days": {
+          "tier": "settings",
+          "hint": "How long people are given to send in a document that is asked of them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How long should somebody be given to send in a document that is asked of them?"
+          }
+        },
+        "document_onboarding_completeness_threshold": {
+          "tier": "settings",
+          "hint": "How much of their document list a new joiner must send to be done.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How much of their document list should a new joiner have sent before onboarding counts as done?"
+          }
+        },
+        "document_publish_sync_threshold": {
+          "tier": "settings",
+          "hint": "How many documents are published on the spot before the rest are queued.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference for the reader between a document published at once and one that is queued?"
+          }
+        },
+        "letter_branding_enabled": {
+          "tier": "settings",
+          "hint": "Print letters on the company letterhead.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should a company letterhead carry on an official letter?"
+          }
+        },
+        "letter_reference_pattern": {
+          "tier": "settings",
+          "hint": "The shape of the reference number printed on every letter.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a letter reference number for, and how should it be shaped?"
+          }
+        },
+        "letter_default_confidential": {
+          "tier": "settings",
+          "hint": "Mark a new letter confidential unless somebody says otherwise.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does marking a letter confidential change about who can see it?"
+          }
+        },
+        "letter_requires_acknowledgement_default": {
+          "tier": "settings",
+          "hint": "Ask the person to confirm they have read a new letter.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When should a letter ask the person to confirm they have read it?"
+          }
+        },
+        "letter_auto_issue_on_exit": {
+          "tier": "settings",
+          "hint": "Issue the leaving letters on their own once an exit is finalised.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which letters does somebody leaving usually need, and when should they get them?"
+          }
+        },
+        "letter_bulk_max_subjects": {
+          "tier": "settings",
+          "hint": "How many people one bulk letter run may cover.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why limit how many people one bulk letter run can cover?"
+          }
+        },
+        "letter_bulk_rate_per_hour": {
+          "tier": "settings",
+          "hint": "How many bulk letter runs may be started in an hour.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is the number of bulk letter runs limited per hour?"
+          }
+        },
+        "letter_preview_rate_per_hour": {
+          "tier": "settings",
+          "hint": "How many letter previews one person may ask for in an hour.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is previewing a letter limited, and what counts as a preview?"
+          }
+        },
+        "letterhead_enabled": {
+          "tier": "settings",
+          "hint": "Draw the company letterhead on letters and payslips.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a letterhead, and which company documents should carry one?"
+          }
+        },
+        "signatory_name": {
+          "tier": "settings",
+          "hint": "The name printed under the signature on official letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who in a company should sign its official letters?"
+          }
+        },
+        "signatory_designation": {
+          "tier": "settings",
+          "hint": "The job title printed under that name.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is a job title printed under a signature on an official letter?"
+          }
+        },
+        "registered_address_lines": {
+          "tier": "settings",
+          "hint": "The registered address printed on letters. Up to five lines.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a registered address, and why does it have to appear on official letters?"
+          }
+        },
+        "cin": {
+          "tier": "settings",
+          "hint": "The company registration number printed on official letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a company registration number, and which documents have to show it?"
+          }
+        },
+        "gstin": {
+          "tier": "settings",
+          "hint": "The company’s GST number, printed on official letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a GST number, and why would it appear on a company letter?"
+          }
+        },
+        "pan": {
+          "tier": "settings",
+          "hint": "The company’s PAN, printed on official letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a company PAN, and where is it used?"
+          }
+        },
+        "tan": {
+          "tier": "settings",
+          "hint": "The company’s TAN, printed on tax letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a TAN, and why does it appear on tax letters?"
+          }
+        },
+        "contact_email": {
+          "tier": "settings",
+          "hint": "The email address printed on letters for people to reply to.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which address should people reply to when they get a letter from the company?"
+          }
+        },
+        "contact_phone": {
+          "tier": "settings",
+          "hint": "The phone number printed on letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which phone number belongs on a company’s official letters?"
+          }
+        },
+        "website": {
+          "tier": "settings",
+          "hint": "The company website printed on letters.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why print the company website on an official letter?"
+          }
+        },
+        "accent_color_hex": {
+          "tier": "settings",
+          "hint": "The colour used for the lines and headings on the letterhead.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is a brand colour used on letters and payslips?"
+          }
+        },
+        "footer_note": {
+          "tier": "settings",
+          "hint": "A line printed at the foot of every letter.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do companies usually print in the footer of an official letter?"
           }
         }
       }

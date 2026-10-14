@@ -39,22 +39,7 @@
 // unknown body keys. Nothing here relies on the last two.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * The payslip-cache settings this screen still edits (#88–#90). The inert
- * `pdf_render_engine` (#87) is deliberately NOT here: it is neither shown nor
- * sent back, as the migration notes ask.
- */
-export const PDF_CACHE_SETTING_KEYS = [
-  "payslip_prerender_on_publish",
-  "pdf_bulk_inline_miss_threshold",
-  "pdf_cache_retention_days",
-];
-
-/** Has this server returned the payslip-cache settings at all? */
-export const hasPdfCacheSettings = (settings) =>
-  !!settings && PDF_CACHE_SETTING_KEYS.some((key) => key in settings);
-
-/** The numeric settings, with the server's own bounds. */
+/** The numeric payslip-cache settings (#89–#90), with the server's bounds. */
 export const PDF_CACHE_NUMBERS = {
   pdf_bulk_inline_miss_threshold: {
     min: 1,
@@ -74,15 +59,18 @@ export const PDF_CACHE_NUMBERS = {
   },
 };
 
-/** Why this number can't be saved, or "". */
-export function pdfNumberProblem(key, value) {
-  const rule = PDF_CACHE_NUMBERS[key];
-  if (!rule) return "";
-  const n = Number(value);
-  if (!Number.isFinite(n) || !Number.isInteger(n)) return "Enter a whole number.";
-  if (n < rule.min || n > rule.max) return `Between ${rule.min} and ${rule.max} ${rule.unit}.`;
-  return "";
-}
+/* `pdfNumberProblem` AND `hasPdfCacheSettings` WERE DELETED on 15 Oct 2026,
+   and neither should come back. Payroll Settings declares these two numbers in
+   its catalogue now (payrollSettingsCatalogue.js reads their bounds from
+   PDF_CACHE_NUMBERS above, so there is still one source for the bounds), which
+   means:
+     · the range check is the generic one every payroll setting gets
+       (`settingProblem` in settingsMeta.js), in §11's problems-map shape, and
+     · "has this server got the payslip-cache settings?" is the same question
+       asked of every other key — `resolveGroups` draws a field only where the
+       server returned it, and drops a card left with nothing.
+   A second copy of either would be a rule that can disagree with the one the
+   save actually uses. */
 
 /**
  * The settings body with the inert engine field taken OUT.
