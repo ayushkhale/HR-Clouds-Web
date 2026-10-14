@@ -42,7 +42,7 @@ import {
   HiShieldCheck, HiUserGroup,
 } from "react-icons/hi";
 import { humanize } from "../attendance/enums";
-import { settingLabel } from "./settingsBlurbs";
+import { enumLabel, settingLabel } from "./settingsBlurbs";
 import { formatMoney } from "../utils/formatUtils";
 import { addDaysYMD, fmtDate, toLocalYMD } from "../attendance/dates";
 
@@ -244,7 +244,14 @@ const UNIT_SUFFIX = {
   hours: (n) => `${n} hour${Number(n) === 1 ? "" : "s"}`,
   minutes: (n) => `${n} minute${Number(n) === 1 ? "" : "s"}`,
   percent: (n) => `${n}%`,
+  "%": (n) => `${n}%`,
   INR: (n) => formatMoney(n),
+  people: (n) => `${n} ${Number(n) === 1 ? "person" : "people"}`,
+  approvals: (n) => `${n} approval${Number(n) === 1 ? "" : "s"}`,
+  payslips: (n) => `${n} payslip${Number(n) === 1 ? "" : "s"}`,
+  loans: (n) => `${n} loan${Number(n) === 1 ? "" : "s"}`,
+  seconds: (n) => `${n} second${Number(n) === 1 ? "" : "s"}`,
+  bytes: (n) => `${n} bytes`,
 };
 
 /**
@@ -266,11 +273,26 @@ export function displaySettingValue(value, entry) {
 
   if (type === "date") return fmtDate(value);
 
-  if (type === "enum") return humanize(value);
+  /* OUR NAME FOR THE CHOICE FIRST (ENUM_LABEL in settingsBlurbs), then the
+     value prettified. `humanize` alone gave "Clamp and carry forward" and
+     "Inr" — the column’s own word with the underscores taken out, which names
+     the mechanism where §6 asks for the consequence. This one line is why the
+     pills, the select, a read-only card and the change history all say the
+     same thing: each of them ends up here. */
+  if (type === "enum") return enumLabel(entry?.key, value) || humanize(value);
 
   if (type === "integer" || type === "decimal" || typeof value === "number") {
-    const unit = UNIT_SUFFIX[entry?.unit];
-    return unit ? unit(value) : String(value);
+    // The control shows a month name and an ordinal day (see `isMonthOfYear`
+    // and `isDayOfMonth`), so everything that PRINTS a value — the change
+    // history, a read-only card, a search hit — has to agree with it. Two
+    // renderings of one stored number is how a reader comes to believe the
+    // financial year starts in the 4th week.
+    if (isMonthOfYear(entry)) return MONTH_NAMES[value] || String(value);
+    if (isDayOfMonth(entry)) return `${ordinal(value)} of the month`;
+    const unit = UNIT_SUFFIX[entry?.unit] || UNIT_SUFFIX[SETTING_NOUN[entry?.key]];
+    if (unit) return unit(value);
+    const noun = SETTING_NOUN[entry?.key];
+    return noun ? `${value} ${noun}`.replace(" %", "%").replace(" ×", "×") : String(value);
   }
 
   if (type === "jsonb" || (typeof value === "object" && value !== null)) {
@@ -281,8 +303,10 @@ export function displaySettingValue(value, entry) {
   }
 
   const text = String(value);
-  // A bare snake_case string is an enum the catalogue didn't declare as one.
-  return /^[a-z0-9]+(_[a-z0-9]+)+$/.test(text) ? humanize(text) : text;
+  // A bare snake_case string is an enum the catalogue didn't declare as one —
+  // so it gets the same name our own enums get, if we have written one.
+  return enumLabel(entry?.key, text)
+    || (/^[a-z0-9]+(_[a-z0-9]+)+$/.test(text) ? humanize(text) : text);
 }
 
 /* ─── Risk, and when a change bites ────────────────────────────────────────
@@ -320,9 +344,22 @@ export const effectTimingLabel = (timing) => EFFECT_TIMING[timing] || null;
 
 /* ─── Search ───────────────────────────────────────────────────────────────
    The brief asks for one search over the catalogue, because nobody knows which
-   tab a setting lives in. Matches the label first, then the group, then the
-   key — the key last because it is the thing a reader is least likely to type
-   and most likely to match by accident. */
+   tab a setting lives in.
+
+   IT MATCHES EVERY NAME THE READER CAN SEE, not only the field's own (user,
+   15 Oct 2026: "even user/HR type the heading name of the tab, the setting
+   must appear there"). Three of the names printed above a setting were
+   unsearchable: the TAB ("Documents & Branding"), the SHELF heading
+   ("Provident Fund"), and — until 14 Oct — the policy screens. Somebody who
+   can see a word on the page and types it into the box on the same page has
+   asked a reasonable question, and "No setting matches that" was a wrong
+   answer to it.
+
+   The order of the scores is the order of confidence, and it matters more now
+   that one tab name can match sixty settings: an exact label beats a group, a
+   group beats a shelf, a shelf beats a whole tab, and the KEY stays last
+   because it is what a reader is least likely to type and most likely to
+   match by accident. */
 export function searchSettings(entries, groupsByKey, query) {
   const q = String(query || "").trim().toLowerCase();
   if (q.length < 2) return [];
@@ -333,17 +370,39 @@ export function searchSettings(entries, groupsByKey, query) {
     const label = `${settingLabel(entry)} ${entry.label || ""}`.toLowerCase();
     const group = String(groupsByKey[entry.group_key]?.label || "").toLowerCase();
     const key = String(entry.key || "").toLowerCase();
+    // The headings this setting sits under: its tab, and the shelf inside its
+    // card. The shelf is read off the key, the same source the card reads it
+    // from (see `fieldShelves`), so the search can name a shelf without
+    // knowing which card is open or how that card happened to split.
+    const tab = String(moduleLabel(entry.module_key) || "").toLowerCase();
+    const shelf = shelvesNamedIn(entry.key).toLowerCase();
     let score = 0;
-    if (label.startsWith(q)) score = 4;
-    else if (label.includes(q)) score = 3;
-    else if (group.includes(q)) score = 2;
+    if (label.startsWith(q)) score = 6;
+    else if (label.includes(q)) score = 5;
+    else if (group.includes(q)) score = 4;
+    else if (shelf.includes(q)) score = 3;
+    else if (tab.includes(q)) score = 2;
     else if (key.includes(q)) score = 1;
     if (score) scored.push({ entry, score });
   }
   return scored
     .sort((a, b) => b.score - a.score || settingLabel(a.entry).localeCompare(settingLabel(b.entry)))
-    .slice(0, 12)
+    // A tab name legitimately matches a tab-full, so the cap is high enough to
+    // be a list rather than a sample. Best matches first, so a reader who
+    // typed a precise word still finds it at the top of the longer list.
+    .slice(0, 25)
     .map((s) => s.entry);
+}
+
+/** The shelf headings a key would sit under (`pf_employee_rate` → "Provident
+ *  Fund"), for the search to match. Nothing to do with layout: a key may name
+ *  more than one shelf token and all of them are worth matching. */
+function shelvesNamedIn(key) {
+  return String(key || "")
+    .split("_")
+    .map((token) => SHELF_LABEL[token])
+    .filter(Boolean)
+    .join(" ");
 }
 
 /* ─── Which settings can be edited inline ──────────────────────────────────
@@ -534,34 +593,40 @@ export const MODULE_BLURB = {
 
 export const moduleBlurb = (key) => MODULE_BLURB[key] || null;
 
+/* ONE LINE, AT MOST ~72 CHARACTERS. A folded card clamps this to a single
+   line so that every folded card is the same height (see SettingsGroupForm's
+   Header), and a card is half the page's width — so a longer sentence doesn't
+   read as a longer sentence, it reads as one cut off mid-clause. Say what the
+   card is FOR, not what each setting in it does: that is the ⓘ's job now
+   (14 Oct 2026, see settingsBlurbs.js). */
 export const GROUP_BLURB = {
   // ── Payroll ──
-  "payroll.calendar": "How often people are paid, and the day each month that attendance stops counting.",
-  "payroll.engine": "The two rules behind every amount on a payslip: what an unpaid day costs, and how figures are rounded.",
-  "payroll.authority": "What a manager may see of their team’s pay, and whether their changes need HR.",
-  "payroll.loans": "Advances to staff: the most that can be lent, and how the monthly repayment is taken.",
-  "payroll.tax_admin": "Which tax regime people start on, and the window they have to declare and prove investments.",
+  "payroll.calendar": "How often people are paid, and when attendance stops counting.",
+  "payroll.engine": "What an unpaid day costs, and how pay figures are rounded.",
+  "payroll.authority": "What a manager may see of their team’s pay, and what needs HR.",
+  "payroll.loans": "Advances to staff: the most that can be lent, and how it is repaid.",
+  "payroll.tax_admin": "Which tax regime people start on, and when they declare investments.",
   "payroll.reimbursements": "Who signs off an expense claim before it is paid.",
   "payroll.benefits": "Whether benefit plans are charged to the employee through payroll.",
   "payroll.payslips": "When payslips reach people, and whether they also arrive by email.",
-  "payroll.exits": "How a leaver’s last payment is worked out — unused leave, and short notice.",
+  "payroll.exits": "How a leaver’s last payment is worked out.",
   "payroll.automation": "What payroll does on its own each month, without anyone starting it.",
   "payroll.deprecated": "Kept on file from an older release. Nothing acts on these.",
 
   // ── Tax & legal deductions ──
-  "statutory.pf": "Provident Fund: who it applies to, and how the contribution is worked out.",
+  "statutory.pf": "Provident Fund: who it applies to, and how much is paid in.",
   "statutory.esi": "ESI: who it covers, and how the contribution is worked out.",
   "statutory.pt": "Professional tax: which state’s rates a person is charged under.",
   "statutory.income_tax": "Income tax: how much is held back each month, and how it is rounded.",
 
   // ── Documents ──
-  "documents.authority": "Who may issue, approve and publish a document, and what a manager may do alone.",
+  "documents.authority": "Who may issue, approve and publish a document.",
   "documents.storage": "File size and type limits, and how much space the organisation may use.",
-  "documents.retention": "How long documents and letters are kept before they are deleted for good.",
-  "documents.lifecycle": "What happens to a document as it is drafted, checked, published and expires.",
-  "documents.acknowledgement": "Whether people must confirm they have read a document, and how long they get.",
+  "documents.retention": "How long documents and letters are kept before deletion.",
+  "documents.lifecycle": "What happens to a document from draft to expiry.",
+  "documents.acknowledgement": "Whether people must confirm they have read a document.",
   "documents.notifications": "Who is told about a document, and when the reminders go out.",
-  "documents.requests": "How a request for a document is handled, and how quickly it is promised.",
+  "documents.requests": "How a request for a document is handled.",
   "documents.publishing": "What happens the moment a document is published.",
   "documents.letters": "How letters are numbered, signed and dated, and what goes on each one.",
   "documents.branding": "The company name, address and logo printed at the top of every letter.",
@@ -633,12 +698,82 @@ export const surfaceFallbackBlurb = (title) =>
    `unit` and `range`, never from a list of keys — a setting the backend adds
    gets the same treatment with no frontend release. */
 
+/* WHAT THE NUMBER IS COUNTING, where the catalogue doesn't say (user, 15 Oct
+   2026: "as we are giving fields for entering seconds like (60) so there give
+   a written type also … this gives better understanding of the fields and
+   data"). Most numeric settings arrive with a `unit` and already read "30
+   days" or "₹ 50,000" on the box. A dozen arrive with `unit: null` and sit
+   there as a bare `20000`, which is the one state where the reader has to
+   guess what they are typing — 20,000 what?
+
+   SO THIS IS A LAST RESORT, NOT A SECOND SOURCE. The catalogue's own `unit`
+   always wins; this table is only consulted when there is none, and only for
+   keys whose unit is settled by public/ref docs/md_settings/
+   org_settings_registry.md ("Data Type: Integer, recipient count"). A key
+   missing from here still renders exactly as it did — a bare number — which
+   is the right failure: inventing a noun would caption the field with a
+   guess, and a wrong noun is worse than none (§4's rule about ids applies to
+   units too: don't put something on screen you can't stand behind).
+
+   The nouns are SHORT because they are drawn inside the box, right of the
+   digits: "people", not "recipients in the audience". */
+const SETTING_NOUN = {
+  // Documents — the registry's own words, settings #79, #71–#78.
+  document_view_url_ttl_seconds: "seconds",
+  document_upload_url_ttl_seconds: "seconds",
+  document_max_file_size_bytes: "bytes",
+  document_retention_days: "days",
+  letter_record_retention_days: "days",
+  document_acknowledgement_due_days: "days",
+  document_request_default_due_days: "days",
+  document_onboarding_completeness_threshold: "%",
+  // "Integer, recipient count" — the audience a publish would write rows for,
+  // NOT a number of documents. The number is people.
+  document_publish_sync_threshold: "people",
+  // "Integer, subject count" — a subject is the person a letter is about.
+  letter_bulk_max_subjects: "people",
+  letter_bulk_rate_per_hour: "an hour",
+  letter_preview_rate_per_hour: "an hour",
+  // Payroll.
+  pdf_cache_retention_days: "days",
+  pdf_bulk_inline_miss_threshold: "payslips",
+  payroll_attachment_retention_days: "days",
+  reimbursement_approval_levels: "approvals",
+  reimbursement_payout_lookahead_months: "months",
+  loan_max_tenure_months: "months",
+  loan_max_concurrent_per_employee: "loans",
+  loan_max_interest_rate: "%",
+  loan_default_interest_rate: "%",
+  standard_working_hours_per_day: "hours",
+  // A multiplier on the normal hourly rate (1.5, 2) — "×" reads as "times"
+  // at a glance and takes one character of the box.
+  overtime_rate_multiplier: "×",
+  // Statutory rates and ceilings. The rates are percentages of wages; the
+  // ceilings and the floor are money, and money is a PREFIX.
+  pf_employee_rate: "%",
+  pf_employer_rate: "%",
+  pf_admin_charge_rate: "%",
+  eps_rate: "%",
+  edli_rate: "%",
+  esi_employee_rate: "%",
+  esi_employer_rate: "%",
+  tds_no_pan_rate: "%",
+  cess_rate: "%",
+  // Leave and exits, in days.
+  fnf_encashment_max_days: "days",
+  fnf_default_notice_period_days: "days",
+  compoff_encashment_max_days_per_fy: "days",
+  // A divisor: monthly pay ÷ this many days = one day's pay.
+  fnf_encashment_divisor: "days",
+  compoff_encashment_divisor: "days",
+};
+
 /** The unit, drawn on the field itself. `null` when there is nothing to draw. */
 export function unitAffix(entry) {
-  const unit = entry?.unit;
+  const unit = entry?.unit || SETTING_NOUN[entry?.key];
   if (!unit) return null;
   if (unit === "INR") return { prefix: "₹" };
-  if (unit === "percent") return { suffix: "%" };
+  if (unit === "percent" || unit === "%") return { suffix: "%" };
   return { suffix: unit };
 }
 
@@ -665,6 +800,42 @@ const ordinal = (n) => {
   const suffix = teen >= 11 && teen <= 13 ? "th" : ORDINAL_SUFFIX[n % 10] || "th";
   return `${n}${suffix}`;
 };
+
+/* The months, in the order the calendar has them. Index 0 is unused so that
+   `MONTH_NAMES[4]` is April — the stored value IS the month number, and an
+   off-by-one here would name the wrong month on a tax deadline. */
+const MONTH_NAMES = [
+  "", "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * A whole number that means A MONTH OF THE YEAR — the financial year's first
+ * month, a declaration window, a proof deadline. Stored as 1–12, and shown
+ * as "April" rather than `4`.
+ *
+ * Decided the same way `isDayOfMonth` is, and for the same reason: from the
+ * range AND the key's last word, never a list of keys. SINGULAR `_month` is a
+ * month of the year; PLURAL `_months` is a COUNT of months
+ * (`loan_max_tenure_months`, `reimbursement_payout_lookahead_months`) and
+ * keeps its number box, because "April" would be a lie about what it stores.
+ * Anything carrying a `unit` is out for the same reason.
+ */
+export function isMonthOfYear(entry) {
+  if (!entry || entry.data_type !== "integer" || entry.unit) return false;
+  const { min, max } = entry.range || {};
+  if (min !== 1 || max !== 12) return false;
+  return /(^|_)month$/.test(String(entry.key || ""));
+}
+
+/** "January" … "December", over the catalogue's own range. */
+export function monthOfYearOptions(entry) {
+  const min = entry?.range?.min ?? 1;
+  const max = entry?.range?.max ?? 12;
+  const out = [];
+  for (let n = min; n <= max; n += 1) out.push({ value: n, label: MONTH_NAMES[n] });
+  return out;
+}
 
 /** "1st of the month" … "31st of the month", over the catalogue's own range. */
 export function dayOfMonthOptions(entry) {
@@ -712,7 +883,9 @@ export function searchSurfaces(surfaces, query) {
     const label = String(surface.label || "").toLowerCase();
     const screen = String(route.label || "").toLowerCase();
     const blurb = String(SURFACE_BLURB[route.path] || "").toLowerCase();
-    if (!label.includes(q) && !screen.includes(q) && !blurb.includes(q)) continue;
+    // The tab it lives under, for the same reason the settings match it.
+    const tab = String(moduleLabel(surface.module_key) || "").toLowerCase();
+    if (!label.includes(q) && !screen.includes(q) && !blurb.includes(q) && !tab.includes(q)) continue;
     if (!byRoute.has(route.path)) {
       byRoute.set(route.path, { route, module_key: surface.module_key, matches: [] });
     }
@@ -723,18 +896,18 @@ export function searchSurfaces(surfaces, query) {
 }
 
 /* ─── How a setting is laid out inside its card ────────────────────────────
-   A card is the full width of the page now (see OrgSettingsPage: the wall is
-   one column), so its fields sit in a grid that grows with the screen — one
-   per line on a phone, two from `sm`, three from `xl`. Which fields can take
-   a single cell and which need more is decided from the catalogue rather than
-   from a list of keys. */
+   An OPEN card is the full width of the page (see `layoutWall` below: the
+   wall gives an open card its whole course), so its fields sit in a grid that
+   grows with the screen — one per line on a phone, two from `sm`, three from
+   `xl`. Which fields can take a single cell and which need more is decided
+   from the catalogue rather than from a list of keys. */
 
 /**
  * A yes/no, drawn as a switch on the SAME line as its label instead of a
  * control under it (user decision, 2026-10-10). A switch states what it is
- * set to in 44px, which leaves the rest of the line for the one sentence
- * saying what turning it on actually does — the On/Off pill pair it replaced
- * took a whole row to say less.
+ * set to in 44px, where the On/Off pill pair it replaced took a whole row to
+ * say less — and the word beside it went too (14 Oct 2026), so a column of
+ * yes/nos is now a column of labels with a switch at the end of each.
  */
 export const isSwitchControl = (entry) => entry?.data_type === "boolean" && isEditable(entry);
 
@@ -755,9 +928,9 @@ export function fieldSpan(entry) {
   if (!entry) return "";
   // A chip list takes the whole row: two of them side by side left a ragged
   // column (the Company & Billing card is exactly two of them), and the
-  // control caps its own input width instead. The shelf grid is two columns
-  // wide now that the card is half the page, so "the whole row" is two cells.
-  if (entry.data_type === "array") return "sm:col-span-2";
+  // control caps its own input width instead. "The whole row" is two cells
+  // from `sm` and three from `xl`, which is what the card's grid is.
+  if (entry.data_type === "array") return "sm:col-span-2 xl:col-span-3";
   if (entry.data_type === "enum" && segmentedOptions(entry)) return "sm:col-span-2 xl:col-span-1";
   return "";
 }
@@ -841,9 +1014,45 @@ function sharedPrefix(keys) {
  *
  * @returns {{ key: string, label: string|null, rows: object[] }[]}
  */
+/**
+ * A shelf's fields in the order they should be READ, which is not quite the
+ * order the registry lists them in.
+ *
+ * SWITCHES GO LAST (user, 15 Oct 2026, naming three pairs: "exchange the
+ * positions of 'Pay in the next month' with 'Financial year starts' as
+ * Financial year starts have same input field as others and this will
+ * maintain the UI"). A yes/no is drawn as a 40px switch on its label's own
+ * line; everything else is a full-width box or select UNDER its label. So one
+ * switch in the middle of a run of boxes leaves a half-height cell and knocks
+ * the three-column grid out of step. Gathered at the end of the shelf, boxes
+ * line up with boxes and switches with switches, and the card reads as rows.
+ *
+ * It is a STABLE partition, not a sort: inside the boxes and inside the
+ * switches the catalogue's own order survives, so no field moves anywhere a
+ * reader can't predict.
+ *
+ * `lead` keeps a shelf's MASTER switch first — `pf_enabled` over the whole
+ * Provident Fund shelf — because reading "Employee share" before "Provident
+ * Fund: off" is reading the answer before the question. It is passed only for
+ * a shelf that HAS a heading: in a card that didn't split there is no heading
+ * for a switch to govern, so it is just another switch. That is what moves
+ * "Pay for overtime" off the top of the payroll engine card.
+ */
+export function orderFields(rows, { lead = false } = {}) {
+  const isMaster = (row) => lead && /_(enabled|required|payable)$/.test(row.key || "");
+  const rank = (row) => {
+    if (isMaster(row)) return 0;
+    return isSwitchControl(row) ? 2 : 1;
+  };
+  return (rows || [])
+    .map((row, i) => [row, i])
+    .sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1])
+    .map(([row]) => row);
+}
+
 export function fieldShelves(entries, min = 6) {
   const rows = entries || [];
-  const flat = [{ key: "all", label: null, rows }];
+  const flat = [{ key: "all", label: null, rows: orderFields(rows) }];
   if (rows.length < min) return flat;
 
   const skip = sharedPrefix(rows.map((e) => e.key));
@@ -857,44 +1066,96 @@ export function fieldShelves(entries, min = 6) {
 
   const shelves = [];
   const leftovers = [];
-  // A shelf leads with its own on/off switch: it decides whether anything
-  // under it applies at all, and reading "Employee share" before "Provident
-  // Fund: off" is reading the answer before the question. Everything else
-  // keeps the catalogue's order, which is the order the registry lists it in.
-  const lead = (row) => (/_(enabled|required|payable)$/.test(row.key || "") ? 0 : 1);
   for (const token of order) {
     const group = byToken.get(token);
     const named = !STOP_TOKENS.has(token) || SHELF_LABEL[token];
     if (group.length >= 2 && named) {
-      const sorted = group.map((r, i) => [r, i]).sort((a, b) => lead(a[0]) - lead(b[0]) || a[1] - b[1]);
-      shelves.push({ key: token, label: shelfLabel(token), rows: sorted.map(([r]) => r) });
+      // A real shelf, so its master switch keeps the top — see `orderFields`.
+      shelves.push({ key: token, label: shelfLabel(token), rows: orderFields(group, { lead: true }) });
     }
     else leftovers.push(...group);
   }
   // Not a tidier read: leave the card alone rather than hanging one heading
   // over most of it.
   if (shelves.length < 2) return flat;
-  if (leftovers.length > 0) shelves.push({ key: "other", label: "Other", rows: leftovers });
+  // "Other" is a remainder, not a subject, so nothing in it governs anything
+  // else: no master switch, just the boxes and then the switches.
+  if (leftovers.length > 0) shelves.push({ key: "other", label: "Other", rows: orderFields(leftovers) });
   return shelves;
 }
 
-/* ─── THE WALL IS TWO LANES, AND `packColumns` IS STILL DELETED ────────
-   `packColumns` and `cardWeight` used to live here. They cut the cards into two
-   columns and chose the boundary from how tall each card was about to be, so
-   the page re-levelled itself as cards opened — and re-levelling is what the
-   user then reported as a bug: opening one card moved the boundary, and a card
-   nobody had touched jumped from the foot of one column to the head of the
-   other ("notification tab jumping from position", 2026-10-10).
+/* ─── THE WALL: COURSES OF BRICKS, AND `packColumns` IS STILL DELETED ──────
+   Three layouts have been tried for the hub's cards and each failed in a way
+   worth keeping written down, because the next person will reach for one of
+   them:
 
-   The wall is two columns again (14 Oct 2026), but nothing here came back. The
-   page lays the cards into two LANES by index — `lanes` in OrgSettingsPage —
-   so a card's column is decided before anything is open and cannot change when
-   something folds. No heights are measured, which is the whole point.
+     1. ONE GRID, `items-stretch`. A 64px folded card sharing a row with a
+        700px open one balloons into 640px of empty white INSIDE the folded
+        card. (Payroll Settings was the one grid that got away with it, while
+        its sections were open by default and much of a height. It is laid out
+        by `layoutWall` too since 15 Oct, so there is no such page left.)
+     2. ONE GRID, `items-start`. Same pairing, opposite symptom: a card-sized
+        HOLE beside the open card. This is what shipped, and what was reported
+        on 14 Oct — "so much white space when we open the tab".
+     3. TWO LANES BY INDEX (`lanes`, 14 Oct, deleted by this). No rows at all,
+        so nothing could be paired wrongly — but opening a card in one lane
+        left the other lane short, and that shortfall is the same white space
+        measured down the page instead of across it.
 
-   Don't reintroduce a height-aware packer to even the lanes up. The lanes ARE
-   uneven once a card is open; that space is at the foot of a column, not a hole
-   in the middle of the wall, and every scheme that fills it has to move a card
-   to do so. */
+   What all three have in common is that a folded card and an open one were
+   asked to share a course. So they aren't: AN OPEN CARD TAKES THE WHOLE
+   COURSE, folded cards go two to a course, and a folded card that would
+   otherwise be left alone in a course widens to fill it. Every course is
+   exactly full, which is what "no gap between them even after opening and
+   closing them" means, and `items-stretch` is safe again because the only
+   cards that share a course are folded ones of near-identical height.
+
+   `packColumns` and `cardWeight` used to live here and are NOT coming back.
+   They chose the column boundary from how tall each card was about to be, so
+   the page re-levelled itself as cards opened and a card nobody had touched
+   jumped from the foot of one column to the head of the other ("notification
+   tab jumping from position", 2026-10-10). `layoutWall` measures NOTHING: it
+   reads the open/closed flags and the card's position in the catalogue, and
+   that is all it is ever allowed to read. A width can change (the brick
+   before an open card widens to close its course) but an ORDER never does. */
+
+/**
+ * The wall, course by course: which cards go on which row of the two-column
+ * grid, and how many columns each one takes.
+ *
+ * Returns the cards in catalogue order with a `span` of 1 or 2, so the page
+ * renders a plain grid in DOM order — reading order, tab order and catalogue
+ * order are the same thing again, with no `order` or `display: contents`
+ * trickery to keep in step.
+ *
+ * @param {Array} groups      the open tab's groups, in catalogue order
+ * @param {Set}   openKeys    the keys of the cards that are unfolded
+ */
+export function layoutWall(groups, openKeys) {
+  const open = openKeys instanceof Set ? openKeys : new Set(openKeys || []);
+  const wall = (groups || []).map((group) => ({
+    group,
+    span: open.has(group.key) ? 2 : 1,
+  }));
+
+  // Walk the courses, carrying only "is there half a course open behind me".
+  let half = false;
+  for (let i = 0; i < wall.length; i += 1) {
+    if (wall[i].span === 2) {
+      // An open card starts its own course, so the brick behind it has to
+      // close the one it is in — otherwise that half-course is the hole.
+      if (half) wall[i - 1].span = 2;
+      half = false;
+    } else {
+      half = !half;
+    }
+  }
+  // The last brick, if it is laid alone, closes the wall rather than leaving
+  // half a course at the bottom (the complaint behind "below the side tabs we
+  // can see so much white").
+  if (half) wall[wall.length - 1].span = 2;
+  return wall;
+}
 
 /* ─── A day in the change history ──────────────────────────────────────────
    The history is a log, and a log's rows share a date: printing "9 Oct 2026,

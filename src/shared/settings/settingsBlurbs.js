@@ -1,231 +1,51 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// settings/settingsBlurbs.js — WHAT EACH SETTING DOES, in one plain line.
+// settings/settingsBlurbs.js — WHAT EACH SETTING IS CALLED, and what the risky
+// ones cost. What each setting DOES is no longer in this file: it is ⓘ help
+// now, beside the field's own name.
 //
-// Every setting on the hub prints one of these under its control. The rule the
-// lines are written to (user instruction, 2026-10-10) is the plainest possible
-// one: say what this switch DOES for the people in the company. If the field
-// is called "Manager can view team documents", the line reads "Allow managers
-// to view their team’s documents" — not what it is called, not how it is
-// enforced, and not how dangerous it is.
+// ─── WHY THE SENTENCES LEFT (user decision, 14 Oct 2026) ───────────────
+// Every setting printed its one-liner under its control, and 138 of them on
+// one page is 138 lines of prose standing between the reader and the switch
+// they came to flip ("the entire setting page + the categories it have
+// looking so much crowded"). So the explanation became help rather than
+// content: the whole `SETTING_BLURB` table is now entries under
+// `settings.hub` in `src/shared/fieldHelp/fieldHelp.json`, each with its own
+// Ask Maya question, on the `settings` tier — which is what keeps the
+// 4-per-screen cap meaningful on every screen that isn't this one.
 //
-// WHY WE WRITE THEM INSTEAD OF PRINTING `description`. The catalogue does send
-// a `description` per setting, and the first build printed it. It is written
-// for whoever maintains the registry: it names columns, enums, services and
-// error codes ("yields a 400 DOCUMENT_REQUIRED", "the denominator used for
-// prorations"), which is exactly the vocabulary §6 says to keep off the
-// screen. A hint that has to be decoded is worse than none, so these are the
-// same facts in the words a first-month HR admin uses. A setting we have no
-// line for still falls back to the catalogue's `description` (see
-// `settingBlurb`) — missing is better than invented, and a setting the backend
-// adds tomorrow still explains itself.
+// THE WORDS DID NOT CHANGE on the way, and nor did the rules they are written
+// to. They just apply in the JSON now:
+//   · one line, about 110 characters, no second sentence (the validator's
+//     own hard limit is 160);
+//   · say the consequence for a person, never the mechanism (§6): "unpaid
+//     days", not "LOP"; "what reaches the bank", not "net pay";
+//   · no figures that move with the law, the state or the year — those live
+//     in the value itself, and a hint quoting one goes stale silently;
+//   · no ids, no enum names, no column names (§4);
+//   · the reader may be HR or a manager (§2), so write about "the employee"
+//     or "people", never "your report" and never "you".
+// Every line is still read off
+// `public/ref docs/md_settings/org_settings_registry.md` — entries #35–#98
+// and #104, the singleton stores the hub can write. Where the registry and a
+// hint disagree, the registry wins and the hint is wrong: fix it there.
 //
-// GROUNDED, NOT GUESSED. Every line is read off
-// `public/ref docs/md_settings/org_settings_registry.md` — entries #35–#98 and
-// #104, the singleton stores the hub can write. Where the registry and a line
-// here disagree, the registry wins and the line is wrong: fix it here.
-//
-// RULES FOR ADDING ONE:
-//   · One line, about 110 characters, no second sentence. It sits under a
-//     control in a card, not in a manual.
-//   · Say the consequence for a person, never the mechanism (§6): "unpaid
-//     days", not "LOP"; "what reaches the bank", not "net pay"; "monthly
-//     repayment", not "EMI"; "PF, ESI and tax", not "statutory deductions".
-//   · No figures that change with the law, the state or the year — those live
-//     in the value itself, and a hint that quotes one goes stale silently.
-//   · No ids, no enum names, no column names (§4).
-//   · The reader may be HR or a manager (§2), so write about "the employee" or
-//     "people", never "your report" and never "you".
+// WHY A LOOKUP IS STILL HERE. The card shows an ⓘ, but the change HISTORY
+// prints the sentence as text — a record is prose, not a form — and nothing
+// should have to be written twice to get that. So this reads the same JSON
+// the ⓘ does, which is why the two can never drift apart. Read it RAW, not
+// through `getFieldHelp`: that gates by workspace and tier, and a tier decides
+// whether an ICON shows, not whether a fact is true.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import fieldHelp from "../fieldHelp/fieldHelp.json";
+import { humanize } from "../attendance/enums";
 
 /* Keyed by the catalogue's own `key`, which for every one of these stores is
    the database column name — see the registry headings. */
-import { humanize } from "../attendance/enums";
-
-export const SETTING_BLURB = {
-  // ── Payroll: the pay period ──
-  payroll_cycle: "How often a pay period runs.",
-  period_start_day: "The day of the month a pay period starts.",
-  attendance_cutoff_day: "The last day of attendance that counts towards that month’s pay.",
-  pay_day: "The day of the month people are paid.",
-  pay_day_in_next_month: "Pay a month’s salary in the month after it was worked, rather than inside it.",
-  currency: "The currency every salary and payslip figure is shown in.",
-  financial_year_start_month: "The month the financial year starts. Every year-so-far total counts from here.",
-
-  // ── Payroll: who may see and approve pay ──
-  manager_can_view_team_compensation: "Allow managers to see the pay of the people who report to them.",
-  payroll_require_separate_checker: "Make a second HR person approve every pay change, so nobody approves their own.",
-  manager_direct_compensation_authority: "Let a manager’s pay change for their own report take effect without HR approving it.",
-
-  // ── Payroll: how the figures are worked out ──
-  lop_basis: "What one day of pay is worked out from, which sets what an unpaid day costs.",
-  net_pay_rounding: "Round what reaches the bank to whole rupees.",
-  in_progress_treatment: "How a day somebody never clocked out of is counted when pay is worked out.",
-  overtime_payable: "Pay people for overtime hours that have been approved.",
-  overtime_rate_multiplier: "How many times the normal hourly rate an overtime hour is paid at.",
-  overtime_hourly_basis: "Which part of the salary the overtime hourly rate is worked out from.",
-  standard_working_hours_per_day: "The hours in a full working day, used to turn a salary into an hourly rate.",
-  negative_net_handling: "What to do when deductions come to more than the pay.",
-
-  // ── Payroll: staff loans ──
-  loan_max_amount: "The most that can be lent to one person. Leave it empty for no limit.",
-  loan_max_tenure_months: "The longest a loan may be repaid over.",
-  loan_max_interest_rate: "The highest interest rate a loan may carry.",
-  loan_default_interest_rate: "The interest rate used when a loan request doesn’t name one.",
-  loan_interest_method: "Whether interest is charged on the whole loan or only on what is still to repay.",
-  loan_max_concurrent_per_employee: "How many loans one person may be repaying at the same time.",
-
-  // ── Payroll: tax admin ──
-  pt_state_source: "Which state’s professional tax a person pays.",
-  default_tax_regime: "The tax regime people are on until they pick one themselves.",
-  allow_employee_regime_switch: "Let people change their own tax regime. HR can always change it for them.",
-  tax_declaration_window_start_month: "The month people can start declaring the investments they plan to make.",
-  tax_declaration_window_end_month: "The last month people can declare the investments they plan to make.",
-  tax_proof_deadline_month: "The month proof of those investments has to be in by.",
-  tax_proof_deadline_day: "The day of that month proof of those investments has to be in by.",
-  tds_monthly_rounding: "How the income tax taken each month is rounded.",
-
-  // ── Tax & legal deductions ──
-  income_tax_enabled: "Work out income tax and hold it back from every payslip.",
-  tds_no_pan_rate: "The higher tax rate used for somebody with no PAN on file.",
-  tds_no_pan_enforced: "Charge that higher rate to people who have no PAN on file.",
-  cess_rate: "The extra percentage added on top of the income tax worked out.",
-
-  pf_enabled: "Take Provident Fund out of pay, and add the company’s share.",
-  pf_employee_rate: "The share of the PF pay taken from the employee.",
-  pf_employer_rate: "The share of the PF pay the company puts in.",
-  pf_wage_ceiling: "The most of a month’s pay that PF is worked out on.",
-  pf_restrict_to_ceiling: "Work PF out up to that ceiling only, instead of on the whole salary.",
-  pf_lop_reduces_ceiling: "Lower that ceiling for anybody with unpaid days in the month.",
-  pf_include_overtime: "Count overtime pay when working PF out.",
-  eps_enabled: "Put part of the company’s PF share into the pension scheme.",
-  eps_rate: "The share of the pension pay that goes to the pension scheme.",
-  eps_wage_ceiling: "The most of a month’s pay the pension share is worked out on.",
-  edli_enabled: "Add the company’s life-cover charge that goes with PF.",
-  edli_rate: "The share of pay charged for that life cover.",
-  edli_wage_ceiling: "The most of a month’s pay the life-cover charge is worked out on.",
-  pf_admin_charge_rate: "The share of pay the company pays to have the PF account run.",
-  pf_admin_charge_min: "The smallest amount charged to run the PF account, whatever the rate comes to.",
-
-  esi_enabled: "Take ESI out of pay, and add the company’s share.",
-  esi_employee_rate: "The share of pay taken from the employee for ESI.",
-  esi_employer_rate: "The share of pay the company puts in for ESI.",
-  esi_wage_threshold: "The monthly pay above which somebody stops being covered by ESI.",
-  esi_include_overtime: "Count overtime pay when working ESI out.",
-
-  pt_enabled: "Take professional tax out of pay, at the rate for the person’s state.",
-
-  // ── Payroll: claims and benefits ──
-  reimbursement_approval_levels: "How many people have to approve an expense claim before it can be paid.",
-  reimbursement_payout_lookahead_months: "How far ahead an approved claim may be scheduled for payment.",
-  benefit_deductions_enabled: "Take the employee’s share of their benefit plans through payroll.",
-
-  // ── Payroll: payslips ──
-  payslip_auto_publish: "Show people their payslip as soon as the run is approved.",
-  payslip_auto_email: "Email each payslip out as well as showing it in the app.",
-  payslip_prerender_on_publish: "Build the payslip files when they are published, so downloads are instant.",
-  pdf_bulk_inline_miss_threshold: "How many missing files a bulk download builds on the spot before it queues the job.",
-  pdf_cache_retention_days: "How long a built file is kept before it has to be built again.",
-  pdf_render_engine: "Kept from an older release. Nothing uses it any more.",
-
-  // ── Payroll: exits and payouts ──
-  fnf_leave_encashment_enabled: "Pay out unused leave in a leaver’s final pay.",
-  fnf_encashment_leave_type_codes: "Which kinds of leave can be paid out when somebody leaves.",
-  fnf_encashment_rate_basis: "Which part of the salary a paid-out leave day is worked out from.",
-  fnf_encashment_divisor: "The number of days a month’s salary is split into to price one leave day.",
-  fnf_encashment_max_days: "The most leave days one leaver can be paid for.",
-  fnf_encashment_component_id: "The pay line a leave payout shows up on.",
-  fnf_notice_recovery_enabled: "Charge a leaver for notice they didn’t serve.",
-  fnf_notice_recovery_rate_basis: "Which part of the salary short notice is charged at.",
-  fnf_default_notice_period_days: "The notice period put on a new exit unless somebody changes it.",
-  fnf_notice_recovery_component_id: "The pay line short notice shows up on.",
-  fnf_loan_recovery_mode: "How a loan somebody still owes is settled when they leave.",
-  compoff_encashment_enabled: "Pay people for earned days off instead of making them take the day.",
-  compoff_encashment_rate_basis: "Which part of the salary a paid-out earned day is worked out from.",
-  compoff_encashment_divisor: "The number of days a month’s salary is split into to price one earned day.",
-  compoff_encashment_max_days_per_fy: "The most earned days one person can be paid for in a year.",
-  compoff_encashment_component_id: "The pay line an earned-day payout shows up on.",
-
-  // ── Payroll: what happens without anyone starting it ──
-  payroll_auto_draft_enabled: "Start each month’s payroll draft on its own.",
-  payroll_auto_draft_day: "The day of the month that draft is started.",
-  payroll_cutoff_reminder_enabled: "Remind HR on the day attendance stops counting for the month.",
-  payroll_payday_reminder_enabled: "Remind HR before pay day that the run still has to go out.",
-  tax_declaration_reminder_enabled: "Remind people to declare their investments before the window shuts.",
-  payroll_attachment_retention_days: "How long files attached to payroll are kept before they are deleted.",
-
-  // ── Documents: who may do what ──
-  manager_can_view_team_documents: "Allow managers to view their team’s documents.",
-  manager_direct_document_authority: "Let a manager issue a document to their own report without HR approving it.",
-  document_require_separate_checker: "Make somebody other than the preparer check a document before it goes out.",
-  manager_can_propose_letters: "Let managers ask for a letter to be issued to somebody in their team.",
-
-  // ── Documents: files and links ──
-  document_view_url_ttl_seconds: "How long a link to open a document keeps working.",
-  document_upload_url_ttl_seconds: "How long somebody has to finish an upload once it has started.",
-  document_max_file_size_bytes: "The largest file anybody can upload.",
-  document_scan_required: "Check every upload for viruses before it can be used.",
-
-  // ── Documents: how long things are kept ──
-  document_retention_days: "How long a document is kept before it is deleted for good.",
-  letter_record_retention_days: "How long an issued letter is kept before it is deleted for good.",
-
-  // ── Documents: the life of a document ──
-  employee_can_delete_verified_documents: "Let people delete their own documents even after HR has checked them.",
-  document_default_verification_required: "Have HR check a newly uploaded document before it counts as on file.",
-  document_offboarding_archive_mode: "What happens to somebody’s documents once they have left.",
-  document_offboarding_exit_pack_scope: "Which documents go into the pack a leaver is given.",
-
-  // ── Documents: reading and signing ──
-  document_acknowledgement_due_days: "How long somebody has to confirm they have read a document.",
-  document_acknowledgement_blocking: "Hold other steps up until the person confirms they have read it.",
-  document_signature_provider: "Who handles the signing when a document needs a signature.",
-
-  // ── Documents: who gets told ──
-  document_expiry_reminder_days: "How many days before a document runs out the reminders go out.",
-  document_notify_hr_on_upload: "Tell HR whenever somebody uploads a document.",
-  document_notify_expiry: "Tell people when one of their documents is about to run out.",
-  document_notify_pending_acknowledgement: "Chase people who haven’t confirmed they read a document.",
-  document_notify_request_raised: "Tell somebody as soon as a document is asked of them.",
-  document_notify_request_overdue: "Chase people whose document is past the date it was asked for.",
-  document_notify_letter_issued: "Tell somebody when a letter has been issued to them.",
-
-  // ── Documents: requests and publishing ──
-  document_request_default_due_days: "How long people are given to send in a document that is asked of them.",
-  document_onboarding_completeness_threshold: "How much of their document list a new joiner must send to be done.",
-  document_publish_sync_threshold: "How many documents are published on the spot before the rest are queued.",
-
-  // ── Documents: letters ──
-  letter_branding_enabled: "Print letters on the company letterhead.",
-  letter_reference_pattern: "The shape of the reference number printed on every letter.",
-  letter_default_confidential: "Mark a new letter confidential unless somebody says otherwise.",
-  letter_requires_acknowledgement_default: "Ask the person to confirm they have read a new letter.",
-  letter_auto_issue_on_exit: "Issue the leaving letters on their own once an exit is finalised.",
-  letter_bulk_max_subjects: "How many people one bulk letter run may cover.",
-  letter_bulk_rate_per_hour: "How many bulk letter runs may be started in an hour.",
-  letter_preview_rate_per_hour: "How many letter previews one person may ask for in an hour.",
-
-  // ── Documents: the letterhead itself ──
-  letterhead_enabled: "Draw the company letterhead on letters and payslips.",
-  signatory_name: "The name printed under the signature on official letters.",
-  signatory_designation: "The job title printed under that name.",
-  registered_address_lines: "The registered address printed on letters. Up to five lines.",
-  cin: "The company registration number printed on official letters.",
-  gstin: "The company’s GST number, printed on official letters.",
-  pan: "The company’s PAN, printed on official letters.",
-  tan: "The company’s TAN, printed on tax letters.",
-  contact_email: "The email address printed on letters for people to reply to.",
-  contact_phone: "The phone number printed on letters.",
-  website: "The company website printed on letters.",
-  accent_color_hex: "The colour used for the lines and headings on the letterhead.",
-  footer_note: "A line printed at the foot of every letter.",
-
-  // ── Company & billing ──
-  billing_notification_emails: "Extra addresses that get the invoices and renewal notices as well as HR.",
-  billing_reminder_lead_days: "How many days before the plan ends a reminder goes out.",
-};
+const SETTING_HINT = fieldHelp?.surfaces?.["settings.hub"]?.fields || {};
 
 /**
- * What a setting does, in one plain line.
+ * What a setting does, in one plain line — the text behind its ⓘ.
  *
  * Ours first, the catalogue's `description` second. The fallback matters: the
  * catalogue is the thing that grows, and a setting added next week has to
@@ -234,7 +54,8 @@ export const SETTING_BLURB = {
  */
 export function settingBlurb(entry) {
   if (!entry) return null;
-  if (SETTING_BLURB[entry.key]) return SETTING_BLURB[entry.key];
+  const hint = SETTING_HINT[entry.key]?.hint;
+  if (hint) return hint;
   return looksTechnical(entry.description) ? null : entry.description || null;
 }
 
@@ -287,6 +108,10 @@ export const SETTING_LABEL = {
   // How pay is worked out
   lop_basis: "Unpaid day priced on",
   net_pay_rounding: "Round what reaches the bank",
+  // The same question under the key the payroll screen has always written
+  // (see payrollSettingsCatalogue.js) — whichever one a server stores, the
+  // field is called the same thing.
+  rounding_policy: "Round what reaches the bank",
   in_progress_treatment: "Day with no clock-out",
   negative_net_handling: "When deductions exceed pay",
   overtime_payable: "Pay for overtime",
@@ -424,6 +249,113 @@ export const SETTING_LABEL = {
   billing_reminder_lead_days: "Remind before the plan ends",
 };
 
+/* ─── WHAT A CHOICE IS CALLED ───────────────────────────────────────
+   An enum’s options were drawn by running `humanize()` over the stored value,
+   which turns `calendar_days` into "Calendar days" and `clamp_and_carry` into
+   "Clamp and carry". Those are column values with the underscores taken out:
+   they name the MECHANISM, and §6 asks for the consequence — and "Inr" for
+   `INR` is barely even that.
+
+   So an option has a name, keyed `setting_key::stored_value`. Keyed by BOTH
+   because the same word means different things in different settings: `none`
+   under a rounding setting means the paise are kept, and a global table of
+   bare values would eventually caption one of them wrongly and nobody would
+   notice which.
+
+   Rules for adding one:
+   · Say what HAPPENS, from the reader’s side: "Pay nothing now, recover next
+     month", not "Clamp and carry forward".
+   · ≤ 16 characters makes the options a row of pills instead of a dropdown
+     (`segmentedOptions`), so a short name is worth reaching for — but never
+     at the cost of being wrong or jargon. Longer is a select, which is fine.
+   · No jargon §6 has banned, and no figure that moves with the law.
+   · The value is never printed raw anywhere — the change history prints these
+     same names, because it reads `displaySettingValue` like the control does. */
+
+/** One shared map of option names, spread over every key that offers them. */
+const spread = (keys, options) => Object.fromEntries(
+  keys.flatMap((key) => Object.entries(options).map(([value, label]) => [`${key}::${value}`, label])),
+);
+
+/* Monthly pay ÷ how many days = what one day is worth. The same question in a
+   settlement, a leave payout and a cash-out, so the same three answers. */
+const DAY_DIVISOR = {
+  fixed_30: "Always 30 days",
+  calendar_days: "Days in the month",
+  standard_working_days: "Working days only",
+};
+
+/* Which part of the salary an hourly or daily rate is worked out from. */
+const PAY_BASIS = { basic: "Basic pay", gross: "Gross pay" };
+
+/* Keeping the paise or dropping them. `none` is the same answer either way. */
+const ROUNDING = {
+  none: "Keep the paise",
+  nearest_rupee: "Nearest rupee",
+  nearest_ten: "Nearest ₹10",
+  two_decimals: "Keep the paise",
+};
+
+export const ENUM_LABEL = {
+  // The pay calendar.
+  "payroll_cycle::monthly": "Every month",
+  "currency::INR": "Indian rupee (INR)",
+  "currency::USD": "US dollar (USD)",
+  "currency::GBP": "Pound sterling (GBP)",
+  "currency::EUR": "Euro (EUR)",
+  "currency::AED": "UAE dirham (AED)",
+  "currency::SAR": "Saudi riyal (SAR)",
+  "currency::SGD": "Singapore dollar (SGD)",
+  "currency::MYR": "Malaysian ringgit (MYR)",
+  "currency::AUD": "Australian dollar (AUD)",
+  "currency::CAD": "Canadian dollar (CAD)",
+  "currency::LKR": "Sri Lankan rupee (LKR)",
+  "currency::NPR": "Nepalese rupee (NPR)",
+
+  // How pay is worked out.
+  "lop_basis::calendar_days": "The days in that month",
+  "lop_basis::standard_working_days": "Working days only",
+  "lop_basis::fixed_30": "Always 30 days",
+  "in_progress_treatment::present": "Count as present",
+  "in_progress_treatment::absent": "Count as absent",
+  "in_progress_treatment::flag_error": "Stop and ask",
+  // Deductions have overtaken the pay and the run has to do something.
+  "negative_net_handling::clamp_and_carry_forward": "Pay nothing now, recover next month",
+  "negative_net_handling::clamp_and_carry": "Pay nothing now, recover next month",
+  "negative_net_handling::block": "Refuse the run",
+  ...spread(["net_pay_rounding", "rounding_policy", "tds_monthly_rounding"], ROUNDING),
+  ...spread(["overtime_hourly_basis", "fnf_notice_recovery_rate_basis",
+    "fnf_encashment_rate_basis", "compoff_encashment_rate_basis"], PAY_BASIS),
+  ...spread(["fnf_encashment_divisor", "compoff_encashment_divisor"], DAY_DIVISOR),
+
+  // Claims — stored as a number of approvals, read as the chain it means.
+  "reimbursement_approval_levels::2": "Manager, then HR",
+  "reimbursement_approval_levels::1": "HR only",
+
+  // Salary advances.
+  "loan_interest_method::reducing_balance": "What’s left to repay",
+  "loan_interest_method::flat": "The original amount",
+
+  // Tax.
+  "default_tax_regime::new": "New regime",
+  "default_tax_regime::old": "Old regime",
+  "pt_state_source::work_location": "Where they work",
+  "pt_state_source::profile_state": "Their home state",
+
+  // Leavers.
+  "fnf_loan_recovery_mode::payroll": "From their last pay",
+  "fnf_loan_recovery_mode::manual": "Collected separately",
+};
+
+/**
+ * What one stored choice is called on screen, or `null` when we have no name
+ * for it — in which case the caller prettifies the value, as it always did.
+ */
+export function enumLabel(key, value) {
+  if (!key || value === null || value === undefined || value === "") return null;
+  return ENUM_LABEL[`${key}::${value}`] || null;
+}
+
 /**
  * What a setting is called on screen: ours, then the catalogue's. A key with
  * neither is prettified rather than printed raw — §4: no raw enum or column
@@ -453,7 +385,7 @@ export function settingLabel(entry) {
      not the endpoint, not the response code, not the table.
    · One sentence, ≤ 130 characters. It is read standing up, mid-save.
    · No figures that move with the law, the state or the year.
-   · It is a caution, not a description — the one-liner above the control
+   · It is a caution, not a description — the ⓘ beside the field's name
      already says what the setting does. This says what it costs to get wrong.
    · Only for settings the gateway actually gates (high risk, or a written
      reason required). A line here on an ordinary setting is never seen. */

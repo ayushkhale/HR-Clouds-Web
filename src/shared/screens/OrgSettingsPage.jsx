@@ -85,20 +85,52 @@
 //       4. One full-width column: no holes and nothing moves, but eleven
 //          stacked bricks on the Payroll tab, and the user read it as a list
 //          rather than the wall Payroll Settings has.
-//       5. Two LANES: each column its own flush stack, a card's column taken
-//          from its index alone. No pairing, so nothing can be paired with a
-//          card of another height; no re-levelling, so nothing can jump.
+//       5. Two LANES, a card's column taken from its index alone. No rows,
+//          so nothing could be paired wrongly and nothing could jump — but
+//          opening a card in one lane left the other lane short, which is the
+//          same white space measured down the page instead of across it
+//          ("so much white space when we open the tab").
+//       6. COURSES. An open card takes its whole course; folded cards go two
+//          to a course; a folded card that would be left alone in a course
+//          widens to fill it. Every course is exactly full at every moment,
+//          and `layoutWall` (settingsMeta) decides it from the open/closed
+//          flags and nothing else — see `wall` below.
 //     Payroll Settings reaches the same look from `xl:grid-cols-2` with grid's
 //     default stretch, which puts the spare height inside the shorter card.
-//     That holds there because its sections are OPEN by default; these are
-//     shutters, so see `lanes` for why stretch is not transferable. The width
-//     inside a half-page card is two fields to a line (`fieldSpan`), and the
-//     shelf headings inside the card are what keep an eleven-field group
-//     readable at that width.
+//     That holds there because its sections are OPEN by default. It holds here
+//     too now, but only because a course that contains an open card contains
+//     nothing else: stretch is safe between two folded cards and ruinous
+//     between a folded one and an open one. An open card is the full width of
+//     the page, so it is three fields to a line inside it (`fieldSpan`), and
+//     the shelf headings are what keep an eleven-field group readable.
 // The cards are also shutters now, closed by default: the Payroll tab is
 // eleven groups, and a page that opens as an index of eleven rows is one an
 // admin can aim at. See SettingsGroupForm for what that does and doesn't
 // unmount.
+//
+// WHERE THE EXPLAINING LIVES (14 Oct 2026). Not on the page. Every setting
+// used to print a one-line description under its control, and 138 of those is
+// a page of prose with the controls buried in it ("the entire setting page +
+// the categories it have looking so much crowded"). The sentence is the hint
+// behind the ⓘ beside each field's name instead, with an Ask Maya question
+// of its own — 136 new entries under `settings.hub` in fieldHelp.json, on the
+// `settings` tier. settingsBlurbs.js records the move; SettingsGroupForm
+// records what the freed room was spent on.
+//
+// ─── THE 15 OCT 2026 PASS: READABLE, AND NOTHING COUNTED ───────────────────
+//   · ONE HEADING SCALE for the whole page — h1, the open tab's band, a
+//     section, a card, a shelf, a field — declared once in settingsText.js
+//     and bigger at the top two levels than it was. "Managed on their own
+//     screens" was an 11px label over a list of links; it is a section
+//     heading now, because it changes the subject.
+//   · EVERY TEXT SHADE ONE STEP DARKER (the same switch, second notch): this
+//     page is white nearly edge to edge, so there is no mid-grey for a grey
+//     word to sit against, and slate-500 sentences were being read through.
+//   · NO COUNTS OF SETTINGS, anywhere: not "(10)" on a tab, not "11
+//     settings" under a card's title, not "5" beside a shelf heading, not "4
+//     moved off the default" inside a card.
+//   · THE SEARCH ANSWERS A TAB NAME (and a shelf name) as well as a field's
+//     own, because every one of those words is on the page above the box.
 //
 // WHY THERE IS NO LEGEND STRIP. There used to be four grey sentences under the
 // search box explaining "changed", risk, hidden groups and the save conflict.
@@ -142,10 +174,11 @@ import FieldHelp from "../fieldHelp/FieldHelp";
 import useSettingsHub from "../settings/useSettingsHub";
 import { settingLabel } from "../settings/settingsBlurbs";
 import {
-  displaySettingValue, editRouteFor, LANDING_MODULE, moduleBlurb, moduleIcon,
-  moduleLabel, searchSettings, searchSurfaces, surfaceRouteFor, tabsFor,
+  displaySettingValue, editRouteFor, LANDING_MODULE, layoutWall, moduleBlurb,
+  moduleIcon, moduleLabel, searchSettings, searchSurfaces, surfaceRouteFor,
+  tabsFor,
 } from "../settings/settingsMeta";
-import { META, TEXT } from "../settings/settingsText";
+import { BAND_TITLE, META, SECTION_TITLE, TAB_LABEL, TEXT } from "../settings/settingsText";
 import { SurfaceHubCard } from "../settings/settingsUi";
 import SettingsGroupForm from "../settings/SettingsGroupForm";
 import SettingsHistoryPanel from "../settings/SettingsHistoryPanel";
@@ -226,45 +259,23 @@ export default function OrgSettingsPage() {
     [groups, activeTab],
   );
 
-  /* ── THE WALL IS TWO LANES, NOT A GRID OF ROWS ──────────────────────────
-     Payroll Settings lays its cards out as `xl:grid-cols-2` and leaves grid's
-     default stretch on, so the two cards in a row are paired to the taller
-     one and the spare height sits INSIDE the shorter card instead of beside
-     it. That works there because its sections are open by default and roughly
-     the same height.
+  /* ── THE WALL IS COURSES OF BRICKS ─────────────────────────────────────
+     A folded card and an open one must never share a course, and no course
+     may be left half laid. `layoutWall` (settingsMeta) is where both rules
+     and the three layouts that failed before them are written down; it hands
+     back the cards in catalogue order, each with the number of columns it
+     takes, and measures nothing — so opening a card can change a width but
+     never an order.
 
-     Here the cards are shutters, CLOSED by default, so the pathological case
-     is the normal one: a 64px folded row sharing a row with a 700px open card
-     would either balloon into 700px of empty white (stretch) or leave a
-     700px hole beside it (`items-start`, which is what this page shipped and
-     what was reported). Row pairing is the thing that can't survive folding.
-
-     So there are no rows. Each column is its own flush stack — bricks laid in
-     two courses — and a card's column comes from its INDEX, never from
-     anyone's height, so opening one can never move another (that was
-     `packColumns`, deleted on 10 Oct after "notification tab jumping from
-     position"). Opening a card lengthens its own column and nothing else.
-
-     Three details that are easy to undo by accident:
-       · Below `xl` the lanes are `display: contents`, so the cards become the
-         grid's own children again and a single column holds all of them. The
-         inline `order` is what keeps them in catalogue order there, since the
-         DOM order is lane-major. Don't drop either half of that pair.
-       · ONE card spans both columns. Company & Billing is a single card, and
-         at half width its row read as unfinished (the same complaint fixed
-         for the old list in "Let a lone policy-screen card fill its row").
-       · Tab order at `xl` is down one column and then the other, as it is in
-         any multi-column layout. The cards are independent `<section>`s with
-         their own headings, so that reads correctly; it is only wrong if
-         somebody makes one card depend on the one beside it. */
-  const lanes = useMemo(() => {
-    const indexed = visibleGroups.map((group, index) => ({ group, index }));
-    if (indexed.length < 2) return [indexed];
-    return [
-      indexed.filter(({ index }) => index % 2 === 0),
-      indexed.filter(({ index }) => index % 2 === 1),
-    ];
-  }, [visibleGroups]);
+     Two things to keep in step with it:
+       · the grid is `xl:grid-cols-2` and the spans it returns are 1 or 2, so
+         a third column here would silently break every course;
+       · leave `items-stretch` (the default) alone. Only folded cards ever
+         share a course and they are within a few pixels of each other, so
+         stretching fills the course with the card's own white instead of
+         leaving a gap under the shorter one. `items-start` is what left the
+         hole that was reported. */
+  const wall = useMemo(() => layoutWall(visibleGroups, openCards), [visibleGroups, openCards]);
 
   // Policy surfaces grouped by the screen that manages them, so four registry
   // entries backed by one table become one card rather than four.
@@ -380,18 +391,25 @@ export default function OrgSettingsPage() {
 
   const tabOptions = useMemo(
     () => [
+      /* NO "(10)" AFTER THE NAME (user, 15 Oct 2026: "in the categories we do
+         not need to mentions numbers like (10), (15) etc etc (settings
+         number). remove this"). It was there to say how much was behind a
+         tab, which is a question the tab answers the moment it is pressed —
+         and five names each trailed by a bracketed number is five numbers
+         nobody is adding up. The count is gone from the shelf headings and
+         the card headers in the same pass (SettingsGroupForm).
+
+         THE LABEL IS A NODE, which is what lets it be a pixel bigger here
+         without touching FilterTabs — attendance and leave use that component
+         at `text-xs` and must keep it (CLAUDE.md §5: don't rebuild it). */
       ...tabs.map((t) => {
         const Icon = moduleIcon(t.key);
-        const n = groups.filter((g) => g.module_key === t.key).length;
         return {
           value: t.key,
           label: (
-            <span className="inline-flex items-center gap-1.5">
-              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+            <span className={`inline-flex items-center gap-1.5 ${TAB_LABEL}`}>
+              <Icon className="w-4 h-4" aria-hidden="true" />
               {t.label}
-              {/* A module that is only policy screens has no groups to count,
-                  so it gets no number rather than a misleading "(0)". */}
-              {n > 0 && <span className="tabular-nums opacity-60">({n})</span>}
             </span>
           ),
         };
@@ -399,14 +417,14 @@ export default function OrgSettingsPage() {
       ...(canSeeHistory ? [{
         value: HISTORY_TAB,
         label: (
-          <span className="inline-flex items-center gap-1.5">
-            <HiClock className="w-3.5 h-3.5" aria-hidden="true" />
+          <span className={`inline-flex items-center gap-1.5 ${TAB_LABEL}`}>
+            <HiClock className="w-4 h-4" aria-hidden="true" />
             Change history
           </span>
         ),
       }] : []),
     ],
-    [tabs, groups, canSeeHistory],
+    [tabs, canSeeHistory],
   );
 
   return (
@@ -537,7 +555,7 @@ export default function OrgSettingsPage() {
                           </span>
                           <div className="min-w-0">
                             <div className="flex items-center">
-                              <h2 className="text-lg font-bold text-slate-900">{moduleLabel(activeTab)}</h2>
+                              <h2 className={BAND_TITLE}>{moduleLabel(activeTab)}</h2>
                               <FieldHelp surface={SURFACE} field={`tab.${activeTab}`} label={`the ${moduleLabel(activeTab)} settings`} className="mb-0 ml-0.5" />
                             </div>
                             {moduleBlurb(activeTab) && (
@@ -560,44 +578,34 @@ export default function OrgSettingsPage() {
                         )}
                       </div>
 
-                      {/* The wall: two courses of bricks at `xl`, one below
-                          it. See `lanes` above for why this is two stacks and
-                          not a grid of rows — in one sentence, a folded card
-                          must not be paired with an open one. */}
-                      {visibleGroups.length > 0 && (
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-                          {lanes.map((lane, laneIndex) => (
-                            <div
-                              key={laneIndex}
-                              className={`contents xl:block xl:space-y-4 ${
-                                lanes.length === 1 ? "xl:col-span-2" : ""
-                              }`}
-                            >
-                              {lane.map(({ group, index }) => {
-                                const route = editRouteFor(group);
-                                return (
-                                  // `order` only bites below `xl`, where the
-                                  // lane is `display: contents` and these are
-                                  // the grid's own children.
-                                  <div key={group.key} className="min-w-0" style={{ order: index }}>
-                                    <SettingsGroupForm
-                                      group={group}
-                                      entries={entriesByGroup[group.key]}
-                                      editTo={route ? { ...route, path: inWorkspace(route.path) } : null}
-                                      onSaved={applyWrite}
-                                      onReload={() => reload()}
-                                      showToast={showToast}
-                                      surface={SURFACE}
-                                      onDirtyChange={dock.register}
-                                      flash={flash === group.key}
-                                      open={openCards.has(group.key)}
-                                      onToggle={toggleCard}
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ))}
+                      {/* The wall. One grid, DOM order = catalogue order,
+                          and the only thing a card decides for itself is how
+                          wide it is — see `wall` above. */}
+                      {wall.length > 0 && (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          {wall.map(({ group, span }) => {
+                            const route = editRouteFor(group);
+                            return (
+                              <div
+                                key={group.key}
+                                className={`min-w-0 ${span === 2 ? "xl:col-span-2" : ""}`}
+                              >
+                                <SettingsGroupForm
+                                  group={group}
+                                  entries={entriesByGroup[group.key]}
+                                  editTo={route ? { ...route, path: inWorkspace(route.path) } : null}
+                                  onSaved={applyWrite}
+                                  onReload={() => reload()}
+                                  showToast={showToast}
+                                  surface={SURFACE}
+                                  onDirtyChange={dock.register}
+                                  flash={flash === group.key}
+                                  open={openCards.has(group.key)}
+                                  onToggle={toggleCard}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
@@ -606,8 +614,13 @@ export default function OrgSettingsPage() {
                           heading, so a list of links never reads as something
                           editable here. */}
                       {surfaceCards.length > 0 && (
-                        <section className="pt-1">
-                          <h3 className={`text-[11px] font-bold uppercase tracking-wider ${TEXT.label} mb-2.5`}>
+                        /* A HEADING, NOT A LABEL (user, 15 Oct 2026: "this
+                            starts a new UI/UX so the heading should be big").
+                            What follows is not settings at all — it is a list
+                            of screens — and an 11px uppercase label read as a
+                            caption belonging to the cards above it. */
+                        <section className="pt-3">
+                          <h3 className={`${SECTION_TITLE} mb-3`}>
                             Managed on their own screens
                           </h3>
                           {/* These ARE a grid, unlike the group cards: their
@@ -724,7 +737,7 @@ function SearchResults({ results, surfaceResults, groupsByKey, inWorkspace, onJu
           different: these leave the page. */}
       {surfaceResults.length > 0 && (
         <section>
-          <h3 className={`text-[11px] font-bold uppercase tracking-wider ${TEXT.label} mb-2`}>
+          <h3 className={`${SECTION_TITLE} mb-3`}>
             Set on their own screens
           </h3>
           <ul className="space-y-2">

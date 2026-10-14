@@ -22,8 +22,16 @@
 //     the month". Anything carrying a `unit` is excluded — a COUNT of days is
 //     not a day of the month, and dressing one as the other would misstate
 //     what is stored.
+//   · an integer ranged 1–12 and named `*_month` becomes "April" (15 Oct
+//     2026). `4` in a box is the worst case of the same problem: it is not
+//     wrong, it is unreadable, and the reader has to know that the financial
+//     year's months are numbered to make any sense of it. PLURAL `*_months`
+//     is a count and keeps its number box — see `isMonthOfYear`.
 //   · a `unit` is drawn ON the box (`30 days`, `₹ 50000`), where it belongs to
-//     the number, instead of in a caption the eye reaches after the input.
+//     the number, instead of in a caption the eye reaches after the input. A
+//     number the catalogue gives no unit for falls back to a noun of ours
+//     (`SETTING_NOUN`, 15 Oct 2026) so that nothing reads as a bare `20000`:
+//     "20000 people" is the one word that says what is being counted.
 // Everything else falls through to the plain control it always had, so an
 // unrecognised type is still editable rather than missing.
 //
@@ -41,6 +49,18 @@
 // strings, so a list of lead-days round-trips as numbers and a list of emails
 // as strings; and `range.max_items` caps the list the way the server will.
 //
+// ─── WHEN THE CHOICES ARE THE ORGANISATION'S OWN RECORDS (15 Oct 2026) ───
+// `options` hands in `{ value, label }` pairs, and `emptyLabel` renames the
+// blank one. Both exist for a setting whose choices are rows in the org's own
+// database rather than a list in the catalogue: the salary component a leave
+// payout is paid through is stored as a UUID, which §4 forbids on screen and
+// which nobody could pick from anyway. Handed-in choices WIN OVER THE STORED
+// TYPE: the registry calls that id a `string`, so without this the field fell
+// through to a text box with the UUID in it (fixed 15 Oct 2026). Payroll Settings passes
+// the live component list; the hub passes neither and renders exactly as it
+// did. The VALUES are still the catalogue's, so nothing about what can be
+// saved changes here.
+//
 // Every control is uncontrolled-by-value-only: it reports changes upward and
 // holds no state, so the card owns the whole group's dirty tracking and a
 // Discard really does discard.
@@ -50,7 +70,7 @@ import { useState } from "react";
 import { HiMail, HiPlus, HiX } from "react-icons/hi";
 import {
   arrayItemHint, arrayItemIsNumber, dayOfMonthOptions, displaySettingValue, isDayOfMonth,
-  isEditable, looksLikeEmail, segmentedOptions, unitAffix,
+  isEditable, isMonthOfYear, looksLikeEmail, monthOfYearOptions, segmentedOptions, unitAffix,
 } from "./settingsMeta";
 import { META, TEXT } from "./settingsText";
 
@@ -69,14 +89,17 @@ function NumberWithUnit({ affix, children, suffixWidth }) {
   return (
     <div className="relative min-w-0">
       {affix.prefix && (
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 pointer-events-none">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-600 pointer-events-none">
           {affix.prefix}
         </span>
       )}
       {children}
       {affix.suffix && (
         <span
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none"
+          /* slate-600, not slate-400: the unit is the half of the field that
+             says WHAT is being counted (15 Oct 2026), and at 11px on white a
+             slate-400 word is furniture nobody reads. */
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-600 pointer-events-none"
           style={{ maxWidth: suffixWidth }}
         >
           {affix.suffix}
@@ -95,37 +118,39 @@ function NumberWithUnit({ affix, children, suffixWidth }) {
  * 44px, reads at a glance, and sits on the label's own line, which is what
  * buys the space for the sentence explaining what the setting does.
  *
- * `role="switch"` + `aria-checked` is the native pairing, so the state is
- * announced without a label of its own; the word beside it is for everyone
- * else, since "which way is on" is not knowable from a shape alone.
+ * `role="switch"` + `aria-checked` is the native pairing, so a screen reader
+ * announces the state without the switch needing a label of its own.
+ *
+ * NO "On" / "Off" WORD BESIDE IT (user decision, 14 Oct 2026: "we dont need
+ * to show on and off on the switches as well"). It used to print one, on the
+ * argument that "which way is on" can't be read off a shape — but a filled
+ * purple track with the knob to the right is the one control convention
+ * everybody already owns, and a card of ten yes/nos printed the same two
+ * words ten times down its right-hand edge. Nothing is lost for a screen
+ * reader, which was never reading that word: it reads `aria-checked`.
  */
 function Switch({ id, value, disabled, labelledBy, onChange }) {
   const on = Boolean(value);
   return (
-    <span className="inline-flex items-center gap-2 shrink-0">
-      <button
-        id={id}
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-labelledby={labelledBy}
-        disabled={disabled}
-        onClick={() => onChange(!on)}
-        className={`relative w-10 h-[22px] rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-purple-100 ${
-          on ? "bg-purple-600" : "bg-slate-300"
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-labelledby={labelledBy}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`relative shrink-0 w-10 h-[22px] rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-purple-100 ${
+        on ? "bg-purple-600" : "bg-slate-300"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform ${
+          on ? "translate-x-[18px]" : "translate-x-0"
         }`}
-      >
-        <span
-          aria-hidden="true"
-          className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform ${
-            on ? "translate-x-[18px]" : "translate-x-0"
-          }`}
-        />
-      </button>
-      <span className={`text-[11px] font-bold w-6 ${on ? "text-purple-700" : "text-slate-400"}`}>
-        {on ? "On" : "Off"}
-      </span>
-    </span>
+      />
+    </button>
   );
 }
 
@@ -148,7 +173,7 @@ function Segmented({ id, options, value, disabled, onChange }) {
             disabled={disabled}
             onClick={() => onChange(option.value)}
             className={`flex-1 min-w-0 px-2.5 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
-              active ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"
+              active ? "bg-white text-purple-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <span className="block truncate">{option.label}</span>
@@ -313,10 +338,15 @@ function ChipList({ id, value, entry, disabled, onChange }) {
  * @param {object} props.entry   the catalogue definition
  * @param {any} props.value      the current (possibly edited) value
  * @param {boolean} props.disabled
+ * @param {{value: any, label: string}[]} [props.options]  an enum’s choices,
+ *   when they are records of the organisation’s rather than catalogue values
+ * @param {string} [props.emptyLabel]  what the blank option of a nullable
+ *   setting says, when "Not set" is not enough (see the header)
  * @param {(value: any) => void} props.onChange
  */
 export default function SettingInput({
   id, entry, value, disabled = false, invalid = false, labelledBy, onChange,
+  options = null, emptyLabel = "Not set",
 }) {
   if (!isEditable(entry)) {
     // Read-only by design — see this file's header for which types and why.
@@ -326,6 +356,31 @@ export default function SettingInput({
   }
 
   const cls = `${INPUT} ${invalid ? BAD : OK}`;
+
+  // Choices handed in by the screen are the organisation's own records, and
+  // they decide the control whatever the registry calls the stored value: a
+  // pay-component id is a `string` there, and a text box holding a UUID is
+  // precisely what §4 forbids on screen. They are never pills either --
+  // the list is as long as the org made it and its labels are names, not the
+  // short words a pill row needs.
+  if (options) {
+    return (
+      <select
+        id={id}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className={cls}
+      >
+        {/* Only a nullable setting may be emptied; `emptyLabel` says what
+            happens if it is, because "Not set" alone invites it. */}
+        {entry.nullable && <option value="">{emptyLabel}</option>}
+        {options.map((option) => (
+          <option key={String(option.value)} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    );
+  }
 
   switch (entry.data_type) {
     case "boolean":
@@ -353,7 +408,7 @@ export default function SettingInput({
         >
           {/* A nullable setting can be cleared; one that isn't shows no blank
               option, so it cannot be emptied by accident. */}
-          {entry.nullable && <option value="">Not set</option>}
+          {entry.nullable && <option value="">{emptyLabel}</option>}
           {(entry.range?.enum || []).map((option) => (
             <option key={option} value={option}>{displaySettingValue(option, entry)}</option>
           ))}
@@ -363,6 +418,25 @@ export default function SettingInput({
 
     case "integer":
     case "decimal": {
+      // "April" rather than `4`. Same test as the day of the month below, on
+      // the same two pieces of evidence (the range and the key's last word).
+      if (isMonthOfYear(entry)) {
+        return (
+          <select
+            id={id}
+            value={value ?? ""}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+            className={cls}
+          >
+            {entry.nullable && <option value="">Not set</option>}
+            {monthOfYearOptions(entry).map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        );
+      }
+
       // "25th of the month" rather than `25`, where the catalogue's range and
       // key say that is what the number means.
       if (isDayOfMonth(entry)) {
@@ -398,10 +472,18 @@ export default function SettingInput({
             const n = Number(raw);
             onChange(Number.isFinite(n) ? n : raw);
           }}
-          className={`${cls} ${affix?.prefix ? "pl-8" : ""} ${affix?.suffix ? "pr-16" : ""}`}
+          /* The room the suffix needs, so the digits never run under it:
+             "days" and "%" fit in pr-16, "approvals" and "payslips" don't. */
+          className={`${cls} ${affix?.prefix ? "pl-8" : ""} ${affix?.suffix ? (affix.suffix.length > 6 ? "pr-24" : "pr-16") : ""}`}
         />
       );
-      return affix ? <NumberWithUnit affix={affix} suffixWidth="3.25rem">{field}</NumberWithUnit> : field;
+      return affix
+        ? (
+          <NumberWithUnit affix={affix} suffixWidth={affix.suffix && affix.suffix.length > 6 ? "5rem" : "3.25rem"}>
+            {field}
+          </NumberWithUnit>
+        )
+        : field;
     }
 
     case "date":
