@@ -12,6 +12,10 @@ import { documentErrorMessage, isDocumentsDisabled, isFeatureNotDeployed } from 
 import { ALL_CONTENT_TYPES, HARD_MAX_BYTES, acceptAttr, contentTypeLabel, contentTypeOfFile, docStatusMeta, formatBytes, formatList, isImageType, isReferenceDoc } from "./documentMeta";
 
 export const FIELD = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition disabled:opacity-60";
+// The same box, refused: red border, red tint, red focus ring. Appended to
+// FIELD, so it needs `!` to beat the purple it is overriding (CLAUDE.md §11 —
+// an invalid box is red, not merely a red line of text underneath it).
+export const FIELD_INVALID = "!border-rose-300 !bg-rose-50/50 focus:!border-rose-400 focus:!ring-rose-100";
 export const LABEL = "block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2";
 export const SELECT = "h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:border-purple-400 outline-none";
 export const PRIMARY_BTN = "inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200 disabled:opacity-50 disabled:cursor-not-allowed";

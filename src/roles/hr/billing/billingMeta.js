@@ -144,25 +144,85 @@ export const CYCLE_LABEL = { monthly: "a month", yearly: "a year", lifetime: "" 
 
 /**
  * How often the card is charged, as a sentence rather than an enum name (§6).
- * "lifetime" is the free plan's cycle, and the honest word for it is that
- * nothing is ever taken — not "lifetime", which reads like something bought.
+ * "lifetime" says only that nothing is ever taken — not "lifetime", which
+ * reads like something bought.
+ *
+ * It used to read "Never — this plan is free", which was true of the only
+ * lifetime plan on sale and wrong about the other kind: an internal or
+ * negotiated plan is `lifetime` too, and "free" is not what somebody agreed
+ * to. The reason now lives in the hint beside it, which knows which of the
+ * two this is (CurrentPlanCard, PlanDetailDialog).
  */
-export const CYCLE_EVERY = { monthly: "Every month", yearly: "Every year", lifetime: "Never — this plan is free" };
+export const CYCLE_EVERY = { monthly: "Every month", yearly: "Every year", lifetime: "Never" };
 
 export const cycleEveryLabel = (billingCycle) =>
   CYCLE_EVERY[String(billingCycle || "").toLowerCase()] || "N/A";
 
-/** "₹999 a month", "₹14,999 a year", "Free" — the whole price phrase. */
+/** "₹999 a month", "₹14,999 a year", "₹0" — the figure with its period word. */
+export const amountLabel = (amount, billingCycle) => {
+  const per = CYCLE_LABEL[String(billingCycle || "").toLowerCase()];
+  return per ? `${formatMoney(amount)} ${per}` : formatMoney(amount);
+};
+
+/**
+ * The price of a CATALOGUE row — every row in #225 is on public sale, so a
+ * figure of zero there is the free tier and may safely be called "Free".
+ * Use planPriceLabel for the plan somebody is ON, which may be zero without
+ * being the free tier.
+ */
 export function priceLabel(amount, billingCycle) {
   const n = parseFloat(amount);
   if (!Number.isFinite(n) || n === 0) return "Free";
-  const per = CYCLE_LABEL[String(billingCycle || "").toLowerCase()];
-  return per ? `${formatMoney(amount)} ${per}` : formatMoney(amount);
+  return amountLabel(amount, billingCycle);
 }
 
 /** A free plan never expires and can't be cancelled (#235 CANNOT_CANCEL_FREE_PLAN). */
 export const isFreePlan = (plan) =>
   !plan || parseFloat(plan.amount) === 0 || String(plan.billing_cycle).toLowerCase() === "lifetime";
+
+/**
+ * Is this plan code one that anybody can buy?
+ *
+ * #225 returns only rows where `is_active = true AND is_public = true`
+ * (md_money/phase1_api_analysis.md §225), so a plan the SUBSCRIPTION names
+ * that the CATALOGUE doesn't carry is not on sale: a negotiated or internal
+ * plan, or one withdrawn since it was bought. There is no `is_public` flag on
+ * #226's plan object to read instead — absence from #225 is the only signal
+ * the contract gives us.
+ *
+ * An empty catalogue answers TRUE. The catalogue is a separate request that
+ * can fail (the token-less public `GET /plans` still 404s on dev — see
+ * billing.api.js), and "the list didn't load" must never be read as "this plan
+ * is private": that would reclassify every ordinary customer on one failed
+ * request (§7 — a missing read is not a fact).
+ */
+export const isPublicPlan = (planCode, rows) =>
+  !planCode || !Array.isArray(rows) || rows.length === 0
+    ? true
+    : rows.some((row) => row?.code === planCode);
+
+/**
+ * The FREE TIER — no cost AND on public sale.
+ *
+ * A different question from `isFreePlan`, and the one the UI actually wants
+ * before it says "Free" or "No card is needed". An internal or negotiated plan
+ * arrives as `amount: "0.00"` on `billing_cycle: "lifetime"` — byte for byte
+ * the shape of the public `free` row — so neither the amount nor the cycle can
+ * tell the two apart. Only catalogue membership can.
+ *
+ * Calling a plan somebody negotiated "Free" is a claim about their commercial
+ * relationship, which is why this exists (14 Oct 2026).
+ */
+export const isFreeTier = (plan, rows) => isFreePlan(plan) && isPublicPlan(plan?.code, rows);
+
+/**
+ * The price of the plan IN FORCE (#226), which is not the same question as
+ * priceLabel: a negotiated plan can be ₹0 without being the free tier, and
+ * printing "Free" over it tells somebody their arrangement costs nothing.
+ * Reads the catalogue to tell the two apart, and falls back to the figure.
+ */
+export const planPriceLabel = (plan, rows) =>
+  isFreeTier(plan, rows) ? "Free" : amountLabel(plan?.amount, plan?.billing_cycle);
 
 /* ─── Subscription lifecycle events (#228 `event_type`) ─────────────────────
    An audit trail an HR admin can actually read. Anything not listed falls back
@@ -241,8 +301,11 @@ export function seatMeters(usage) {
       pct,
       full: !unlimited && used >= limit,
       over: !unlimited && used > limit,
-      // "42 of 100" / "42 — no limit", never a bare fraction with no unit.
-      text: unlimited ? `${used} — no limit` : `${used} of ${limit}`,
+      // "42 of 100" / "42 of Unlimited", never a bare fraction with no unit.
+      // "Unlimited" is the word used for an absent cap EVERYWHERE in billing
+      // (user instruction, 14 Oct 2026); "no limit" read like a warning and
+      // "5 — no limit employees" in the seat line read like broken English.
+      text: unlimited ? `${used} of Unlimited` : `${used} of ${limit}`,
     };
   });
 }
@@ -276,14 +339,23 @@ export const plural = (count, one, many) => `${count} ${Number(count) === 1 ? on
 export const seatUsageLine = (meters = []) =>
   meters.map((m) => `${m.text} ${m.noun || m.label}`).join(" · ");
 
-/** "Up to 100 employees · 15 managers · 5 HR admins". A null limit is unlimited. */
+/**
+ * "Up to 100 employees · 15 managers · Unlimited HR admins".
+ *
+ * A null limit is UNLIMITED and now says so, for all three roles. The managers
+ * and HR parts used to be dropped when they were null, which read as though
+ * the plan said nothing about them — on a plan with no caps at all the whole
+ * line came out as four words. "Unlimited" is the one word billing uses for an
+ * absent cap (user instruction, 14 Oct 2026).
+ */
 export function seatLine(limits) {
-  const parts = [
+  const cap = (value, one, many) =>
+    value == null ? `Unlimited ${many}` : plural(value, one, many);
+  return [
     limits?.max_employees == null ? "Unlimited employees" : `Up to ${plural(limits.max_employees, "employee", "employees")}`,
-    limits?.max_managers == null ? null : plural(limits.max_managers, "manager", "managers"),
-    limits?.max_hrs == null ? null : plural(limits.max_hrs, "HR admin", "HR admins"),
-  ].filter(Boolean);
-  return parts.join(" · ");
+    cap(limits?.max_managers, "manager", "managers"),
+    cap(limits?.max_hrs, "HR admin", "HR admins"),
+  ].join(" · ");
 }
 
 /* ─── Plan comparison (display only) ───────────────────────────────────────── */
@@ -416,35 +488,47 @@ export const bestSavingPct = (tiers = []) =>
    follow. It also means the marks can never disagree with the price order
    shown directly beneath them.
 
-   The free tier has no mark and never reaches here: the premium skin is for
-   an entitled PAID plan only (CurrentPlanCard). A catalogue deeper than this
-   list tops out at the last mark rather than running out, so the dearest
-   plan always has one.
+   EVERY PLAN GETS A MARK, AND THE LADDER INCLUDES THE FREE TIER (user
+   decision, 14 Oct 2026 — "show it no matter what"). Both used to be the
+   other way round: the ladder counted paid tiers only, and anything off it
+   returned null, so the free tier, a lapsed plan and a private plan all drew
+   nothing. The free tier is now simply the bottom rung of the same ladder.
 
-   A plan code that isn't in the catalogue any more (withdrawn from sale)
-   returns null, and the banner simply renders without art (§7 — gate on what
-   the server returned). */
+   A plan THE CATALOGUE DOESN'T CARRY gets the TOP mark. #225 lists only
+   public rows, so a subscription naming a plan that isn't there is on a
+   negotiated or internal plan — the dearest thing an organisation can be on,
+   whatever its invoice says — and there is no rung to read for it. The same
+   answer covers a plan withdrawn from sale, and a catalogue request that
+   failed outright; on this screen a mark that over-states beats a banner with
+   a hole in it.
+
+   A catalogue deeper than this list tops out at the last mark rather than
+   running out, so the dearest public plan always has one too. */
 const RANK_ART = [
-  // Lowest paid tier
+  // Cheapest tier, which is the free one wherever the catalogue carries it
   "https://cdn3d.iconscout.com/3d/premium/thumb/bronze-rank-3d-icon-png-download-8955734.png",
   "https://cdn3d.iconscout.com/3d/premium/thumb/rank-silver-3d-icon-png-download-9325593.png",
   "https://cdn3d.iconscout.com/3d/premium/thumb/gold-rank-3d-icon-png-download-8955735.png",
-  // Anything above the top three
-  "https://cdn3d.iconscout.com/3d/premium/thumb/rank-mythril-3d-icon-png-download-10163274.png",
+  // Anything above the top three — and what a plan off the ladder wears
+  "https://cdn3d.iconscout.com/3d/premium/thumb/game-rank-3d-icon-png-download-8017774.png",
 ];
 
+/** The top mark — what a plan outside the public catalogue wears. */
+const TOP_RANK_ART = RANK_ART[RANK_ART.length - 1];
+
 /**
- * The rank mark for a subscription's plan, or null.
+ * The rank mark for a subscription's plan. NEVER null — every plan has one.
  * @param {string} planCode  #226 `subscription.plan.code`
  * @param {object[]} rows    #225 rows, flat
  */
 export function rankArtFor(planCode, rows) {
-  if (!planCode) return null;
-  // Paid tiers only, already cheapest-first from planTiers().
-  const paid = planTiers(rows).filter((t) => (parseFloat(t.monthly?.amount) || 0) > 0);
+  if (!planCode) return TOP_RANK_ART;
+  // Every tier, the free one included, already cheapest-first from planTiers().
+  const tiers = planTiers(rows);
   // Either cycle of a tier is the same rank — paying yearly is not a promotion.
-  const index = paid.findIndex((t) => t.monthly?.code === planCode || t.yearly?.code === planCode);
-  if (index < 0) return null;
+  const index = tiers.findIndex((t) => t.monthly?.code === planCode || t.yearly?.code === planCode);
+  // Off the ladder: private, internal, withdrawn, or no catalogue to read.
+  if (index < 0) return TOP_RANK_ART;
   return RANK_ART[Math.min(index, RANK_ART.length - 1)];
 }
 

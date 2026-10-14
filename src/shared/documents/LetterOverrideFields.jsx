@@ -21,7 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { HiInformationCircle } from "react-icons/hi";
-import { FIELD, LABEL } from "./ui";
+import { FIELD, FIELD_INVALID, LABEL } from "./ui";
 import { REQUIRED_PROBLEM, isPrefilledFromSaved } from "./letterIssueMeta";
 import { letterIssueReminder } from "./letterFieldMatrix";
 
@@ -72,6 +72,8 @@ export default function LetterOverrideFields({
           || field.help
           || (raw === REQUIRED_PROBLEM ? REQUIRED_PROBLEM : "")
           || defaultHint(field);
+        // Red box, not just a red line of text under it (CLAUDE.md §11).
+        const box = problem ? `${FIELD} ${FIELD_INVALID}` : FIELD;
         const common = {
           id,
           value: values[field.key] ?? "",
@@ -94,12 +96,12 @@ export default function LetterOverrideFields({
                 step={1}
                 min={field.min}
                 max={field.maxValue}
-                className={`${FIELD} sm:max-w-[10rem]`}
+                className={`${box} sm:max-w-[10rem]`}
               />
             ) : field.long ? (
-              <textarea {...common} rows={2} maxLength={field.max} className={`${FIELD} resize-y`} />
+              <textarea {...common} rows={2} maxLength={field.max} className={`${box} resize-y`} />
             ) : (
-              <input {...common} type="text" maxLength={field.max} className={FIELD} />
+              <input {...common} type="text" maxLength={field.max} className={box} />
             )}
             {hint && (
               <p id={`${id}-hint`} className={`text-[10px] mt-1 leading-relaxed ${problem ? "font-semibold text-rose-600" : "text-slate-400"}`}>

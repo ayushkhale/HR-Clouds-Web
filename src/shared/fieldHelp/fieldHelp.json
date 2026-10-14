@@ -256,6 +256,13 @@
             "question": "What is CTC (cost to company), and why is my take-home pay lower than my CTC?"
           }
         },
+        "monthly_gross": {
+          "hint": "Everything your salary structure adds up to before anything comes off. The rows below show what makes it up; it is not what reaches your bank.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What goes into gross pay, and why is it more than the money that reaches my bank?"
+          }
+        },
         "take_home_monthly": {
           "hint": "An estimate from your salary structure. What actually reaches your bank each month can change with unpaid leave, attendance and tax.",
           "askMaya": {
@@ -2618,7 +2625,7 @@
       }
     },
     "payroll.pdf_templates": {
-      "kind": "screen",
+      "kind": "data",
       "description": "HR — Payroll › Document Previews (PayrollPdfTemplatesPage). Sample renders of each payroll document with the org's live branding. Only the page itself is helped; the document list explains itself.",
       "workspaces": [
         "hr"
@@ -2676,7 +2683,7 @@
       }
     },
     "attendance.field_locations": {
-      "kind": "screen",
+      "kind": "data",
       "description": "HR Setup › Client Sites and Manager › Client Sites (FieldLocationsView, shared). Name, client, city and address explain themselves; only what the term means and what the radius does are helped. Contract: md_attendance/7_work_mode_and_field_geofencing_api.md.",
       "workspaces": [
         "hr",
@@ -2740,6 +2747,31 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens when two weekly-off rules cover the same employee?"
+          }
+        }
+      }
+    },
+    "organization.office_locations": {
+      "kind": "data",
+      "description": "HR Setup › Office Locations and Manager › Organisation › Office Locations (OfficeLocationsView, shared). Name, address and city explain themselves. `page` sits beside the h1 and is HR-only onboarding help — the subtitle already says what the screen is for. The radius is core, NOT onboarding, because the manager's page is read-only reference and it is the one figure on a card that isn't self-evident; that workspace gets no other hint here. Contract: md_organization/3_org_structure_api.md (POST/PUT are HR-only, so the manager page has no Add button or status switch).",
+      "workspaces": [
+        "hr",
+        "manager"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Your workplaces, each with a pin and a distance around it. People can clock in from inside that circle without being flagged.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an office location used for, and how is it different from a client site?"
+          }
+        },
+        "geofence_radius_meters": {
+          "hint": "How far from the pin someone can clock in. Further out, the clock-in still counts but is flagged for review as outside the office.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a clock-in radius, and what happens when someone clocks in outside it?"
           }
         }
       }
@@ -3887,7 +3919,7 @@
     },
     "settings.hub": {
       "kind": "data",
-      "description": "Company Settings (OrgSettingsPage) — the settings hub: four glance tiles, a domain tab strip with one search over the whole catalogue, editable group cards and the change history. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields; tab.<module_key> keys are the open domain tab.",
+      "description": "Settings (OrgSettingsPage) — the settings hub: the plan panel, a domain tab strip with one search over the whole catalogue, editable group cards as shutters, and the change history. Keys are GET /settings (#244) and GET /settings/catalog (#242) response concepts, not form fields; tab.<module_key> keys are the open domain tab.",
       "workspaces": [
         "hr",
         "manager"
@@ -3898,7 +3930,7 @@
           "hint": "Every rule your organisation runs on, in one place. Change them here, or open the area that owns one for its fuller screen.",
           "askMaya": {
             "enabled": true,
-            "question": "What does the Company Settings page let me change, and when should I use a module's own settings screen instead?"
+            "question": "What does the Settings page let me change, and when should I use a module's own settings screen instead?"
           }
         },
         "non_default_keys": {
@@ -4013,7 +4045,7 @@
     },
     "tasks.my_tasks": {
       "kind": "data",
-      "description": "My Tasks (MyTasksPage, #249) — the work somebody has been given. Mounted in all three workspaces. `page` sits beside the h1; `status` on the list's status column. The deadline, priority and kind-of-work columns explain themselves.",
+      "description": "My Tasks (MyTasksPage, #249) — the work somebody has been given. Mounted in all three workspaces, which since 14 Oct 2026 is TWO routes off one component: the whole list and the `is_overdue` cut. `page` sits beside the h1 of the first, `is_overdue` beside the h1 of the second (one ⓘ each, never both); `status` on the list's status column. The deadline, priority and kind-of-work columns explain themselves.",
       "workspaces": [
         "employee",
         "manager",
@@ -4032,6 +4064,13 @@
           "askMaya": {
             "enabled": true,
             "question": "What do the different task states mean, and which ones can I change myself?"
+          }
+        },
+        "is_overdue": {
+          "hint": "Past its deadline and not yet handed in. Handing one in takes it off this list, even if it is late.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When does a task count as overdue, and does handing it in late still clear it?"
           }
         }
       }

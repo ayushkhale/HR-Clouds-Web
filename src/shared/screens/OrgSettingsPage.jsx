@@ -1,7 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// OrgSettingsPage.jsx — "Company Settings": every rule the organisation runs
-// on, in one place, with what each one is set to today and — since Phase 2 —
-// the ability to change it (#242, #244, #246, #247, #248).
+// OrgSettingsPage.jsx — "Settings": every rule the organisation runs on, in
+// one place, with what each one is set to today and — since Phase 2 — the
+// ability to change it (#242, #244, #246, #247, #248).
+//
+// ─── THIS FILE IS A REVERT (user instruction, 14 Oct 2026) ─────────────────
+// It is the "[ Updated Settings UI ]" build restored, together with
+// SettingsGroupForm and settingsUi, which belong to the same design: a module
+// band naming the open tab, and cards that keep their icon, their sentence and
+// their status while folded — the shape Payroll Settings uses, which is the
+// point of comparison the user named.
+//
+// Three later passes were undone to get here, and their reasoning is recorded
+// so nobody re-applies one by accident:
+//   · "Strip the text out of the closed state" took the blurb, the count and
+//     the date off a folded card, took the Default pill off entirely, and
+//     replaced the module band with a bare heading. The argument was scanning
+//     cost. The user wants the text.
+//   · "A list you click into" turned the tabs into rows that opened
+//     /settings/<groupKey> as its own screen — a page inside a page, and a
+//     round trip to glance at one setting.
+//   · "Let a lone policy-screen card fill its row" only tuned that list.
+// The group route still exists and still works if something deep-links it;
+// nothing here sends anybody there.
+//
+// The plan panel is NOT part of the revert — see SettingsSubscriptionCard at
+// the foot of this file.
 //
 // Contract: public/ref docs/md_settings/combined_api_analysis.md; the design
 // brief is md_settings/frontend_settings_ui_ux_architecture.md.
@@ -91,40 +114,65 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  HiArrowRight, HiChevronRight, HiClock, HiSearch, HiX,
+  HiArrowRight, HiChevronDown, HiChevronRight, HiClock, HiSearch, HiX,
 } from "react-icons/hi";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { billingAPI } from "../api";
+// The plan panel is the Plan & Billing one, imported rather than reproduced
+// (SettingsSubscriptionCard at the foot of this file says why). shared ->
+// roles/hr is a direction this page reads in because the content is HR's.
+import CurrentPlanCard from "../../roles/hr/billing/components/CurrentPlanCard";
+import PlanDetailDialog from "../../roles/hr/billing/components/PlanDetailDialog";
 import DashboardTopBar from "../components/DashboardTopBar";
 import Skeleton from "../components/Skeleton";
-import { ErrorState, Toast, useToast } from "../attendance/ui";
+import { ErrorState, FilterTabs, Toast, useToast } from "../attendance/ui";
 import { useCurrentWorkspace } from "../attendance/paths";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import useSettingsHub from "../settings/useSettingsHub";
 import { settingLabel } from "../settings/settingsBlurbs";
-import { billingAPI } from "../api";
-import { rankArtFor, seatMeters, seatUsageLine, subscriptionStatusMeta } from "../../roles/hr/billing/billingMeta";
-import { fmtDate } from "../attendance/dates";
 import {
-  displaySettingValue, groupIcon,
+  displaySettingValue, editRouteFor, LANDING_MODULE, moduleBlurb, moduleIcon,
   moduleLabel, searchSettings, searchSurfaces, surfaceRouteFor, tabsFor,
 } from "../settings/settingsMeta";
 import { META, TEXT } from "../settings/settingsText";
 import { SurfaceHubCard } from "../settings/settingsUi";
+import SettingsGroupForm from "../settings/SettingsGroupForm";
+import SettingsHistoryPanel from "../settings/SettingsHistoryPanel";
+import SettingsSaveDock from "../settings/SettingsSaveDock";
+import useDirtyCards, { revealGroupCard } from "../settings/settingsDock";
 
 const SURFACE = "settings.hub";
 
+// The plan card's hints belong to the plan's own fields, and a surface id names
+// the domain rather than the screen hosting it (CLAUDE.md §10). Pointing the
+// card at SURFACE would silently drop both of its hints.
+const BILLING_SURFACE = "billing.overview";
+
+/* The change history is its own tab rather than a module section: it spans
+   every module, so it belongs beside them, not inside one. HR ONLY — #248 is
+   guarded `authorize(['hr'])` and a manager gets 403, so the tab is ABSENT
+   for them rather than present and broken (§2). */
+const HISTORY_TAB = "__history";
 
 export default function OrgSettingsPage() {
   const workspace = useCurrentWorkspace();
-  const navigate = useNavigate();
   const hub = useSettingsHub();
-  const { toast, clearToast } = useToast();
+  const { toast, showToast, clearToast } = useToast();
+  const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
+  // The card a search hit sent the reader to, ringed for a moment so they can
+  // see which of eleven cards answered them.
+  const [flash, setFlash] = useState(null);
+  // Which shutters are up. Held here rather than in each card because two
+  // things outside a card have to open it: a search hit, and the save dock
+  // naming a card with unsaved changes in it.
+  const [openCards, setOpenCards] = useState(() => new Set());
   const searchRef = useRef(null);
+  const dock = useDirtyCards();
 
   const {
     groups, entriesByGroup, groupsByKey, entries, surfaces, surfacesByModule,
-    modules, loading, error, valuesError, reload,
+    modules, loading, error, valuesError, reload, applyWrite,
   } = hub;
 
   /** Every link on this page is prefixed with the reader's own workspace. */
@@ -134,10 +182,23 @@ export default function OrgSettingsPage() {
   );
 
   const tabs = useMemo(() => tabsFor(modules), [modules]);
-  // The history reads across every module and is HR's alone (#248 is
-  // authorize(['hr']); a manager is not offered the row at all, §2).
+  // The history reads across every module and is HR's alone.
   const canSeeHistory = workspace === "hr";
+  const showHistory = canSeeHistory && tab === HISTORY_TAB;
+  /* The tab strip is alphabetical, so "first" is no longer "most useful" —
+     open on the company's own record if this reader has it, and otherwise on
+     whatever they do have, so the page never opens empty for a role (or plan)
+     missing a module. */
+  const landing = tabs.some((t) => t.key === LANDING_MODULE)
+    ? LANDING_MODULE
+    : tabs[0]?.key || null;
+  const activeTab = showHistory
+    ? HISTORY_TAB
+    : (tab && tabs.some((t) => t.key === tab) ? tab : landing);
 
+  // The open tab's own icon, for the section band. Capitalised because JSX
+  // needs a component, not a value.
+  const TabIcon = moduleIcon(activeTab);
 
   const searching = query.trim().length >= 2;
   const results = useMemo(
@@ -149,33 +210,56 @@ export default function OrgSettingsPage() {
     [searching, surfaces, query],
   );
 
-  /**
-   * Every area, in order, with the groups and the policy screens that belong
-   * to it. The page shows ALL of them at once now — one vertical list — so
-   * the per-area slices are built once here rather than recomputed as a tab
-   * changes. The tab state remains for the history view and for search.
-   */
-  const sections = useMemo(() => tabs.map((t) => {
+  const visibleGroups = useMemo(
+    () => groups.filter((g) => g.module_key === activeTab),
+    [groups, activeTab],
+  );
+
+  // Policy surfaces grouped by the screen that manages them, so four registry
+  // entries backed by one table become one card rather than four.
+  const surfaceCards = useMemo(() => {
     const byRoute = new Map();
-    for (const surface of surfacesByModule[t.key] || []) {
+    for (const surface of surfacesByModule[activeTab] || []) {
       const route = surfaceRouteFor(surface);
-      // No screen we can point at means no row: a dead link is worse than a
+      // No screen we can point at means no card: a dead link is worse than a
       // missing one, and the catalogue lists surfaces we may not have built.
       if (!route) continue;
       // Some screens exist in the HR workspace only. Hidden rather than
       // offered-and-bounced (§2).
       if (route.hrOnly && workspace !== "hr") continue;
-      if (!byRoute.has(route.path)) byRoute.set(route.path, { route, surfaces: [] });
-      byRoute.get(route.path).surfaces.push(surface);
+      const key = route.path;
+      if (!byRoute.has(key)) byRoute.set(key, { route, surfaces: [] });
+      byRoute.get(key).surfaces.push(surface);
     }
-    return {
-      ...t,
-      groups: groups.filter((g) => g.module_key === t.key),
-      surfaces: [...byRoute.values()],
-    };
-  }).filter((s) => s.groups.length > 0 || s.surfaces.length > 0),
-  [tabs, groups, surfacesByModule, workspace]);
+    return [...byRoute.values()];
+  }, [surfacesByModule, activeTab, workspace]);
 
+  /* ─── The shutters ─────────────────────────────────────────────────────── */
+  const toggleCard = useCallback((key) => {
+    setOpenCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const openCard = useCallback((key) => {
+    setOpenCards((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }, []);
+
+  // Expand/collapse act on the OPEN TAB only: "collapse all" closing cards on
+  // four tabs the reader can't see would be a change they never asked for and
+  // can't observe.
+  const allOpen = visibleGroups.length > 0 && visibleGroups.every((g) => openCards.has(g.key));
+  const toggleAll = () => {
+    setOpenCards((prev) => {
+      const next = new Set(prev);
+      for (const group of visibleGroups) {
+        if (allOpen) next.delete(group.key); else next.add(group.key);
+      }
+      return next;
+    });
+  };
 
   /* ─── The command bar ──────────────────────────────────────────────────
      Ctrl/⌘-K from anywhere on the page, because with 137 settings the search
@@ -193,29 +277,90 @@ export default function OrgSettingsPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  /**
-   * A search hit now OPENS the thing it found, rather than switching tab and
-   * ringing a card the reader then had to expand. One click from "I typed
-   * payday" to the page that owns it — which is the whole point of giving
-   * each group a page.
-   */
+  /** A search hit: switch to its tab, drop the query, open and ring the card. */
   const jumpToGroup = (entry) => {
+    const group = groupsByKey[entry.group_key];
+    if (group?.module_key) setTab(group.module_key);
     setQuery("");
-    const path = inWorkspace(`/settings/${encodeURIComponent(entry.group_key)}`);
-    if (path) navigate(path);
+    openCard(entry.group_key);
+    setFlash(entry.group_key);
   };
 
+  /**
+   * Bring a card back into view from the save dock. Dropping the query is the
+   * important half: while a search is on screen the cards are hidden, and
+   * scrolling to a `display:none` card does nothing. Opening it is the other
+   * half — a card can be dirty with its shutter down.
+   */
+  const revealFromDock = (key) => {
+    setQuery("");
+    openCard(key);
+    setFlash(key);
+  };
 
-  /* The "moving tab discards your edits" guard went with the tabs. Nothing on
-     this page is editable now, so there is nothing to lose by navigating —
-     and a group's own page owns its edits and its Save together. */
+  /**
+   * A tab change throws away every unsaved edit in the tab being left, because
+   * the cards unmount and their edits live in them (which is what makes one
+   * card one transaction). So it asks first.
+   *
+   * `window.confirm` is the in-app dialog here and returns a Promise — it MUST
+   * be awaited or the branch is always taken (§7).
+   */
+  const changeTab = async (next) => {
+    if (next === activeTab) return;
+    if (dock.total > 0) {
+      const where = dock.cards.map((c) => c.label).join(", ");
+      const ok = await window.confirm(
+        `You have ${dock.total} unsaved change${dock.total === 1 ? "" : "s"} in ${where}. Moving to another section will discard ${dock.total === 1 ? "it" : "them"}. Move anyway?`,
+      );
+      if (!ok) return;
+    }
+    setTab(next);
+  };
 
-  /* The scroll-to-and-ring-a-card effect went too: a search hit now opens the
-     group's page, so there is no card on this screen to find and highlight. */
+  // Scroll only once the card is actually mounted under the new tab, which is
+  // the render after `setTab` — hence an effect rather than a click handler.
+  useEffect(() => {
+    if (!flash) return undefined;
+    revealGroupCard(flash);
+    const timer = setTimeout(() => setFlash(null), 2600);
+    return () => clearTimeout(timer);
+  }, [flash]);
+
+  const tabOptions = useMemo(
+    () => [
+      ...tabs.map((t) => {
+        const Icon = moduleIcon(t.key);
+        const n = groups.filter((g) => g.module_key === t.key).length;
+        return {
+          value: t.key,
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+              {t.label}
+              {/* A module that is only policy screens has no groups to count,
+                  so it gets no number rather than a misleading "(0)". */}
+              {n > 0 && <span className="tabular-nums opacity-60">({n})</span>}
+            </span>
+          ),
+        };
+      }),
+      ...(canSeeHistory ? [{
+        value: HISTORY_TAB,
+        label: (
+          <span className="inline-flex items-center gap-1.5">
+            <HiClock className="w-3.5 h-3.5" aria-hidden="true" />
+            Change history
+          </span>
+        ),
+      }] : []),
+    ],
+    [tabs, groups, canSeeHistory],
+  );
 
   return (
     <>
-      <DashboardTopBar title="Company Settings" />
+      <DashboardTopBar title="Settings" />
       <main className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
         <div className="flex-1 space-y-5">
           {/* Title and search share the top line: the search reads across
@@ -223,11 +368,15 @@ export default function OrgSettingsPage() {
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 lg:gap-6">
             <div className="min-w-0">
               <div className="flex items-center">
-                <h1 className="text-2xl font-bold text-slate-900">Company Settings</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
                 <FieldHelp surface={SURFACE} field="page" label="this page" className="mb-0 ml-1" />
               </div>
+              {/* One sentence. The second one ("Change them here, or open the
+                  area that owns one…") explained a thing the page's own cards
+                  make obvious, and it ran so wide it pushed the search box out
+                  of line with the title. */}
               <p className={`text-sm ${TEXT.body} mt-1`}>
-                Every rule your organisation runs on, and what each one is set to today. Change them here, or open the area that owns one for its fuller screen.
+                Every rule your organisation runs on, and what each one is set to today.
               </p>
             </div>
 
@@ -282,12 +431,18 @@ export default function OrgSettingsPage() {
                 </p>
               ) : (
                 <>
-                  {/* NO TAB STRIP. Once every group opened as its own page,
-                      five of the strip's six positions filtered a list that
-                      now shows everything, and the sixth moved the history —
-                      so the history became a page too and the strip went.
-                      Everything on this screen behaves one way: click a name,
-                      get a page, come back. */}
+                  {/* What you are on, above the tabs because it belongs to the
+                      page rather than to any one module. Out of the way while
+                      a search is on screen — the results are the answer then. */}
+                  {!searching && <SettingsSubscriptionCard workspace={workspace} />}
+
+                  {/* The tabs get the whole line. Five of them plus a search
+                      box on one row left both cramped, and the strip is the
+                      page's primary navigation. */}
+                  <div className="min-w-0 overflow-x-auto no-scrollbar">
+                    <FilterTabs options={tabOptions} value={activeTab} onChange={changeTab} />
+                  </div>
+
                   {searching && (
                     <SearchResults
                       results={results}
@@ -299,109 +454,134 @@ export default function OrgSettingsPage() {
                     />
                   )}
 
-                  {!searching && (
-                    <div className="min-w-0 space-y-7">
-                      <SettingsSubscriptionCard workspace={workspace} />
-                      {/* The history is a destination like any other, so it is
-                          a row in the list rather than a tab — and only for
-                          HR, because #248 answers a manager 403 (§2). */}
-                      {canSeeHistory && (
-                        <Link
-                          to={inWorkspace("/settings/history")}
-                          className="group flex items-center gap-3 bg-white rounded-2xl border border-slate-100 shadow-xs px-4 py-3 hover:bg-slate-50/70 hover:border-purple-200 transition-colors"
-                        >
-                          <span className="shrink-0 w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
-                            <HiClock className="w-4 h-4" />
+                  {/* HIDDEN, NOT UNMOUNTED, while a search is on screen. A
+                      card holds its own unsaved edits, so unmounting the list
+                      to show search results meant typing in the search box
+                      silently threw away whatever had just been changed. */}
+                  {showHistory ? (
+                    !searching && (
+                      <SettingsHistoryPanel
+                        groups={groups}
+                        entries={entries}
+                        groupsByKey={groupsByKey}
+                        surface={SURFACE}
+                      />
+                    )
+                  ) : (
+                    <div className={searching ? "hidden" : "min-w-0 space-y-4"}>
+                      {/* The section's own heading, and what the whole area is
+                          for in a line. The tab ⓘ sits beside the heading
+                          rather than in the tablist — §10 forbids one inside a
+                          tablist, and this is the heading of the open tab. */}
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 bg-white rounded-2xl border border-slate-100 shadow-xs px-5 py-4">
+                        <div className="min-w-0 flex items-start gap-3">
+                          {/* The module's own icon, in the house badge — the
+                              same one the tab strip and the sidebar use, so
+                              the open tab is named twice in the same visual
+                              language. It also gives the thinner tabs
+                              (Company & Billing is one card) something to be
+                              a page rather than a stray card on grey. */}
+                          <span className="shrink-0 w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                            <TabIcon className="w-5 h-5" aria-hidden="true" />
                           </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[15px] font-semibold text-slate-900 group-hover:text-purple-800 transition-colors">
-                              Change history
-                            </span>
-                            <span className={`block ${TEXT.meta} text-[11px] mt-0.5`}>
-                              Who changed what, and when
-                            </span>
-                          </span>
-                          <HiChevronRight
-                            aria-hidden="true"
-                            className="shrink-0 w-4 h-4 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-0.5 transition"
-                          />
-                        </Link>
+                          <div className="min-w-0">
+                            <div className="flex items-center">
+                              <h2 className="text-lg font-bold text-slate-900">{moduleLabel(activeTab)}</h2>
+                              <FieldHelp surface={SURFACE} field={`tab.${activeTab}`} label={`the ${moduleLabel(activeTab)} settings`} className="mb-0 ml-0.5" />
+                            </div>
+                            {moduleBlurb(activeTab) && (
+                              <p className={`text-sm ${TEXT.body} mt-0.5`}>{moduleBlurb(activeTab)}</p>
+                            )}
+                          </div>
+                        </div>
+                        {visibleGroups.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={toggleAll}
+                            className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900"
+                          >
+                            <HiChevronDown
+                              aria-hidden="true"
+                              className={`w-3.5 h-3.5 transition-transform ${allOpen ? "rotate-180" : ""}`}
+                            />
+                            {allOpen ? "Close all" : "Open all"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* TWO COLUMNS, the same grid Payroll Settings uses
+                          (user instruction, 14 Oct 2026: "make it like payroll
+                          settings completely"). One full-width column meant
+                          eleven stacked bricks on the Payroll tab and far too
+                          much scrolling for a page you come to to check one
+                          rule.
+
+                          `items-start` and NOT the stretch Payroll uses, because
+                          these cards are CLOSED by default and opened one at a
+                          time. Stretched, opening one would balloon whichever
+                          closed card happened to share its row — a card the
+                          reader never touched growing to the height of the one
+                          they did. Closed cards are all one height, so the wall
+                          is flush until somebody opens something, and then the
+                          space sits beside the card they opened, which is where
+                          it belongs. */}
+                      {visibleGroups.length > 0 && (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                          {visibleGroups.map((group) => {
+                            const route = editRouteFor(group);
+                            return (
+                              <SettingsGroupForm
+                                key={group.key}
+                                group={group}
+                                entries={entriesByGroup[group.key]}
+                                editTo={route ? { ...route, path: inWorkspace(route.path) } : null}
+                                onSaved={applyWrite}
+                                onReload={() => reload()}
+                                showToast={showToast}
+                                surface={SURFACE}
+                                onDirtyChange={dock.register}
+                                flash={flash === group.key}
+                                open={openCards.has(group.key)}
+                                onToggle={toggleCard}
+                              />
+                            );
+                          })}
+                        </div>
                       )}
 
-                      {/* EVERY AREA AT ONCE, DOWN THE PAGE. The tab strip and
-                          the stack of shutters it hid are gone: five tabs over
-                          fifteen collapsibles meant the rule you wanted was
-                          three clicks deep and invisible until you found the
-                          right tab. A list of names you scroll, where clicking
-                          a name opens that one thing on its own page, is the
-                          shape this product already uses for Employees and
-                          Departments — so nobody has to learn it. */}
-                      {sections.map((section) => (
-                        <section key={section.key} className="min-w-0">
-                          <div className="flex items-center px-1 mb-2.5">
-                            <h2 className="text-base font-bold text-slate-900 truncate">{section.label}</h2>
-                            {/* §10 wants the area's help beside its heading,
-                                never inside a tablist — and there is no
-                                tablist any more. */}
-                            <FieldHelp
-                              surface={SURFACE}
-                              field={`tab.${section.key}`}
-                              label={`the ${section.label} settings`}
-                              className="mb-0 ml-0.5"
-                            />
+                      {/* Policy areas: not settings at all, but whole screens
+                          that manage many records. Kept apart under their own
+                          heading, so a list of links never reads as something
+                          editable here. */}
+                      {surfaceCards.length > 0 && (
+                        <section className="pt-1">
+                          <h3 className={`text-[11px] font-bold uppercase tracking-wider ${TEXT.label} mb-2.5`}>
+                            Managed on their own screens
+                          </h3>
+                          {/* These ARE a grid, unlike the group cards: their
+                              content is fixed (a blurb and one line of rule
+                              names), so a row of them is already level, and
+                              `items-stretch` plus the card's own `mt-auto`
+                              footer lands every "Manage" link at the same
+                              height. Nothing here opens, so there is no row
+                              that can suddenly grow. */}
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
+                            {surfaceCards.map(({ route, surfaces }) => (
+                              <SurfaceHubCard
+                                key={route.path}
+                                surfaces={surfaces}
+                                to={{ ...route, path: inWorkspace(route.path) }}
+                              />
+                            ))}
                           </div>
-
-                          {/* One card, hairline-divided. Separate cards per
-                              row put a 16px gutter between things that belong
-                              to one another; a divided list reads as a list. */}
-                          {section.groups.length > 0 && (
-                            <ul className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden divide-y divide-slate-50">
-                              {section.groups.map((group) => (
-                                <li key={group.key}>
-                                  <SettingsGroupRow
-                                    group={group}
-                                    count={(entriesByGroup[group.key] || []).length}
-                                    to={inWorkspace(`/settings/${encodeURIComponent(group.key)}`)}
-                                  />
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-
-                          {/* Policy areas: not settings at all, but whole
-                              screens that manage many records. Same row
-                              shape, their own sub-heading, so a link out
-                              never reads as something editable here. */}
-                          {section.surfaces.length > 0 && (
-                            <div className="mt-3">
-                              <h3 className={`text-[11px] font-bold uppercase tracking-wider ${TEXT.label} mb-2 px-1`}>
-                                Managed on their own screens
-                              </h3>
-                              {/* An ODD last card spans both columns. Three
-                                  of the five areas own exactly one policy
-                                  screen, and in a two-column grid that card
-                                  sat at half width with the other half empty
-                                  — the row looked unfinished rather than
-                                  deliberate. Spanning it fills the line, and
-                                  the same rule tidies the 3rd of three. */}
-                              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
-                                {section.surfaces.map(({ route, surfaces }, i) => {
-                                  const isLast = i === section.surfaces.length - 1;
-                                  const odd = section.surfaces.length % 2 === 1;
-                                  return (
-                                    <div key={route.path} className={isLast && odd ? "xl:col-span-2" : ""}>
-                                      <SurfaceHubCard
-                                        surfaces={surfaces}
-                                        to={{ ...route, path: inWorkspace(route.path) }}
-                                      />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
                         </section>
-                      ))}
+                      )}
+
+                      {visibleGroups.length === 0 && surfaceCards.length === 0 && (
+                        <p className="text-sm text-slate-500 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
+                          Nothing to show for {moduleLabel(activeTab)}.
+                        </p>
+                      )}
                     </div>
                   )}
                 </>
@@ -410,9 +590,20 @@ export default function OrgSettingsPage() {
           )}
         </div>
 
-        {/* No save dock here any more: nothing on this page is editable. A
-            group is edited on its own page, where its own Save sits with it
-            and there is only ever one transaction in flight. */}
+        {/* On the history tab and while loading there is nothing to save, and
+            a dock saying "everything is saved" over a read-only list is noise.
+            It DOES stay through a search, because the cards it reports on are
+            still mounted and still dirty behind it. */}
+        {!loading && !error && !showHistory && tabs.length > 0 && (
+          <SettingsSaveDock
+            cards={dock.cards}
+            total={dock.total}
+            saving={dock.saving}
+            onReveal={revealFromDock}
+            onSaveAll={dock.saveAll}
+            onDiscardAll={dock.discardAll}
+          />
+        )}
       </main>
 
       <Toast toast={toast} onClose={clearToast} />
@@ -512,140 +703,96 @@ function SearchResults({ results, surfaceResults, groupsByKey, inWorkspace, onJu
 }
 
 /**
- * One group, as a row in the list. A link, not a shutter: clicking it opens
- * that group on its own page, the same way a name in the employee list opens
- * that person.
+ * "Your plan" on Settings — THE SAME CurrentPlanCard the Plan &
+ * Billing page leads with, imported rather than reproduced (user instruction,
+ * 14 Oct 2026: it should be "exactly present ... for consistency").
  *
- * Closed-state discipline from the shutter version survives — the name, the
- * one pill that says something, the size, an arrow. The explaining sentence
- * lives on the group's own page now, where there is room to read it.
- */
-function SettingsGroupRow({ group, count, to }) {
-  const Icon = groupIcon(group);
-  const changed = (group.nonDefaultKeys || []).length;
-  return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition-colors"
-    >
-      <span className="shrink-0 w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
-        <Icon className="w-4 h-4" />
-      </span>
-      <span className="min-w-0 flex-1 flex items-center gap-2">
-        <span className="text-[15px] font-semibold text-slate-900 truncate group-hover:text-purple-800 transition-colors">
-          {group.label}
-        </span>
-        {/* Only when it says something — "Default" on every row was the
-            loudest thing on the old page and told nobody anything. */}
-        {changed > 0 && (
-          <span className="shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap bg-purple-50 text-purple-700 border-purple-200">
-            Customised
-          </span>
-        )}
-      </span>
-      <span className={`shrink-0 ${TEXT.meta} tabular-nums`}>{count}</span>
-      <HiChevronRight
-        aria-hidden="true"
-        className="shrink-0 w-4 h-4 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-0.5 transition"
-      />
-    </Link>
-  );
-}
-
-/**
- * Current Plan & Subscription card for Settings (#3). Shows the plan tier 3D image
- * (Bronze, Silver, Gold, Mythril), status, seat usage and renewal date.
+ * There was a lookalike here: its own purple gradient, its own rank image, its
+ * own status pill, its own seat line. It had already drifted — it called
+ * `seatMeters(sub.limits, usage)` where that helper takes one argument, so the
+ * line under the plan name was reading the wrong object entirely, and it still
+ * carried a fallback for a null rank image that `rankArtFor` no longer returns.
+ * A second copy of a card is a second place for the plan's wording to go stale.
+ * The argument §2 makes about two roles applies just as well to two pages.
+ *
+ * HR ONLY, and absent rather than broken (§2): every billing endpoint but the
+ * plan catalogue is HR_ONLY and refuses a manager, so the manager's Settings
+ * page simply hasn't got this panel.
+ *
+ * NOTHING IS CHANGED FROM HERE. `canCancel` is hard false, not wired to the
+ * server's gate — cancelling belongs on Plan & Billing beside the notice that
+ * can undo it. Settings is where you read what you are on; the link under the
+ * card is how you go and act on it. "Plan details" opens the real
+ * PlanDetailDialog, so the card behaves identically in both places.
  */
 function SettingsSubscriptionCard({ workspace }) {
-  const [data, setData] = useState({ sub: null, usage: null, plans: [], loading: true });
+  const [data, setData] = useState({ sub: null, usage: null, lastPayment: null, plans: [], loading: true });
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
-    if (workspace !== "hr") return;
+    if (workspace !== "hr") return undefined;
+    // Declared inside the effect, so StrictMode's remount gets its own flag
+    // rather than inheriting a latched-false ref from the first unmount.
     let alive = true;
     Promise.allSettled([
       billingAPI.getSubscription(),
       billingAPI.getPlans(),
     ]).then(([subRes, plansRes]) => {
       if (!alive) return;
-      const subData = subRes.status === "fulfilled" ? subRes.value?.data : null;
-      const plansData = plansRes.status === "fulfilled" ? plansRes.value?.data?.plans : [];
+      const body = subRes.status === "fulfilled" ? subRes.value?.data : null;
       setData({
-        sub: subData?.subscription || null,
-        usage: subData?.usage || null,
-        plans: plansData || [],
+        sub: body?.subscription || null,
+        usage: body?.usage || null,
+        lastPayment: body?.last_payment || null,
+        // The catalogue is its own request and can fail on its own. An empty
+        // list costs the card its rank position, never the card (§7).
+        plans: (plansRes.status === "fulfilled" ? plansRes.value?.data?.plans : []) || [],
         loading: false,
       });
     });
     return () => { alive = false; };
   }, [workspace]);
 
-  if (workspace !== "hr" || data.loading || !data.sub) return null;
-
-  const { sub, usage, plans } = data;
-  const plan = sub.plan || {};
-  const statusMeta = subscriptionStatusMeta(sub.status);
-  const rankImage = rankArtFor(plan.code, plans) || "https://cdn3d.iconscout.com/3d/premium/thumb/bronze-rank-3d-icon-png-download-8955734.png";
-  const meters = seatMeters(sub.limits, usage);
+  if (workspace !== "hr") return null;
+  // Holds the card's height while it loads, so the settings list below doesn't
+  // jump when the plan lands.
+  if (data.loading) return <div className="h-44 rounded-3xl bg-slate-100 animate-pulse" aria-hidden="true" />;
+  // A failed read is absent, not an error banner: nobody opened Settings to be
+  // told billing is down, and the page behind the link says so properly (§7).
+  if (!data.sub) return null;
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#6D28D9] text-white shadow-md p-6 sm:p-7 border border-purple-400/20">
-      <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute right-40 -top-20 w-48 h-48 bg-fuchsia-500/15 rounded-full blur-2xl pointer-events-none" />
-
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-start sm:items-center gap-5">
-          <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center p-1 bg-white/10 rounded-2xl border border-white/15 backdrop-blur-md shadow-inner">
-            <img
-              src={rankImage}
-              alt={plan.name || "Plan Badge"}
-              className="w-full h-full object-contain filter drop-shadow-md transition-transform hover:scale-105"
-            />
-          </div>
-
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-200/90 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
-                Current Subscription
-              </span>
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                statusMeta.tone === "emerald"
-                  ? "bg-violet-400/20 text-violet-100 border-violet-300/30"
-                  : statusMeta.tone === "amber"
-                  ? "bg-amber-400/20 text-amber-100 border-amber-300/30"
-                  : "bg-rose-400/20 text-rose-100 border-rose-300/30"
-              }`}>
-                {statusMeta.label}
-              </span>
-            </div>
-            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-              {plan.name || "Starter Plan"}
-            </h3>
-            <p className="text-xs text-purple-200/90 font-medium">
-              {meters.length > 0 ? seatUsageLine(meters) : "All workspace features active"}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 shrink-0 border-t md:border-t-0 md:border-l border-white/15 pt-4 md:pt-0 md:pl-6">
-          {sub.current_period_end && (
-            <div className="text-left md:text-right">
-              <span className="text-[10px] uppercase font-bold text-purple-200/80 block">
-                {sub.cancel_at_period_end ? "Expires on" : "Renews on"}
-              </span>
-              <span className="text-sm font-bold text-white block mt-0.5">
-                {fmtDate(sub.current_period_end, { day: "numeric", month: "short", year: "numeric" })}
-              </span>
-            </div>
-          )}
-          <Link
-            to="/dashboard/hr/billing"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-purple-900 hover:bg-purple-50 shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-100 whitespace-nowrap"
-          >
-            Manage Plan & Billing
-            <HiArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+    <div className="space-y-2">
+      <CurrentPlanCard
+        subscription={data.sub}
+        usage={data.usage}
+        lastPayment={data.lastPayment}
+        plans={data.plans}
+        canCancel={false}
+        onOpenDetail={() => setDetailOpen(true)}
+        surface={BILLING_SURFACE}
+      />
+      {/* Every card on this page links out to the screen that owns its
+          subject; this is that link for the plan. */}
+      <div className="flex justify-end">
+        <Link
+          to="/dashboard/hr/billing"
+          className="group inline-flex items-center gap-1.5 px-1 text-xs font-bold text-purple-700 hover:text-purple-900 transition-colors"
+        >
+          Manage Plan &amp; Billing
+          <HiArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
       </div>
+
+      {detailOpen && (
+        <PlanDetailDialog
+          subscription={data.sub}
+          usage={data.usage}
+          lastPayment={data.lastPayment}
+          plans={data.plans}
+          onClose={() => setDetailOpen(false)}
+        />
+      )}
     </div>
   );
 }

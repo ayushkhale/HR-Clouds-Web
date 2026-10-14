@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { chartPageCount, chartPageRows, defaultChartPage, fillMonthDays, sundayMarkers } from "../../../shared/attendance/trendChartMeta";
+import { chartPageCount, chartPageRows, defaultChartPage, fillMonthDays, sundayMarkers, TrendBar, TREND_BAR_MAX_SIZE, trendYAxis } from "../../../shared/attendance/trendChartMeta";
+import { TREND_COLORS, TREND_STROKES } from "../../../shared/attendance/dayStatus";
+import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
+import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
 import PageHeader from "../../../shared/components/PageHeader";
 import AttendanceCard from "../components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
@@ -12,7 +15,7 @@ import { HiCalendar, HiChartBar, HiSparkles, HiCheckCircle, HiChevronLeft, HiChe
 import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { listFrom, num, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtHours, fmtMinutes, isFutureMonth, monthLabel, shiftMonth, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtHours, fmtMinutes, monthLabel, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import { humanize } from "../../../shared/attendance/enums";
 import { ErrorState, StatusBadge } from "../../../shared/attendance/ui";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
@@ -23,9 +26,6 @@ import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 
 const PREVIEW_ROWS = 5;
 
-// Same shell and header as the manager dashboard, so every card lines up.
-const CARD = "bg-white rounded-3xl p-6 shadow-xs border border-slate-100";
-
 // Attendance-mix slices. Validated as a set (lightness, colour-blind
 // separation): present / half day / on leave / absent, always in this order.
 const MIX = [
@@ -34,37 +34,40 @@ const MIX = [
   { key: "leave", label: "On leave", field: "on_leave_days", color: "#C026D3" },
   { key: "absent", label: "Absent", field: "absent_days", color: "#E11D48" },
 ];
-const HOURS_BAR = "#7C3AED";
+// The hours bar is drawn by the shared TrendBar, so its colour comes out of
+// the one palette (dayStatus.TREND_COLORS). The legend chip and the tooltip dot
+// read the same two values, so neither can disagree with the bar beside it.
+const HOURS_SERIES = "present";
 const AXIS_TICK = { fill: "#94a3b8", fontSize: 10, fontWeight: 600 };
 const TOOLTIP_STYLE = { borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: 12 };
 
-// `icon` and `divider` are opt-in: only the punch card wears them, so the
-// other cards on the dashboard keep their plainer heading.
-function CardHeader({ title, subtitle, action, icon: Icon, divider = false }) {
-  return (
-    <div className={`flex items-start justify-between gap-4 ${divider ? "mb-5 pb-4 border-b border-slate-100" : "mb-5"}`}>
-      <div className="flex items-start gap-3 min-w-0">
-        {Icon && <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></span>}
-        <div className="min-w-0">
-          <h3 className="text-lg font-bold text-slate-800 leading-tight">{title}</h3>
-          {subtitle && <p className="text-[11px] font-semibold text-slate-400 mt-1">{subtitle}</p>}
-        </div>
-      </div>
-      {action && <div className="shrink-0">{action}</div>}
-    </div>
-  );
-}
-
-/** Hover card for the daily-hours bars. */
+/**
+ * Hover card for the daily-hours bars — the same horizontal white chip as the
+ * HR and manager trend tooltips (TrendTooltip), down to the purple-100 hairline
+ * and the divider after the date, so a hover bubble on any attendance chart in
+ * the product is recognisably the same object (§2). It can't just reuse
+ * TrendTooltip: that one reads the three team counts off the row, and this one
+ * has a single value plus a reason the day is blank.
+ */
 function HoursTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white rounded-xl shadow-lg px-3 py-2 text-xs">
-      <p className="font-bold text-slate-800">{fmtDate(d.date, { weekday: "short", day: "numeric", month: "short" })}</p>
-      <p className="text-slate-600 mt-0.5">
-        {d.note ? d.note : <><span className="font-bold text-slate-800">{d.worked || fmtHours(d.hours)}</span> worked · {humanize(d.status)}</>}
-      </p>
+    <div className="pointer-events-none select-none z-50 animate-in fade-in duration-150">
+      <div className="flex items-center gap-3 px-3.5 py-2 bg-white rounded-xl shadow-lg border border-purple-100 text-xs font-semibold whitespace-nowrap">
+        <span className="font-bold text-slate-900 border-r border-purple-100 pr-2.5">
+          {fmtDate(d.date, { weekday: "short", day: "numeric", month: "short" })}
+        </span>
+        {d.note ? (
+          <span className="text-slate-500">{d.note}</span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full border" style={{ backgroundColor: TREND_COLORS[HOURS_SERIES], borderColor: TREND_STROKES[HOURS_SERIES] }} />
+            <span className="font-bold text-slate-900 tabular-nums">{d.worked || fmtHours(d.hours)}</span>
+            <span className="text-slate-500">{humanize(d.status)}</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -131,6 +134,11 @@ function EmployeeDashboard() {
   const totalChartPages = chartPageCount(hoursByDayFull);
   const safeChartPage = Math.min(chartPage ?? defaultChartPage(hoursByDayFull, period), totalChartPages - 1);
   const chartData = chartPageRows(hoursByDayFull, safeChartPage);
+  // Headroom above the tallest bar, the same way the team charts get it, so a
+  // long day doesn't draw flush with the top gridline. Hours are fractional
+  // where head-counts aren't, so the ticks land on whole hours and the roof
+  // sits above the top one.
+  const yAxis = trendYAxis(chartData, ["hours"]);
 
   const absentBeforeJoining = daily.filter((d) => beforeJoining(ymdOnly(d.date)) && d.status === "absent").length;
   const mix = MIX.map((m) => ({ ...m, value: m.key === "absent" ? Math.max(0, num(summary[m.field]) - absentBeforeJoining) : num(summary[m.field]) }));
@@ -141,8 +149,6 @@ function EmployeeDashboard() {
     { label: "Total hours", value: totalWorkedLabel(summary), icon: HiChartBar },
   ];
 
-  const nextPeriod = shiftMonth(period.year, period.month, 1);
-  const atCurrentMonth = isFutureMonth(nextPeriod.year, nextPeriod.month);
   const monthName = monthLabel(period.year, period.month);
 
   return (
@@ -150,12 +156,17 @@ function EmployeeDashboard() {
       <DashboardTopBar title="Dashboard" />
 
       <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        {/* The art here is a wide 16:9 scene, not a cut-out character: it
+            letterboxes inside the banner's art box, so the default
+            bleed-off-the-bottom treatment cropped its lower edge and left dead
+            space above it. Centred instead, at the same banner height. */}
         <PageHeader
           badgeText="EMPLOYEE PORTAL"
           badgeIcon={HiSparkles}
           title={greetingFor(user, "there")}
           subtitle="Clock in, track your working hours and keep your attendance record accurate."
           image="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
+          imageAlign="center"
         />
 
         {/* Row 1: my punch card beside my month. The punch card is as tall as
@@ -173,17 +184,17 @@ function EmployeeDashboard() {
             <AttendanceCard className="flex flex-col" currentState={today} fetchStatus={refresh} shiftData={shift} loading={todayLoading} error={todayError} />
           </section>
 
+          {/* The HR and manager trends card, to the pixel: same shell and header,
+              same month stepper, same legend-and-pager row, same plot height,
+              margins, bar shape and axis headroom. The only differences are the
+              ones the DATA forces — one series instead of three, and an axis in
+              hours rather than people. An employee promoted to manager must find
+              the chart they already know (§2), so change these together. */}
           <section className={`${CARD} flex flex-col`}>
             <CardHeader
               title="My month"
               subtitle="Hours worked each day"
-              action={(
-                <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-600">
-                  <button type="button" onClick={() => setPeriod((p) => shiftMonth(p.year, p.month, -1))} className="p-1 hover:bg-slate-100 rounded text-slate-400" aria-label="Previous month"><HiChevronLeft className="w-4 h-4" /></button>
-                  <span className="w-24 text-center select-none">{monthName}</span>
-                  <button type="button" onClick={() => setPeriod((p) => shiftMonth(p.year, p.month, 1))} disabled={atCurrentMonth} className="p-1 hover:bg-slate-100 rounded text-slate-400 disabled:opacity-30" aria-label="Next month"><HiChevronRight className="w-4 h-4" /></button>
-                </div>
-              )}
+              action={<MonthStepper period={period} onChange={setPeriod} />}
             />
             {graph.error ? (
               <ErrorState error={graph.error} onRetry={loadGraph} fallback="Couldn't load your monthly stats." />
@@ -206,16 +217,25 @@ function EmployeeDashboard() {
                   ))}
                 </div>
 
-                {hasHours && totalChartPages > 1 && (
-                  <div className="flex justify-end -mb-3">
+                {/* The legend chip and the pager share one row, exactly where the
+                    team charts put them. The row renders whatever the data says, so
+                    the plot never shifts up in a month with no hours on record. */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full border" style={{ backgroundColor: TREND_COLORS[HOURS_SERIES], borderColor: TREND_STROKES[HOURS_SERIES] }} />
+                    Hours worked
+                  </span>
+                  {totalChartPages > 1 && (
                     <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
                       <button type="button" onClick={() => setChartPage(Math.max(0, safeChartPage - 1))} disabled={safeChartPage === 0} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Earlier days"><HiChevronLeft className="w-4 h-4" /></button>
                       <span className="text-center select-none w-10 tabular-nums">{safeChartPage + 1}/{totalChartPages}</span>
                       <button type="button" onClick={() => setChartPage(Math.min(totalChartPages - 1, safeChartPage + 1))} disabled={safeChartPage >= totalChartPages - 1} className="p-1 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-400" aria-label="Later days"><HiChevronRight className="w-4 h-4" /></button>
                     </div>
-                  </div>
-                )}
-                <div className="relative flex-1 min-h-[12rem]">
+                  )}
+                </div>
+                {/* mt-4 rather than padding: the plot is absolutely positioned, so
+                    padding on this wrapper would be painted straight over. */}
+                <div className="relative w-full flex-1 min-h-[16rem] mt-4">
                   <div className="absolute inset-0">
                     {graph.loading && hoursByDay.length === 0 ? (
                       <div className="w-full h-full bg-slate-100 rounded-xl animate-pulse" />
@@ -226,14 +246,19 @@ function EmployeeDashboard() {
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 5, right: 0, left: -24, bottom: 0 }} barCategoryGap="30%">
+                        <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }} barGap={0} barCategoryGap="14%">
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<DayTick />} interval={0} />
                           {/* Same Sunday marking and 15-day halves as the HR and manager charts. */}
                           {sundayMarkers(chartData)}
-                          <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={AXIS_TICK} tickFormatter={(v) => `${v}h`} />
-                          <Tooltip cursor={{ fill: "#f8fafc" }} content={<HoursTooltip />} />
-                          <Bar dataKey="hours" name="Hours worked" fill={HOURS_BAR} maxBarSize={18} />
+                          {/* Ticks are whole hours; the domain ends above the top
+                              tick, which is where the headroom comes from. */}
+                          <YAxis allowDecimals={false} domain={yAxis.domain} ticks={yAxis.ticks} axisLine={false} tickLine={false} tick={AXIS_TICK} tickFormatter={(v) => `${v}h`} />
+                          <Tooltip cursor={{ fill: "#f8fafc" }} content={<HoursTooltip />} position={{ y: -10 }} />
+                          {/* The shared bar shape: flat bottom, softened cap, outlined
+                              in its own darker step — and nothing at all on a day with
+                              no hours, rather than a 3px nub along the axis. */}
+                          <Bar dataKey="hours" name="Hours worked" shape={TrendBar} maxBarSize={TREND_BAR_MAX_SIZE} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}

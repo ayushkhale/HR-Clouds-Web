@@ -29,6 +29,11 @@ import { HiChevronDown, HiDocumentText } from "react-icons/hi";
 /**
  * @param {object} props
  * @param {number|string} props.n        the step number in the badge
+ * @param {string} [props.id]            on the step's CONTENT, so the form guard
+ *   can land on this step's first control when the step itself is what has been
+ *   left unanswered (shared/utils/formGuard.js). Deliberately not on the
+ *   <section>: the heading row holds the search box, and "choose a letter" has
+ *   to point at the letters.
  * @param {string} props.title
  * @param {string} [props.blurb]         one line under the title, hidden while folded
  * @param {string} [props.summary]       the answer, shown in the heading while folded
@@ -37,7 +42,7 @@ import { HiChevronDown, HiDocumentText } from "react-icons/hi";
  * @param {() => void} [props.onToggle]  its presence is what makes the step fold
  * @param {React.ReactNode} props.children
  */
-export default function LetterFormStep({ n, title, blurb, summary, aside, open = true, onToggle, children }) {
+export default function LetterFormStep({ n, id, title, blurb, summary, aside, open = true, onToggle, children }) {
   const collapsible = typeof onToggle === "function";
   return (
     <section>
@@ -70,7 +75,7 @@ export default function LetterFormStep({ n, title, blurb, summary, aside, open =
           {blurb && open && <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{blurb}</p>}
         </div>
       </div>
-      {open && <div className="pl-0 sm:pl-[34px]">{children}</div>}
+      {open && <div id={id} className="pl-0 sm:pl-[34px]">{children}</div>}
     </section>
   );
 }

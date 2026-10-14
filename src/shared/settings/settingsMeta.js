@@ -437,7 +437,7 @@ export function rangeHint(entry) {
 
 /** `source` → where the change was made, in words. */
 export const CHANGE_SOURCE = {
-  settings_api: "Company Settings",
+  settings_api: "Settings",
   module_api: "The area's own screen",
   system: "Automatically",
 };
@@ -753,10 +753,11 @@ export const isSwitchControl = (entry) => entry?.data_type === "boolean" && isEd
  */
 export function fieldSpan(entry) {
   if (!entry) return "";
-  // A chip list takes the whole row: two of them side by side in a 3-column
-  // grid left a ragged third column (the Company & Billing card is exactly
-  // two of them), and the control caps its own input width instead.
-  if (entry.data_type === "array") return "sm:col-span-2 xl:col-span-3";
+  // A chip list takes the whole row: two of them side by side left a ragged
+  // column (the Company & Billing card is exactly two of them), and the
+  // control caps its own input width instead. The shelf grid is two columns
+  // wide now that the card is half the page, so "the whole row" is two cells.
+  if (entry.data_type === "array") return "sm:col-span-2";
   if (entry.data_type === "enum" && segmentedOptions(entry)) return "sm:col-span-2 xl:col-span-1";
   return "";
 }

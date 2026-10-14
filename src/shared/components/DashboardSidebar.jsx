@@ -184,7 +184,19 @@ function DashboardSidebar({ role = "guest" }) {
       // Work somebody has been GIVEN, which every role is — including HR, whose
       // own page sits here beside their leave and payslips rather than in the
       // organisation-wide Tasks section below.
-      tasks: [link("My Tasks", tasks.mine, HiClipboardCheck)],
+      //
+      // TWO entries, so this behaves like every other "My …" group instead of
+      // the one flat link in the menu (user decision, 14 Oct 2026 — a single
+      // item renders as a bold link, not a dropdown). They are the two pages
+      // the API can actually give a person about their own work: the whole list,
+      // and the one cut the page's own status tabs can't make, `is_overdue`.
+      // Statuses deliberately did NOT become sidebar entries: the page already
+      // has a tab per status, and duplicating them here would leave the sidebar
+      // highlighting "Waiting for review" while the open tab said "All".
+      tasks: [
+        link("My Tasks", tasks.mine, HiClipboardCheck),
+        link("Overdue Tasks", tasks.overdue, HiExclamationCircle),
+      ],
       time: [
         link("My Attendance", base, HiClock),
         link("My Leaves", pay.leaves, HiCalendar),
@@ -269,10 +281,20 @@ function DashboardSidebar({ role = "guest" }) {
   // ── The three menus ──────────────────────────────────────────────────────
   // One shape for every role, so a manager promoted to HR gains menu items
   // rather than learning a new menu. Sections run in the same order in every
-  // workspace (Setup, People, Time & Leave, Payroll, the two document groups,
-  // Tax, Insights, Company, Me) and a role simply has fewer of them. Inside a section,
-  // items run in the order the work is done, not alphabetically: the first
-  // item is the thing you have to do first.
+  // workspace — Main, ME, then the work: Setup, People/Organisation,
+  // Time & Leave, Tasks, Payroll, the two document groups, Tax, Insights,
+  // Company — and a role simply has fewer of them. Inside a section, items run
+  // in the order the work is done, not alphabetically: the first item is the
+  // thing you have to do first.
+  //
+  // ME SITS SECOND, directly under Dashboard and Inbox (user decision,
+  // 14 Oct 2026). It used to be last, which put an HR admin's own payslip at
+  // the bottom of the longest menu in the product. It is the one section every
+  // role has and the one every role opens for themselves, so it goes where it
+  // can be reached without scrolling — in all three workspaces, or the
+  // promotion from manager to HR would move it (§2). It keeps
+  // `defaultCollapsed`: expanded, its four groups would push the work
+  // sections off the screen, which is the problem it was moved to solve.
   const getNavSections = () => {
     if (role === "guest") {
       return [
@@ -306,6 +328,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Inbox", `${H}/inbox`, HiInboxIn, inboxBadge),
           ],
         },
+        meSection("hr"),
         {
           // Done once, then rarely touched — so it stays collapsed, and each
           // area is its own dropdown listed in the order it has to be set up.
@@ -461,7 +484,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         companySection("hr"),
-        meSection("hr"),
       ];
     }
 
@@ -478,14 +500,32 @@ function DashboardSidebar({ role = "guest" }) {
             link("Inbox", `${M}/requests/inbox`, HiInboxIn, inboxBadge),
           ],
         },
+        meSection("manager"),
         {
-          title: "PEOPLE",
+          // Called ORGANISATION, not PEOPLE, because it holds the places as well
+          // as the people: the team, plus the two kinds of location a manager
+          // can look up. HR keeps PEOPLE (invites + employees) and files the
+          // same two location pages under SETUP → Organisation, where HR also
+          // creates them — the one place the two menus diverge, and only
+          // because HR's half of this is setup work and the manager's is
+          // reference (§2). Client Sites moved here out of TIME & LEAVE: it is
+          // a place, not a request queue.
+          title: "ORGANISATION",
           icon: HiUserGroup,
-          forceDropdown: true,
           items: [
             // Member profiles live under /team/member/, not /team/, because
             // /team/today and /team/history are separate sidebar entries.
             { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
+            // Both are the SAME screens HR gets, under this workspace's own
+            // prefix. A manager registers and assigns client sites for their own
+            // reports; office locations are read-only here because POST/PUT on
+            // /organizations/locations are HR-only, so the page carries no Add
+            // button rather than one that 403s.
+            // Same order as HR's Setup › Organisation group: your own offices
+            // first, then the third-party sites. A promotion must not reshuffle
+            // the menu (§2).
+            link("Office Locations", `${M}/attendance/locations`, HiLocationMarker),
+            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
         {
@@ -499,10 +539,6 @@ function DashboardSidebar({ role = "guest" }) {
             link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
             link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
             link(COMP_OFF, `${M}/requests/comp-offs`, HiGift),
-            // Same label and the same screen HR gets, under this workspace's
-            // own prefix — a manager registers and assigns client sites for
-            // their own reports (CLAUDE.md §2).
-            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
         tasksSection("manager"),
@@ -549,7 +585,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         companySection("manager"),
-        meSection("manager"),
       ];
     }
 
@@ -914,7 +949,7 @@ function DashboardSidebar({ role = "guest" }) {
                   className={settingsActive ? UTILITY_LINK_ACTIVE : UTILITY_LINK}
                 >
                   <HiCog className={`w-5 h-5 ${settingsActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                  <span>Company Settings</span>
+                  <span>Settings</span>
                 </Link>
               )}
               <Link

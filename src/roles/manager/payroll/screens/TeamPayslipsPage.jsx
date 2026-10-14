@@ -10,6 +10,8 @@ import { isPayrollPdfRetryable, payrollErrorMessage, payrollPdfViewMessage } fro
 import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
+import { personName } from "../../../../shared/attendance/normalize";
+import { humanize } from "../../../../shared/attendance/enums";
 import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
@@ -29,6 +31,14 @@ function Toast({ toast, onClose }) {
 const memberId = (m) => m.user_id || m.id || m._id;
 const slipRunId = (s) => s.run_id || s.payroll_run?.id || s.runId;
 const slipPeriod = (s) => s.period_month || s.payroll_run?.period_month;
+
+// What was deducted lives on the payslip detail (#54, nested under `figures`),
+// not on the list row (#53). `formatMoney` turns an absent figure into "₹0", so
+// the column read "nothing was deducted" on every row while net sat below
+// gross (manager audit M-29, employee audit E-15). The column is therefore
+// drawn only when the payload actually carries the figure; otherwise the row
+// opens and the detail says it.
+const slipDeductions = (s) => s.total_deductions ?? s.figures?.total_deductions ?? null;
 
 // ── One report's payslip for one run (#54) ─────────────────────────────────
 // Laid out exactly like the payslip an employee opens on My Payslips, so the
@@ -176,6 +186,15 @@ function PayslipDetailModal({ userId, runId, period, memberName, onClose, showTo
 function TeamRunModal({ runId, period, onClose, showToast }) {
   const [summary, setSummary] = useState(undefined);
   const [items, setItems] = useState(undefined);
+  const { nameOf } = useEmployeeDirectory();
+
+  /** A run item's person: the row's own name, else the shared roster — never an id. */
+  const memberLabel = (it) => {
+    const own = personName(it, "");
+    if (own && !own.includes("@")) return own;
+    const id = it.user_id || it.employee_id || it.user?.id;
+    return id ? nameOf(id, own || undefined) : own || "Unknown user";
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -191,6 +210,11 @@ function TeamRunModal({ runId, period, onClose, showToast }) {
   const list = Array.isArray(items) ? items : [];
   // Comp-view OFF strips per-head money — detect whether any item carries a figure.
   const moneyHidden = list.length > 0 && list.every((it) => it.net_pay == null && it.gross_earnings == null);
+  // A run item names its person by `user_id`, not by name, so every cell in the
+  // column was an empty span (manager audit M-30). Names come from the one
+  // roster the app reads (§4): the row's own name if it carries one, else the
+  // directory, which says "Loading…" rather than showing an id.
+  const hasStatus = list.some((it) => it.status);
 
   return (
     <DetailDialog
@@ -226,12 +250,15 @@ function TeamRunModal({ runId, period, onClose, showToast }) {
             rowKey={(it, i) => it.id || i}
             empty="Nobody on your team is in this pay run."
             columns={[
-              { header: "Team member", render: (it) => <span className="font-semibold text-slate-800">{it.employee_name || it.user?.profile?.display_name || it.user?.identifier}</span> },
+              { header: "Team member", render: (it) => <span className="font-semibold text-slate-800">{memberLabel(it)}</span> },
               ...(moneyHidden ? [] : [
                 { header: "Gross", align: "right", render: (it) => <span className="tabular-nums text-slate-700">{formatMoney(it.gross_earnings)}</span> },
                 { header: "Net", align: "right", render: (it) => <span className="tabular-nums font-bold text-violet-600">{formatMoney(it.net_pay)}</span> },
               ]),
-              { header: "Status", align: "center", render: (it) => (it.status ? <DetailPill tone="soft">{it.status}</DetailPill> : null) },
+              // A column that is N/A on every row says nothing; it appears only
+              // when the run items carry a state, and reads as words, not as
+              // the raw enum the API sends (§4).
+              ...(hasStatus ? [{ header: "Status", align: "center", render: (it) => (it.status ? <DetailPill tone="soft">{humanize(it.status)}</DetailPill> : null) }] : []),
             ]}
           />
         </DetailSection>
@@ -255,6 +282,7 @@ export default function TeamPayslipsPage() {
   // The dialog is titled with the person, so a downloaded payslip and the
   // preview of it agree on whose it is.
   const selectedMemberName = teamMembers.find((m) => memberId(m) === selectedUserId)?.name || "";
+  const showDeductions = payslips.some((s) => slipDeductions(s) !== null);
 
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -317,7 +345,7 @@ export default function TeamPayslipsPage() {
                     <th className="px-6 py-4">Period</th>
                     <th className="px-6 py-4 text-right"><HelpLabel text="Paid / unpaid" help={{ surface: "payroll.pay_days", field: "lop_days", label: "unpaid days" }} /></th>
                     <th className="px-6 py-4 text-right">Gross</th>
-                    <th className="px-6 py-4 text-right">Deductions</th>
+                    {showDeductions && <th className="px-6 py-4 text-right">Deductions</th>}
                     <th className="px-6 py-4 text-right">Net Pay</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -331,10 +359,18 @@ export default function TeamPayslipsPage() {
                     const preview = rid ? rowPreviewProps(() => setDetailSlip({ userId: selectedUserId, runId: rid, period }), "Payslip") : { className: "hover:bg-slate-50/50 transition-colors" };
                     return (
                       <tr key={slip.id} {...preview}>
-                        <td className="px-6 py-4 font-bold text-slate-800">{formatPeriod(period)}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">
+                          {formatPeriod(period)}
+                          {/* The run says so itself (#53 `statutory_status`): a
+                              net pay that skipped PF, ESI and tax reads like
+                              take-home and isn't. */}
+                          {slip.statutory_status === "not_applied" && (
+                            <span className="block mt-1 text-[10px] font-semibold text-fuchsia-700">PF, ESI and tax not taken off</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-right tabular-nums text-slate-600">{formatDayCount(slip.payable_days)} / {formatDayCount(slip.lop_days)}</td>
                         <td className="px-6 py-4 text-right tabular-nums font-semibold text-slate-700">{formatMoney(slip.gross_earnings ?? slip.gross_pay)}</td>
-                        <td className="px-6 py-4 text-right tabular-nums font-semibold text-rose-600">{formatMoney(slip.total_deductions)}</td>
+                        {showDeductions && <td className="px-6 py-4 text-right tabular-nums font-semibold text-rose-600">{slipDeductions(slip) === null ? "N/A" : formatMoney(slipDeductions(slip))}</td>}
                         <td className="px-6 py-4 text-right tabular-nums font-black text-violet-600">{formatMoney(slip.net_pay)}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-1.5">
@@ -356,7 +392,7 @@ export default function TeamPayslipsPage() {
                     );
                   })}
                   {payslips.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No finalized payslips for this employee yet.</td></tr>
+                    <tr><td colSpan={showDeductions ? 6 : 5} className="px-6 py-8 text-center text-slate-500">No finalized payslips for this employee yet.</td></tr>
                   )}
                 </tbody>
               </table>

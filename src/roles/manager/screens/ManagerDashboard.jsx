@@ -141,7 +141,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Shift</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">In</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Out</th>
-                    <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide"><HelpLabel text="Lateness" help={{ surface: "attendance.team", field: "late_minutes", label: "lateness", overlay: true }} /></th>
+                    <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide">Lateness</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -296,11 +296,24 @@ function ManagerDashboard() {
   // the page moving at all. The arrows are the only way to change the week.
 
   const s = summary.data || {};
+  // `team_size` and `counts` are documented as numbers on this endpoint
+  // (md_updates/2026-10-04_employee_and_manager_attendance_calculation_and_api_sync.md),
+  // but the live response ships both null while the final_* buckets are
+  // populated (manager panel audit M-14). `num()` turns that null into a 0,
+  // and a tile reading "Team members 0" states a measurement where the server
+  // said nothing at all — the same trap as a missing deductions figure
+  // printing ₹0. So: the server's number when it sent one, else count the
+  // team list this screen has already loaded (the roster the tile is about),
+  // else N/A (§5 — never a dash, never a made-up zero).
+  const fromTeam = (rows) => (team.error ? "N/A" : rows);
   const stats = [
-    { label: "Team members", value: num(s.team_size), icon: HiUserGroup },
+    { label: "Team members", value: s.team_size == null ? fromTeam(team.records.length) : num(s.team_size), icon: HiUserGroup },
     { label: "Present today", value: num(s.final_present_count), icon: HiCheckCircle, tag: "Present" },
-    { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent", help: { surface: "attendance.team", field: "final_absent_count", ariaLabel: "Who counts as absent today?", size: "sm", overlay: true } },
-    { label: "Late arrivals", value: num(s.counts?.late), icon: HiClock, tag: "Late" },
+    { label: "Absent today", value: num(s.final_absent_count), icon: HiExclamationCircle, tag: "Absent" },
+    // Lateness is client-derived by contract §8 — there is no `late` status, it
+    // is `late_minutes > 0` — which is what the Lateness column in the table
+    // below already does, so the tile and the rows it heads now agree.
+    { label: "Late arrivals", value: s.counts?.late == null ? fromTeam(team.records.filter((r) => num(r.late_minutes) > 0).length) : num(s.counts.late), icon: HiClock, tag: "Late" },
     // From today's team list: the summary's `counts` keys aren't documented
     // beyond `late`, so these are counted from each member's own status.
     { label: "On leave today", value: team.error ? "N/A" : team.records.filter((r) => r.status === "on_leave").length, icon: HiCalendar, tag: "Leave" },

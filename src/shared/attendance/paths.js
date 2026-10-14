@@ -175,20 +175,31 @@ export const MY_PAY_PATHS = {
  * `all` deliberately ends in `/all` rather than sitting at `/tasks`: the two
  * review pages are siblings, and a parent path would keep "All Tasks"
  * highlighted while you stand on "Tasks I Assigned".
+ *
+ * `overdue` is the same page as `mine` with the server's `is_overdue` filter
+ * pinned on (14 Oct 2026) — the one filter the page's own tabs can't reach, and
+ * the reason "My Tasks" is a dropdown rather than a single link. It nests under
+ * `mine` safely: a sidebar link highlights on an EXACT path match unless it is
+ * marked `nested`, so standing on the overdue page does not also light up
+ * "My Tasks". It exists in all three workspaces, because every role is given
+ * work and every role can run late.
  */
 export const TASK_PATHS = {
   employee: {
     mine: "/dashboard/employee/tasks",
+    overdue: "/dashboard/employee/tasks/overdue",
     assigned: null,
     all: null,
   },
   manager: {
     mine: "/dashboard/manager/my-tasks",
+    overdue: "/dashboard/manager/my-tasks/overdue",
     assigned: "/dashboard/manager/tasks/assigned",
     all: "/dashboard/manager/tasks/all",
   },
   hr: {
     mine: "/dashboard/hr/my-tasks",
+    overdue: "/dashboard/hr/my-tasks/overdue",
     assigned: "/dashboard/hr/tasks/assigned",
     all: "/dashboard/hr/tasks/all",
   },

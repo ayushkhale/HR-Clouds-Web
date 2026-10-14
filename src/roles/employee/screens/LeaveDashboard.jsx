@@ -209,13 +209,14 @@ function BalanceCards({ balances }) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {balances.map((b) => (
         <div key={b.id || b.leave_type_id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs flex flex-col justify-start">
+          {/* The leave type's configured code ("ECL_2026") used to sit here as
+              a chip. It is HR's handle on the policy, means nothing to the
+              person whose days these are, and the name is right underneath
+              (employee audit E-20, §4). */}
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 bg-purple-50">
               <HiCalendar className="w-5 h-5" />
             </div>
-            <span className="font-mono text-[10px] font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded-full uppercase tracking-wider">
-              {b.leave_type?.code}
-            </span>
           </div>
           <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
           <div className="flex items-end gap-1 mb-4">
@@ -518,7 +519,7 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
                 const left = bal ? parseFloat(bal.current_balance) : null;
                 return (
                   <option key={t.id} value={t.id}>
-                    {t.name}{t.code ? ` (${t.code})` : ""}{left !== null ? ` — ${formatDayCount(left, { lower: true })} left` : ""}
+                    {t.name}{left !== null ? ` — ${formatDayCount(left, { lower: true })} left` : ""}
                   </option>
                 );
               })}

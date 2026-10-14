@@ -35,13 +35,17 @@ import { letterTitle } from "./letterMeta";
 /**
  * @param {object} props
  * @param {number|string} [props.n]       the step number
+ * @param {string} [props.id]             on the cards, for the form guard to
+ *   scroll to and focus when no letter has been chosen yet
+ * @param {string} [props.problem]        "you haven't chosen one", once the
+ *   person has pressed a button that needs it (CLAUDE.md §11)
  * @param {string} [props.blurb]          one line under the title
  * @param {object[]} props.rows           the letters that can actually be issued
  * @param {string} props.value            the chosen `code`, "" for none
  * @param {(code: string) => void} props.onPick
  * @param {boolean} [props.disabled]
  */
-export default function LetterCatalogStep({ n = 1, blurb, rows, value, onPick, disabled = false }) {
+export default function LetterCatalogStep({ n = 1, id, problem = "", blurb, rows, value, onPick, disabled = false }) {
   const [query, setQuery] = useState("");
   // Initial only: a letter preselected by the screen behind is already answered.
   const [folded, setFolded] = useState(!!value);
@@ -63,6 +67,7 @@ export default function LetterCatalogStep({ n = 1, blurb, rows, value, onPick, d
   return (
     <LetterFormStep
       n={n}
+      id={id}
       title="Which letter"
       blurb={blurb}
       summary={chosen ? letterTitle(chosen) : ""}
@@ -126,6 +131,7 @@ export default function LetterCatalogStep({ n = 1, blurb, rows, value, onPick, d
           })}
         </div>
       )}
+      {problem && <p className="text-[11px] font-semibold text-rose-600 mt-2">{problem}</p>}
     </LetterFormStep>
   );
 }

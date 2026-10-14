@@ -531,9 +531,24 @@ export default function PayrollSettingsPage() {
           ) : (
             <form onSubmit={handleSubmit}>
               <GlanceStrip settings={settings} />
-              {/* A card per group, each one closing over its own rules. Folding
-                  one no longer leaves a hole in the middle of the grid. */}
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+              {/* A card per group, each one closing over its own rules.
+
+                  THE ROW STRETCHES — no `items-start` (14 Oct 2026). With it,
+                  every card was only as tall as its own content, so a short
+                  card beside a tall one left a grey hole the width of half the
+                  page and the wall looked broken. Grid's default stretch pairs
+                  the two cards in a row to the taller one, which puts that
+                  space INSIDE the shorter card, where it reads as a card with
+                  room in it rather than as a gap in the layout.
+
+                  The alternatives were both worse here. Balanced columns
+                  (CSS `columns`) repack on every fold, so a card the reader
+                  had not touched jumps to the other side. One full-width
+                  column has no holes either, but these cards hold two-column
+                  field grids and would then be running at half density on a
+                  laptop. Don't put `items-start` back without solving the
+                  hole it reopens. */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {/* General Settings */}
                 <Section
                   title="How pay is worked out"

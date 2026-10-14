@@ -58,6 +58,15 @@
 //    (shared/pdf/bulkGeneration.js): the form says it's paused, Send is off,
 //    and it is never retried on its own. Batches accepted earlier still finish.
 //
+//  · NEITHER BUTTON CALLS AN UNFINISHED FORM (14 Oct 2026, CLAUDE.md §11).
+//    Send and the preview send the same overrides to endpoints that validate
+//    them identically, so both check before calling and take the person to the
+//    first box that needs them — the preview used to fire regardless and come
+//    back a 400 phrased in payload keys, which is the bug that wrote §11. It
+//    matters most here: #143 reads nothing and queues NOBODY if one detail is
+//    wrong. The hourly allowance and the platform pause above still disable
+//    Send, because no amount of typing fixes either.
+//
 // STEP 1 AND THE NUMBERED BLOCKS ARE SHARED with the single-issue form, in
 // LetterCatalogStep.jsx and LetterFormStep.jsx — the two are one product seen
 // twice, and the copies here had drifted (no search, no fold, two cards across
@@ -80,11 +89,13 @@ import {
   isBulkValidationFailed, isFeatureNotDeployed, isLetterFieldRejected, isRendererNotConfigured,
   letterErrorFieldKey, letterIssueErrorMessage, retryAfterSeconds,
 } from "../utils/documentErrors";
-import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
+import { focusFirstProblem, hasProblems } from "../utils/formGuard";
+import { FIELD, FIELD_INVALID, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { letterTemplateOf, letterTemplatesOf, letterTitle } from "./letterMeta";
 import {
   issueDateMax, issueDateMin, issueDateNote, issueDateProblem, letterOverridableFields, onlyRequiredMissing,
-  overrideProblems, overridesFromSaved, overridesPayload, refusedFields, rememberNotOverridable,
+  overrideProblems, overrideValueProblems, overridesFromSaved, overridesPayload, refusedFields,
+  rememberNotOverridable,
 } from "./letterIssueMeta";
 import LetterCatalogStep from "./LetterCatalogStep";
 import Step from "./LetterFormStep";
@@ -97,6 +108,20 @@ import { BULK_MAX_SUBJECTS_FALLBACK, bulkBatchOf, cooldownLabel } from "./letter
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
 const AUTOMATION_PATH = "/dashboard/hr/documents/automation";
+
+// The two answers that are not a box, written once: each is the blocking
+// message, the red line under its own control AND the footer note. Worded for
+// a batch, which is the only thing this form says differently from its sibling.
+const PICK_LETTER = "Choose which letter you are sending.";
+const PICK_PEOPLE = "Choose who it goes to.";
+
+/**
+ * Where each problem key lives on screen, for the form guard (CLAUDE.md §11).
+ * The `_`-prefixed keys are the form's own; everything else is one of the
+ * letter's own fields, which LetterOverrideFields ids as `bl-<payload key>`.
+ */
+const OWN_FIELD_IDS = { _code: "bl-letters", _subjects: "bl-people", _date: "bl-date" };
+const idOfProblem = (key) => OWN_FIELD_IDS[key] || `bl-${key}`;
 
 /**
  * The wait after a 429, when the server didn't say how long.
@@ -309,13 +334,37 @@ export default function BulkIssueLettersDialog({
   const waiting = secondsLeft > 0;
   const ready = !!code && subjects.length > 0 && !detail.loading && !detail.error
     && Object.keys(problems).length === 0 && !waiting && !bulkPaused;
-  const onlyMissingRequired = !!code && subjects.length > 0 && !detail.loading && !detail.error
-    && onlyRequiredMissing(problems) && !waiting && !bulkPaused;
+
+  /**
+   * Everything standing between this form and the request, in one map the form
+   * guard can walk — including the two answers that aren't a box, under keys
+   * prefixed so they can never collide with a template field (whose own names
+   * the server requires to start with a lowercase letter).
+   *
+   * The hourly allowance and the platform pause are deliberately NOT in here:
+   * nothing the person types fixes either, so those keep the button off.
+   */
+  const blockers = () => {
+    const out = { ...problems };
+    if (!code) out._code = PICK_LETTER;
+    if (subjects.length === 0) out._subjects = PICK_PEOPLE;
+    return out;
+  };
 
   // ── Queue it ───────────────────────────────────────────────────────────────
   const queue = async () => {
-    setAttempted(true);
-    if (!ready || busy) return;
+    if (busy) return;
+    // The press is what checks, and what turns the form red (§11). An
+    // unfinished batch never reaches #143: it reveals what is missing and takes
+    // the person to the first of it — which matters more here than anywhere,
+    // because #143 reads nothing and queues nobody if one detail is wrong.
+    const stopping = blockers();
+    if (hasProblems(stopping)) {
+      setAttempted(true);
+      focusFirstProblem(stopping, idOfProblem);
+      return;
+    }
+    if (!ready) return;
 
     const ok = await window.confirm(
       `Send “${letterTitle(chosenRow)}” to ${subjects.length} ${subjects.length === 1 ? "person" : "people"}?\n\n`
@@ -394,7 +443,26 @@ export default function BulkIssueLettersDialog({
    * salary is the one outcome this screen cannot afford.
    */
   const canDraft = subjects.length > 0 && !issueDateProblem(issuedOn) && !draftOff;
-  const openPreview = () => setPreviewing(canDraft ? "draft" : "sample");
+
+  /**
+   * Nothing is drawn from an unfinished form (CLAUDE.md §11).
+   *
+   * #271 validates the overrides exactly as #143 does — which is the whole
+   * reason previewing before three hundred letters is worth doing — so a real
+   * draft is blocked by everything Send is blocked by. It used to go out
+   * regardless and come back a 400 phrased in payload keys. The sample carries
+   * only the boxes and invents the rest, so an empty required box is what it is
+   * FOR; a value the server won't take refuses either render, and blocks both.
+   */
+  const openPreview = () => {
+    const stopping = canDraft ? blockers() : overrideValueProblems(problems);
+    if (hasProblems(stopping)) {
+      setAttempted(true);
+      focusFirstProblem(stopping, idOfProblem);
+      return;
+    }
+    setPreviewing(canDraft ? "draft" : "sample");
+  };
 
   /**
    * The server has named a field it will not accept: remember it for the
@@ -488,8 +556,10 @@ export default function BulkIssueLettersDialog({
             ) : (
               <>
                 <LetterCatalogStep
+                  id="bl-letters"
                   rows={issuable}
                   value={code}
+                  problem={attempted && !code ? PICK_LETTER : ""}
                   disabled={busy}
                   blurb="Everyone in this batch gets the same one."
                   onPick={(next) => { setCode(next); setValues({}); setFailure(null); setRejected([]); }}
@@ -517,6 +587,7 @@ export default function BulkIssueLettersDialog({
                     </div>
                     <PersonMultiSelect
                       id="bl-people"
+                      invalid={attempted && subjects.length === 0}
                       people={people}
                       value={subjects}
                       onChange={(next) => { setSubjects(next); setFailure(null); setRejected([]); }}
@@ -527,6 +598,9 @@ export default function BulkIssueLettersDialog({
                       placeholder="Search by name or employee code"
                       aria-label="People this letter goes to"
                     />
+                    {attempted && subjects.length === 0 && (
+                      <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{PICK_PEOPLE}</p>
+                    )}
                     <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
                       <p className={`text-[11px] leading-relaxed ${atCeiling ? "font-semibold text-fuchsia-700" : "text-slate-500"}`}>
                         {subjects.length} of up to {ceiling} chosen
@@ -568,7 +642,7 @@ export default function BulkIssueLettersDialog({
                         id="bl-date" type="date" value={issuedOn} disabled={busy}
                         min={issueDateMin()} max={issueDateMax()}
                         onChange={(e) => setIssuedOn(e.target.value)}
-                        className={`${FIELD} !pl-10`}
+                        className={`${FIELD} !pl-10 ${problems._date ? FIELD_INVALID : ""}`}
                       />
                     </div>
                     {problems._date ? (
@@ -704,9 +778,9 @@ export default function BulkIssueLettersDialog({
                 : waiting
                 ? `Waiting ${cooldownLabel(secondsLeft)} for your organisation’s hourly allowance to refresh.`
                 : !code
-                  ? "Choose which letter you are sending."
+                  ? PICK_LETTER
                   : subjects.length === 0
-                    ? "Choose who it goes to."
+                    ? PICK_PEOPLE
                     : Object.keys(problems).length
                       ? (onlyRequiredMissing(problems) ? "Fill in the details marked * above." : "Fix what is highlighted above.")
                       : <>Each one is numbered as it is drawn. The limit is set in <Link to={SETTINGS_PATH} className="font-bold text-purple-600 hover:underline">Document Settings</Link>.</>}
@@ -725,7 +799,16 @@ export default function BulkIssueLettersDialog({
                 <HiEye className="w-4 h-4" /> {canDraft ? "See this letter" : "See the layout"}
               </button>
             )}
-            <button type="button" onClick={queue} disabled={(!ready && !onlyMissingRequired) || busy} className={PRIMARY_BTN}>
+            {/* Live whenever the person could finish the form: the press checks
+                it and takes them to what is missing (§11). Off only for what
+                pressing cannot fix — a batch in flight, the hourly allowance,
+                the platform pause, a field list that wouldn't load. */}
+            <button
+              type="button"
+              onClick={queue}
+              disabled={busy || waiting || bulkPaused || detail.loading || !!detail.error}
+              className={PRIMARY_BTN}
+            >
               <HiPaperAirplane className="w-4 h-4" />
               {busy
                 ? "Queueing…"

@@ -458,6 +458,24 @@ export const onlyRequiredMissing = (problems) =>
   Object.keys(problems || {}).length > 0 && Object.values(problems).every((p) => p === REQUIRED_PROBLEM);
 
 /**
+ * Only the problems that are a WRONG VALUE in one of the typed-in boxes.
+ *
+ * Dropped: an empty required box, and the form's own `_`-prefixed entries (the
+ * date, a step not answered). What is left is exactly what goes out in
+ * `override_fields` / `field_overrides`, which is what the sample render (#138)
+ * carries and all that it can refuse: it draws made-up details, so a required
+ * box nobody has filled in yet is what the sample is FOR, while a number out of
+ * range or a line over its length 400s that render as surely as the real one.
+ */
+export const overrideValueProblems = (problems) => {
+  const out = {};
+  Object.entries(problems || {}).forEach(([key, problem]) => {
+    if (!key.startsWith("_") && problem !== REQUIRED_PROBLEM) out[key] = problem;
+  });
+  return out;
+};
+
+/**
  * Why this override value can't be sent, or "".
  *
  * Length for every box, and a whole number in range for a number box.
