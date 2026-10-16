@@ -84,7 +84,51 @@ const ATTENDANCE_ERROR_MESSAGES = {
   UNAUTHORIZED_DEVICE: "The device API key is invalid or the device is inactive.",
   MAPPING_NOT_FOUND: "This device employee ID isn't mapped to anyone yet.",
   MAPPING_ALREADY_EXISTS: "This device employee ID is already mapped.",
+
+  // Device Trust (2026-10-15). EVERY one of these is a 403/400/409/422/503 and
+  // NEVER a 401 — client.js only ends a session on 401, so none of them can log
+  // anyone out (frontend guide §3.2). The two that need more than a sentence —
+  // a synced passkey and an expired challenge — have their own screens, and
+  // these messages are what a toast falls back to.
+  ATTENDANCE_DEVICE_REQUIRED: "You need to register this device before you can clock in from it.",
+  ATTENDANCE_DEVICE_REVOKED: "This device was shut off, so it can't be used to clock in. Register the device you're using now.",
+  ATTENDANCE_DEVICE_SUSPENDED: "This device is blocked for now. Contact HR — only they can switch it back on.",
+  DEVICE_VERIFICATION_FAILED: "We couldn't confirm this is your registered device. Try once more, and contact HR if it keeps failing.",
+  DEVICE_CHALLENGE_INVALID: "The device check expired before it finished. Try again.",
+  DEVICE_NOT_HARDWARE_BOUND: "The screen lock your browser created is synced to your other devices, so it can't be used as your attendance device.",
+  DEVICE_LIMIT_REACHED: "You've already registered as many devices as your organisation allows. Replace one of them to add this device.",
+  DEVICE_ALREADY_REGISTERED: "This screen lock or fingerprint is already registered. Use a different one.",
+  DEVICE_TRUST_MISCONFIGURED: "Device checks aren't set up correctly, so they can't run right now. Contact HR.",
+  DEVICE_NOT_FOUND: RECORD_GONE,
+  DEVICE_INVALID_STATE_TRANSITION: "This device was already dealt with elsewhere. Refresh to see where it stands now.",
+  // A wrong code also burns the device check, so there is no "re-enter the code"
+  // path — say that, or they will type it again and wonder why nothing happens.
+  OTP_INVALID: "That code didn't match, or it has expired. Start again — you'll be asked to confirm on your device once more.",
+  // Optimistic concurrency on the HR policy form: all three mean the same thing
+  // to the person, and the screen re-reads before telling them.
+  IF_MATCH_REQUIRED: "These settings couldn't be saved. Refresh the page and try again.",
+  IF_MATCH_INVALID: "These settings couldn't be saved. Refresh the page and try again.",
+  PRECONDITION_FAILED: "Someone else changed these settings while you were editing. We've loaded the latest version — check your changes and save again.",
 };
+
+/**
+ * Device Trust rejections, as the frontend guide §3.2 lists them. Nothing here
+ * is a session problem: `client.js` ends a session only on a 401 and these are
+ * all 403/400/409/422/503, so there is no interceptor to exclude them from —
+ * the set exists so `monitor` mode can recognise a device failure and punch
+ * without the proof instead (guide §4).
+ */
+const DEVICE_TRUST_CODES = new Set([
+  "ATTENDANCE_DEVICE_REQUIRED",
+  "ATTENDANCE_DEVICE_REVOKED",
+  "ATTENDANCE_DEVICE_SUSPENDED",
+  "DEVICE_VERIFICATION_FAILED",
+  "DEVICE_CHALLENGE_INVALID",
+  "DEVICE_NOT_HARDWARE_BOUND",
+  "DEVICE_LIMIT_REACHED",
+  "DEVICE_ALREADY_REGISTERED",
+  "DEVICE_TRUST_MISCONFIGURED",
+]);
 
 // Joi / shape rejections: the server `message` is more specific than any copy we could write.
 // Codes whose server message beats ours because it carries specifics we can't
@@ -160,6 +204,37 @@ export const isStateReconciliation = (err) => {
 export const isAlreadyProcessed = (err) => {
   const code = attendanceErrorCode(err);
   return code === "ALREADY_PROCESSED" || code === "COMP_OFF_NOT_EARNED";
+};
+
+/** A device-trust refusal rather than an ordinary attendance error. */
+export const isDeviceTrustError = (err) => DEVICE_TRUST_CODES.has(attendanceErrorCode(err));
+
+/** Registering a device is the way out of this one. Suspension is NOT. */
+export const isDeviceEnrollmentRequired = (err) => {
+  const code = attendanceErrorCode(err);
+  return code === "ATTENDANCE_DEVICE_REQUIRED" || code === "ATTENDANCE_DEVICE_REVOKED";
+};
+
+/** Only HR can clear this, so never offer registration here. */
+export const isDeviceSuspended = (err) => attendanceErrorCode(err) === "ATTENDANCE_DEVICE_SUSPENDED";
+
+/** The browser made a passkey that syncs between devices — needs its own screen. */
+export const isSyncedPasskey = (err) => attendanceErrorCode(err) === "DEVICE_NOT_HARDWARE_BOUND";
+
+/** Retriable exactly once, and only after telling the person why (guide §9). */
+export const isChallengeExpired = (err) => attendanceErrorCode(err) === "DEVICE_CHALLENGE_INVALID";
+
+/** At the device cap: `err.data.details.devices[]` is the replacement picker. */
+export const isDeviceLimitReached = (err) => attendanceErrorCode(err) === "DEVICE_LIMIT_REACHED";
+
+/**
+ * The HR policy row moved under the editor's feet (412), or the If-Match token
+ * never arrived (428/400). Re-read, reconcile, resubmit — never a blind retry.
+ */
+export const isStalePolicyEdit = (err) => {
+  const code = attendanceErrorCode(err);
+  return code === "PRECONDITION_FAILED" || code === "IF_MATCH_REQUIRED" || code === "IF_MATCH_INVALID"
+    || err?.status === 412 || err?.status === 428;
 };
 
 export { ATTENDANCE_ERROR_MESSAGES };

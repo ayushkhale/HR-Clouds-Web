@@ -206,6 +206,45 @@ export const attendanceAPI = {
   createDeviceMapping: (id, payload) => post(`/attendance/hr/devices/${seg(id)}/mappings`, payload),
   deleteDeviceMapping: (id, mappingId) => del(`/attendance/hr/devices/${seg(id)}/mappings/${seg(mappingId)}`),
 
+  // ── HR › Device trust (D8–D17) ─────────────────────────────────────────────
+  //    Nothing to do with the biometric terminals above. These are the
+  //    employees' OWN phones and laptops, proving at punch time that a punch
+  //    came from a device the organisation knows about.
+  //    Contract: md_attendance/8_device_trust_api_analysis.md §6.
+  /** @param {{user_id?: string, status?: "pending"|"active"|"suspended"|"revoked", platform?: string, device_bound?: boolean, page?: number, limit?: number}} params */
+  getTrustedDevices: (params = {}) => request(`/attendance/hr/trusted-devices${qs(params)}`),
+  /** `pending` → `active`. No body. A second decision is 409 DEVICE_INVALID_STATE_TRANSITION. */
+  approveTrustedDevice: (id) => post(`/attendance/hr/trusted-devices/${seg(id)}/approve`),
+  /** `pending` → `revoked`. body: { reason } — required, 3–500 chars. */
+  rejectTrustedDevice: (id, payload) => post(`/attendance/hr/trusted-devices/${seg(id)}/reject`, payload),
+  /** `active`|`pending`|`suspended` → `revoked`. Terminal. body: { reason } required. */
+  revokeTrustedDeviceAsHR: (id, payload) => post(`/attendance/hr/trusted-devices/${seg(id)}/revoke`, payload),
+  /** `active` → `suspended`, reversible. body: { reason } required. */
+  suspendTrustedDevice: (id, payload) => post(`/attendance/hr/trusted-devices/${seg(id)}/suspend`, payload),
+  /** `suspended` → `active` ONLY — a revoked device never comes back. No body. */
+  reinstateTrustedDevice: (id) => post(`/attendance/hr/trusted-devices/${seg(id)}/reinstate`),
+
+  /** The org's one policy row. `data.updated_at` is the If-Match token for the PUT. */
+  getDeviceTrustPolicy: () => request("/attendance/hr/device-trust/policy"),
+  /**
+   * `If-Match` is MANDATORY: without it 428 IF_MATCH_REQUIRED, stale 412
+   * PRECONDITION_FAILED, `*` 400 IF_MATCH_INVALID. The server accepts the bare
+   * `updated_at` ISO string as well as a quoted ETag, which is why the token is
+   * read from the GET body — `request()` cannot see response headers.
+   * A 412 is never retried blindly: re-read, reconcile, resubmit.
+   * @param {Record<string, unknown>} payload at least one policy field
+   * @param {string} updatedAt `updated_at` from the last successful read
+   */
+  updateDeviceTrustPolicy: (payload, updatedAt) => request("/attendance/hr/device-trust/policy", {
+    method: "PUT",
+    headers: { "If-Match": String(updatedAt ?? "") },
+    body: JSON.stringify(payload),
+  }),
+  /** Verification failures + lifecycle audit. @param {{action?: string, user_id?: string, page?: number, limit?: number}} params */
+  getDeviceTrustEvents: (params = {}) => request(`/attendance/hr/device-trust/events${qs(params)}`),
+  /** { enrolled_users, active_members, coverage_percentage } — read before switching to enforce. */
+  getDeviceTrustCoverage: () => request("/attendance/hr/device-trust/coverage"),
+
   // ── HR › Locations (Geofencing) ────────────────────────────────────────────
   //    Delegates to organizationAPI for location management
   getLocations: (params) => organizationAPI.getLocations(params),
@@ -359,4 +398,55 @@ export const attendanceAPI = {
   /** @param {{status?: "earned"|"approved"|"used"|"expired"|"cancelled", page?: number, limit?: number}} params */
   getMyCompOffs: (params = {}) => request(`/attendance/comp-offs/mine${qs(params)}`),
   getMyCompOffSummary: () => request("/attendance/comp-offs/mine/summary"),
+
+  // ── Device trust & my trusted devices (D1–D7) ──────────────────────────────
+  //    The three-step punch is orchestrated in `shared/attendance/deviceTrust.js`,
+  //    not here: a challenge is single-use and short-lived, so nothing in this
+  //    file caches, stores or retries one.
+  /** The one state read every attendance screen branches on. Read `effective_mode`, never `mode`. */
+  getDeviceTrustContext: () => request("/attendance/device-trust/context"),
+  /**
+   * Step 1 of a punch. Mints ONE single-use challenge bound to ONE operation.
+   * body: { operation: "clock_in"|"clock_out"|"break_start"|"break_end",
+   *         credential_type: "webauthn" } — `credential_type` is required.
+   * Always 200: `{ required: false }`, `{ required: true, registration_required: true }`,
+   * or `{ required: true, challenge_id, expires_at, credential_type, public_key }`.
+   * Rate limited 60/hour per user.
+   */
+  requestDeviceChallenge: (payload) => post("/attendance/device-trust/challenge", payload),
+  /**
+   * Opens enrollment: sends the OTP step-up AND returns the WebAuthn creation
+   * options in one call. Run the ceremony first, collect the OTP second — the
+   * challenge (~180s) dies long before the OTP does.
+   * body: { credential_type, device_name (1–100), replace_device_id? }
+   * `replace_device_id` only when already at `max_active_devices`.
+   * The key is OMITTED rather than null when there is no replacement: the
+   * live validator rejects an explicit null with `"replace_device_id" must
+   * be a string` (15 Oct 2026). Built in `deviceTrust.js`, which holds the note.
+   * Rate limited 5/hour per user.
+   */
+  startDeviceRegistration: (payload) => post("/attendance/trusted-devices/registration/start", payload),
+  /**
+   * Verifies the OTP and the attestation in one transaction — both land or neither.
+   * body: { request_id, otp, challenge_id, credential_type, device_name,
+   *         replace_device_id?, attestation }
+   * Returns the device: `status` is `active` under `registration_approval: "otp"`
+   * and `pending` under `"hr_approval"`, where it cannot punch until HR approves.
+   */
+  completeDeviceRegistration: (payload) => post("/attendance/trusted-devices/registration/complete", payload),
+  /** My devices. Never carries `public_key`, `credential_id` or `sign_count`. */
+  getMyTrustedDevices: () => request("/attendance/trusted-devices"),
+  /** Rename only. body: { device_name } — nothing else is owner-editable. */
+  renameTrustedDevice: (id, payload) => request(`/attendance/trusted-devices/${seg(id)}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  /**
+   * Self-revoke. Irreversible, and the same screen lock can never be enrolled
+   * again. Idempotent: revoking an already-revoked device is a 200, not an error.
+   *
+   * SPEC DEVIATION, deliberate: the frontend guide shows a `{ reason }` body
+   * here, but the verified API analysis (§5 API 7) says "Body: None" and the
+   * controller writes `revoke_reason = 'user_revoked'` itself. So nothing is
+   * sent — asking the person for a reason the server discards would be a lie.
+   * HR's revoke (above) is the one that requires a reason.
+   */
+  revokeMyTrustedDevice: (id) => post(`/attendance/trusted-devices/${seg(id)}/revoke`),
 };

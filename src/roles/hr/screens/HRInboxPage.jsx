@@ -12,9 +12,10 @@ import PayrollReimbursementsPage from "../payroll/screens/PayrollReimbursementsP
 import PayrollLoansPage from "../payroll/screens/PayrollLoansPage";
 import TaxDeclarationsPage from "../payroll/screens/TaxDeclarationsPage";
 import LetterProposalsPage from "../documents/screens/LetterProposalsPage";
+import EmployeeDevicesPage from "../attendance/screens/EmployeeDevicesPage";
 import TaskReviewScreen from "../../../shared/tasks/TaskReviewScreen";
 import {
-  HiCash, HiClipboardCheck, HiClock, HiCurrencyRupee, HiDocumentText,
+  HiCash, HiClipboardCheck, HiClock, HiCurrencyRupee, HiDeviceMobile, HiDocumentText,
   HiExclamationCircle, HiGift, HiLightningBolt, HiMail, HiReceiptRefund, HiRefresh, HiClipboardList,
 } from "react-icons/hi";
 
@@ -66,6 +67,18 @@ const GROUPS = [
       { key: "declarations", label: "Tax declarations", hint: "Submitted this financial year", icon: HiClipboardCheck, render: () => <TaxDeclarationsPage /> },
     ],
   },
+  {
+    // Only ever non-zero where the device policy says HR approves each device,
+    // and a server without device trust reports zero rather than N/A
+    // (hrInboxCounts.js). A device sitting here cannot clock anybody in, which
+    // is why it is a queue and not just a page in Setup.
+    title: "Devices",
+    cols: "lg:grid-cols-4 xl:grid-cols-5",
+    items: [
+      { key: "devices", label: "Employee Devices", hint: "Devices waiting for you to approve", icon: HiDeviceMobile, render: () => <EmployeeDevicesPage /> },
+    ],
+  },
+
   {
     title: "Documents",
     // Five across once the rows above are five across, so the lone card keeps

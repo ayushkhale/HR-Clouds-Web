@@ -32,13 +32,16 @@ export const ENV = {
   IS_PRODUCTION,
   IS_DEV,
 
-  // Central API Gateway Base URL
-  API_BASE_URL: cleanUrl(
-    import.meta.env.VITE_API_BASE_URL,
-    IS_PRODUCTION
-      ? 'https://api.hrclouds.in/api/v1'
-      : 'https://development.hrclouds.in/api/v1'
-  ),
+  // Central API Gateway Base URL.
+  //
+  // NO FALLBACK HOST, deliberately (user decision, 15 Oct 2026). `.env.development`
+  // and `.env.production` are the only places that say which API this build talks
+  // to. The old code defaulted a missing variable to the DEPLOYED dev or prod
+  // gateway, which meant a typo, a blank line or an unrestarted dev server pointed
+  // the app at somebody else's database while the env file on screen said
+  // localhost — and nothing on the screen looked wrong. An unset variable is now
+  // an empty base and a loud console error naming the file to fix.
+  API_BASE_URL: cleanUrl(import.meta.env.VITE_API_BASE_URL),
 
   // Google OAuth Client ID
   GOOGLE_CLIENT_ID: cleanString(import.meta.env.VITE_GOOGLE_CLIENT_ID, ''),
@@ -54,11 +57,19 @@ export const ENV = {
   ),
 };
 
+// Where this build talks, said once at boot in every mode — the line that would
+// have ended a day of chasing a WebAuthn error that came from the wrong server.
+if (!ENV.API_BASE_URL) {
+  console.error(
+    `[CONFIG ERROR] VITE_API_BASE_URL is not set, so every API call will fail. `
+    + `Set it in .env.${MODE} and restart — Vite reads env files only at startup.`,
+  );
+} else if (IS_DEV) {
+  console.info(`[config] API → ${ENV.API_BASE_URL} (from .env.${MODE})`);
+}
+
 // Runtime diagnostic warnings for production readiness
 if (IS_PRODUCTION) {
-  if (!ENV.API_BASE_URL) {
-    console.error('[CONFIG ERROR] API_BASE_URL is not set.');
-  }
   if (!ENV.GOOGLE_CLIENT_ID) {
     console.warn('[CONFIG WARNING] Google OAuth Client ID is missing. SSO will be disabled.');
   }

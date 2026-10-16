@@ -8,11 +8,25 @@
 // Punches resolve browser location first. Location failures are explained and
 // the user may retry or explicitly continue without location (the backend
 // accepts it and flags the punch) — never a silent drop.
+//
+// DEVICE TRUST (2026-10-15). Every punch goes through `punchWithDeviceTrust()`
+// rather than calling the api directly. When the organisation hasn't turned the
+// feature on — which is the default — that is the same single POST it always
+// was. When it has, the punch becomes challenge → operating-system prompt →
+// punch-with-signature, which is why the button reports three labelled stages
+// instead of one spinner and stays disabled across all three: an
+// undifferentiated spinner during a flow with a fingerprint prompt in the
+// middle gets double-tapped, and a double-tap burns a second challenge.
+// Nothing about the punch PAYLOAD changed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { attendanceAPI } from "../../../shared/api";
-import { attendanceErrorMessage, isStateReconciliation } from "../../../shared/utils/attendanceErrors";
+import { attendanceErrorMessage, isDeviceEnrollmentRequired, isDeviceSuspended, isStateReconciliation } from "../../../shared/utils/attendanceErrors";
+import { cancelDeviceCeremony, punchWithDeviceTrust, useDeviceTrustContext } from "../../../shared/attendance/deviceTrust";
+import { DEVICE_MODES, DEVICE_OPERATIONS, DEVICE_PROGRESS, deviceTrustVisible, effectiveModeOf, enforceFromUpcoming } from "../../../shared/attendance/deviceTrustMeta";
+import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
 import { fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
@@ -35,6 +49,14 @@ const readWorkMode = () => {
 };
 
 const RING = 2 * Math.PI * 40;
+
+// Card action keys ↔ the operation names the device-trust gate knows them by.
+const OPERATION_OF = {
+  "clock-in": DEVICE_OPERATIONS.CLOCK_IN,
+  "clock-out": DEVICE_OPERATIONS.CLOCK_OUT,
+  "break-start": DEVICE_OPERATIONS.BREAK_START,
+  "break-end": DEVICE_OPERATIONS.BREAK_END,
+};
 
 const ACTION_BTN = "w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed";
 const PRIMARY_ACTION = `${ACTION_BTN} bg-purple-600 hover:bg-purple-700 text-white`;
@@ -75,8 +97,23 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   // succeeded in every outcome; this only explains where it landed.
   const [geofence, setGeofence] = useState(null);
   // `{ text, tone }` — a failed punch is rose, a reconciled one slate (see `fail`).
+  // `register: true` adds the link to the devices page (device trust).
   const [inlineNotice, setInlineNotice] = useState(null);
+  // Which of the three device-trust steps is running, for the button's label.
+  const [deviceStage, setDeviceStage] = useState(null);
   const { toast, showToast, clearToast } = useToast(5000);
+
+  // Shared, session-cached read: the sidebar and this card ask the same question
+  // and get one answer. A context that can't be read reads as "off", so this
+  // can never be the reason a punch fails.
+  const { ctx: deviceCtx } = useDeviceTrustContext();
+  const selfServicePath = useSelfServicePath();
+  const devicesPath = selfServicePath("devices");
+
+  // An open operating-system prompt must not outlive the card: a remount while
+  // it is up throws InvalidStateError on the next punch, which people report as
+  // "the fingerprint thing just closed".
+  useEffect(() => cancelDeviceCeremony, []);
 
   const status = today?.status;
   const clockIn = today?.clock_in_time;
@@ -188,12 +225,36 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     } finally {
       busyRef.current = false;
       setBusy(null);
+      setDeviceStage(null);
     }
   }, []);
 
   // The caller always refetches /today afterwards, so a stale card (e.g. already
   // clocked in from another device) self-corrects; the message explains why.
   const fail = (err, fallback) => {
+    // They closed the operating system's prompt themselves — nothing to report.
+    if (err?.silent) return;
+
+    // Device trust, in the order these bite. Each says what to do next: a
+    // device that was never registered, or was shut off, is fixed by
+    // registering this one; a suspended device is not — only HR can lift that,
+    // so it gets no link (showing one would send them to a dead end).
+    if (err?.needsReconcile) {
+      setInlineNotice({
+        text: "We couldn't tell whether that went through. Your status has been refreshed below — check it before trying again.",
+        tone: "slate",
+      });
+      return;
+    }
+    if (err?.needsEnrollment || isDeviceEnrollmentRequired(err)) {
+      setInlineNotice({ text: attendanceErrorMessage(err, "This device isn't registered for clocking in."), tone: "rose", register: true });
+      return;
+    }
+    if (isDeviceSuspended(err)) {
+      setInlineNotice({ text: attendanceErrorMessage(err), tone: "rose" });
+      return;
+    }
+
     // A 409 reconciliation isn't a failure — the server already holds the state
     // the person asked for, and the refetch below puts the card right. Showing
     // it in rose accused them of breaking something they hadn't.
@@ -203,6 +264,15 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       tone: reconciled ? "slate" : "rose",
     });
   };
+
+  // Every punch in this card goes through here. With device trust off this is
+  // the same POST it always was; with it on, the stage callback drives the
+  // button's label while the challenge is minted and the prompt is up.
+  const verifiedPunch = (kind, payload) => punchWithDeviceTrust({
+    operation: OPERATION_OF[kind],
+    body: payload,
+    onStage: (stage) => setDeviceStage(stage),
+  });
 
   const punch = (kind, { skipLocation = false } = {}) =>
     run(kind, async () => {
@@ -240,7 +310,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           if (canDeclareMode && permittedWorkModes(contractMode).includes(workMode)) {
             payload.work_mode = workMode;
           }
-          const res = await attendanceAPI.clockIn(payload);
+          const res = await verifiedPunch("clock-in", payload);
           const d = res?.data || {};
           setGeofence(d.geofence || null);
           const late = Number(d.late_minutes) || 0;
@@ -255,7 +325,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
             showToast(`Clocked in${at}.`);
           }
         } else {
-          const res = await attendanceAPI.clockOut(payload);
+          const res = await verifiedPunch("clock-out", payload);
           setLastResult(res?.data || null);
           setGeofence(res?.data?.geofence || null);
           showToast("Clocked out. Your day has been calculated.");
@@ -273,8 +343,10 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const breakAction = (kind) =>
     run(kind, async () => {
       try {
-        if (kind === "break-start") await attendanceAPI.breakStart({ source: PUNCH_SOURCE_WEB });
-        else await attendanceAPI.breakEnd({ source: PUNCH_SOURCE_WEB });
+        // Breaks may or may not be gated — the organisation decides per
+        // operation, and the orchestrator checks membership rather than
+        // assuming all four are covered.
+        await verifiedPunch(kind, { source: PUNCH_SOURCE_WEB });
         showToast(kind === "break-start" ? "Break started." : "Break ended — welcome back.");
         emitAttendanceChanged(ATTENDANCE_EVENTS.PUNCH, { kind });
       } catch (err) {
@@ -292,6 +364,33 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   };
 
   const disabled = !!busy;
+
+  // ── Device trust, as the card shows it ───────────────────────────────────
+  // The label the button wears while a device check runs. `submit` has no
+  // label of its own — that is the ordinary "Clocking in…" the card already
+  // showed, so the three stages read: checking, confirm, clocking in.
+  const deviceBusyLabel = deviceStage === "challenge" ? DEVICE_PROGRESS.challenge
+    : deviceStage === "ceremony" ? DEVICE_PROGRESS.ceremony
+      : deviceStage === "retrying" ? "That check expired — confirm once more"
+        : null;
+
+  // Nobody is told to register a device unless they need one and haven't got
+  // one. `effective_mode` decides the tone: watch-only is a reminder with a
+  // date on it, Required means the next punch will be refused.
+  const deviceMode = effectiveModeOf(deviceCtx);
+  const needsDevice = deviceTrustVisible(deviceCtx)
+    && deviceMode !== DEVICE_MODES.OFF
+    && Number(deviceCtx?.my_active_device_count || 0) === 0
+    && !!devicesPath;
+  const enforceFrom = enforceFromUpcoming(deviceCtx);
+  const deviceBanner = !needsDevice ? null : deviceMode === DEVICE_MODES.ENFORCE
+    ? { tone: "rose", text: "Clocking in from this device needs it registered first. It takes a minute and uses your screen lock or fingerprint." }
+    : {
+      tone: "sky",
+      text: enforceFrom
+        ? `Register a device before ${fmtDate(enforceFrom)} to keep clocking in.`
+        : "Register this device so you can keep clocking in once this becomes compulsory.",
+    };
   const base = className !== undefined
     ? className
     : horizontal
@@ -419,7 +518,23 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       )}
 
       <div className={horizontal ? "w-full lg:flex-1 lg:max-w-xl lg:ml-auto space-y-3 min-w-0" : "w-full space-y-3 mt-auto"}>
-        {inlineNotice && <InlineAlert tone={inlineNotice.tone}>{inlineNotice.text}</InlineAlert>}
+        {inlineNotice && (
+          <InlineAlert tone={inlineNotice.tone}>
+            <p>{inlineNotice.text}</p>
+            {inlineNotice.register && devicesPath && (
+              <Link to={devicesPath} className="inline-block mt-1.5 underline font-bold">Register this device</Link>
+            )}
+          </InlineAlert>
+        )}
+
+        {/* The rollout nudge. Absent entirely when the organisation hasn't
+            turned device checks on, which is the default. */}
+        {deviceBanner && !inlineNotice && (
+          <InlineAlert tone={deviceBanner.tone}>
+            <p>{deviceBanner.text}</p>
+            <Link to={devicesPath} className="inline-block mt-1.5 underline font-bold">Register this device</Link>
+          </InlineAlert>
+        )}
 
         {/* Where the punch landed. Never rose: the punch succeeded whatever the
             outcome, and an out-of-bounds result is a flag for a manager to look
@@ -511,15 +626,15 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           <div className="grid grid-cols-2 gap-3">
             {phase === "idle" ? (
               <button type="button" className={PRIMARY_ACTION} onClick={() => punch("clock-in")} disabled={disabled}>
-                {busy === "locating" ? <><HiLocationMarker className="w-4 h-4 animate-pulse" /> Locating…</> : busy === "clock-in" ? <><Spinner /> Clocking in…</> : "Clock In"}
+                {busy === "locating" ? <><HiLocationMarker className="w-4 h-4 animate-pulse" /> Locating…</> : busy === "clock-in" ? <><Spinner /> {deviceBusyLabel || "Clocking in…"}</> : "Clock In"}
               </button>
             ) : onBreak ? (
               <button type="button" className={BREAK_END_ACTION} onClick={() => breakAction("break-end")} disabled={disabled}>
-                {busy === "break-end" && <Spinner />} End Break
+                {busy === "break-end" && <Spinner />} {busy === "break-end" && deviceBusyLabel ? deviceBusyLabel : "End Break"}
               </button>
             ) : (
               <button type="button" className={BREAK_START_ACTION} onClick={() => breakAction("break-start")} disabled={disabled}>
-                {busy === "break-start" && <Spinner />} Start Break
+                {busy === "break-start" && <Spinner />} {busy === "break-start" && deviceBusyLabel ? deviceBusyLabel : "Start Break"}
               </button>
             )}
             <button
@@ -530,7 +645,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
               title={phase === "idle" ? "Clock in first — then you can close the day here." : onBreak ? "End your break first." : undefined}
             >
               {busy === "locating" ? <HiLocationMarker className="w-4 h-4 animate-pulse" /> : busy === "clock-out" ? <Spinner /> : null}
-              {busy === "clock-out" ? "Clocking out…" : "Clock Out"}
+              {busy === "clock-out" ? deviceBusyLabel || "Clocking out…" : "Clock Out"}
             </button>
           </div>
         )}

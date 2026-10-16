@@ -22,6 +22,17 @@ export const SELF_SERVICE_PAGES = {
   anomalies: "/anomalies",
   overtime: "/overtime",
   compOffs: "/comp-offs",
+  // Device Trust (2026-10-15): the devices this person may clock in from. Lives
+  // beside their own attendance for the same reason the rest of this list does —
+  // everybody punches, HR and managers included, so each workspace mounts it
+  // under its own prefix instead of sending an HR user into /employee/*.
+  devices: "/devices",
+  // Work Mode & Field Geofencing (2026-10-16): the office and client sites this
+  // person may clock in from, read-only. Mounted beside the rest of self-service
+  // for the same reason — every role punches, so each workspace reads its own.
+  // `/my-locations`, not `/locations`, so it never collides with the HR/manager
+  // admin Office Locations page at `${prefix}/attendance/locations`.
+  locations: "/my-locations",
 };
 
 /**

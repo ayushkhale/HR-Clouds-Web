@@ -2741,6 +2741,38 @@
         }
       }
     },
+    "attendance.my_work_locations": {
+      "kind": "data",
+      "description": "The self-service My Work Locations page (MyWorkLocationsPage, shared), mounted in all three workspaces — everyone punches, so everyone reads their own. Read-only: assigning sites is HR/manager-only. Office name, client and dates explain themselves; only the mode, what the page is for, and the radius are helped. Contract: md_attendance/7_work_mode_and_field_geofencing_api.md.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "The office and client sites you can clock in from. Clock in far from all of them and the punch still works, but your manager sees it to review.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does it matter where I clock in from?"
+          }
+        },
+        "work_mode": {
+          "hint": "How your clock-ins are location-checked: at your office, from client sites, anywhere (remote), or your choice each day (hybrid). HR sets this.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the different work modes mean for where I can clock in?"
+          }
+        },
+        "geofence_radius_meters": {
+          "hint": "How far from a site you can clock in and still count as there. Clock in from further away and the punch still works but is flagged for review.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens if I clock in outside a site’s allowed distance?"
+          }
+        }
+      }
+    },
     "attendance.weekly_off_setup": {
       "kind": "form",
       "description": "HR — Setup › Weekly Offs (AttendanceWeeklyOffsPage): the rule dialog, both rule tables and the rule record inspector. Only priority is helped; days, dates and targeting explain themselves on screen.",
@@ -5445,6 +5477,294 @@
           "askMaya": {
             "enabled": true,
             "question": "Why might an employee be missing when I filter tasks by department?"
+          }
+        }
+      }
+    },
+    "attendance.my_devices": {
+      "kind": "data",
+      "description": "My Devices (MyDevicesPage), mounted in all three workspaces under each one’s own self-service prefix. List state: page, effective_mode, status, last_used_at (4). Inspector state: device_bound, last_ip (2). Written to the person about their own device, so these entries are never reused on an HR screen about somebody else.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "tab.this": {
+          "hint": "The device you’re on now, as long as you registered it in this browser. Registered it somewhere else? It’s under All my devices.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can’t the page always tell which of my devices I’m using right now?"
+          }
+        },
+        "page": {
+          "hint": "Clocking in can be limited to devices you have registered. Register one here, and shut off anything you no longer use.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does my organisation ask me to register the device I clock in from?"
+          }
+        },
+        "effective_mode": {
+          "hint": "What your organisation asks for today. On Required, a punch from an unregistered device is refused; on Watch only it still goes through.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between a device check that is only watched and one that is required?"
+          }
+        },
+        "status": {
+          "hint": "Ready means you can clock in from it. Waiting means HR hasn’t approved it yet. Blocked can be switched back on; shut off can’t.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the states on my devices mean, and which of them let me clock in?"
+          }
+        },
+        "last_used_at": {
+          "hint": "When a punch was last accepted from this device. It is how you spot one you no longer use, or one you don’t recognise.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How can I tell whether a device on my list is still one I use?"
+          }
+        },
+        "device_bound": {
+          "hint": "Yes means its screen lock stays on this device alone. No means your other devices share it, which your organisation may not accept.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does it matter whether a device’s screen lock is tied to that one device?"
+          }
+        },
+        "last_ip": {
+          "hint": "Roughly where on the network the last punch came from. A hint for spotting something odd, not proof of who used the device.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the network address on my device record tell me, and what does it not tell me?"
+          }
+        }
+      }
+    },
+    "attendance.device_registration": {
+      "kind": "form",
+      "description": "Register this device (RegisterDeviceDialog), raised from My Devices in all three workspaces. Only the replacement picker qualifies — the device name, and the code sent to confirm it, are ordinary fields and get nothing.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "replace_device_id": {
+          "hint": "You already have as many devices as your organisation allows, so registering this one shuts off the device you pick. That can’t be undone.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to my old device when a new one replaces it, and can I get it back?"
+          }
+        }
+      }
+    },
+    "attendance.device_checks": {
+      "kind": "form",
+      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage): the coverage tiles, the People tab (the employee directory joined to the device inventory), the Settings tab over GET/PUT device-trust/policy, and the Activity tab. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "tab.people": {
+          "tier": "onboarding",
+          "hint": "Everyone in the organisation and what they have registered. Open somebody to see their devices, approve one, or shut one off.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I find out who still needs to register a device?"
+          }
+        },
+        "tab.settings": {
+          "tier": "onboarding",
+          "hint": "The rules behind the checks: what a device is needed for, how many each person may keep, and what happens before a new one works.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which device settings should I decide first when I’m setting this up?"
+          }
+        },
+        "devices": {
+          "tier": "onboarding",
+          "hint": "What this person has registered, and how many of those can actually be used right now.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should I do when somebody has a device waiting and no working one?"
+          }
+        },
+        "coverage_state": {
+          "tier": "onboarding",
+          "hint": "Whether this person can clock in today. “Waiting for you” means a device of theirs needs your decision before they can.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What stops an employee clocking in once device checks are compulsory?"
+          }
+        },
+        "last_used_at": {
+          "tier": "onboarding",
+          "hint": "When a punch was last accepted from one of this person’s devices. Empty until they clock in from one.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the last-used time tell me about an employee’s device?"
+          }
+        },
+        "page": {
+          "tier": "onboarding",
+          "hint": "See who has registered a device for clocking in, and decide whether a punch has to come from one. Switched off, attendance works as it does today.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are device checks for, and how do I roll them out without stopping people clocking in?"
+          }
+        },
+        "enrolled_users": {
+          "tier": "onboarding",
+          "hint": "How many people have at least one device ready to use. Only these can clock in once a registered device is compulsory.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who counts as having registered a device, and how do I get the rest of my people registered?"
+          }
+        },
+        "active_members": {
+          "tier": "onboarding",
+          "hint": "Everyone still working here who could be asked to clock in. People who have left aren’t counted.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who is counted as working here for the purposes of device checks?"
+          }
+        },
+        "coverage_percentage": {
+          "tier": "onboarding",
+          "hint": "The share of your people who have a device ready. Make checks compulsory before this is high and the rest can’t clock in at all.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How high should device coverage be before I make a registered device compulsory?"
+          }
+        },
+        "enforcement_mode": {
+          "tier": "onboarding",
+          "hint": "Off asks nobody. Watch only records which punches came from a registered device. Required refuses the ones that didn’t.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between watching device checks and requiring them, and which should I start with?"
+          }
+        },
+        "enforced_operations": {
+          "tier": "onboarding",
+          "hint": "Which punches have to come from a registered device. Anything you leave out is accepted from any device, as it is today.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should I check every punch, or only clocking in and out?"
+          }
+        },
+        "enforce_from": {
+          "tier": "onboarding",
+          "hint": "Nothing changes for anybody until this date, so people have time to register. Leave it empty and it applies as soon as you save.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How much notice should I give people before a registered device becomes compulsory?"
+          }
+        },
+        "max_active_devices": {
+          "tier": "onboarding",
+          "hint": "How many devices one person may keep at once. At the limit, registering a new one shuts off an old one they choose.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How many devices should one employee be allowed to clock in from?"
+          }
+        },
+        "registration_approval": {
+          "tier": "onboarding",
+          "hint": "Either the employee confirms with a code and the device works at once, or it waits in your queue until you approve it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should I approve each new device myself, or let employees confirm their own with a code?"
+          }
+        },
+        "require_device_bound": {
+          "tier": "onboarding",
+          "hint": "Refuses a screen lock the employee’s other devices share, because it can’t prove which device the punch came from.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is a synced screen lock, and why can it not prove which device someone punched from?"
+          }
+        },
+        "allow_platform_web": {
+          "tier": "onboarding",
+          "hint": "Lets people register the browser on a laptop or desktop. Turn both this and the phone app off and nobody can register anything.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should I let people clock in from a laptop browser, a phone, or both?"
+          }
+        },
+        "allow_mobile_key": {
+          "tier": "onboarding",
+          "hint": "Lets people register through the mobile app. Turn both this and the browser off and nobody can register anything.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When would I allow only the phone app to be registered?"
+          }
+        },
+        "challenge_ttl_seconds": {
+          "tier": "onboarding",
+          "hint": "How long somebody has to finish the fingerprint or screen-lock prompt before the check expires and they have to punch again.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens if an employee takes too long at the fingerprint prompt when clocking in?"
+          }
+        },
+        "events": {
+          "tier": "onboarding",
+          "hint": "What the checks have done: devices registered, punches refused, and the ones that would have been refused while you are only watching.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I use the device activity log to tell whether it is safe to make device checks compulsory?"
+          }
+        }
+      }
+    },
+    "attendance.employee_devices": {
+      "kind": "data",
+      "description": "HR — Time & Leave › Employee Devices (EmployeeDevicesPage): the whole-organisation device inventory and the pending approval queue, also embedded in the HR Inbox. Onboarding tier; written about somebody else’s device, never reusing the employee’s own my_devices wording.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "last_ip": {
+          "tier": "onboarding",
+          "hint": "Roughly where on the network this device’s last punch came from. A hint for spotting something odd, not proof of who used it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does the network address on a device tell me, and what does it not tell me?"
+          }
+        },
+        "page": {
+          "tier": "onboarding",
+          "hint": "Every device your people may clock in from. Approve the ones waiting, and shut off devices somebody has lost or no longer uses.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should I check before I approve an employee’s device?"
+          }
+        },
+        "status": {
+          "tier": "onboarding",
+          "hint": "Waiting needs your approval before the employee can clock in from it. Blocked can be switched back on later; shut off is permanent.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between blocking an employee’s device and shutting it off?"
+          }
+        },
+        "device_bound": {
+          "tier": "onboarding",
+          "hint": "Yes means the screen lock stays on that one device. No means the employee’s other devices share it, so it can’t prove which one punched.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does it matter whether an employee’s device has a screen lock shared with their other devices?"
+          }
+        },
+        "last_ip": {
+          "tier": "onboarding",
+          "hint": "Roughly where on the network this device last punched from. Useful for spotting something odd, not proof of who used it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What can the network address on a device record tell me about where someone clocked in from?"
           }
         }
       }

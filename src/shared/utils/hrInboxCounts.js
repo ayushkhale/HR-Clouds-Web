@@ -50,6 +50,22 @@ export const HR_INBOX_QUEUES = [
     load: () => payrollAPI.getDeclarationQueue({ financial_year: currentFY(), status: "submitted" }).then(total(["records", "declarations"])),
   },
   {
+    // Devices waiting on HR, which only exist where the device-trust policy is
+    // set to "HR approves each device" (Device Trust, 15 Oct 2026, #8).
+    key: "devices",
+    load: () =>
+      attendanceAPI.getTrustedDevices({ status: "pending", limit: 1 })
+        .then(total(["items", "devices"]))
+        // A server without device trust answers 404/403/501 here. That is "no
+        // such queue on this server", which is honestly zero — not the `null`
+        // that would leave N/A on the badge for ever (see letterProposals).
+        .catch((err) => {
+          const status = err?.status;
+          if (status === 400 || status === 403 || status === 404 || status === 501) return 0;
+          throw err;
+        }),
+  },
+  {
     // Letters a manager has asked HR to issue (PDF Phase 4, #148).
     key: "letterProposals",
     load: () =>
