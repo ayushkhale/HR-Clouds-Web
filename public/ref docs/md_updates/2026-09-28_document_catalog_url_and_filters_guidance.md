@@ -180,44 +180,9 @@ When you make a clean call `GET /api/v1/documents/hr/catalog`, each item returns
 
 ## 6. Checklist for Frontend Developers
 
-- [x] Remove hardcoded `?plane=employee&activated=false` from initial service/Axios calls.
-- [x] Ensure initial page load calls `GET /api/v1/documents/hr/catalog` with zero default query parameters.
-- [x] Provide user-friendly tabs or a filter dropdown for **Plane** (`All`, `Employee Documents`, `Company Letters & Policies`).
-- [x] Provide user-friendly filter for **Status** (`All`, `Activated`, `Not Activated`).
-- [x] Provide an activation button that calls `POST /api/v1/documents/hr/types/activate` with the respective `code`.
+- [ ] Remove hardcoded `?plane=employee&activated=false` from initial service/Axios calls.
+- [ ] Ensure initial page load calls `GET /api/v1/documents/hr/catalog` with zero default query parameters.
+- [ ] Provide user-friendly tabs or a filter dropdown for **Plane** (`All`, `Employee Documents`, `Company Letters & Policies`).
+- [ ] Provide user-friendly filter for **Status** (`All`, `Activated`, `Not Activated`).
+- [ ] Provide an activation button that calls `POST /api/v1/documents/hr/types/activate` with the respective `code`.
 - [ ] Test that `experience_letter_issued` and other issued letter types are visible under `plane=org` or when no plane filter is active.
-
----
-
-## 7. Frontend Implementation Note (28 Sep 2026)
-
-Implemented in `src/roles/hr/documents/screens/DocumentTypesPage.jsx` (Catalog tab).
-
-**Deviation from Directive 2, deliberately.** The catalog is small and
-unpaginated (54 rows), so the page reads `GET /documents/hr/catalog` **once,
-with no query string at all**, and applies `plane`, `group`, `country_code`,
-`activated` and `q` in memory. This satisfies Directive 1 and the §3 CAUTION by
-construction — there is no longer any code path that can send a default or an
-empty filter value — and it buys three things a per-filter request cannot:
-honest counts on the plane tabs (`All (54) · We collect (35) · We issue (19)`)
-and in the status dropdown, instant search with no debounce and no stale-response
-race, and one request instead of one per keystroke. `documentsAPI.getCatalog()`
-still accepts every documented filter for any future caller that needs
-server-side narrowing.
-
-Other changes made for the same bug:
-- Plane tabs use the page's existing vocabulary — **We collect** / **We issue** —
-  with a one-line explanation under the tabs, because the
-  `experience_letter` vs `experience_letter_issued` distinction is the thing
-  people get wrong. The `We issue` blurb states outright that a letter can only
-  be issued once its type is active.
-- Every card now carries a status chip (**Active** / **Active · switched off** /
-  **Not activated**), not just the activated ones.
-- Already-activated entries get **Configure it**, which opens the org's own
-  document type (`org_type_id`) — previously the preview read `is_activated`
-  off API #2, which does not return it, so the dialog always offered
-  "Select to activate" even for active types.
-- The catalog plane is in the URL (`?tab=catalog&plane=org`), and the
-  `DOCUMENT_TYPE_NOT_ACTIVATED` error copy now names that exact place.
-
-Not verified here: item 6 of the checklist above needs a run against a live org.

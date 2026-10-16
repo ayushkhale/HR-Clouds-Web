@@ -1,0 +1,4234 @@
+[
+  {
+    "endpoint": "/api/v1/auth/signup",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Signup (/signup)",
+    "frontendComponent": "SignupForm",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/auth/signup/verify",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Signup (/signup)",
+    "frontendComponent": "SignupForm",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/auth/login",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Login (/login)",
+    "frontendComponent": "LoginForm",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/auth/select-organization",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Select Organization Modal",
+    "frontendComponent": "OrgSwitcher",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Org selection supported on multi-tenant login; in-app live switching menu has limited UI feedback"
+  },
+  {
+    "endpoint": "/api/v1/auth/switch-organization",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Select Organization Modal",
+    "frontendComponent": "OrgSwitcher",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Org selection supported on multi-tenant login; in-app live switching menu has limited UI feedback"
+  },
+  {
+    "endpoint": "/api/v1/auth/forgot-password",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Forgot Password (/forgot-password)",
+    "frontendComponent": "ForgotPasswordForm",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/auth/forgot-password/verify",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Forgot Password (/forgot-password)",
+    "frontendComponent": "ForgotPasswordForm",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/auth/otp/resend",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Forgot Password (/forgot-password)",
+    "frontendComponent": "ForgotPasswordForm",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/auth/google",
+    "method": "POST",
+    "module": "Authentication Module",
+    "frontendPage": "Login / Signup",
+    "frontendComponent": "GoogleSignInButton",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Google OAuth button present but requires external client configuration"
+  },
+  {
+    "endpoint": "/api/v1/auth/health",
+    "method": "GET",
+    "module": "Authentication Module",
+    "frontendPage": "N/A",
+    "frontendComponent": "N/A",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend health check endpoint not exposed to frontend UI"
+  },
+  {
+    "endpoint": "/api/v1/organizations/invitations/validate",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "Accept Invite (/invitation/accept)",
+    "frontendComponent": "InvitationAcceptView",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; external invite onboarding flow"
+  },
+  {
+    "endpoint": "/api/v1/organizations/register/initiate",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "N/A",
+    "frontendComponent": "N/A",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend API has no corresponding frontend interface or trigger"
+  },
+  {
+    "endpoint": "/api/v1/organizations/register/verify-payment",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "N/A",
+    "frontendComponent": "N/A",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend API has no corresponding frontend interface or trigger"
+  },
+  {
+    "endpoint": "/api/v1/organizations/users/invite",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "Team (/dashboard/hr/employees)",
+    "frontendComponent": "InviteMemberModal",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Invite button exists; creates invitations but does not show tracking/revocation table"
+  },
+  {
+    "endpoint": "/api/v1/organizations/users/invite/revoke",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "Team (/dashboard/hr/employees)",
+    "frontendComponent": "PendingInvitationsList",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend supports revoking and resending pending invitations; frontend has no pending invites view/table"
+  },
+  {
+    "endpoint": "/api/v1/organizations/users/invite/resend",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "Team (/dashboard/hr/employees)",
+    "frontendComponent": "PendingInvitationsList",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend supports revoking and resending pending invitations; frontend has no pending invites view/table"
+  },
+  {
+    "endpoint": "/api/v1/organizations/invitations/accept",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "Accept Invite (/invitation/accept)",
+    "frontendComponent": "InvitationAcceptView",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; external invite onboarding flow"
+  },
+  {
+    "endpoint": "/api/v1/organizations/employees",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "Team (/dashboard/hr/employees)",
+    "frontendComponent": "TeamDirectoryCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "API response contains employee_code ('EMP-01'..'EMP-06'), but frontend Team card fails to display it ('No employee code on file'). Classified as FRONTEND-001 / INTEGRATION-001.",
+    "classification": "Frontend Bug / API Integration Bug"
+  },
+  {
+    "endpoint": "/api/v1/organizations/employees/:id",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "Employee Profile (/dashboard/hr/employees/:id)",
+    "frontendComponent": "EmployeeProfileView",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; displays 360 view with Overview, Attendance, Department, Leave, Profile, Reports tabs"
+  },
+  {
+    "endpoint": "/api/v1/organizations/employees/:id/status",
+    "method": "PATCH",
+    "module": "Organization Module",
+    "frontendPage": "Team / Employee Profile",
+    "frontendComponent": "N/A",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend provides activate/deactivate employee status toggle, but no UI control exists in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/organizations/employees/:id",
+    "method": "DELETE",
+    "module": "Organization Module",
+    "frontendPage": "Team / Employee Profile",
+    "frontendComponent": "N/A",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend supports soft deletion of employee and hierarchy cleanup, but frontend has no delete action"
+  },
+  {
+    "endpoint": "/api/v1/organizations/users/:id/department-transfer",
+    "method": "PUT",
+    "module": "Organization Module",
+    "frontendPage": "Departments / Employee Profile",
+    "frontendComponent": "N/A",
+    "status": "Missing",
+    "integration": "Not Integrated",
+    "gap": "Backend supports transferring employee between departments with reporting updates; no UI exists"
+  },
+  {
+    "endpoint": "/api/v1/organizations/locations",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "Office Locations (/dashboard/hr/attendance/locations)",
+    "frontendComponent": "LocationCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Location Status label shows no text value (inferred only from switch position)"
+  },
+  {
+    "endpoint": "/api/v1/organizations/locations",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "Office Locations",
+    "frontendComponent": "AddLocationModal / EditLocationModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/organizations/locations/:id",
+    "method": "PUT",
+    "module": "Organization Module",
+    "frontendPage": "Office Locations",
+    "frontendComponent": "AddLocationModal / EditLocationModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/organizations/departments",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "Departments (/dashboard/hr/departments)",
+    "frontendComponent": "DepartmentCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Spelling error \"Sales And Markerting\" rendered across UI; member list per card limited to 1"
+  },
+  {
+    "endpoint": "/api/v1/organizations/departments",
+    "method": "POST",
+    "module": "Organization Module",
+    "frontendPage": "Departments",
+    "frontendComponent": "AddDepartmentModal / EditDepartmentModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Add Department and Edit Department dialogs present"
+  },
+  {
+    "endpoint": "/api/v1/organizations/departments/:id",
+    "method": "PUT",
+    "module": "Organization Module",
+    "frontendPage": "Departments",
+    "frontendComponent": "AddDepartmentModal / EditDepartmentModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Add Department and Edit Department dialogs present"
+  },
+  {
+    "endpoint": "/api/v1/organizations/me",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "My Profile (/dashboard/profile)",
+    "frontendComponent": "UserProfileView / EditDetailsModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user display name falls back to email mealex517@gmail.com; many personal fields \"Not set\""
+  },
+  {
+    "endpoint": "/api/v1/organizations/me",
+    "method": "PATCH",
+    "module": "Organization Module",
+    "frontendPage": "My Profile (/dashboard/profile)",
+    "frontendComponent": "UserProfileView / EditDetailsModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user display name falls back to email mealex517@gmail.com; many personal fields \"Not set\""
+  },
+  {
+    "endpoint": "/api/v1/organizations/directory",
+    "method": "GET",
+    "module": "Organization Module",
+    "frontendPage": "Team / Live Attendance",
+    "frontendComponent": "DirectoryView",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Public safe directory endpoint available, but frontend primarily queries full employee list"
+  },
+  {
+    "endpoint": "/api/v1/organizations/employees/:id",
+    "method": "PATCH",
+    "module": "Organization Module",
+    "frontendPage": "Employee Profile",
+    "frontendComponent": "EditEmployeeModal",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Whitelisted profile field updates supported in backend; frontend UI has limited edit modal fields"
+  },
+  {
+    "endpoint": "/api/v1/attendance/today",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Dashboard / My Attendance (/dashboard/hr/my-attendance)",
+    "frontendComponent": "ClockWidget / AttendanceCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Clock-in/out widgets available in employee/self-service views"
+  },
+  {
+    "endpoint": "/api/v1/attendance/history",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Attendance (/dashboard/hr/my-attendance)",
+    "frontendComponent": "MyAttendanceHistoryTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; renders daily status, punch hours, effective hours, and overtime"
+  },
+  {
+    "endpoint": "/api/v1/attendance/summary",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Attendance (/dashboard/hr/my-attendance)",
+    "frontendComponent": "MyAttendanceHistoryTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; renders daily status, punch hours, effective hours, and overtime"
+  },
+  {
+    "endpoint": "/api/v1/attendance/shift",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Dashboard / My Attendance (/dashboard/hr/my-attendance)",
+    "frontendComponent": "ClockWidget / AttendanceCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Clock-in/out widgets available in employee/self-service views"
+  },
+  {
+    "endpoint": "/api/v1/attendance/clock-in",
+    "method": "POST",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Dashboard / My Attendance (/dashboard/hr/my-attendance)",
+    "frontendComponent": "ClockWidget / AttendanceCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Clock-in/out widgets available in employee/self-service views"
+  },
+  {
+    "endpoint": "/api/v1/attendance/clock-out",
+    "method": "POST",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Dashboard / My Attendance (/dashboard/hr/my-attendance)",
+    "frontendComponent": "ClockWidget / AttendanceCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Clock-in/out widgets available in employee/self-service views"
+  },
+  {
+    "endpoint": "/api/v1/attendance/break/start",
+    "method": "POST",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Attendance",
+    "frontendComponent": "BreakWidget",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Backend supports break tracking (start/end); break UI not prominently exposed on HR web panel"
+  },
+  {
+    "endpoint": "/api/v1/attendance/break/end",
+    "method": "POST",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Attendance",
+    "frontendComponent": "BreakWidget",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Backend supports break tracking (start/end); break UI not prominently exposed on HR web panel"
+  },
+  {
+    "endpoint": "/api/v1/attendance/regularization",
+    "method": "POST",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Regularizations (/dashboard/hr/my-attendance/regularizations)",
+    "frontendComponent": "NewRegularizationModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; \"New request\" button triggers creation modal"
+  },
+  {
+    "endpoint": "/api/v1/attendance/regularizations",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Regularizations",
+    "frontendComponent": "MyRegularizationsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; displays status, reviewer note, submitted timestamp"
+  },
+  {
+    "endpoint": "/api/v1/attendance/daily-log",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Employee Profile / My Attendance",
+    "frontendComponent": "AttendancePatternCalendar / GraphData",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; displays daily log and calendar"
+  },
+  {
+    "endpoint": "/api/v1/attendance/graph-data",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Employee Profile / My Attendance",
+    "frontendComponent": "AttendancePatternCalendar / GraphData",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; displays daily log and calendar"
+  },
+  {
+    "endpoint": "/api/v1/attendance/trends",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Employee Profile / My Attendance",
+    "frontendComponent": "AttendancePatternCalendar / GraphData",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; displays daily log and calendar"
+  },
+  {
+    "endpoint": "/api/v1/attendance/weekly-calendar",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Employee Profile / My Attendance",
+    "frontendComponent": "AttendancePatternCalendar / GraphData",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; displays daily log and calendar"
+  },
+  {
+    "endpoint": "/api/v1/attendance/holidays",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "Holidays (/dashboard/hr/attendance/holidays)",
+    "frontendComponent": "HolidayListCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; 13 holidays rendered for 2026"
+  },
+  {
+    "endpoint": "/api/v1/attendance/regularizations/:id/cancel",
+    "method": "POST",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Regularizations (/dashboard/hr/my-attendance/regularizations)",
+    "frontendComponent": "NewRegularizationModal",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; \"New request\" button triggers creation modal"
+  },
+  {
+    "endpoint": "/api/v1/attendance/overtime/mine",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Overtime (/dashboard/hr/my-attendance/overtime)",
+    "frontendComponent": "MyOvertimeTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Reviewer column shows \"N/A\" on most rows"
+  },
+  {
+    "endpoint": "/api/v1/attendance/anomalies/mine",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Flags (/dashboard/hr/my-attendance/anomalies)",
+    "frontendComponent": "MyFlagsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; empty state \"No open flags\" verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/comp-offs/mine",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Complimentary Offs (/dashboard/hr/my-attendance/comp-offs)",
+    "frontendComponent": "MyCompOffsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; empty state verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/comp-offs/mine/summary",
+    "method": "GET",
+    "module": "Attendance Module - Employee Self-Service",
+    "frontendPage": "My Complimentary Offs (/dashboard/hr/my-attendance/comp-offs)",
+    "frontendComponent": "MyCompOffsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; empty state verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/today",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "Live Attendance / Manager View",
+    "frontendComponent": "TeamAttendanceTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR uses org-wide attendance endpoints; manager-specific routes used when acting as manager"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/history",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "Live Attendance / Manager View",
+    "frontendComponent": "TeamAttendanceTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR uses org-wide attendance endpoints; manager-specific routes used when acting as manager"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/anomalies",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox / Attendance Flags",
+    "frontendComponent": "ReviewAnomalyDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; queue currently empty"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/anomalies/:id/resolve",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox / Attendance Flags",
+    "frontendComponent": "ReviewAnomalyDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; queue currently empty"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/regularizations/pending",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox (/dashboard/hr/inbox) / Regularizations",
+    "frontendComponent": "PendingRegularizationsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Server admission: \"Only pending requests are listed. History of approved/rejected corrections isn't available from server yet\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/regularizations/:id/approve",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox",
+    "frontendComponent": "ReviewRegularizationDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Action available in HR Inbox review dialog"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/regularizations/:id/reject",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox",
+    "frontendComponent": "ReviewRegularizationDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Action available in HR Inbox review dialog"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/overtime/pending",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox (Overtime queue)",
+    "frontendComponent": "ReviewOvertimeDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Overtime calculated against policy min_hours (7h) rather than shift schedule (8h), producing 2h 32m vs 1h 32m. Classified as BACKEND-013.",
+    "classification": "Backend Bug"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/overtime/:id/approve",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox (Overtime queue)",
+    "frontendComponent": "ReviewOvertimeDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Inbox overtime math mismatch (Worked 9h 32m - 8h shift = 1h 32m, but UI displays 2h 32m)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/overtime/:id/reject",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox (Overtime queue)",
+    "frontendComponent": "ReviewOvertimeDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Inbox overtime math mismatch (Worked 9h 32m - 8h shift = 1h 32m, but UI displays 2h 32m)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/comp-offs/pending",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox / Complimentary Offs",
+    "frontendComponent": "ReviewCompOffDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; queue currently empty"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/comp-offs/:id/approve",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox / Complimentary Offs",
+    "frontendComponent": "ReviewCompOffDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; queue currently empty"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/comp-offs/:id/reject",
+    "method": "POST",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "HR Inbox / Complimentary Offs",
+    "frontendComponent": "ReviewCompOffDialog",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; queue currently empty"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/summary",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "Manager Attendance Views",
+    "frontendComponent": "TeamSummaryCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/member/:userId/history",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "Manager Attendance Views",
+    "frontendComponent": "TeamSummaryCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/member/:userId/summary",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "Manager Attendance Views",
+    "frontendComponent": "TeamSummaryCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/attendance/manager/team/graph-data",
+    "method": "GET",
+    "module": "Attendance Module - Manager Operations",
+    "frontendPage": "Manager Attendance Views",
+    "frontendComponent": "TeamSummaryCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/policies",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Policies (/dashboard/hr/attendance/policies)",
+    "frontendComponent": "AttendancePoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; IT Department and Standard Office policies verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/policies",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Policies (/dashboard/hr/attendance/policies)",
+    "frontendComponent": "AttendancePoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; IT Department and Standard Office policies verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/policies/:id",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Policies (/dashboard/hr/attendance/policies)",
+    "frontendComponent": "AttendancePoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; IT Department and Standard Office policies verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/policies/:id",
+    "method": "PUT",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Policies (/dashboard/hr/attendance/policies)",
+    "frontendComponent": "AttendancePoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; IT Department and Standard Office policies verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/policies/:id/deactivate",
+    "method": "PATCH",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Policies (/dashboard/hr/attendance/policies)",
+    "frontendComponent": "AttendancePoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; IT Department and Standard Office policies verified"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/assign",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/assignments",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/assignments/:assignment_id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/assignments/:assignment_id/end",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/:id",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/:id",
+    "method": "PUT",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/shifts/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Work Shifts (/dashboard/hr/attendance/shifts)",
+    "frontendComponent": "ShiftTemplatesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Rotation Patterns section shows empty state"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/rotations",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/rotations",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/rotations/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/holidays",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Holidays (/dashboard/hr/attendance/holidays)",
+    "frontendComponent": "HolidayListCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Common holidays catalog shows \"13 / 13 Added\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/holidays",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Holidays (/dashboard/hr/attendance/holidays)",
+    "frontendComponent": "HolidayListCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Common holidays catalog shows \"13 / 13 Added\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/holidays/:id",
+    "method": "PUT",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Holidays (/dashboard/hr/attendance/holidays)",
+    "frontendComponent": "HolidayListCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Common holidays catalog shows \"13 / 13 Added\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/holidays/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Holidays (/dashboard/hr/attendance/holidays)",
+    "frontendComponent": "HolidayListCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Common holidays catalog shows \"13 / 13 Added\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/weekly-offs",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Weekly Offs (/dashboard/hr/attendance/weekly-offs)",
+    "frontendComponent": "WeeklyOffsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Department name \"Sales And Markerting\" misspelled in targeted rules"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/weekly-offs",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Weekly Offs (/dashboard/hr/attendance/weekly-offs)",
+    "frontendComponent": "WeeklyOffsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Department name \"Sales And Markerting\" misspelled in targeted rules"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/weekly-offs/:id",
+    "method": "PUT",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Weekly Offs (/dashboard/hr/attendance/weekly-offs)",
+    "frontendComponent": "WeeklyOffsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Department name \"Sales And Markerting\" misspelled in targeted rules"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/weekly-offs/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Weekly Offs (/dashboard/hr/attendance/weekly-offs)",
+    "frontendComponent": "WeeklyOffsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Department name \"Sales And Markerting\" misspelled in targeted rules"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices/:id",
+    "method": "PUT",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices/:id/mappings",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices/:id/mappings",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/devices/:id/mappings/:mappingId",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-off-policies",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Complimentary Off Policies (/dashboard/hr/attendance/comp-off-policies)",
+    "frontendComponent": "CompOffPoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Verbatim typo \"EarnComplimentary Offf\" in guidance note; Half/Full day thresholds show \"N/A / N/A\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-off-policies",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Complimentary Off Policies (/dashboard/hr/attendance/comp-off-policies)",
+    "frontendComponent": "CompOffPoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Verbatim typo \"EarnComplimentary Offf\" in guidance note; Half/Full day thresholds show \"N/A / N/A\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-off-policies/:id",
+    "method": "PUT",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Complimentary Off Policies (/dashboard/hr/attendance/comp-off-policies)",
+    "frontendComponent": "CompOffPoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Verbatim typo \"EarnComplimentary Offf\" in guidance note; Half/Full day thresholds show \"N/A / N/A\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-off-policies/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Complimentary Off Policies (/dashboard/hr/attendance/comp-off-policies)",
+    "frontendComponent": "CompOffPoliciesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Verbatim typo \"EarnComplimentary Offf\" in guidance note; Half/Full day thresholds show \"N/A / N/A\""
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-offs",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-offs/:id/approve",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/comp-offs/:id/reject",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/locks",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/locks",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/locks/:id",
+    "method": "DELETE",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/records/recompute-stale",
+    "method": "POST",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/reports/daily",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Reports (/dashboard/hr/reports)",
+    "frontendComponent": "AttendanceReportsTabs",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Employee report default date range inverted (start 08/21/2026 after end 09/20/2026)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/reports/monthly",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Reports (/dashboard/hr/reports)",
+    "frontendComponent": "AttendanceReportsTabs",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Employee report default date range inverted (start 08/21/2026 after end 09/20/2026)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/reports/employee/:userId",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Attendance Reports (/dashboard/hr/reports)",
+    "frontendComponent": "AttendanceReportsTabs",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Employee report default date range inverted (start 08/21/2026 after end 09/20/2026)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/hrs/attendance",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/hrs/:userId/attendance",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/hrs/:userId/summary",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/hrs/:userId/daily-log",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/employees/attendance",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance (/dashboard/hr/attendance/directory)",
+    "frontendComponent": "AttendanceDirectoryTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user display name shown as email; department rendered as \"Human Resources HR Administrator\" (concatenated)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/employees/:userId/attendance",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance (/dashboard/hr/attendance/directory)",
+    "frontendComponent": "AttendanceDirectoryTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user display name shown as email; department rendered as \"Human Resources HR Administrator\" (concatenated)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/employees/:userId/summary",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance (/dashboard/hr/attendance/directory)",
+    "frontendComponent": "AttendanceDirectoryTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user display name shown as email; department rendered as \"Human Resources HR Administrator\" (concatenated)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/employees/:userId/daily-log",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance (/dashboard/hr/attendance/directory)",
+    "frontendComponent": "AttendanceDirectoryTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user display name shown as email; department rendered as \"Human Resources HR Administrator\" (concatenated)"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/managers/attendance",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/managers/:userId/attendance",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/managers/:userId/summary",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/managers/:userId/daily-log",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/dashboard/live",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/dashboard/graph-data",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/dashboard/department-summary",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/dashboard/top-defaulters",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/hr/dashboard/work-mode-distribution",
+    "method": "GET",
+    "module": "Attendance Module - HR Administration",
+    "frontendPage": "Live Attendance / Attendance Admin",
+    "frontendComponent": "AttendanceAdminPanel",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Advanced maintenance or bulk punch endpoints not exposed on main UI"
+  },
+  {
+    "endpoint": "/api/v1/attendance/devices/webhook",
+    "method": "POST",
+    "module": "Attendance Module - Hardware Integrations",
+    "frontendPage": "N/A",
+    "frontendComponent": "N/A",
+    "status": "Partially Implemented",
+    "integration": "Not Integrated",
+    "gap": "Backend endpoint exists in registry but lacks dedicated frontend trigger"
+  },
+  {
+    "endpoint": "/api/v1/leaves/types",
+    "method": "POST",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Types (/dashboard/hr/leaves/types)",
+    "frontendComponent": "LeaveTypesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Maternity Leave has code \"UL\" instead of \"ML\"; \"After 1 days\" grammar; Weekends in between \"N/A\" on all rows"
+  },
+  {
+    "endpoint": "/api/v1/leaves/types",
+    "method": "GET",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Types (/dashboard/hr/leaves/types)",
+    "frontendComponent": "LeaveTypesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Maternity Leave has code \"UL\" instead of \"ML\"; \"After 1 days\" grammar; Weekends in between \"N/A\" on all rows"
+  },
+  {
+    "endpoint": "/api/v1/leaves/types/:id",
+    "method": "PUT",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Types (/dashboard/hr/leaves/types)",
+    "frontendComponent": "LeaveTypesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Maternity Leave has code \"UL\" instead of \"ML\"; \"After 1 days\" grammar; Weekends in between \"N/A\" on all rows"
+  },
+  {
+    "endpoint": "/api/v1/leaves/types/:id",
+    "method": "DELETE",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Types (/dashboard/hr/leaves/types)",
+    "frontendComponent": "LeaveTypesTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "Maternity Leave has code \"UL\" instead of \"ML\"; \"After 1 days\" grammar; Weekends in between \"N/A\" on all rows"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates",
+    "method": "POST",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates",
+    "method": "GET",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates/:id",
+    "method": "PUT",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates/:id",
+    "method": "DELETE",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates/:id/entitlements",
+    "method": "POST",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates/:id/entitlements/:entitlementId",
+    "method": "PUT",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/templates/:id/entitlements/:entitlementId",
+    "method": "DELETE",
+    "module": "Leave Module - Foundation & Rules Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/users/:userId/assign-policy",
+    "method": "POST",
+    "module": "Leave Module - Policy Assignment & Balance Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/users/:userId/configs/:leaveTypeId",
+    "method": "PUT",
+    "module": "Leave Module - Policy Assignment & Balance Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/users/:userId/balances",
+    "method": "GET",
+    "module": "Leave Module - Policy Assignment & Balance Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/my-balances",
+    "method": "GET",
+    "module": "Leave Module - Policy Assignment & Balance Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/my-leave-types",
+    "method": "GET",
+    "module": "Leave Module - Policy Assignment & Balance Engine",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/request",
+    "method": "POST",
+    "module": "Leave Module - Employee Application (Phase 3)",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/my-requests",
+    "method": "GET",
+    "module": "Leave Module - Employee Application (Phase 3)",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/requests/:id/cancel",
+    "method": "POST",
+    "module": "Leave Module - Employee Application (Phase 3)",
+    "frontendPage": "Leave Requests (/dashboard/hr/leaves/requests)",
+    "frontendComponent": "LeaveRequestsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Pending Queue and All History tabs with full detail modal verified"
+  },
+  {
+    "endpoint": "/api/v1/leaves/requests/:id",
+    "method": "GET",
+    "module": "Leave Module - Employee Application (Phase 3)",
+    "frontendPage": "Leave Requests (/dashboard/hr/leaves/requests)",
+    "frontendComponent": "LeaveRequestsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Pending Queue and All History tabs with full detail modal verified"
+  },
+  {
+    "endpoint": "/api/v1/leaves/team/requests/pending",
+    "method": "GET",
+    "module": "Leave Module - Approvals & Management (Phase 3)",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/requests/:id/approve",
+    "method": "POST",
+    "module": "Leave Module - Approvals & Management (Phase 3)",
+    "frontendPage": "Leave Requests (/dashboard/hr/leaves/requests)",
+    "frontendComponent": "LeaveRequestsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Pending Queue and All History tabs with full detail modal verified"
+  },
+  {
+    "endpoint": "/api/v1/leaves/requests/:id/reject",
+    "method": "POST",
+    "module": "Leave Module - Approvals & Management (Phase 3)",
+    "frontendPage": "Leave Requests (/dashboard/hr/leaves/requests)",
+    "frontendComponent": "LeaveRequestsTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Pending Queue and All History tabs with full detail modal verified"
+  },
+  {
+    "endpoint": "/api/v1/leaves/team/requests",
+    "method": "GET",
+    "module": "Leave Module - Approvals & Management (Phase 3)",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/team/member/:userId/requests",
+    "method": "GET",
+    "module": "Leave Module - Approvals & Management (Phase 3)",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/team/member/:userId/balances",
+    "method": "GET",
+    "module": "Leave Module - Approvals & Management (Phase 3)",
+    "frontendPage": "Leave Module",
+    "frontendComponent": "LeaveAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Specialized leave calculation or quota adjustment APIs partially integrated"
+  },
+  {
+    "endpoint": "/api/v1/leaves/automation/accrual/run",
+    "method": "POST",
+    "module": "Leave Module - Automation & Maintenance (Phase 5)",
+    "frontendPage": "Leave Automation (/dashboard/hr/leaves/automation)",
+    "frontendComponent": "AutomationEngineCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Monthly Leave Credit and New Year Calculations (Rollover) triggers available"
+  },
+  {
+    "endpoint": "/api/v1/leaves/automation/rollover/run",
+    "method": "POST",
+    "module": "Leave Module - Automation & Maintenance (Phase 5)",
+    "frontendPage": "Leave Automation (/dashboard/hr/leaves/automation)",
+    "frontendComponent": "AutomationEngineCard",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "None; Monthly Leave Credit and New Year Calculations (Rollover) triggers available"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/components/bootstrap",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/components",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/components",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/components/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/components/:id",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/components/:id",
+    "method": "DELETE",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id",
+    "method": "DELETE",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id/components",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id/components/:componentId",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id/components/:componentId",
+    "method": "DELETE",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/structure-templates/:id/preview",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Structure Templates (/dashboard/hr/payroll/templates)",
+    "frontendComponent": "StructureTemplatesCardGrid",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "New Template (NT1) has 0 components (empty draft template)"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/salary-structures",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/salary-structures",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/salary-structures/current",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/salary-structures/current",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/salary-structures/proposals",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/salary-structures/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/salary-structures/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/settings",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/settings",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bank-accounts",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Bank Verification (/dashboard/hr/payroll/bank-verification)",
+    "frontendComponent": "BankVerificationTable",
+    "status": "Implemented",
+    "integration": "Correct",
+    "gap": "HR user personal bank account has account holder \"MealEx Private Limited\"; Nainika and Maya share account last-4 \"7890\""
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/bank-account",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/bank-account/verify",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/audit-logs",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/team/salary-structures",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/salary-structures",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/salary-structures/current",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/salary-structures/propose",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/salary-structures/proposals",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/salary-structures/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/salary-structure",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/salary-structure/history",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/bank-account",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/bank-account",
+    "method": "PUT",
+    "module": "Payroll Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/eligibility",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/calculate",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/preview",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/items",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/items/:itemId",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/items/:itemId/exclude",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/items/:itemId/include",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/items/:itemId/period",
+    "method": "PATCH",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/pay",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/runs/:runId/team-summary",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/runs/:runId/team-items",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/payslips",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/payslips/:runId",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/payslips",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/payslips/:runId",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 2)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/bulk/preview",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/bulk",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/adjustments/batches/:batchId/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id/preview-impact",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id/apply",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/bonus-rules/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/loans",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans/:id/installments",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/loans/:id/foreclose",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/adjustments/propose",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/adjustments",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/adjustments/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/bonus-rules/propose",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/bonus-rules",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/loans/recommend",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/loans",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/loans/:id",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/bonuses",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/adjustments",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/loans",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/loans/:id/installments",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 3)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/statutory/config",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/statutory/config",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/statutory/pt-slabs",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/statutory/pt-slabs/states/:stateCode",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/statutory/pt-slabs/states/:stateCode",
+    "method": "DELETE",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/bootstrap",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/regimes",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/regimes/:id",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/regimes/:id/slabs",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/regimes/:id/slabs",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/declarations",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/declarations/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/declarations/:id/verify",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/declarations/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/declarations/:id/reopen",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/summary",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/regime",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/previous-employer",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/projection",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear/part-a",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/financial-years/:financialYear/finalize",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/financial-years/:financialYear/finalize",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/tax/financial-years/:financialYear/statutory-summary",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/summary",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/projection",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/monthly",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/declarations",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/declarations",
+    "method": "PUT",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/declarations/submit",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/regime",
+    "method": "PUT",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/form16/:financialYear",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/declarations/proofs",
+    "method": "PUT",
+    "module": "Payroll Module - Employee Self-Service (Phase 4 — Statutory & Tax)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/categories",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/categories",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/categories/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/categories/:id",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/categories/:id",
+    "method": "DELETE",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/claims",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/claims/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/claims/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reimbursements/claims/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/attachments/:attachmentId/view-url",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans/:id",
+    "method": "PUT",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans/:id",
+    "method": "DELETE",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans/:id/enrollments",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/benefit-plans/:id/enrollments",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/benefit-enrollments",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/benefit-enrollments/:enrollmentId/end",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear/part-a/attachment",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reimbursements/claims",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 5 — Reimbursements & Benefits)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reimbursements/claims/:id",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 5 — Reimbursements & Benefits)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reimbursements/claims/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 5 — Reimbursements & Benefits)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reimbursements/claims/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 5 — Reimbursements & Benefits)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/attachments/:attachmentId/view-url",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 5 — Reimbursements & Benefits)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/team/benefit-enrollments",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 5 — Reimbursements & Benefits)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/categories",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims/:id",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims/:id",
+    "method": "PUT",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims/:id/submit",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/reimbursements/claims/:id/items/:itemId/attachments",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/declarations/items/:itemId/attachments",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/attachments/:attachmentId/confirm",
+    "method": "POST",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/attachments/:attachmentId",
+    "method": "DELETE",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/attachments/:attachmentId/view-url",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/benefits",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 5 — Reimbursements, Benefits & Documents)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/payslips",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/payslips",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/payslips/:runId",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/payslips/:runId/pdf",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/payslips/publish",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/payslips/backfill",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/payslips/:id/reissue",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/payslips/download",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/payslips/dispatch",
+    "method": "POST",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/payslips/dispatch-status",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reports/payroll-register",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reports/department-distribution",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reports/deduction-summary",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/reports/components",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/runs/:id/bank-advice",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exports",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/annual-statement",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/annual-statement/pdf",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/tax/form16/:financialYear/pdf",
+    "method": "GET",
+    "module": "Payroll Module - HR Administration (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/payslips/:runId/pdf",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reports/payroll-register",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reports/department-distribution",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reports/deduction-summary",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/reports/components",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/payslips/:runId/pdf",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/annual-statement",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/annual-statement/pdf",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/tax/form16/:financialYear/pdf",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 6 — Delivery Layer)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits/:id",
+    "method": "PATCH",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits/:id/settlement-preview",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits/:id/prepare-settlement",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/exits/:id/settlement/reset",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/arrears/drift",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/arrears/reconcile",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/arrears",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/employees/:userId/encashments",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/encashments",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/encashments/:id",
+    "method": "GET",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/encashments/:id/approve",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/encashments/:id/reject",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/encashments/:id/cancel",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/jobs/calendar-reminders/run",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/jobs/auto-draft/run",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/jobs/run-sweeper/run",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/hr/jobs/attachment-sweeper/run",
+    "method": "POST",
+    "module": "Payroll Module - HR Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/employees/:userId/encashments",
+    "method": "POST",
+    "module": "Payroll Module - Manager Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/manager/encashments",
+    "method": "GET",
+    "module": "Payroll Module - Manager Operations (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/payroll/me/encashments",
+    "method": "GET",
+    "module": "Payroll Module - Employee Self-Service (Phase 7 — Corrections, Exits & Automation)",
+    "frontendPage": "Payroll Administration",
+    "frontendComponent": "PayrollAdmin",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Internal recalculation or bulk action APIs not individually exposed"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/catalog",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/catalog/:code",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types/activate",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types/:id",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types/:id",
+    "method": "PUT",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types/:id/deactivate",
+    "method": "PATCH",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/types/:id/activate",
+    "method": "PATCH",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/employees/:userId/documents",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/confirm",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/employees/:userId/documents/link-reference",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/employees/:userId/documents",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/verification-queue",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/versions",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/view-url",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/verify",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/reject",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/replace",
+    "method": "POST",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id",
+    "method": "DELETE",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/documents/:id/audit-logs",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/settings",
+    "method": "GET",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/hr/settings",
+    "method": "PUT",
+    "module": "Document Module - HR Administration (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/types",
+    "method": "GET",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/team/documents",
+    "method": "GET",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/employees/:userId/documents",
+    "method": "GET",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/documents/recommendations",
+    "method": "GET",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/documents/:id",
+    "method": "GET",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/documents/:id/view-url",
+    "method": "GET",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/employees/:userId/documents",
+    "method": "POST",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/documents/:id/confirm",
+    "method": "POST",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/manager/documents/:id/recommend",
+    "method": "POST",
+    "module": "Document Module - Manager Operations (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/types",
+    "method": "GET",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents",
+    "method": "GET",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents",
+    "method": "POST",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/:id/confirm",
+    "method": "POST",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/:id",
+    "method": "GET",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/:id/versions",
+    "method": "GET",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/:id/view-url",
+    "method": "GET",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/:id/replace",
+    "method": "POST",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  },
+  {
+    "endpoint": "/api/v1/documents/me/documents/:id",
+    "method": "DELETE",
+    "module": "Document Module - Employee Self-Service (Phase 1)",
+    "frontendPage": "Documents (/dashboard/documents) / Profile / Employee Profile",
+    "frontendComponent": "DocumentViewer / FileUpload",
+    "status": "Partially Implemented",
+    "integration": "Incomplete",
+    "gap": "Document upload/download APIs exist in backend (24 HR, 9 Mgr, 9 Emp); frontend has documentation hub at /dashboard/documents but full document vault / e-sign / verification workflows are not surfaced in HR panel"
+  }
+]

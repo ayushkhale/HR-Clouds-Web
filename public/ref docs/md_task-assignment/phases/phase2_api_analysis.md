@@ -197,12 +197,16 @@ Request ──► [1. authenticate] ──► [2. requireActiveOrg] ──► [3
         "assigner": {
           "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
           "name": "Sarah Jenkins",
-          "email": "sarah.jenkins@company.com"
+          "email": "sarah.jenkins@company.com",
+          "avatar_url": "https://bucket.s3.region.amazonaws.com/org/.../avatars/...?X-Amz-Signature=...",
+          "profile_image": "https://bucket.s3.region.amazonaws.com/org/.../avatars/...?X-Amz-Signature=..."
         },
         "assignee": {
           "id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
           "name": "Alex Mercer",
-          "email": "alex.mercer@company.com"
+          "email": "alex.mercer@company.com",
+          "avatar_url": null,
+          "profile_image": null
         }
       }
     ],

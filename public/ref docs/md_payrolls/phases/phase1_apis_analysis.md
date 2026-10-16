@@ -151,8 +151,8 @@ Returns an array of component objects.
 ---
 
 ### 1.15 Preview Template Evaluation
-**What it is:** A dry-run mathematical engine for a template.
-**Why it exists:** Allows HR to test complex mathematical formulas (like nested percentages) before saving or assigning them.
+**What it is:** A dry-run mathematical engine for a template, evaluated **for a specific employee**.
+**Why it exists:** Allows HR to test complex mathematical formulas (like nested percentages) before saving or assigning them, and to see the **same statutory breakdown + take-home/cost figures** the employee will see once the structure is assigned — so the pre-assignment panel matches the post-assignment one.
 **Side Effects:** Absolutely None. Persists zero data to the database.
 
 **Endpoint:** `POST /api/v1/payroll/hr/structure-templates/:id/preview`
@@ -161,27 +161,60 @@ Returns an array of component objects.
 #### Request Body
 ```json
 {
-  "annual_ctc": "1500000"
+  "annual_ctc": "1500000",
+  "user_id": "936dfc38-4c48-469c-8e88-f3f2604b2a9e"
 }
 ```
 
+- `annual_ctc` — positive money-like, **required**.
+- `user_id` — UUID, **required**. The preview renders statutory withholdings for this specific person: Professional Tax depends on the employee's work state, and TDS depends on their tax declarations. Resolving the user also enforces org (tenant) scoping — a `user_id` outside the caller's org returns **404 `EMPLOYEE_NOT_FOUND`**.
+
 #### Success Response (200 OK)
-Returns the fully reconciled mathematical breakdown.
+Returns the fully reconciled mathematical breakdown **plus** the dynamic `statutory_breakdown` (identical shape to `GET /api/v1/payroll/me/salary-structure`).
 ```json
 {
   "success": true,
   "data": {
-    "annual_ctc": "1500000",
-    "annual_gross": "1500000",
-    "monthly_gross": "125000",
+    "template_id": "cf0c5cec-a63e-4c64-b250-83d261106eb0",
+    "user_id": "936dfc38-4c48-469c-8e88-f3f2604b2a9e",
+    "annual_ctc": "1500000.00",
+    "annual_gross": "1500000.00",
+    "monthly_gross": "125000.00",
+    "annual_ctc_check": "1500000.00",
     "reconciled": true,
-    "lines": [...]
+    "gross_definition": "percent_of_gross resolves against the subtotal of earnings from tiers 1–3 ...",
+    "lines": [ { "code": "BASIC", "monthly_amount": "...", "annual_amount": "...", "...": "..." } ],
+    "statutory_breakdown": {
+      "status": "estimated",
+      "pf_wage": "15000.00",
+      "esi_wage": "0.00",
+      "taxable_earnings": "...",
+      "esi_covered": false,
+      "pf_employee_amount": "1800.00",
+      "pf_employer_amount": "1800.00",
+      "eps_amount": "1249.50",
+      "esi_employee_amount": "0.00",
+      "esi_employer_amount": "0.00",
+      "professional_tax_amount": "200.00",
+      "income_tax_amount": "0.00",
+      "statutory_snapshot": { "v": 4, "pf": {}, "esi": {}, "pt": {}, "tax": {}, "warnings": [] },
+      "figures": {
+        "monthly_gross": "125000.00",
+        "total_deductions": "2000.00",
+        "total_employer_contributions": "...",
+        "net_pay": "123000.00",
+        "ctc_cost": "125000.00"
+      }
+    }
   }
 }
 ```
 
+> **Reproducibility note:** the `statutory_breakdown` is an *estimate* (`status: "estimated"`) computed from the org's **live** statutory config, PT slabs, and the employee's current tax projection — it is not persisted. The figures a run eventually freezes may differ if the config changes before the structure is assigned/run.
+
 #### Error Scenarios (The Evaluator Guards)
-- **422 Unprocessable Entity:** Returns highly specific mathematical errors: `NO_BASIC_COMPONENT`, `INVALID_PERCENTAGE`, `CTC_BELOW_FIXED_COMPONENTS` (if fixed deductions push the balance negative), or `CTC_RECONCILIATION_FAILED`.
+- **404 Not Found:** `EMPLOYEE_NOT_FOUND` when `user_id` does not belong to an employee/manager/HR profile in the caller's org; `TEMPLATE_NOT_FOUND` for an unknown template.
+- **422 Unprocessable Entity:** Returns highly specific mathematical errors: `NO_BASIC_COMPONENT`, `INVALID_PERCENTAGE`, `CTC_BELOW_FIXED_COMPONENTS` (if fixed deductions push the balance negative), `CTC_RECONCILIATION_FAILED`, `TEMPLATE_HAS_NO_COMPONENTS`, or `STATUTORY_COMPONENT_NOT_ASSIGNABLE`.
 
 ---
 
@@ -210,6 +243,10 @@ Returns the fully reconciled mathematical breakdown.
 ### 1.17 Get History, 1.18 Get Current Structure
 **Endpoint:** `GET /api/v1/payroll/hr/employees/:userId/salary-structures(/current)`
 **What it is:** Fetches the full version history (including rejected proposals) or just the active structure.
+
+### 1.18a Get Current Salary Structures (Bulk)
+**Endpoint:** `GET /api/v1/payroll/hr/salary-structures/current`
+**What it is:** Fetches a paginated list of all active approved structures across the org to prevent N+1 frontend requests on the dashboard.
 
 ---
 
@@ -254,7 +291,17 @@ Returns the promoted row with a new integer `version`.
 
 ---
 
-### 1.24 Get Bank Account (HR View)
+### 1.24 List Bank Accounts (HR View)
+**What it is:** Fetches a paginated list of masked bank accounts for all employees in the organization.
+**Endpoint:** `GET /api/v1/payroll/hr/bank-accounts`
+**Response Data:** `{ "success": true, "data": [ { "masked_account_number": "••••1234", ... } ], "pagination": { ... } }`
+
+> [!WARNING]
+> **Data Security Constraint:** The full account numbers are AES-256-GCM encrypted and NEVER returned. The service applies `toMasked()` over the list.
+
+---
+
+### 1.25 Get Bank Account (HR View)
 **What it is:** Fetches an employee's masked bank account.
 **Endpoint:** `GET /api/v1/payroll/hr/employees/:userId/bank-account`
 **Response Data:** `{ "masked_account_number": "••••1234", ... }`
@@ -264,14 +311,14 @@ Returns the promoted row with a new integer `version`.
 
 ---
 
-### 1.25 Verify Bank Account
+### 1.26 Verify Bank Account
 **What it is:** Formal HR verification of a payment instrument.
 **Endpoint:** `POST /api/v1/payroll/hr/employees/:userId/bank-account/verify`
 **Side Effects:** Idempotent. Sets `is_verified: true`.
 
 ---
 
-### 1.26 List Audit Logs
+### 1.27 List Audit Logs
 **What it is:** The immutable ledger of every payroll action.
 **Endpoint:** `GET /api/v1/payroll/hr/audit-logs`
 **Frontend Note:** PII like bank account numbers and encryption keys are strictly redacted by a deny-list backstop before entering this log.
@@ -317,8 +364,9 @@ Returns the promoted row with a new integer `version`.
 
 ### 3.33 Get My Structure, 3.34 Get My History
 **Endpoint:** `GET /api/v1/payroll/me/salary-structure(/history)`
-**What it is:** Returns the employee's active salary.
+**What it is:** Returns the employee's active salary structure along with a dynamic `statutory_breakdown` object (PF Employee & Employer, ESI, PT, estimated TDS, and estimated Take-Home Net Pay).
 **Data Isolation Constraint:** This endpoint **strictly filters out pending proposals**. An employee will never see a `proposed` structure, preventing premature expectations if HR rejects a manager's hike.
+**Statutory Calculation:** Statutory heads (PF, ESI, PT, TDS) are never hardcoded in the salary structure table. Instead, `statutory_breakdown` is calculated on the fly using the organization's active `statutory_configs` and tax engine.
 
 ---
 

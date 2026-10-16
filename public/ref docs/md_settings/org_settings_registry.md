@@ -1162,6 +1162,114 @@ Two classes appear here:
 
 ---
 
+### Attendance Module (Surface)
+
+### 114. Shift Templates (`shift_templates`)
+
+* **Configuration Level:** Per Template (org-scoped)
+* **Data Type:** Name, start_time, end_time, break_duration_minutes, active flag
+* **Default Value:** Standard 09:00–18:00 default template
+* **Enforcement Point:** [shift_templates.model.js](src/modules/attendance/models/shift_templates.model.js)
+* **Deep Explanation:** Attendance shift templates providing scheduled working windows for employee roster assignments.
+* **Applicable Scenario:** Orgs managing shifts, rotational schedules, or standard business hours.
+* **Not-Applicable Scenario:** Orgs with completely untracked or fully flexible attendance.
+
+---
+
+### Task Assignment Module
+
+### 115. Maximum Attachments Per Task (`task_max_attachments_per_task`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Integer (files)
+* **Default Value:** `20` (Range: 1–50)
+* **Enforcement Point:** [task_settings.service.js](src/modules/task/services/task_settings.service.js) & [task_attachment.service.js](src/modules/task/services/task_attachment.service.js)
+* **Deep Explanation:** Caps the total number of active attachments permitted across a single task's lifetime.
+* **Applicable Scenario:** All orgs utilizing task delegation.
+* **Not-Applicable Scenario:** None.
+
+### 116. Maximum Attachment File Size (`task_max_attachment_size_mb`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Integer (MB)
+* **Default Value:** `10` (Range: 1–50)
+* **Enforcement Point:** [task_settings.service.js](src/modules/task/services/task_settings.service.js) & [task_attachment.service.js](src/modules/task/services/task_attachment.service.js)
+* **Deep Explanation:** Upper limit for presigned S3 upload URLs for individual attachments.
+* **Applicable Scenario:** All orgs uploading file deliverables.
+* **Not-Applicable Scenario:** None.
+
+### 117. Overdue Reminder Interval (`task_overdue_reminder_hours`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Integer (hours)
+* **Default Value:** `24` (Range: 1–168)
+* **Enforcement Point:** [task_notification.service.js](src/modules/task/services/task_notification.service.js) & [task_overdue_sweeper.cron.js](src/cron-jobs/task_overdue_sweeper.cron.js)
+* **Deep Explanation:** Cooldown window between recurring overdue alerts.
+* **Applicable Scenario:** Orgs requiring automated email escalation for past-due tasks.
+* **Not-Applicable Scenario:** None.
+
+### 118. Notify on Assignment (`task_notify_email_on_assignment`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Boolean
+* **Default Value:** `true`
+* **Enforcement Point:** [task_notification.service.js](src/modules/task/services/task_notification.service.js)
+* **Deep Explanation:** Controls whether an email notification is sent to the assignee upon new task assignment.
+* **Applicable Scenario:** All orgs.
+* **Not-Applicable Scenario:** None.
+
+### 119. Notify on Rework Request (`task_notify_email_on_reopen`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Boolean
+* **Default Value:** `true`
+* **Enforcement Point:** [task_notification.service.js](src/modules/task/services/task_notification.service.js)
+* **Deep Explanation:** Controls whether an email notification is sent to the assignee when a deliverable is rejected and reopened.
+* **Applicable Scenario:** All orgs.
+* **Not-Applicable Scenario:** None.
+
+### 120. Notify on Overdue (`task_notify_email_on_overdue`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Boolean
+* **Default Value:** `true`
+* **Enforcement Point:** [task_notification.service.js](src/modules/task/services/task_notification.service.js)
+* **Deep Explanation:** Controls whether overdue notification emails are generated when tasks pass their deadline.
+* **Applicable Scenario:** All orgs.
+* **Not-Applicable Scenario:** None.
+
+### 121. Notify on Submission (`task_notify_email_on_submission`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Boolean
+* **Default Value:** `true`
+* **Enforcement Point:** [task_notification.service.js](src/modules/task/services/task_notification.service.js)
+* **Deep Explanation:** Controls whether an email alert is sent to the assigner when work is submitted for review.
+* **Applicable Scenario:** All orgs.
+* **Not-Applicable Scenario:** None.
+
+### 122. Notify on Completion (`task_notify_email_on_completion`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Boolean
+* **Default Value:** `true`
+* **Enforcement Point:** [task_notification.service.js](src/modules/task/services/task_notification.service.js)
+* **Deep Explanation:** Controls whether an email alert is sent to the assignee when their deliverable is approved and marked completed.
+* **Applicable Scenario:** All orgs.
+* **Not-Applicable Scenario:** None.
+
+### 123. Discussion Hourly Rate Limit (`task_comment_rate_limit_hourly`)
+
+* **Configuration Level:** Organization-wide
+* **Data Type:** Integer (comments/hr)
+* **Default Value:** `30` (Range: 5–100)
+* **Enforcement Point:** [task_comment.service.js](src/modules/task/services/task_comment.service.js)
+* **Deep Explanation:** Sliding window capacity capping comments per user per task within an hourly window.
+* **Applicable Scenario:** All orgs.
+* **Not-Applicable Scenario:** None.
+
+---
+
 ### Deliberately **not** registry entries
 
 Catalogued here so a future reader does not mistake the omission for an oversight:

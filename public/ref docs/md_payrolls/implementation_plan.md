@@ -367,6 +367,10 @@ Output: `{ payable_days, lop_days, standard_working_days, calendar_days, per_dat
 
 **Exit criteria.** A regenerated payslip PDF is byte-comparable in content to the original for an unchanged snapshot; bulk download of 500 payslips streams without exhausting memory; an employee can only fetch their own payslip and a **manager only their direct reports'** (both verified by ID substitution); a manager report never includes a non-report's figures; every export is audit-logged.
 
+> **Phase 6 amendment (2026-09-17).** This scope list was written before Phases 2–5 existed, and several line items above were delivered early (payslip history/detail JSON in Phase 5, department distribution and deduction totals partially pre-empted by `preview()` / `#118`). The authoritative reconciliation of "parent §8 said vs. what actually remained for Phase 6" is the phase-6 plan's §1.3 table (`phases/phase6_implementation_plan.md`) — **that table, not this list, drove the Phase 6 build.** Net delivered: two new tables (`payslips`, `payroll_report_exports`), one new dependency (`pdfkit`, D-11), four PDF renderers, four report families, and endpoints #167–#194.
+> * **D-38 — the two D-37 tax items are reassigned out of Phase 6 to Phase 7.** Phase 5 deferred "tax an employer benefit contribution as a perquisite" and "auto-credit a benefit premium toward §80D" to "Phase 6", but the parent never assigned them here and both require Phase-4 engine surgery (`statutory_calculation.service.js` builds `taxable_earnings` from real earning lines only). Phase 6's safety property is that engine output is byte-identical before and after; these items would change it. They now live in Phase 7 scope and §9 (EC-32/EC-33) so the next phase does not lose them.
+> * **D-47 — Form 16 Part B renders a missing TAN as an em-dash (`TAN: —`), not an invented value.** `organization_profiles` has no TAN column, so `getForm16` returns `tan: null` and the PDF prints `—`. Phase 6 does **not** add a TAN column — that is an organization-module schema change with its own validation and settings surface. **Product flag:** a Form 16 Part B without a TAN is not submission-grade; adding TAN to `organization_profiles` should be scheduled before Form 16 PDFs are relied on for filing. Same treatment for `exit_date` (absent on `employee_profiles`): the annual statement shows no-run months as zeros rather than inferring an exit.
+
 ---
 
 ### Phase 7 — Automation, Corrections & Hardening
@@ -378,6 +382,7 @@ Output: `{ payable_days, lop_days, standard_working_days, calendar_days, per_dat
 * **Arrears & retro pay** (D-12): back-dated leave approval, retro increment, late-approved OT — all settled as next-run arrear lines carrying `source_ref` to the original period.
 * **Off-cycle runs** and **Full & Final settlement** for exits (final salary + leave encashment + loan recovery + notice-period adjustment).
 * **Comp-off encashment** (net-new; no path exists today).
+* **Deferred tax behaviours (D-38, reassigned from Phase 6):** tax an employer benefit contribution as a perquisite, and auto-credit a benefit premium toward §80D — both require Phase-4 `statutory_calculation` engine changes to route an `employer_contribution` line into `taxable_earnings` / the §80D deduction basis (EC-32/EC-33).
 * Full **edge-case regression** (§9), concurrency/load test of a 1,000-employee run, and a **security pass** focused on salary-data exposure and IDOR.
 * Documentation close-out: `api_registry.md`, `org_settings_registry.md`, `combined_api_analysis.md`, phase completion report.
 
@@ -422,6 +427,8 @@ Each must be resolved by an explicit, tested decision — not left to chance.
 | EC-29 | Tier-B proposal whose subject stops reporting to the proposer before approval → scope re-checked at approval, stale proposal blocked | 1 / 3 |
 | EC-30 | `payroll_require_separate_checker` ON but proposer is the only HR/Admin → approval blocked with a clear reason, not silently self-approved | 1 |
 | EC-31 | Manager proposes a Tier-B change that would land in an already-locked/closed period → routed to arrears (D-12), never mutates the closed run | 3 / 7 |
+| EC-32 | Employer benefit contribution must be taxed as a perquisite (D-38, reassigned out of Phase 6) → `employer_contribution` line reaches `taxable_earnings`; engine output changes, so out of Phase 6's byte-identical scope | 7 |
+| EC-33 | Benefit premium auto-credited toward §80D (D-38, reassigned out of Phase 6) → premium reduces the §80D deduction basis without a manual declaration; requires Phase-4 statutory surgery | 7 |
 
 ---
 

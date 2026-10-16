@@ -553,6 +553,10 @@ Approval and publishing never send emails synchronously to avoid holding the Ran
     }
   }
   ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | ----- | ---- | -------- | ----------- | ---------------- |
+  | `data.rows[].status` | String | No | Export status | `'started'`, `'completed'`, `'no_data'`, or `'failed'` |
 
 ## 183. Get Employee Annual Statement (JSON)
 * **API Name / Purpose:** Get Employee Annual Statement (JSON). Retrieves the FY salary grid for an employee.

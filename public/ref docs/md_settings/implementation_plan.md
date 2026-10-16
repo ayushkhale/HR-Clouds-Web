@@ -1864,5 +1864,39 @@ reordered, and Phases 1+2 remain shippable with no migration.
 
 ---
 
+## 23. Amendment — Phase 3 shipped (2026-10-09)
+
+Per §0, this section records what Phase 3 shipped as, rather than rewriting §16's Phase 3 row.
+
+**Delivered exactly as planned, DB-gated:** one table (`settings_change_logs`, migration `00073`), one recorder
+(`settings_audit.service` — runs inside the owner's transaction, F-P3-1/F-10), one unified reader
+(`settings_history.service`), one endpoint (**S-7 `GET /settings/history`, #248, `hr`-only**). No key-value store, no
+new dependency, no new org setting, no env var. `CATALOG_VERSION` unchanged (`2026-10-09.2`, D-P3-7).
+
+**DEF-S10 dependency satisfied in Phase 2:** `updateOrganizationProfile` now reads the prior row under lock before the
+blind UPDATE, so the ledger records a true `old → new` diff (not `null → value`) for #97/#98.
+
+**Four audit shapes → one item list** via a pure normaliser; keyset cursor over a 3-table union
+(`created_at DESC, id DESC, setting_key ASC`), keyed on `date_trunc('milliseconds', created_at)` because the pg driver
+truncates µs→ms and a two-key write produces two rows at one timestamp that must not split across a page boundary (a
+documented refinement of §10.3's literal predicate). `next_cursor === null` is the only end-of-history signal.
+
+**Caveats carried into the change record (not design changes):** `source` and `actor.role` are ledger-only;
+`reason` is collected on high-risk writes but persisted only by the ledger (OD-P3-1 declined → stores 1–4 do not retain
+it); coverage is the 138 org-singleton keys only.
+
+**§23.5 operator-checklist correction (migration 00073):** the table has **16 columns and 2 CHECK constraints**
+(`scl_store_known`, `scl_source_known`) — §23.5's "17 columns / 3 CHECKs" was a miscount against the normative §7.2.
+There is **no `NOT NULL` CHECK on `old_value`/`new_value`** by design (EC-S12 requires SQL `NULL` to be representable
+and distinct from the JSONB `'null'` literal). `created_at` is `TIMESTAMPTZ NOT NULL DEFAULT now()`; four DESC indexes;
+`org_id` FK CASCADE, `actor_id` FK SET NULL; `down()` drops only this table. **Handed back unrun** — no `db:migrate`
+and no connectivity check is performed from the development environment.
+
+**Tests:** 46 new settings tests across six files (`history_normalise`, `history_cursor`,
+`settings_audit_recorder`, `history_service`, `module_boundary`, `history_api_correctness`); the settings route-count
+guard moved 6 → 7. Settings, organization and payroll suites green.
+
+---
+
 *End of plan.*
 
