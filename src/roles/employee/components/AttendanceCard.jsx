@@ -35,7 +35,7 @@ import { choosesWorkMode, geofenceNotice, isFieldWorker, permittedWorkModes } fr
 import { PUNCH_NOTES_MAX } from "../../../shared/attendance/validation";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import { ErrorState, InlineAlert, Spinner, StatusBadge, Toast, useToast } from "../../../shared/attendance/ui";
-import { HiClock, HiLocationMarker, HiOutlineClock, HiPencilAlt } from "react-icons/hi";
+import { HiClock, HiLocationMarker, HiOfficeBuilding, HiOutlineClock, HiPencilAlt } from "react-icons/hi";
 import { BiCoffeeTogo, BiStopwatch } from "react-icons/bi";
 
 const WORK_MODE_KEY = "hrclouds_attendance_work_mode";
@@ -555,18 +555,36 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
             It also shows in every phase, not just before clocking in: clocking
             OUT is geofenced too, so where they may stand matters all day. */}
         {(contract?.records?.length > 0 || (isFieldWorker(contractMode) && contract?.assigned_office)) && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Where you can clock in</p>
-            <ul className="space-y-1">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-3">
+            <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+              <HiLocationMarker className="w-3.5 h-3.5 text-purple-500 shrink-0" aria-hidden="true" />
+              Where you can clock in
+            </p>
+            {/* Each place is a chip-icon + name over a quiet subline, so the base
+                office and the client sites read apart at a glance rather than as
+                one run of text. Base = purple (primary); client sites = indigo
+                (the "info" mapping, §5). */}
+            <ul className="space-y-1.5">
               {contract.assigned_office?.name && (
-                <li className="text-[11px] font-semibold text-slate-600 truncate">
-                  {contract.assigned_office.name} <span className="text-slate-400 font-medium">· your base</span>
+                <li className="flex items-center gap-2.5">
+                  <span className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <HiOfficeBuilding className="w-3.5 h-3.5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 leading-tight">
+                    <span className="block text-[12px] font-bold text-slate-700 truncate">{contract.assigned_office.name}</span>
+                    <span className="block text-[10px] font-semibold text-slate-400">Your base office</span>
+                  </span>
                 </li>
               )}
               {(contract.records || []).map((r) => (
-                <li key={r.id} className="text-[11px] font-semibold text-slate-600 truncate">
-                  {r.field_location?.name || "A client site"}
-                  {r.field_location?.client_name && <span className="text-slate-400 font-medium"> · {r.field_location.client_name}</span>}
+                <li key={r.id} className="flex items-center gap-2.5">
+                  <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <HiLocationMarker className="w-3.5 h-3.5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 leading-tight">
+                    <span className="block text-[12px] font-bold text-slate-700 truncate">{r.field_location?.name || "A client site"}</span>
+                    <span className="block text-[10px] font-semibold text-slate-400 truncate">{r.field_location?.client_name || "Client site"}</span>
+                  </span>
                 </li>
               ))}
             </ul>
