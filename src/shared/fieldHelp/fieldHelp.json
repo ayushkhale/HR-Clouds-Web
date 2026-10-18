@@ -2717,7 +2717,7 @@
     },
     "attendance.field_assignments": {
       "kind": "form",
-      "description": "The assign dialog on Client Sites (FieldLocationsView), in both the HR and manager workspaces. Who may be assigned differs by role, and an open-ended window is the non-obvious part.",
+      "description": "Assigning somebody to a client site, in both the HR and manager workspaces: the dialog on Client Sites (FieldLocationsView) and the same thing person-first in FieldAssignmentsPanel — the People view there, and the Reporting & Location tab on an employee record. Who may be assigned differs by role, and an open-ended window is the non-obvious part.",
       "workspaces": [
         "hr",
         "manager"
@@ -2737,6 +2737,27 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens when a field assignment has no end date?"
+          }
+        },
+        "work_mode": {
+          "hint": "How their clock-ins are judged: Office checks their base office, Field also accepts the client sites below, Remote checks nothing.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does each work mode change about where an employee can clock in?"
+          }
+        },
+        "field_location_id": {
+          "hint": "Only active sites they aren’t already on appear here. A site they already have is left out — change its dates on the row instead of adding it twice.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can an employee only be assigned to the same client site once?"
+          }
+        },
+        "geofence_radius_meters": {
+          "hint": "How far from this site’s pin a clock-in still counts. It belongs to the site, so it is changed on the site itself, not per person.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does each client site have its own distance allowance?"
           }
         }
       }
@@ -3376,10 +3397,26 @@
       "fields": {
         "tab.department": {
           "tier": "onboarding",
-          "hint": "Where this person sits: their department, who they report to and who reports to them. Moving them to another department starts here.",
+          "hint": "Who they report to, the department they sit in, and where their clock-ins are allowed — their base office plus any client sites.",
           "askMaya": {
             "enabled": true,
-            "question": "How does moving an employee to another department change who they report to?"
+            "question": "What do an employee’s reporting line and work location decide for them?"
+          }
+        },
+        "reporting_person": {
+          "tier": "onboarding",
+          "hint": "Who approves this person’s leave and attendance and can see their records. Changing it moves those requests to somebody else.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What changes for an employee when their reporting person is changed?"
+          }
+        },
+        "tab.tasks": {
+          "tier": "onboarding",
+          "hint": "Work this person has been given, whoever gave it out, and whether any of it is waiting on your review or past its deadline.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which tasks appear on an employee’s record, and who is allowed to give them one?"
           }
         },
         "tab.leave": {
@@ -5443,6 +5480,30 @@
           "askMaya": {
             "enabled": true,
             "question": "Which task states are waiting on me as the reviewer, and which are waiting on the employee?"
+          }
+        }
+      }
+    },
+    "tasks.employee_tasks": {
+      "kind": "data",
+      "description": "The Tasks tab on one person’s record (EmployeeTasksTab), in the HR and manager workspaces: #266 filtered by `assignee_id` for HR, #257 by `subordinate_id` for a manager. Same screen in both; the counts and the status column mean the same thing as on All Tasks.",
+      "workspaces": [
+        "hr",
+        "manager"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Everything this person has been given, whoever gave it out — not only the tasks you handed to them yourself.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Whose tasks appear on an employee’s record?"
+          }
+        },
+        "status": {
+          "hint": "Waiting for review is the one that needs you: the work is in and the task sits still until you approve it or send it back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which task states are waiting on a reviewer, and which are waiting on the employee?"
           }
         }
       }

@@ -24,11 +24,20 @@
 // midnight-UTC instant lands on the previous calendar day and would shift the
 // window by one. Never `toISOString()` here.
 //
+// TWO VIEWS, ONE SCREEN (2026-10-18). "Sites" answers "where can field staff
+// clock in?"; "People" answers "where is THIS person allowed to clock in, and
+// can I stop that?". The second question had no screen at all: taking somebody
+// off a site meant knowing which site, opening it and expanding a folded
+// section, and `GET /field-assignments/user/:user_id` (API 8) was only ever
+// called invisibly to read a work mode. The People view is that endpoint's
+// home, and it is the same `FieldAssignmentsPanel` the employee record's own
+// tab mounts — one component, two hosts, so the two can't drift.
+//
 // Contract: `md_attendance/7_work_mode_and_field_geofencing_api.md`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil, HiX } from "react-icons/hi";
+import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil, HiX, HiUser } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailTable, displayValue, rowPreviewProps } from "../components/DetailDialog";
 import GeofenceMapPicker from "../components/GeofenceMapPicker";
 import AddressSearchField from "../components/AddressSearchField";
@@ -39,11 +48,21 @@ import FieldHelp from "../fieldHelp/FieldHelp";
 import { EmptyState, ErrorState, FieldError, FilterTabs, InlineAlert, LoadingRows, Pagination, Spinner, Toast, useToast } from "./ui";
 import { attendanceErrorMessage } from "../utils/attendanceErrors";
 import { coord, dedupeById, fieldPlane, FIELD_RADIUS_DEFAULT, FIELD_RADIUS_MAX, FIELD_RADIUS_MIN, hasPin } from "./fieldPlanes";
+import FieldAssignmentsPanel from "./FieldAssignmentsPanel";
 import { fmtDate, todayYMD, ymdOnly } from "./dates";
 import { personName } from "./normalize";
+import { useAuth } from "../contexts/AuthContext";
 import { useEmployeeDirectory } from "../contexts/EmployeeDirectoryContext";
 
 const PAGE_SIZE = 20;
+/** The flat assignment roster is an overview, not a paged list — take the lot (the endpoint caps at 100). */
+const SITE_PAGE = 100;
+
+/** The two questions this screen answers. Sites first — a site must exist before anyone can be put on one. */
+const VIEW_TABS = [
+  { value: "sites", label: "Sites" },
+  { value: "people", label: "People" },
+];
 
 const BROWSER_TZ = (() => {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata"; }
@@ -94,9 +113,25 @@ export default function FieldLocationsView({ viewer = "hr" }) {
   const plane = useMemo(() => fieldPlane(viewer), [viewer]);
   // Leavers are a filter, never a second read — and nobody should be assigned to
   // a client site after they've left (CLAUDE.md §7).
-  const { activeRows, nameOf } = useEmployeeDirectory();
+  const { activeRows, activeOptions, nameOf, status: rosterStatus } = useEmployeeDirectory();
+  const { user } = useAuth();
   const { toast, showToast, clearToast } = useToast();
 
+  // A manager may NOT assign a site to themselves — the hierarchy resolver
+  // never returns the caller's own id, so offering themselves would only buy a
+  // 403 with a very specific message (contract §6.1). HR may assign anyone,
+  // themselves included.
+  const assignableRows = useMemo(
+    () => (plane?.canAssignSelf ? activeRows : activeRows.filter((row) => String(row.user_id ?? row.id) !== String(user?.id ?? ""))),
+    [activeRows, plane, user?.id],
+  );
+  const assignablePeople = useMemo(
+    () => (plane?.canAssignSelf ? activeOptions : activeOptions.filter((person) => String(person.id) !== String(user?.id ?? ""))),
+    [activeOptions, plane, user?.id],
+  );
+
+  const [view, setView] = useState("sites");
+  const [person, setPerson] = useState("");
   const [list, setList] = useState({ rows: [], total: 0, totalPages: 1, loading: true, error: null });
   const [page, setPage] = useState(1);
   const [tab, setTab] = useState("active");
@@ -139,18 +174,36 @@ export default function FieldLocationsView({ viewer = "hr" }) {
 
   const refresh = () => load();
 
+  const selectedName = person ? nameOf(person, "Loading…") : "";
+
   return (
     <div className="space-y-5">
       {/* No heading here on purpose. The page wrapper already carries the <h1>
           and its one-line description, which §2 requires to match the sidebar
           label and the top bar — repeating them here printed the same title
           twice. The page ⓘ lives beside that <h1>, per §10. */}
-      <div className="flex justify-end">
-        <button type="button" onClick={() => setEditing({ site: null, assignedCount: 0 })} className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition">
-          <HiPlus className="w-4 h-4" /> Add a site
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterTabs options={VIEW_TABS} value={view} onChange={setView} />
+        {view === "sites" && (
+          <button type="button" onClick={() => setEditing({ site: null, assignedCount: 0 })} className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition">
+            <HiPlus className="w-4 h-4" /> Add a site
+          </button>
+        )}
       </div>
 
+      {view === "people" ? (
+        <PeopleView
+          plane={plane}
+          viewer={viewer}
+          people={assignablePeople}
+          rosterStatus={rosterStatus}
+          nameOf={nameOf}
+          value={person}
+          onChange={setPerson}
+          name={selectedName}
+        />
+      ) : (
+        <>
       <FilterTabs
         options={STATUS_TABS.map((t) => (t.value === "active" ? { ...t, label: `Active${list.total && tab === "active" ? ` (${list.total})` : ""}` } : t))}
         value={tab}
@@ -185,6 +238,7 @@ export default function FieldLocationsView({ viewer = "hr" }) {
                   <th className="px-5 py-3">Client</th>
                   <th className="px-5 py-3">City</th>
                   <th className="px-5 py-3">How close they must be</th>
+                  <th className="px-5 py-3">People</th>
                   <th className="px-5 py-3">Added by</th>
                 </tr>
               </thead>
@@ -198,6 +252,14 @@ export default function FieldLocationsView({ viewer = "hr" }) {
                     <td className="px-5 py-3.5">{displayValue(row.client_name)}</td>
                     <td className="px-5 py-3.5">{displayValue(row.city)}</td>
                     <td className="px-5 py-3.5 tabular-nums">{row.geofence_radius_meters ? `${row.geofence_radius_meters} m` : "N/A"}</td>
+                    {/* `assigned_user_count` arrives on every list row (2026-10-18).
+                        Zero is a real answer — "nobody yet" — not missing data,
+                        so it reads as 0, never N/A. */}
+                    <td className="px-5 py-3.5 tabular-nums">
+                      {Number.isFinite(Number(row.assigned_user_count))
+                        ? <span className={Number(row.assigned_user_count) > 0 ? "font-semibold text-slate-800" : "text-slate-400"}>{Number(row.assigned_user_count)}</span>
+                        : "N/A"}
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <span className="truncate">{personName(row.creator, "Unknown user")}</span>
@@ -214,6 +276,8 @@ export default function FieldLocationsView({ viewer = "hr" }) {
 
       {list.totalPages > 1 && (
         <Pagination page={page} totalPages={list.totalPages} total={list.total} limit={PAGE_SIZE} onPageChange={setPage} noun="site" />
+      )}
+        </>
       )}
 
       {selected && (
@@ -243,13 +307,165 @@ export default function FieldLocationsView({ viewer = "hr" }) {
         <AssignDialog
           plane={plane}
           site={assigning}
-          people={activeRows}
+          people={assignableRows}
           onClose={() => setAssigning(null)}
           onSaved={(msg) => { setAssigning(null); showToast(msg); refresh(); }}
         />
       )}
 
       <Toast toast={toast} onClose={clearToast} />
+    </div>
+  );
+}
+
+/* ─── People view: one person's work locations ─────────────────────────────── */
+
+/**
+ * The other way round from the Sites table: pick somebody and see — and change
+ * — where they may clock in. This is the only place `GET
+ * /field-assignments/user/:user_id` (API 8) is actually shown, and the only
+ * employee-first route to unassigning (API 7) and to moving a window (the PUT).
+ *
+ * It opens on the flat "who is assigned where" read (`GET /field-assignments`,
+ * 2026-10-18) rather than an empty picker: the question is usually "who is on a
+ * site" before it is "this specific person", and a bare picker made you already
+ * know the answer. A row there drills into that person's full panel.
+ *
+ * The roster is already hierarchy-scoped server-side, so a manager's people ARE
+ * their direct reports — exactly the set the assign endpoint accepts, and the
+ * same set the flat list returns. Self is excluded for a manager by the caller
+ * (contract §6.1).
+ */
+function PeopleView({ plane, viewer, people, rosterStatus, nameOf, value, onChange, name }) {
+  // A roster this role may not read is "not available", never an empty list
+  // that would read as an organisation with nobody in it (CLAUDE.md §7).
+  if (rosterStatus === "unavailable") {
+    return (
+      <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+        <EmptyState icon={HiUser} title="The list of people isn’t available here" message="Open a person from their employee record instead." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-3xl border border-slate-100 p-5">
+        <div className="flex items-center gap-1.5 mb-2">
+          <label htmlFor="fl-person" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Whose locations</label>
+          <FieldHelp surface="attendance.field_assignments" field="user_id" label="who you can pick" />
+        </div>
+        <div className="max-w-md">
+          <PersonSelect
+            id="fl-person"
+            value={value}
+            onChange={(id) => onChange(id)}
+            people={people}
+            loading={rosterStatus === "loading"}
+            placeholder="Choose someone"
+            emptyText={viewer === "manager" ? "Nobody reports to you yet." : "No people found."}
+          />
+        </div>
+        <p className="text-[11px] text-slate-400 mt-2">
+          {viewer === "manager"
+            ? "You can see and change the work locations of the people who report to you."
+            : "You can see and change anyone’s work locations."}
+        </p>
+      </div>
+
+      {value ? (
+        <>
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:underline"
+          >
+            ← Everyone on a client site
+          </button>
+          <FieldAssignmentsPanel key={value} userId={value} name={name} viewer={viewer} collapsible={false} />
+        </>
+      ) : (
+        <AssignedRoster plane={plane} viewer={viewer} nameOf={nameOf} onPick={onChange} />
+      )}
+    </div>
+  );
+}
+
+/* ─── Everyone currently on a client site ─────────────────────────────────── */
+
+/**
+ * The flat `GET /field-assignments` read as a scannable list: who is on which
+ * site, and until when. A row opens that person's full panel — list → row →
+ * record (§3), where the "record" is `FieldAssignmentsPanel`. Active only: a
+ * removed assignment is not an answer to "where can people clock in now".
+ */
+function AssignedRoster({ plane, viewer, nameOf, onPick }) {
+  const [state, setState] = useState({ rows: [], total: 0, loading: true, error: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    plane.listAssignments({ is_active: true, page: 1, limit: SITE_PAGE })
+      .then((res) => {
+        if (cancelled) return;
+        const d = res?.data || {};
+        setState({ rows: Array.isArray(d.records) ? d.records : [], total: Number(d.total) || 0, loading: false, error: null });
+      })
+      .catch((error) => { if (!cancelled) setState({ rows: [], total: 0, loading: false, error }); });
+    return () => { cancelled = true; };
+  }, [plane]);
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+      {state.error ? (
+        <div className="p-6"><ErrorState error={state.error} fallback="Couldn't load who is assigned." /></div>
+      ) : state.loading ? (
+        <div className="p-6"><LoadingRows rows={4} /></div>
+      ) : state.rows.length === 0 ? (
+        <EmptyState
+          icon={HiUser}
+          title="Nobody is on a client site yet"
+          message={viewer === "manager"
+            ? "When you assign someone who reports to you to a site, they appear here. Pick a person above to start."
+            : "When you assign someone to a client site, they appear here. Pick a person above to start."}
+        />
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50/80 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-5 py-3">Person</th>
+                  <th className="px-5 py-3">Client site</th>
+                  <th className="px-5 py-3">From</th>
+                  <th className="px-5 py-3">Until</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {state.rows.map((a) => {
+                  // An unresolved name reads "Loading…", never an id (§4).
+                  const who = personName(a.user, "") || nameOf?.(a.user_id, "Loading…") || "Loading…";
+                  return (
+                    <tr key={a.id} {...rowPreviewProps(() => onPick(String(a.user_id)), `${who}’s work locations`)}>
+                      <td className="px-5 py-3.5 font-semibold text-slate-800">{who}</td>
+                      <td className="px-5 py-3.5">
+                        <span className="block truncate">{a.field_location?.name || "A client site"}</span>
+                        {a.field_location?.city && <span className="block text-[10px] text-slate-400">{a.field_location.city}</span>}
+                      </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap">{fmtDate(ymdOnly(a.effective_from))}</td>
+                      <td className="px-5 py-3.5 whitespace-nowrap">{a.effective_to ? fmtDate(ymdOnly(a.effective_to)) : "No end date"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {state.total > state.rows.length && (
+            <p className="px-5 py-3 text-[11px] text-slate-400 border-t border-slate-100">
+              Showing the first {state.rows.length} of {state.total}. Pick a person above to go straight to someone further down.
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

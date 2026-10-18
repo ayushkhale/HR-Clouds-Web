@@ -28,19 +28,14 @@
 //   module's rule), so the column is gated on the scope rather than on the
 //   value.
 //
-// • EVERY DECISION EMITS `TASK` (§7). The review queue is counted in the
-//   sidebar badge and the inbox, and there is no query cache, so an approval
-//   that doesn't emit leaves a stale number until F5.
-//
-// • A 412 MEANS SOMEBODY ELSE GOT THERE FIRST. Two managers can both be
-//   looking at the same submission. The dialog reloads the record and keeps
-//   itself open; the action dialog keeps what was typed.
+// • THE DECISIONS THEMSELVES LIVE IN TaskReviewActions, which is also the
+//   footer of the Tasks tab on an employee record. It owns the `TASK` event
+//   every decision must emit (§7) and the 412 reload; this screen only says so
+//   and reloads its own page.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  HiBan, HiCalendar, HiCheckCircle, HiClipboardList, HiPlus, HiRefresh, HiSwitchHorizontal,
-} from "react-icons/hi";
+import { HiClipboardList, HiPlus } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
 import { organizationAPI } from "../api";
@@ -51,14 +46,12 @@ import { listFrom } from "../attendance/normalize";
 import { HelpLabel } from "../fieldHelp/FieldHelp";
 import { isTaskFeatureDisabled, taskErrorMessage } from "../utils/taskErrors";
 import TaskTable from "./TaskTable";
-import TaskDetailDialog, { TaskFooterNote } from "./TaskDetailDialog";
+import TaskDetailDialog from "./TaskDetailDialog";
 import TaskFilterBar from "./TaskFilterBar";
 import AssignTaskDialog from "./AssignTaskDialog";
-import {
-  ApproveTaskDialog, CancelTaskDialog, ExtendDueDateDialog, ReassignTaskDialog, ReopenTaskDialog,
-} from "./TaskReviewDialogs";
+import TaskReviewActions from "./TaskReviewActions";
 import { taskPlaneFor } from "./taskPlanes";
-import { TASK_STATUS_FILTERS, isAwaitingReview, isTaskTerminal, reopenRule } from "./taskMeta";
+import { TASK_STATUS_FILTERS } from "./taskMeta";
 
 const SCOPES = {
   assigned: {
@@ -81,9 +74,6 @@ const SCOPES = {
   },
 };
 
-/** Which dialog is open over the record inspector. */
-const NO_ACTION = { kind: "", busy: false, error: "" };
-
 /**
  * @param {object} props
  * @param {"manager"|"hr"} props.viewer
@@ -99,7 +89,6 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
   const [filters, setFilters] = useState({ status: initialStatus, priority: "", category: "", search: "", department_id: "" });
   const [selected, setSelected] = useState(null);
   const [assigning, setAssigning] = useState(false);
-  const [action, setAction] = useState(NO_ACTION);
   const [departments, setDepartments] = useState(null);
   const { toast, showToast, clearToast } = useToast();
 
@@ -134,26 +123,6 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
       .catch(() => alive && setDepartments([]));
     return () => { alive = false; };
   }, [isOrgScope]);
-
-  const closeAction = () => setAction(NO_ACTION);
-
-  /**
-   * Run one review action. `onActionError` comes from the record inspector so a
-   * 412 reloads the record there and the message says what actually happened.
-   */
-  const runAction = (task, call, successMessage, onActionError) => async (payload) => {
-    setAction((a) => ({ ...a, busy: true, error: "" }));
-    try {
-      await call(task.id, payload, task);
-      showToast(successMessage);
-      emitAttendanceChanged(ATTENDANCE_EVENTS.TASK, { id: task.id });
-      closeAction();
-      setSelected(null);
-      list.reload();
-    } catch (err) {
-      setAction((a) => ({ ...a, busy: false, error: onActionError(err, "Couldn’t do that to this task.") }));
-    }
-  };
 
   if (isTaskFeatureDisabled(list.error)) {
     return (
@@ -236,18 +205,14 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
         <TaskDetailDialog
           task={selected}
           plane={viewer}
-          onClose={() => { setSelected(null); closeAction(); }}
+          onClose={() => setSelected(null)}
           onChanged={list.reload}
           footer={({ task, onActionError }) => (
-            <TaskReviewFooter
+            <TaskReviewActions
               task={task}
               viewer={viewer}
-              onPick={(kind) => setAction({ kind, busy: false, error: "" })}
               onActionError={onActionError}
-              action={action}
-              adapter={adapter}
-              runAction={runAction}
-              onCloseAction={closeAction}
+              onDone={(message) => { showToast(message); setSelected(null); list.reload(); }}
             />
           )}
         />
@@ -267,104 +232,6 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
       )}
 
       <Toast toast={toast} onClose={clearToast} />
-    </>
-  );
-}
-
-/**
- * The record inspector's footer: the buttons this viewer may press, plus
- * whichever reason prompt is open. The prompts render here as SIBLINGS of the
- * footer rather than children of the inspector's body, so their z-170 layer
- * sits above the z-140 inspector (§3 stacking).
- */
-function TaskReviewFooter({ task, viewer, onPick, onActionError, action, adapter, runAction, onCloseAction }) {
-  const terminal = isTaskTerminal(task);
-  const awaiting = isAwaitingReview(task);
-  const canReopen = reopenRule(task, viewer).allowed;
-
-  const BUTTON = "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition disabled:opacity-50";
-  const QUIET = `${BUTTON} bg-white border border-slate-200 text-slate-700 hover:bg-slate-50`;
-  const OUTLINE = `${BUTTON} bg-white border border-purple-200 text-purple-700 hover:bg-purple-50`;
-  const PRIMARY = `${BUTTON} text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-200`;
-  const DANGER = `${BUTTON} bg-white border border-rose-200 text-rose-700 hover:bg-rose-50`;
-
-  return (
-    <>
-      <TaskFooterNote task={task} plane={viewer} />
-
-      {!terminal && (
-        <>
-          <button type="button" onClick={() => onPick("cancel")} className={DANGER}>
-            <HiBan className="w-4 h-4" /> Call it off
-          </button>
-          <button type="button" onClick={() => onPick("extend")} className={QUIET}>
-            <HiCalendar className="w-4 h-4" /> Move the deadline
-          </button>
-          <button type="button" onClick={() => onPick("reassign")} className={QUIET}>
-            <HiSwitchHorizontal className="w-4 h-4" /> Hand it over
-          </button>
-        </>
-      )}
-
-      {canReopen && (
-        <button type="button" onClick={() => onPick("reopen")} className={OUTLINE}>
-          <HiRefresh className="w-4 h-4" /> {awaiting ? "Send back for changes" : "Reopen the task"}
-        </button>
-      )}
-
-      {awaiting && (
-        <button type="button" onClick={() => onPick("approve")} className={PRIMARY}>
-          <HiCheckCircle className="w-4 h-4" /> Approve
-        </button>
-      )}
-
-      {action.kind === "approve" && (
-        <ApproveTaskDialog
-          task={task}
-          busy={action.busy}
-          error={action.error}
-          onConfirm={runAction(task, adapter.approve, "Approved. They’ve been told.", onActionError)}
-          onClose={onCloseAction}
-        />
-      )}
-      {action.kind === "reopen" && (
-        <ReopenTaskDialog
-          task={task}
-          plane={viewer}
-          busy={action.busy}
-          error={action.error}
-          onConfirm={runAction(task, adapter.reopen, "Sent back with your notes.", onActionError)}
-          onClose={onCloseAction}
-        />
-      )}
-      {action.kind === "reassign" && (
-        <ReassignTaskDialog
-          task={task}
-          plane={viewer}
-          busy={action.busy}
-          error={action.error}
-          onConfirm={runAction(task, adapter.reassign, "Handed over. The new person has been told.", onActionError)}
-          onClose={onCloseAction}
-        />
-      )}
-      {action.kind === "cancel" && (
-        <CancelTaskDialog
-          task={task}
-          busy={action.busy}
-          error={action.error}
-          onConfirm={runAction(task, adapter.cancel, "Task called off.", onActionError)}
-          onClose={onCloseAction}
-        />
-      )}
-      {action.kind === "extend" && (
-        <ExtendDueDateDialog
-          task={task}
-          busy={action.busy}
-          error={action.error}
-          onConfirm={runAction(task, adapter.extend, "Deadline moved. They’ve been told.", onActionError)}
-          onClose={onCloseAction}
-        />
-      )}
     </>
   );
 }

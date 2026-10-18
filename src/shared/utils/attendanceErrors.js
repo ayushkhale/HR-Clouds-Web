@@ -69,10 +69,17 @@ const ATTENDANCE_ERROR_MESSAGES = {
   // optional — these say which, rather than "invalid request".
   FIELD_LOCATION_NOT_FOUND: RECORD_GONE,
   FIELD_ASSIGNMENT_NOT_FOUND: RECORD_GONE,
-  FIELD_LOCATION_INACTIVE: "This site has been retired, so people can't be assigned to it. Pick an active site or restore this one.",
+  FIELD_LOCATION_INACTIVE: "This site has been retired, so people can't be assigned to it. Pick an active site, or add it again as a new site.",
   FIELD_LOCATION_FORBIDDEN: "Only HR or the person who added this site can change it.",
   FIELD_LOCATION_DUPLICATE: "A site with that name already exists. Use the existing one rather than adding a second.",
-  FIELD_ASSIGNMENT_DUPLICATE: "This person is already assigned to this site. Edit that assignment's dates instead of adding another.",
+  // The uniqueness rule is DATE-BLIND — one active (person, site) pair whatever
+  // the dates — so a second, non-overlapping window trips this too. Since
+  // 2026-10-18 there IS an update endpoint, so the fix is to change the
+  // existing window's dates ("Change dates" on the row), not remove-then-add.
+  FIELD_ASSIGNMENT_DUPLICATE: "This person is already assigned to this site. Change the dates on their existing assignment instead of adding a second one.",
+  // A PUT on a window that was already removed (2026-10-18). The row the user
+  // is looking at is stale; a refresh drops it.
+  FIELD_ASSIGNMENT_INACTIVE: "This assignment has already been removed, so its dates can't be changed. Refresh to see what's current, then assign the site again if you need it.",
   // EMPLOYEE_NOT_FOUND (also raised by assign) is already mapped below.
   COMP_OFF_NOT_EARNED: "This request has already been actioned, so it can't be changed. The list has been refreshed.",
   EMPLOYEE_NOT_FOUND: "That employee could not be found. They may have been removed from the organisation.",
@@ -132,11 +139,13 @@ const DEVICE_TRUST_CODES = new Set([
 
 // Joi / shape rejections: the server `message` is more specific than any copy we could write.
 // Codes whose server message beats ours because it carries specifics we can't
-// know: which field broke a rule, which work mode the contract allows, or the
-// dates of the assignment already blocking this one.
+// know: which field broke a rule, or which work mode the contract allows.
+// FIELD_ASSIGNMENT_DUPLICATE was here, but since there is now an edit endpoint
+// our copy points at "Change dates" — advice the raw server message can't give
+// — so ours wins for it.
 const SERVER_MESSAGE_CODES = new Set([
   "VALIDATION_ERROR", "INVALID_SHIFT", "INVALID_SHIFT_DATA", "INVALID_ROTATION_DURATIONS",
-  "WORK_MODE_NOT_PERMITTED", "FIELD_ASSIGNMENT_DUPLICATE", "FIELD_LOCATION_DUPLICATE",
+  "WORK_MODE_NOT_PERMITTED", "FIELD_LOCATION_DUPLICATE",
 ]);
 
 const SESSION_EXPIRED = "Your session has expired. Please sign in again.";

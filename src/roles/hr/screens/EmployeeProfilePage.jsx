@@ -10,13 +10,14 @@ import EditMemberProfileModal from "../../../shared/components/EditMemberProfile
 import HrJobFieldsDialog from "../components/HrJobFieldsDialog";
 import ReportsTab from "./employee-profile/ReportsTab";
 import LeaveTab from "./employee-profile/LeaveTab";
-import DepartmentTab from "./employee-profile/DepartmentTab";
+import ReportingLocationTab from "./employee-profile/ReportingLocationTab";
+import EmployeeTasksTab from "../../../shared/tasks/EmployeeTasksTab";
 import DocumentsTab from "./employee-profile/DocumentsTab";
 import SalaryTab from "./employee-profile/SalaryTab";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar, HiOutlineFolder,
-  HiOutlineCalendar, HiOutlineOfficeBuilding, HiOutlineCurrencyRupee,
+  HiOutlineCalendar, HiOutlineOfficeBuilding, HiOutlineCurrencyRupee, HiOutlineClipboardList,
   HiTrash, HiBan, HiCheckCircle, HiX
 } from "react-icons/hi";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
@@ -27,7 +28,11 @@ import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
-  { key: "department", label: "Department", icon: HiOutlineOfficeBuilding },
+  // The key stays `department` — ?tab=department links and the
+  // `tab.department` field-help entry both hang off it (the tab was renamed
+  // once its contents grew past the department alone).
+  { key: "department", label: "Reporting & Location", icon: HiOutlineOfficeBuilding },
+  { key: "tasks", label: "Tasks", icon: HiOutlineClipboardList },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
   { key: "salary", label: "Salary", icon: HiOutlineCurrencyRupee },
   { key: "documents", label: "Documents", icon: HiOutlineFolder },
@@ -558,7 +563,18 @@ export default function EmployeeProfilePage() {
                 <AttendanceTab key={userId} userId={userId} employeeRole={employeeRole} />
               )}
               {activeTab === "department" && !loading && employee && (
-                <DepartmentTab key={userId} employee={employee} userId={userId} employeeRole={employeeRole} onTransfer={() => setShowTransferModal(true)} />
+                <ReportingLocationTab
+                  key={userId}
+                  employee={employee}
+                  userId={userId}
+                  employeeRole={employeeRole}
+                  viewer="hr"
+                  onTransfer={() => setShowTransferModal(true)}
+                  onEditWorkplace={() => setEditingJobFields(true)}
+                />
+              )}
+              {activeTab === "tasks" && (
+                <EmployeeTasksTab key={userId} userId={userId} name={displayName} viewer="hr" />
               )}
               {activeTab === "leave" && (
                 <LeaveTab userId={userId} employeeName={displayName} />

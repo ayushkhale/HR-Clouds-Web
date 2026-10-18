@@ -368,8 +368,25 @@ export const attendanceAPI = {
    * Response: { assignment, work_mode_changed: boolean, work_mode_warning: string|null }
    */
   assignFieldLocation: (plane, payload) => post(`/attendance/${seg(plane)}/field-assignments`, payload),
+  /**
+   * Move an existing assignment's window (2026-10-18). Body: `{ effective_from?,
+   * effective_to? }`, at least one, plain `YYYY-MM-DD` — `effective_to: null`
+   * makes it open-ended. The original `assigned_by` is NEVER overwritten, which
+   * is the whole reason this beats remove-then-add. A PUT on an already
+   * unassigned row is `400 FIELD_ASSIGNMENT_INACTIVE`. Manager scope is direct
+   * reports only (`403 HIERARCHY_VIOLATION` otherwise).
+   */
+  updateFieldAssignment: (plane, assignmentId, payload) => put(`/attendance/${seg(plane)}/field-assignments/${seg(assignmentId)}`, payload),
   /** Idempotent — a repeat returns `already_inactive: true`, not an error. */
   unassignFieldLocation: (plane, assignmentId) => del(`/attendance/${seg(plane)}/field-assignments/${seg(assignmentId)}`),
+  /**
+   * The flat "who is assigned where" read (2026-10-18). Params:
+   * `{ field_location_id?, user_id?, is_active?, include_inactive?, page?, limit? }`.
+   * HR is org-wide; a manager is bounded to direct reports (an out-of-scope
+   * `user_id` is `403 HIERARCHY_VIOLATION`). Each row nests `field_location`,
+   * `user` and `assigner`. Returns `{ total, page, limit, totalPages, records[] }`.
+   */
+  getFieldAssignments: (plane, params = {}) => request(`/attendance/${seg(plane)}/field-assignments${qs(params)}`),
   /** Returns { user_id, work_mode, assigned_office, total, records[] }. */
   getUserFieldAssignments: (plane, userId) => request(`/attendance/${seg(plane)}/field-assignments/user/${seg(userId)}`),
   /** The caller's own sites, for the punch screen. Same shape as the above. */
