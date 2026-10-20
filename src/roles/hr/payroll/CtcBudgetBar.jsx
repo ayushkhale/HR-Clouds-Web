@@ -1,4 +1,3 @@
-import React from "react";
 import { HiExclamationCircle, HiPencil, HiPlus, HiTrash } from "react-icons/hi";
 import { CTC_PRESETS, formatINR, moYr, friendlyPreviewNote } from "./ctcBudget";
 import FieldHelp from "../../../shared/fieldHelp/FieldHelp";
@@ -102,7 +101,7 @@ export default function CtcBudgetBar({ target, onTargetChange, budget, loading, 
           {budget.reserved > 0.5 && (
             <dl className="mt-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1 text-[11px]">
               <div className="flex justify-between gap-3"><dt className="text-slate-500">Paid to the employee (gross)</dt><dd className="font-semibold tabular-nums text-slate-800">{formatINR(T - budget.reserved)}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-slate-500">Employer statutory — PF, EDLI, admin</dt><dd className="font-semibold tabular-nums text-slate-800">{formatINR(budget.reserved)}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-slate-500">Employer statutory (PF, ESI, EDLI, admin)</dt><dd className="font-semibold tabular-nums text-slate-800">{formatINR(budget.reserved)}</dd></div>
               <div className="flex justify-between gap-3 pt-1 border-t border-slate-100"><dt className="font-bold text-slate-600">Target CTC</dt><dd className="font-bold tabular-nums text-slate-900">{formatINR(T)}</dd></div>
             </dl>
           )}

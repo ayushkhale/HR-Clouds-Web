@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { organizationAPI, payrollAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye, HiCurrencyRupee,
+  HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye, HiCurrencyRupee, HiInformationCircle,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -296,7 +296,7 @@ function HistoryModal({ user, onClose, showToast, nameOf }) {
 }
 
 // ── Assign / revise, with preview-before-commit (#15, #16, #18) ────────────
-function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod = false, onClose, onDone, showToast }) {
+function AssignModal({ user, templates, statutoryConfig, componentFlags, taxRegimes = [], ptSlabs = [], isHod = false, onClose, onDone, showToast }) {
   const [current, setCurrent] = useState(undefined); // undefined = loading, null = none
   const hasCurrent = !!current;
   // #18 enriches this read with the live PF / ESI / PT / TDS split, so HR can
@@ -363,23 +363,66 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod =
     return () => { cancelled = true; };
   }, [user]);
 
+  const previewReq = useRef(0);
+
   // Preview invalidates whenever an input that affects it changes.
   const resetPreview = () => setPreview(null);
+
+  // Auto-preview debounced when template_id and positive annual_ctc are provided
+  useEffect(() => {
+    const ctcNum = parseFloat(form.annual_ctc);
+    if (!form.template_id || !ctcNum || ctcNum <= 0) {
+      setPreview(null);
+      return;
+    }
+    const currentReq = ++previewReq.current;
+    const timer = setTimeout(async () => {
+      setPreviewing(true);
+      try {
+        const res = await payrollAPI.previewTemplate(form.template_id, {
+          annual_ctc: form.annual_ctc,
+          user_id: userId(user),
+        });
+        if (currentReq === previewReq.current) {
+          setPreview(res.data || res);
+        }
+      } catch {
+        if (currentReq === previewReq.current) {
+          setPreview(null);
+        }
+      } finally {
+        if (currentReq === previewReq.current) {
+          setPreviewing(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [form.template_id, form.annual_ctc, user]);
 
   const runPreview = async () => {
     if (!form.template_id || !form.annual_ctc) {
       showToast("Pick a template and enter a CTC to preview", "error");
       return;
     }
+    const currentReq = ++previewReq.current;
     setPreviewing(true);
     try {
       const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: form.annual_ctc, user_id: userId(user) });
-      setPreview(res.data || res);
+      if (currentReq === previewReq.current) {
+        setPreview(res.data || res);
+      }
     } catch (err) {
       // Evaluator 422s (NO_BASIC_COMPONENT, CTC_BELOW_FIXED_COMPONENTS, …) surface here, before commit.
-      showToast(payrollErrorMessage(err, "Couldn't preview this structure"), "error");
+      if (currentReq === previewReq.current) {
+        showToast(payrollErrorMessage(err, "Couldn't preview this structure"), "error");
+      }
     } finally {
-      setPreviewing(false);
+      if (currentReq === previewReq.current) {
+        setPreviewing(false);
+      }
     }
   };
 
@@ -401,9 +444,12 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod =
       const ctc = Math.round(result.ctc).toString();
       // Re-preview first, then commit both together: updating the CTC on its own
       // would leave `cost` comparing the new figure against the old split.
+      const currentReq = ++previewReq.current;
       const res = await payrollAPI.previewTemplate(form.template_id, { annual_ctc: ctc, user_id: userId(user) });
       setForm((f) => ({ ...f, annual_ctc: ctc }));
-      setPreview(res.data || res);
+      if (currentReq === previewReq.current) {
+        setPreview(res.data || res);
+      }
       showToast(result.converged
         ? `CTC set to ${formatMoney(ctc)} — the real cost now lands on ${formatMoney(target)}`
         : `Closest match is ${formatMoney(ctc)}. Check the figures before assigning.`, result.converged ? "success" : "error");
@@ -512,6 +558,55 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod =
             <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">No salary structure yet — this will be the initial assignment.</p>
           )}
 
+          {/* Statutory & Tax Rules Context Card */}
+          {statutoryConfig && (
+            <div className="rounded-xl bg-purple-50/50 border border-purple-100/80 p-3.5 text-xs">
+              <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-purple-100">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                  <HiInformationCircle className="w-4 h-4 text-purple-600" />
+                  Statutory & Tax Rules
+                </span>
+                <span className="text-[10px] font-semibold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
+                  Active Org Rules
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                <div>
+                  <span className="text-purple-600 font-medium block text-[10px]">EPF Rate & Ceiling</span>
+                  <span className="font-semibold text-purple-950">
+                    {statutoryConfig.pf_enabled !== false
+                      ? `${statutoryConfig.pf_employer_rate || 12}% (${statutoryConfig.pf_restrict_to_ceiling ? `Cap ₹${(statutoryConfig.pf_wage_ceiling || 15000).toLocaleString("en-IN")}` : "Uncapped"})`
+                      : "Disabled"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-purple-600 font-medium block text-[10px]">ESIC Threshold</span>
+                  <span className="font-semibold text-purple-950">
+                    {statutoryConfig.esi_enabled !== false
+                      ? `${statutoryConfig.esi_employer_rate || 3.25}% (Gross ≤ ₹${(statutoryConfig.esi_wage_threshold || 21000).toLocaleString("en-IN")}/mo)`
+                      : "Disabled"}
+                  </span>
+                </div>
+                {taxRegimes.length > 0 && (
+                  <div>
+                    <span className="text-purple-600 font-medium block text-[10px]">Tax Regimes</span>
+                    <span className="font-semibold text-purple-950 truncate block" title={taxRegimes.map((r) => r.regime_name || r.name).filter(Boolean).join(", ")}>
+                      {taxRegimes.map((r) => r.regime_name || r.name).filter(Boolean).join(", ") || `${taxRegimes.length} Active`}
+                    </span>
+                  </div>
+                )}
+                {ptSlabs.length > 0 && (
+                  <div>
+                    <span className="text-purple-600 font-medium block text-[10px]">Professional Tax (PT)</span>
+                    <span className="font-semibold text-purple-950">
+                      {new Set(ptSlabs.map((s) => s.state_code || s.state_name).filter(Boolean)).size} States configured
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="flex items-center">
               <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Template <span className="text-rose-500">*</span></label>
@@ -581,8 +676,9 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod =
             <div className="flex items-center justify-between gap-3 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100">
               <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5"><HiEye className="w-4 h-4 text-purple-500" /> Preview</h4>
               <button type="button" onClick={runPreview} disabled={previewing || !form.template_id || !form.annual_ctc}
-                className="text-xs font-bold text-purple-600 hover:text-purple-800 disabled:opacity-40 disabled:cursor-not-allowed">
-                {previewing ? "Calculating…" : "Preview split"}
+                className="text-xs font-bold text-purple-600 hover:text-purple-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+                {previewing && <div className="w-3 h-3 border-2 border-purple-600/30 border-t-purple-600 rounded-full animate-spin" />}
+                <span>{previewing ? "Calculating…" : "Preview split"}</span>
               </button>
             </div>
             {preview ? (
@@ -590,7 +686,7 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod =
                 {/* The components now sum to GROSS, not the CTC — the employer's
                     share is reserved out first — so this no longer claims the CTC. */}
                 <div className={`text-[11px] font-semibold rounded-xl px-3.5 py-2.5 flex items-start gap-2 ${preview.reconciled ? "text-violet-800 bg-violet-50 border border-violet-200" : "text-rose-700 bg-rose-50 border border-rose-200"}`}>
-                  {preview.reconciled ? <HiCheckCircle className="w-4 h-4 shrink-0" /> : <HiExclamationCircle className="w-4 h-4 shrink-0" />}
+                  {preview.reconciled ? <HiCheckCircle className="w-4 h-4 shrink-0 text-violet-600 mt-0.5" /> : <HiExclamationCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />}
                   <span>{preview.reconciled ? "The components add up exactly — nothing is unallocated." : "The components don't add up — check the template."}</span>
                 </div>
 
@@ -599,10 +695,15 @@ function AssignModal({ user, templates, statutoryConfig, componentFlags, isHod =
                 {cost && (
                   <div className="mt-3">
                     {Math.abs(cost.gap) <= 1 ? (
-                      <p className="flex items-start gap-2 rounded-xl bg-violet-50 border border-violet-200 px-3.5 py-2.5 text-[11px] font-semibold text-violet-800">
-                        <HiCheckCircle className="w-4 h-4 shrink-0" />
-                        <span>Costs the company exactly the {formatMoney(cost.enteredCtc)} entered — the employer&apos;s statutory share is reserved inside it.</span>
-                      </p>
+                      <div className="rounded-xl bg-violet-50 border border-violet-200 px-3.5 py-2.5">
+                        <p className="flex items-start gap-2 text-[11px] font-bold text-violet-800">
+                          <HiCheckCircle className="w-4 h-4 shrink-0 text-violet-600 mt-0.5" />
+                          <span>Exact CTC-Inclusive Split — 100% of {formatMoney(cost.enteredCtc)} allocated.</span>
+                        </p>
+                        <p className="text-[10px] text-violet-700 mt-1 leading-relaxed pl-6">
+                          Employer statutory share (PF + ESI) is reserved inside the package with 0 paise budget overrun.
+                        </p>
+                      </div>
                     ) : cost.gap > 1 ? (
                       <div className="rounded-xl bg-fuchsia-50 border border-fuchsia-200 px-3.5 py-2.5">
                         <p className="flex items-start gap-2 text-[11px] font-bold text-fuchsia-800">
@@ -677,6 +778,8 @@ export default function EmployeeSalaryStructuresPage() {
   const [templates, setTemplates] = useState([]);
   const [statutoryConfig, setStatutoryConfig] = useState(null);
   const [componentFlags, setComponentFlags] = useState({});
+  const [taxRegimes, setTaxRegimes] = useState([]);
+  const [ptSlabs, setPtSlabs] = useState([]);
   const [hodIds, setHodIds] = useState(() => new Set());
   const [ctcByUser, setCtcByUser] = useState({}); // userId -> current structure (or null)
   const [loading, setLoading] = useState(true);
@@ -711,7 +814,7 @@ export default function EmployeeSalaryStructuresPage() {
     setLoading(true);
     // The roster names everyone (including people with no structure yet), the
     // bulk list carries the CTCs. Either can fail without blanking the screen.
-    const [listRes, tplRes, ctcRes, cfgRes, compRes, deptRes] = await Promise.allSettled([
+    const [listRes, tplRes, ctcRes, cfgRes, compRes, deptRes, regimesRes, ptRes] = await Promise.allSettled([
       fetchAllOrgEmployees({ includeInactive: false }), // current employees only
       payrollAPI.getTemplates(),
       fetchAllCurrentStructures(),
@@ -721,6 +824,8 @@ export default function EmployeeSalaryStructuresPage() {
       payrollAPI.getComponents({ is_active: true }),
       // Marks the people who head a department; see hodIdsFrom.
       organizationAPI.getDepartments(),
+      payrollAPI.getTaxRegimes(),
+      payrollAPI.getPtSlabs(),
     ]);
     if (reqId !== loadReq.current) return;
 
@@ -733,6 +838,8 @@ export default function EmployeeSalaryStructuresPage() {
     setComponentFlags(componentFlagsByCode(
       compRes.status === "fulfilled" ? compRes.value.data?.records || compRes.value.data || [] : [],
     ));
+    setTaxRegimes(regimesRes.status === "fulfilled" ? regimesRes.value?.data?.records || regimesRes.value?.data || [] : []);
+    setPtSlabs(ptRes.status === "fulfilled" ? ptRes.value?.data?.records || ptRes.value?.data || [] : []);
 
     const list = listRes.status === "fulfilled" ? listRes.value : [];
     if (listRes.status === "fulfilled") setEmployees(list);
@@ -846,6 +953,8 @@ export default function EmployeeSalaryStructuresPage() {
           templates={templates}
           statutoryConfig={statutoryConfig}
           componentFlags={componentFlags}
+          taxRegimes={taxRegimes}
+          ptSlabs={ptSlabs}
           isHod={hodIds.has(String(userId(assignUser)))}
           showToast={showToast}
           onClose={() => setAssignUser(null)}

@@ -154,20 +154,50 @@ function estimateReserved(rows, components, target, config) {
     component_type: r.meta.type || "earning",
     monthly_amount: (annual ?? 0) / 12,
   });
-  // The balancing row is unknown here; it never carries PF or ESI applicability
-  // in practice, and its only effect is on the ESI gross test below.
+
   const resolved = rows.filter((r) => r.calc !== "balancing" && r.annual != null);
-  let reserved = 0;
-  for (let pass = 0; pass < 2; pass += 1) {
-    const gross = Math.max(0, target - reserved);
-    const balancingShare = Math.max(0, gross - resolved.reduce((s, r) => s + r.annual, 0));
+  const balancingRow = rows.find((r) => r.calc === "balancing");
+
+  if (!balancingRow) {
     const lines = resolved.map((r) => lineFor(r, r.annual));
-    const balancingRow = rows.find((r) => r.calc === "balancing");
-    if (balancingRow) lines.push(lineFor(balancingRow, balancingShare));
     const c = employerStatutoryCost({ lines, flags, config });
-    reserved = (c.core + c.extras) * 12;
+    return Math.max(0, (c.core + c.extras) * 12);
   }
-  return Math.max(0, reserved);
+
+  // Closed-form algebraic reservation (2026-10-19 engine update):
+  // S_candidate = Remaining Budget / (1 + r)
+  // Ensures balancing components with esi_applicable: true reserve their own employer ESI with 0 budget overrun.
+  const fixedLines = resolved.map((r) => lineFor(r, r.annual));
+  const fixedCost = employerStatutoryCost({ lines: fixedLines, flags, config });
+  const fixedGrossAnnual = resolved.reduce((s, r) => s + r.annual, 0);
+  const fixedReserveAnnual = (fixedCost.core + fixedCost.extras) * 12;
+
+  const remainingBudgetAnnual = Math.max(0, target - fixedGrossAnnual - fixedReserveAnnual);
+  const remainingBudgetMonthly = remainingBudgetAnnual / 12;
+
+  const balancingCode = balancingRow.meta.code;
+  const balancingFlags = flags[balancingCode] || {};
+
+  const esiEnabled = Boolean(config.esi_enabled);
+  const esiThreshold = Number.parseFloat(config.esi_wage_threshold) || 0;
+  const isEsiApplicable = esiEnabled && balancingFlags.esi_applicable && ((target - fixedReserveAnnual) / 12 <= esiThreshold);
+  const esiRate = isEsiApplicable ? (Number.parseFloat(config.esi_employer_rate) || 0) / 100 : 0;
+
+  const pfEnabled = Boolean(config.pf_enabled);
+  const isPfApplicable = pfEnabled && balancingFlags.pf_applicable;
+  const pfRate = isPfApplicable
+    ? ((Number.parseFloat(config.pf_employer_rate) || 0) +
+       (Number.parseFloat(config.edli_rate) || 0) +
+       (Number.parseFloat(config.pf_admin_charge_rate) || 0)) / 100
+    : 0;
+
+  const r = esiRate + pfRate;
+  const balancingMonthly = r > 0 ? remainingBudgetMonthly / (1 + r) : remainingBudgetMonthly;
+  const balancingAnnual = balancingMonthly * 12;
+
+  const allLines = [...fixedLines, lineFor(balancingRow, balancingAnnual)];
+  const combinedCost = employerStatutoryCost({ lines: allLines, flags, config });
+  return Math.max(0, (combinedCost.core + combinedCost.extras) * 12);
 }
 
 export function estimateBudget(templateComponents, components, target, flatUnit, statutoryConfig) {
