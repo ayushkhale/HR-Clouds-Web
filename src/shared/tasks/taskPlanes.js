@@ -48,6 +48,8 @@ export const TASK_PLANES = {
     postComment: (id, payload) => api.postMyTaskComment(id, payload),
     showsAudit: false,
     showsNotifications: false,
+    // Nobody reviews their own work, so there is no per-person summary either.
+    summary: null,
     // Nobody picks their own work, so there is no roster read on this plane.
     assigneeScope: null,
   },
@@ -58,6 +60,8 @@ export const TASK_PLANES = {
     list: (params) => api.getTasksAssignedByMe(params),
     /** #257 — everything the caller's reports are carrying, whoever assigned it. */
     teamList: (params) => api.getTeamTasks(params),
+    /** #257a — one person's status counts in a single read (`subordinate_id`). */
+    summary: (params) => api.getTeamTaskSummary(params),
     create: (payload) => api.createManagerTask(payload),
     setStatus: null,
     submit: null,
@@ -82,6 +86,8 @@ export const TASK_PLANES = {
     list: (params) => api.getTasksAssignedByMe(params),
     /** #266 — the whole organisation, with department / assigner filtering. */
     teamList: (params) => api.getOrgTasks(params),
+    /** #266a — one person's status counts org-wide (`assignee_id`). */
+    summary: (params) => api.getOrgTaskSummary(params),
     create: (payload) => api.createHrTask(payload),
     setStatus: null,
     submit: null,

@@ -7,6 +7,8 @@ import { useSidebar } from "../contexts/SidebarContext";
 import { billingAPI, documentsAPI, payrollAPI, tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
+import { useDeviceTrustContext } from "../attendance/deviceTrust";
+import { deviceTrustVisible } from "../attendance/deviceTrustMeta";
 import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE, TASK_PATHS } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
@@ -57,6 +59,7 @@ import {
   HiPaperAirplane,
   HiShare,
   HiLibrary,
+  HiDeviceMobile,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -69,6 +72,18 @@ function DashboardSidebar({ role = "guest" }) {
     if (role === "hr") return inboxTotal(peekHrInboxCounts());
     return 0;
   });
+
+  // Device Trust (15 Oct 2026): "My Registered Devices" only exists where the
+  // feature is on, or where this person already has a device to shut off — an
+  // organisation that never switched it on sees no trace of it (§7). Guests are
+  // outside the organisation, so nothing is read for them.
+  const { ctx: deviceCtx } = useDeviceTrustContext({ enabled: role !== "guest" });
+  const showMyDevices = deviceTrustVisible(deviceCtx);
+  // An older server has no device-trust endpoints at all — its context read
+  // 404s, and HR's two screens would have nothing to show but an error. The
+  // feature merely being OFF is different: switching it on is what Device
+  // Checks is for, so those links stay.
+  const showDeviceAdmin = deviceCtx?.absent !== true;
 
   const [paymentsDue, setPaymentsDue] = useState(false);
   const [paymentsDismissed, setPaymentsDismissed] = useState(false);
@@ -150,13 +165,19 @@ function DashboardSidebar({ role = "guest" }) {
 
   // ── Building blocks ──────────────────────────────────────────────────────
   // `nested`: also active on child routes (an employee profile, a payroll run).
-  const link = (label, path, icon, extra = {}) => ({
-    label,
-    path,
-    icon,
-    ...extra,
-    active: location.pathname === path || (!!extra.nested && location.pathname.startsWith(`${path}/`)),
-  });
+  const link = (label, path, icon, extra = {}) => {
+    // A `?tab=` link (the device sub-tabs) shares its pathname with its sibling,
+    // so matching on pathname alone would light both. Match the full path, and
+    // treat the default tab as active on the bare path so landing with no query
+    // still highlights it (mirrors the page's own default tab).
+    const { defaultTab, ...rest } = extra;
+    const q = path.indexOf("?");
+    const active = q === -1
+      ? location.pathname === path || (!!rest.nested && location.pathname.startsWith(`${path}/`))
+      : location.pathname + location.search === path
+        || (location.pathname === path.slice(0, q) && !location.search && !!defaultTab);
+    return { label, path, icon, ...rest, active };
+  };
   // A numbered step inside a workflow section. Payroll uses steps rather than
   // dropdowns on purpose: it is monthly work, and hiding it behind another
   // click would make the most-used part of the menu the slowest to reach.
@@ -181,6 +202,12 @@ function DashboardSidebar({ role = "guest" }) {
     const docs = MY_DOCUMENT_PATHS[workspace];
     const tasks = TASK_PATHS[workspace];
     return {
+      // Where a person registers the device they clock in from — its own
+      // "My Registered Devices" dropdown (not inside My Time), opening onto the
+      // page's two tabs: This device / All my devices (user decision, 16 Oct
+      // 2026). The page still defaults to This device, so a locked-out person
+      // lands on the one that matters even if they click the group, not a tab.
+      devices: `${base}/devices`,
       // Work somebody has been GIVEN, which every role is — including HR, whose
       // own page sits here beside their leave and payslips rather than in the
       // organisation-wide Tasks section below.
@@ -199,6 +226,11 @@ function DashboardSidebar({ role = "guest" }) {
       ],
       time: [
         link("My Attendance", base, HiClock),
+        // Where this person may clock in from — their office and any client
+        // sites. Read-only; the assign controls are HR/manager-only, so an
+        // employee reaches it here too (16 Oct 2026). One entry covers all three
+        // workspaces because the employee menu reuses this same `time` array.
+        link("My Work Locations", `${base}/my-locations`, HiLocationMarker),
         link("My Leaves", pay.leaves, HiCalendar),
         link(`My ${REGULARIZATION}s`, `${base}/regularizations`, HiClipboardList),
         link("My Overtime", `${base}/overtime`, HiLightningBolt),
@@ -231,6 +263,10 @@ function DashboardSidebar({ role = "guest" }) {
         group("My Tasks", HiClipboardCheck, me.tasks),
         group("My Pay", HiCurrencyRupee, me.pay),
         group("My Documents", HiFolderOpen, me.documents),
+        ...(showMyDevices ? [group("My Registered Devices", HiDeviceMobile, [
+          link("This device", `${me.devices}?tab=this`, HiDeviceMobile, { defaultTab: true }),
+          link("All my devices", `${me.devices}?tab=all`, HiCollection),
+        ])] : []),
       ],
     };
   };
@@ -343,6 +379,11 @@ function DashboardSidebar({ role = "guest" }) {
               // Client sites sit beside offices: both are places a punch can be
               // checked against, and setting one up is the same kind of job.
               link("Client Sites", `${H}/attendance/field-locations`, HiLocationMarker),
+              // Who may clock in from what. It belongs with the places a punch is
+              // checked against rather than in Time, because it is about the
+              // organisation's people and their devices, not about hours
+              // (user decision, 16 Oct 2026 — it was "Device Checks" under Time).
+              ...(showDeviceAdmin ? [link("Registered Devices", `${H}/attendance/registered-devices`, HiDeviceMobile)] : []),
             ]),
             // Which days are working days, then the hours on them and who works
             // them, then the rules applied to those hours, then what working an
@@ -401,6 +442,9 @@ function DashboardSidebar({ role = "guest" }) {
             link("Leave Requests", `${H}/leaves/requests`, HiInboxIn),
             link(`${REGULARIZATION}s`, `${H}/attendance/regularizations`, HiClipboardList),
             link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift),
+            // A queue only where the policy says HR approves each device; the
+            // page is also the whole-organisation device inventory.
+            ...(showDeviceAdmin ? [link("Employee Devices", `${H}/attendance/trusted-devices`, HiDeviceMobile)] : []),
           ],
         },
         tasksSection("hr"),
@@ -599,6 +643,13 @@ function DashboardSidebar({ role = "guest" }) {
       { title: "MY TASKS", icon: HiClipboardCheck, items: me.tasks },
       { title: "MY PAY", icon: HiCurrencyRupee, items: me.pay },
       { title: "MY DOCUMENTS", icon: HiFolderOpen, items: me.documents },
+      // Same self-service entry HR and managers get from meSection: an employee
+      // punches too, so they reach their own devices here rather than being sent
+      // nowhere once it left My Time (16 Oct 2026). Gated on the feature being on.
+      ...(showMyDevices ? [{ title: "My Registered Devices", icon: HiDeviceMobile, items: [
+        link("This device", `${me.devices}?tab=this`, HiDeviceMobile, { defaultTab: true }),
+        link("All my devices", `${me.devices}?tab=all`, HiCollection),
+      ] }] : []),
       companySection("employee"),
     ];
   };

@@ -187,6 +187,24 @@ export function anomalyLabel(anomaly) {
 export const SETUP_ANOMALY_TYPES = new Set(["geofence_unresolved"]);
 export const isSetupAnomaly = (anomaly) => SETUP_ANOMALY_TYPES.has(normalizeStatusKey(anomaly?.type));
 
+// ── attendance_trusted_devices.status (Device Trust) ────────────────────────
+// `pending` waits on HR and CANNOT clock in; `revoked` is terminal. The notes
+// people read are in `deviceTrustMeta.js` — this is only the badge.
+export const DEVICE_STATUS = {
+  pending: { label: "Waiting for HR", tone: "amber" },
+  active: { label: "Ready", tone: "emerald" },
+  suspended: { label: "Blocked for now", tone: "orange" },
+  revoked: { label: "Shut off", tone: "rose" },
+};
+
+export const DEVICE_STATUS_FILTERS = [
+  { value: "", label: "All devices" },
+  { value: "pending", label: "Waiting for HR" },
+  { value: "active", label: "Ready" },
+  { value: "suspended", label: "Blocked for now" },
+  { value: "revoked", label: "Shut off" },
+];
+
 export const SEVERITY = {
   low: { label: "Low", tone: "slate" },
   medium: { label: "Medium", tone: "amber" },
@@ -240,6 +258,7 @@ const STATUS_MAPS = {
   overtime: OVERTIME_STATUS,
   anomaly: ANOMALY_STATUS,
   severity: SEVERITY,
+  device: DEVICE_STATUS,
 };
 
 /** Resolve `{label, tone}` for a status of a given kind, with a safe fallback. */

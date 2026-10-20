@@ -16,7 +16,7 @@ This document provides the complete integration specifications for Frontend Deve
 
 **Endpoint:** `POST /api/v1/leaves/automation/accrual/run`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 **Feature Required:** `leave.access`
 
 ### Request Body (JSON)
@@ -64,7 +64,7 @@ Returns a summary of the batch processing logic. The engine processes users in c
 
 **Endpoint:** `POST /api/v1/leaves/automation/rollover/run`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 **Feature Required:** `leave.access`
 
 ### Request Body (JSON)

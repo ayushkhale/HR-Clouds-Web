@@ -7,12 +7,13 @@ import TaskReviewScreen from "../../../shared/tasks/TaskReviewScreen";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import AttendanceApprovalQueue from "../../../shared/attendance/AttendanceApprovalQueue";
+import ReasonDialog from "../../../shared/components/ReasonDialog";
 import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
 import { listFrom, normalizePaginated } from "../../../shared/attendance/normalize";
 import { ATTENDANCE_EVENTS, INBOX_EVENT_KINDS, emitAttendanceChanged, useAttendanceChanged } from "../../../shared/attendance/events";
 import {
-  HiCheckCircle, HiXCircle, HiX, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
-  HiInformationCircle, HiRefresh, HiClipboardList,
+  HiCheckCircle, HiXCircle, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
+  HiRefresh, HiClipboardList,
 } from "react-icons/hi";
 
 // Same shape as the HR inbox: one card per queue, the chosen one opens below.
@@ -49,7 +50,6 @@ function ManagerApprovalsInbox() {
   const [leaves, setLeaves] = useState([]);
   const [leavesLoading, setLeavesLoading] = useState(true);
   const [actionModal, setActionModal] = useState({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
-  const [remarks, setRemarks] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -117,20 +117,21 @@ function ManagerApprovalsInbox() {
   const closeLeaveModal = () => {
     if (submitting) return;
     setActionModal({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
-    setRemarks("");
   };
 
-  const handleLeaveAction = async () => {
+  // `reason` comes from the shared ReasonDialog — required on reject (it gates
+  // its own Confirm), optional on approve. Reject carries it under both keys the
+  // leave API has accepted historically.
+  const handleLeaveAction = async (reason) => {
     const { action, id } = actionModal;
     if (submitting) return;
-    const payload = action === "reject" ? { rejection_reason: remarks, remarks } : { remarks };
+    const payload = action === "reject" ? { rejection_reason: reason, remarks: reason } : { remarks: reason };
     setSubmitting(true);
     try {
       const res = action === "approve" ? await leaveAPI.approveRequest(id, payload) : await leaveAPI.rejectRequest(id, payload);
       if (res && res.success) {
         showToast(`Successfully ${action === "approve" ? "approved" : "rejected"} request!`);
         setActionModal({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
-        setRemarks("");
         fetchLeaves();
         emitAttendanceChanged(ATTENDANCE_EVENTS.LEAVE, { id, action });
       } else {
@@ -234,53 +235,30 @@ function ManagerApprovalsInbox() {
         </section>
       </main>
 
-      {/* Leave Action Modal */}
+      {/* Leave approve/reject — the same reason dialog HR decisions use, so the
+          two inboxes capture a remark the same way. Approve records one only if
+          written; reject requires it (the dialog gates its own Confirm). */}
       {actionModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg sm:max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-800">{actionModal.title}</h3>
-              <button onClick={closeLeaveModal} className="text-slate-400 hover:text-slate-600">
-                <HiX className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              {actionModal.isCancellation ? (
-                <div className="flex items-center gap-2 px-4 py-3 bg-fuchsia-50 border border-fuchsia-200 text-xs font-medium text-fuchsia-700 rounded-xl">
-                  <HiInformationCircle className="w-5 h-5 shrink-0" />
-                  {actionModal.action === "approve" ? "Approving this will cancel the approved leave and refund the employee's leave balance." : "Denying this will keep the approved leave active."}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-600">
-                  Are you sure you want to <strong>{actionModal.action}</strong> this request?
-                </p>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600">Remarks {actionModal.action === "reject" ? "(Required)" : "(Optional)"}</label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  placeholder={actionModal.action === "reject" ? "Enter rejection reason..." : "Enter any remarks..."}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 min-h-[80px]"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={closeLeaveModal} disabled={submitting} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors disabled:opacity-50">
-                Cancel
-              </button>
-              <button
-                onClick={handleLeaveAction}
-                disabled={submitting || (actionModal.action === "reject" && !remarks.trim())}
-                className={`px-4 py-2 text-sm font-bold text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  actionModal.action === "approve" ? "bg-purple-600 hover:bg-purple-700" : "bg-rose-500 hover:bg-rose-600"
-                }`}>
-                {submitting ? "Saving…" : actionModal.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReasonDialog
+          title={actionModal.title}
+          description={actionModal.isCancellation
+            ? (actionModal.action === "approve"
+                ? "Approving this cancels the approved leave and refunds the employee’s leave balance."
+                : "Denying this keeps the approved leave active.")
+            : (actionModal.action === "reject"
+                ? "Let the employee know why their request can’t be approved."
+                : "The employee will be able to take this leave.")}
+          label="Remarks"
+          placeholder={actionModal.action === "reject" ? "Why this request can’t be approved…" : "Any remarks for the employee (optional)…"}
+          confirmLabel={actionModal.action === "approve"
+            ? (actionModal.isCancellation ? "Approve cancellation" : "Confirm approval")
+            : (actionModal.isCancellation ? "Deny cancellation" : "Confirm rejection")}
+          tone={actionModal.action === "approve" ? "primary" : "danger"}
+          optional={actionModal.action === "approve"}
+          busy={submitting}
+          onSubmit={handleLeaveAction}
+          onClose={closeLeaveModal}
+        />
       )}
 
       {/* Toast */}

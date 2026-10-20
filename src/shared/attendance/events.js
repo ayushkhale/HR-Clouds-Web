@@ -13,6 +13,7 @@
 //   anomaly        → sidebar inbox badge, manager lists
 //   config         → shift/policy selectors that are already mounted
 //   lock           → lock page, recompute consumers
+//   device         → sidebar inbox badge, HR device approval queue
 //
 // The bus is app-wide despite living in `attendance/`: the inbox counts a
 // manager or HR sees span leave, claims, loans, salary proposals, tax
@@ -41,6 +42,10 @@ export const ATTENDANCE_EVENTS = Object.freeze({
   LETTER_PROPOSAL: "letter_proposal",
   // A delegated task handed in and waiting on its reviewer (Task Phase 3, #259).
   TASK: "task",
+  // A device waiting for HR to approve it, where the org asks HR to approve
+  // each one (Device Trust, 15 Oct 2026, #9–#13). Also emitted when a device is
+  // shut off or blocked, because the punch path caches the policy per person.
+  DEVICE: "device",
 });
 
 /**
@@ -60,6 +65,7 @@ export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.TAX_DECLARATION,
   ATTENDANCE_EVENTS.LETTER_PROPOSAL,
   ATTENDANCE_EVENTS.TASK,
+  ATTENDANCE_EVENTS.DEVICE,
 ];
 
 const listeners = new Set();

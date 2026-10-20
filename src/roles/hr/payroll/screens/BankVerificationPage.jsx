@@ -353,7 +353,8 @@ export default function BankVerificationPage() {
                   {rows.map((u) => {
                     const id = userId(u);
                     const acct = acctByUser[id];
-                    const isPending = state === "unverified";
+                    const st = accountState(acct, accountsFailed);
+                    const isPending = st === "unverified";
                     return (
                       <tr
                         key={id}
@@ -375,7 +376,7 @@ export default function BankVerificationPage() {
                         <td className="px-6 py-4 text-slate-600">{acct?.bank_name || <span className="text-slate-400 font-medium">N/A</span>}</td>
                         <td className="px-6 py-4 font-mono text-slate-600">{acct?.masked_account_number || <span className="font-sans text-slate-400 font-medium">N/A</span>}</td>
                         <td className="px-6 py-4">
-                          <span className={`${STATUS_CHIP} ${STATE[state].pill}`}>{STATE[state].label}</span>
+                          <span className={`${STATUS_CHIP} ${STATE[st].pill}`}>{STATE[st].label}</span>
                         </td>
                       </tr>
                     );

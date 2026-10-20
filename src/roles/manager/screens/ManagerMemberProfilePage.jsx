@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { HiBan, HiCheckCircle, HiOutlineCalendar, HiOutlineChartSquareBar, HiOutlineClock, HiOutlineCurrencyRupee, HiOutlineFolder, HiOutlineUser, HiPencil, HiX } from "react-icons/hi";
+import { HiBan, HiCheckCircle, HiOutlineCalendar, HiOutlineClipboardList, HiOutlineChartSquareBar, HiOutlineClock, HiOutlineCurrencyRupee, HiOutlineFolder, HiOutlineOfficeBuilding, HiOutlineUser, HiPencil, HiX } from "react-icons/hi";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { organizationAPI } from "../../../shared/api";
@@ -12,17 +12,23 @@ import AttendanceTab from "../../hr/screens/employee-profile/AttendanceTab";
 import TeamMemberLeaveTab from "../components/TeamMemberLeaveTab";
 import ProfileTab from "../../hr/screens/employee-profile/ProfileTab";
 import SalaryTab from "../../hr/screens/employee-profile/SalaryTab";
+import ReportingLocationTab from "../../hr/screens/employee-profile/ReportingLocationTab";
+import EmployeeTasksTab from "../../../shared/tasks/EmployeeTasksTab";
 import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
 import ProfileTabStrip from "../../../shared/components/ProfileTabStrip";
 import SubjectDocumentsPanel from "../../../shared/documents/SubjectDocumentsPanel";
 
 const TEAM_PATH = "/dashboard/manager/team";
-// The same tabs, in the same order, as HR's employee profile — minus the two
-// that only HR can serve: Department (its actions and links are HR routes) and
-// Reports (/attendance/hr/reports/* is HR-only).
+// The same tabs, in the same order, as HR's employee profile — minus the one
+// that only HR can serve: Reports (/attendance/hr/reports/* is HR-only).
+// Reporting & Location keeps HR's key (`department`) so the two workspaces
+// answer the same ?tab= link; the HR-only controls inside it are absent, not
+// broken (CLAUDE.md §2).
 const TABS = [
   { key: "overview", label: "Overview", icon: HiOutlineChartSquareBar },
   { key: "attendance", label: "Attendance", icon: HiOutlineClock },
+  { key: "department", label: "Reporting & Location", icon: HiOutlineOfficeBuilding },
+  { key: "tasks", label: "Tasks", icon: HiOutlineClipboardList },
   { key: "leave", label: "Leave", icon: HiOutlineCalendar },
   { key: "salary", label: "Salary", icon: HiOutlineCurrencyRupee },
   { key: "documents", label: "Documents", icon: HiOutlineFolder },
@@ -177,6 +183,8 @@ export default function ManagerMemberProfilePage() {
                   <>
                     {activeTab === "overview" && <OverviewTab key={userId} userId={userId} employeeRole={role} viewer="manager" />}
                     {activeTab === "attendance" && <AttendanceTab key={userId} userId={userId} employeeRole={role} viewer="manager" />}
+                    {activeTab === "department" && <ReportingLocationTab key={userId} employee={employee} userId={userId} employeeRole={role} viewer="manager" />}
+                    {activeTab === "tasks" && <EmployeeTasksTab key={userId} userId={userId} name={name} viewer="manager" />}
                     {activeTab === "leave" && <TeamMemberLeaveTab key={userId} userId={userId} />}
                     {activeTab === "salary" && <SalaryTab key={userId} userId={userId} viewer="manager" />}
                     {activeTab === "documents" && <SubjectDocumentsPanel key={userId} planeKey="manager" userId={userId} subjectName={name} nameOf={(id, fallback) => (id === userId ? name : fallback ?? "Team member")} />}

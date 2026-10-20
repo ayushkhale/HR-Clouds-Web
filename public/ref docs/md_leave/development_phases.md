@@ -299,3 +299,35 @@ A single route file for anyone with approval authority:
 - [ ] Test calendar exception: Saturday made working day → leave deducted (**Edge Case 22**)
 - [ ] Test night shift leave → verify two attendance records created (**Edge Case 23**)
 - [ ] Verify all audit trails have complete timestamps
+
+## Phase 7: Policy Assignment Ledger, Coverage & Bulk Assignment
+
+**Goal:** Record which leave policy each member is on, and give HR the Leave Assignment screen: who has which policy, who has none, bulk assignment with a preview, ending, and reverting overrides. Also fix the assignment-engine defects found in review. Implementation record: `md_phases/phase7_implementation_plan.md`.
+
+### 7.1 Assignment Ledger (migration `00066`)
+- [x] `employee_leave_policy_assignments` (template, dates, assigned_by, ended_by, source, bulk id)
+- [x] `employee_leave_configs.assignment_id`, `template_values`, `overridden_fields`
+- [x] Backfill one legacy row (template unknown) per member with live configs
+
+### 7.2 Engine Fixes
+- [x] Empty template refused (`TEMPLATE_EMPTY`) instead of wiping every config
+- [x] A → B → A no longer double-credits upfront leave
+- [x] Per-member advisory lock on every assignment write; template row locks
+- [x] IST business calendar for dates and the balance year
+- [x] Same template again is a no-op; inactive member refused; missing joining date refused
+- [x] Role profile resolved from the membership role
+
+### 7.3 Read APIs
+- [x] `GET /assignments` coverage roster · `GET /assignments/summary`
+- [x] `GET /users/:userId/leave-config` · `GET /users/:userId/assignments`
+- [x] `assigned_user_count` on templates; `409 TEMPLATE_IN_USE` on delete
+
+### 7.4 Write APIs
+- [x] `POST /assignments/preview` + `POST /assignments/bulk` (per-person transactions, cap 200, preview token)
+- [x] `POST /assignments/:id/end` (balances untouched; leave after the end refused)
+- [x] `DELETE /users/:userId/configs/:leaveTypeId` revert to the policy default
+- [ ] Future-dated assignments, activation job, delete of not-yet-started assignments (deferred)
+
+### Phase 7 Verification
+- [x] Unit tests: engine fixes, ledger writes, bulk classification, end and revert, migration vs model, hr-only routes
+- [ ] Apply migration 00066 (operator) and smoke-test the roster, summary, bulk and end on the dev database

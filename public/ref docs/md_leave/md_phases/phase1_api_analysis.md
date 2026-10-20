@@ -16,7 +16,7 @@ This document provides complete integration specifications for Frontend Develope
 
 **Endpoint:** `POST /api/v1/leaves/types`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 **Feature Required:** `leave.access`
 
 ### Request Body (JSON)
@@ -70,7 +70,7 @@ This document provides complete integration specifications for Frontend Develope
 
 **Endpoint:** `GET /api/v1/leaves/types`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 
 ### Query Parameters
 | Field | Type | Required | Description |
@@ -104,7 +104,7 @@ This document provides complete integration specifications for Frontend Develope
 
 **Endpoint:** `PUT /api/v1/leaves/types/:id`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 
 ### Path Parameters
 | Field | Type | Required | Description |
@@ -118,6 +118,8 @@ This document provides complete integration specifications for Frontend Develope
 Returns the updated object in the `data` field.
 
 ### Error Scenarios
+- **400 Bad Request:** `SYSTEM_LEAVE_TYPE_CODE_IMMUTABLE` (The code for the system-managed Compensatory Off `CO` leave type cannot be modified).
+- **400 Bad Request:** `SYSTEM_LEAVE_TYPE_IMMUTABLE` (The system-managed Compensatory Off `CO` leave type cannot be deactivated).
 - **404 Not Found:** `LEAVE_TYPE_NOT_FOUND`
 - **409 Conflict:** `LEAVE_TYPE_EXISTS` (If changing the `code` to one that already exists).
 
@@ -131,7 +133,7 @@ Returns the updated object in the `data` field.
 
 **Endpoint:** `DELETE /api/v1/leaves/types/:id`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 
 ### Query Parameters
 | Field | Type | Required | Description |
@@ -155,6 +157,9 @@ This API requires a multi-step UI flow based on Error Codes:
 3. **Scenario C (409 Conflict: `PENDING_REQUESTS_EXIST`):**
    - **Triggered if:** Someone applied for this leave and it is pending manager approval.
    - **UI Action:** Show a strict error block. *"Cannot deactivate. Please approve/reject all pending requests first."* This **cannot** be bypassed.
+4. **Scenario D (400 Bad Request: `SYSTEM_LEAVE_TYPE_IMMUTABLE`):**
+   - **Triggered if:** Attempting to deactivate or delete the system Compensatory Off (`CO`) leave type.
+   - **UI Action:** The UI should disable the delete action on the `CO` leave type. Comp-off is required by the attendance engine and cannot be deleted.
 
 ---
 
@@ -164,7 +169,7 @@ This API requires a multi-step UI flow based on Error Codes:
 
 **Endpoint:** `POST /api/v1/leaves/templates`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 
 ### Request Body (JSON)
 | Field | Type | Required | Validation / Constraints |
@@ -191,9 +196,9 @@ Returns the created template object in the `data` field.
 **Frontend Workflow:** On the Template Details page, HR clicks "Add Quota", selects a Leave Type, inputs numbers, and saves.
 **Database Implication:** Creates a `LeavePolicyEntitlement` record.
 
-**Endpoint:** `POST /api/v1/leaves/templates/:templateId/entitlements`
+**Endpoint:** `POST /api/v1/leaves/templates/:id/entitlements`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 
 ### Path Parameters
 | Field | Type | Required | Description |
@@ -232,8 +237,8 @@ Returns the created entitlement in the `data` field.
 
 ## 7. Update / Delete Entitlements
 **Endpoints:**
-- `PUT /api/v1/leaves/templates/:templateId/entitlements/:entitlementId`
-- `DELETE /api/v1/leaves/templates/:templateId/entitlements/:entitlementId`
+- `PUT /api/v1/leaves/templates/:id/entitlements/:entitlementId`
+- `DELETE /api/v1/leaves/templates/:id/entitlements/:entitlementId`
 
 > [!CAUTION]
 > **Business Rule:** The `leave_type_id` is IMMUTABLE once created. You cannot change a "Sick Leave" rule into a "Casual Leave" rule via PUT. HR must delete the entitlement and create a new one. The UI should disable the Leave Type dropdown in the Edit modal.

@@ -169,6 +169,11 @@ green/amber/orange/blue class.
 - **Never render a dash.** Unknown → **N/A** (`displayValue`, `formatUtils`, `dates.js`);
   unmeasured duration → **0m**; no action → empty cell. If no row in a list has an
   action, drop the Actions column.
+- **Never show a blank page while data loads — always render a skeleton** (`Skeleton`
+  or an inline `animate-pulse` placeholder shaped like the content). Every page or
+  card that fetches starts in a loading state, so design the loading, empty and error
+  states as part of the build, never a bare `null` or white screen. A crash or stale
+  chunk is caught by `ErrorBoundary` (`shared/components`), not left to blank the app.
 
 Don't rebuild these: `GenderAvatar` (never hand-roll initials or `<img>` avatars) ·
 `TimeField` (**never `<input type="time">`**) · `PersonPicker` · `FilterTabs`

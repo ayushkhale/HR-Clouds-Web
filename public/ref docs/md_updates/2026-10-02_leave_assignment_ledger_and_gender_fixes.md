@@ -152,51 +152,20 @@ We dropped `EFFECTIVE_DATE_BEFORE_JOINING`. With today-only dates, a future join
 
 ## 7. Frontend checklist
 
-- [x] **Leave Assignment list:** `GET /leaves/assignments`. Columns: Policy, From, State, Custom (`override_count`). Filter on `coverage`.
-- [x] **Tiles:** `GET /leaves/assignments/summary`.
-- [x] **Record inspector:**
+- [ ] **Leave Assignment list:** `GET /leaves/assignments`. Columns: Policy, From, State, Custom (`override_count`). Filter on `coverage`.
+- [ ] **Tiles:** `GET /leaves/assignments/summary`.
+- [ ] **Record inspector:**
   - `GET …/leave-config` for the configuration;
   - `GET …/assignments` for the history.
-- [x] **Customise dialog:** prefill from `effective`; show `policy_default`; add a "Revert to the policy default" link (DELETE).
-- [x] **Bulk assign dialog:**
+- [ ] **Customise dialog:** prefill from `effective`; show `policy_default`; add a "Revert to the policy default" link (DELETE).
+- [ ] **Bulk assign dialog:**
   - canonical targeting values;
   - preview, then bulk with `preview_token`;
   - per-person outcomes;
   - cap of 200.
-- [x] **Assign:** handle `data.outcome` and the new error codes. Date picker: today only.
-- [x] **End row action:** copy from §4.4. Hide Delete.
-- [x] **Leave Policies:** `assigned_user_count` column, plus the `TEMPLATE_IN_USE` message.
-- [x] **Apply form:** `LEAVE_CONFIG_ENDED` is mapped in `leaveErrors.js`, which the apply form already reads. Showing `config.effective_to` on the form is still open.
+- [ ] **Assign:** handle `data.outcome` and the new error codes. Date picker: today only.
+- [ ] **End row action:** copy from §4.4. Hide Delete.
+- [ ] **Leave Policies:** `assigned_user_count` column, plus the `TEMPLATE_IN_USE` message.
+- [ ] **Apply form:** handle `LEAVE_CONFIG_ENDED`; optionally show `config.effective_to`.
 - [ ] **Employee profile (HR):** "Correct gender / marital status / joining date" form using `hr-fields`, with a reason field.
 - [ ] **Invite dialog:** update the gender note.
-
----
-
-## 8. Frontend delivery note (2026-10-02)
-
-Built against this record before the endpoints were live on any environment, so none of it
-has been exercised against a real server yet — it needs migration 00066 and a QA pass.
-
-**New:** `src/roles/hr/leaves/screens/LeaveAssignmentPage.jsx` ·
-`src/roles/hr/leaves/components/AssignmentInspector.jsx` ·
-`src/shared/leaves/CustomiseLeaveRulesDialog.jsx` · `src/shared/leaves/leaveAssignmentMeta.js`.
-Route `/dashboard/hr/leaves/assignments`, HR only; sidebar entry under Setup › Leave, directly
-after Leave Policies.
-
-**Deviations from the plan, and why:**
-- **No `effective_from` picker.** Today (IST) is the only value the server accepts, and a control
-  whose single legal value is today can only be got wrong. The field is omitted and the server
-  dates the assignment. Add the picker back with future dating (§4.6).
-- **Employment type and job status are canonical constants**, not `useTargetingOptions`'s
-  roster-derived strings. Only departments, locations and people come from that hook.
-- **No chunking above the 200 cap.** The preview reports `over_cap` and HR is asked to narrow the
-  selection, as §4.2 says. Splitting it behind HR's back would assign people the preview
-  never showed them.
-- **One row cannot be re-read after a write** — `GET /leaves/assignments` has no `user_id`
-  filter, so the page re-reads the current page (one request) plus the summary.
-
-**Still open, and not part of this change:**
-- G-1 HR correction form for gender / marital status / joining date (`PATCH
-  /organizations/employees/:id/hr-fields`) and the invite dialog's gender note.
-- `config.effective_to` shown on the employee apply form.
-- Delete, and future-dated assignments, when they arrive together.

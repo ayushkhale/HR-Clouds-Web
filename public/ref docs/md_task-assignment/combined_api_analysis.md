@@ -1,4 +1,4 @@
-# Combined API Analysis: Task Assignment Module (Phases 1, 2 & 3)
+# Combined API Analysis: Task Assignment Module (Phases 1, 2, 3 & 4)
 
 # Phase 1: Persistence Foundation, Models & Repositories (0 HTTP APIs Shipped)
 
@@ -105,12 +105,16 @@ Phase 1 established the multi-tenant relational database schema (Migration `0007
         "assigner": {
           "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
           "name": "Sarah Jenkins",
-          "email": "sarah.jenkins@company.com"
+          "email": "sarah.jenkins@company.com",
+          "avatar_url": "https://bucket.s3.region.amazonaws.com/org/.../avatars/...?X-Amz-Signature=...",
+          "profile_image": "https://bucket.s3.region.amazonaws.com/org/.../avatars/...?X-Amz-Signature=..."
         },
         "assignee": {
           "id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
           "name": "Alex Mercer",
-          "email": "alex.mercer@company.com"
+          "email": "alex.mercer@company.com",
+          "avatar_url": null,
+          "profile_image": null
         }
       }
     ],
@@ -2084,3 +2088,489 @@ Phase 1 established the multi-tenant relational database schema (Migration `0007
     }
   ]
   ```
+
+---
+
+# Phase 4: Contextual Discussions, Audit Trail & Concurrency Controls (APIs #253, #254, #264)
+
+## 1. Employee Self-Service Discussion APIs (`/api/v1/tasks/me`)
+
+### 253. POST /api/v1/tasks/me/:id/comments
+
+* **API Number / Name:** `#253` / Post Assignee Discussion Comment or Progress Update
+* **HTTP Method:** `POST`
+* **Endpoint / Route:** `/api/v1/tasks/me/:id/comments`
+* **Purpose / Business Problem Solved:** Enables the designated task assignee to post contextual progress notes, milestone achievements, questions, external links, and uploaded deliverables to the in-task discussion thread. Solves the operational problem of fragmented external communication by anchoring all work discussions to the immutable task record.
+
+#### Authentication & Authorization
+* **Authentication:** Mandatory via JWT Bearer Token (`Authorization: Bearer <token>`).
+* **Tenant Scoping:** Hard-scoped to `org_id = req.user.orgId` via `requireActiveOrg`.
+* **Feature Entitlement:** Gated by `requireFeature('tasks.access')`.
+* **Permitted Roles:** Accessible by any active tenant role (`employee`, `manager`, `hr`, `admin`, `super-admin`).
+* **Resource Ownership (BOLA):** Strict check `task.assignee_id === req.user.id`. If the task belongs to another employee or does not exist in the tenant, the API returns a uniform HTTP `404 Not Found` (`TASK_NOT_FOUND`) to prevent IDOR enumeration.
+* **Terminal State Guard:** If `task.status === 'cancelled'`, throws HTTP `409 Conflict` (`TASK_TERMINATED`, `EC-T23`).
+* **Anti-Spam Rate Limit:** Maximum 30 comments per user per task per hour (`EC-T12`).
+
+#### Request Parameters
+* **Headers:**
+  * `Authorization` (String, Required): Format `Bearer <JWT>`.
+  * `Idempotency-Key` (String, Optional): Client-generated UUID for double-click replay protection (`EC-T5`).
+* **Path Parameters:**
+  * `id` (UUID, Required): Unique identifier of the target task (`tasks.id`).
+* **Query Parameters:** None.
+
+#### Request JSON Payload
+| Field | Type | Required / Optional | Constraints & Validation | Description |
+|---|---|---|---|---|
+| `message` | String | **Required** | Min 1, Max 2,000 characters, trimmed | Message body or operational progress note. |
+| `is_progress_update` | Boolean | Optional | Default: `false` | When `true`, flags this comment as an explicit work milestone. |
+| `attachment_ids` | Array\<UUID\> | Optional | Max 10 UUIDs, default: `[]` | Array of confirmed `task_attachments.id` belonging to this task (`EC-T24`). |
+| `external_links` | Array\<Object\> | Optional | Max 5 objects, default: `[]` | Array of reference objects `[{ label, url }]` (`EC-T11`). |
+| `external_links[].label` | String | Required | Min 1, Max 100 characters, trimmed | Link descriptor (e.g., "Draft Design"). |
+| `external_links[].url` | String | Required | Valid `https://` URI, Max 1,000 chars, SSRF-validated | Secure link to external resource. |
+
+##### Example Request Payload
+```json
+{
+  "message": "Completed initial draft of Western Region Q3 sales analysis. Discrepancies have been reconciled.",
+  "is_progress_update": true,
+  "attachment_ids": [
+    "c8a1b2c3-d4e5-4f6a-8b9c-0d1e2f3a4b5c"
+  ],
+  "external_links": [
+    {
+      "label": "Western Region Reconciled Sheet",
+      "url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+    }
+  ]
+}
+```
+
+#### Detailed API Function & Business Behavior
+1. Validates `req.params.id` using `taskIdParamSchema`. Validates `req.body` using `postCommentSchema`.
+2. **Idempotency Guard (`EC-T5`):** If `Idempotency-Key` header is present, checks Redis. Replays cached HTTP 201 response with `{ reused: true }` if found. Claims the key atomically if not present, with an in-flight retry loop to resolve concurrent identical requests.
+3. **Task Resolution & BOLA Check:** Queries `tasks` where `id = taskId AND org_id = req.user.orgId`. If null or `task.assignee_id !== req.user.id`, throws HTTP `404 TASK_NOT_FOUND`.
+4. **Terminal State Inspection (`EC-T23`):** If `task.status === 'cancelled'`, throws HTTP `409 TASK_TERMINATED`.
+5. **Rate Limit Inspection (`EC-T12`):** Increments Redis hourly bucket counter `rate:task_comment:{orgId}:{taskId}:{userId}:{YYYYMMDDHH}`. If count $> 30$, throws HTTP `429 TOO_MANY_COMMENTS` with `details.retry_after_seconds` and advertises standard `Retry-After` header. Fails open gracefully if Redis is offline (`EC-T25`).
+6. **SSRF Link Inspection (`EC-T11`):** Validates all `external_links` URLs via `_isSafeExternalUrl()`, blocking non-HTTPS, loopbacks (`localhost`, `127.0.0.1`, `::1`), metadata IPs (`169.254.169.254`), and RFC 1918 private IPv4/IPv6 ranges with HTTP `400 VALIDATION_ERROR`.
+7. **Attachment Association Check (`EC-T24`):** For each ID in `attachment_ids`, verifies existence in `task_attachments` with matching `org_id` and `task_id === taskId`. Rejects unconfirmed, missing, or cross-task attachments with HTTP `400 INVALID_ATTACHMENT`.
+8. **Transactional Persistence:**
+   * Inserts row into `task_comments` (`system_generated = false`, `author_id = req.user.id`).
+   * Records immutable audit log in `task_audit_logs` (`action = 'COMMENT_ADDED'`) capturing normalized client IP (truncated to 45 chars) and user-agent.
+9. **Hydration & Presentation:** Reloads comment eager-loading `User` and `UserProfile` (`first_name`, `last_name`, `display_name`, `avatar_url`).
+10. **Cache & Respond:** Stores response in Redis idempotency cache (TTL: 120s) and returns HTTP 201 Created.
+
+#### Database Impact, Transactions & Concurrency
+* **Database Operations:** 
+  * `SELECT` on `tasks` (tenant-scoped).
+  * `SELECT` on `task_attachments` (association validation).
+  * `INSERT` into `task_comments`.
+  * `INSERT` into `task_audit_logs`.
+* **Transaction Boundary:** `db.sequelize.transaction` wraps comment insertion and audit logging atomically. If either fails, the transaction rolls back cleanly.
+* **Concurrency & OCC Independence:** Unlike task status transitions that mutate `tasks.version` under `If-Match` OCC, comment posting is an append-only operation in child table `task_comments`. Multiple team members can converse simultaneously without triggering `412 PRECONDITION_FAILED` conflicts.
+* **Side Effects:** Emits audit event `COMMENT_ADDED`. Updates Redis rate limiting counter.
+
+#### Exact Success Response Contract (HTTP 201 Created)
+```json
+{
+  "success": true,
+  "message": "Comment posted successfully",
+  "data": {
+    "comment": {
+      "id": "f1e2d3c4-b5a6-4f7e-8d9c-0b1a2c3d4e5f",
+      "task_id": "a1b2c3d4-e5f6-4a1b-9c2d-3e4f5a6b7c8d",
+      "message": "Completed initial draft of Western Region Q3 sales analysis. Discrepancies have been reconciled.",
+      "is_progress_update": true,
+      "system_generated": false,
+      "external_links": [
+        {
+          "label": "Western Region Reconciled Sheet",
+          "url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+        }
+      ],
+      "attachment_ids": [
+        "c8a1b2c3-d4e5-4f6a-8b9c-0d1e2f3a4b5c"
+      ],
+      "created_at": "2026-10-14T09:30:00.000Z",
+      "author": {
+        "id": "e5f6a1b2-c3d4-4e5f-8a9b-0c1d2e3f4a5b",
+        "name": "Jordan Hayes",
+        "email": "jordan.hayes@example.com",
+        "avatar": "https://cdn.example.com/avatars/jordan.png"
+      }
+    }
+  }
+}
+```
+
+##### Response Field Meanings
+| Field | Type | Nullable | Description |
+|---|---|:---:|---|
+| `success` | Boolean | No | Standard API success indicator (`true`). |
+| `message` | String | No | Confirmation message (`'Comment posted successfully'`). |
+| `data.comment.id` | UUID | No | Unique identifier of the created comment. |
+| `data.comment.task_id` | UUID | No | Parent task identifier. |
+| `data.comment.message` | String | No | Sanitized message body. |
+| `data.comment.is_progress_update` | Boolean | No | Milestone flag indicator. |
+| `data.comment.system_generated` | Boolean | No | Always `false` for user-authored comments. |
+| `data.comment.external_links` | Array\<Object\> | No | Array of validated external reference links. |
+| `data.comment.attachment_ids` | Array\<UUID\> | No | Array of associated task attachment IDs. |
+| `data.comment.created_at` | ISO 8601 String | No | UTC timestamp of comment creation. |
+| `data.comment.author.id` | UUID | No | Comment author's user ID. |
+| `data.comment.author.name` | String | No | Resolved full name, display name, or identifier. |
+| `data.comment.author.email` | String | Yes | Author's email address / login identifier. |
+| `data.comment.author.avatar` | String | Yes | Author's avatar image URL or null. |
+
+#### Exact Error Contract
+| HTTP Status | Error Code | Error Message | Trigger Condition |
+|---|---|---|---|
+| `400 Bad Request` | `VALIDATION_ERROR` | `Comment message is required` / `Comment message cannot exceed 2000 characters` | Message is missing, empty, or exceeds 2,000 characters. |
+| `400 Bad Request` | `VALIDATION_ERROR` | `Invalid external link: URL must be a valid, secure public HTTPS address` | Non-HTTPS scheme, loopback (`127.0.0.1`), metadata IP (`169.254.169.254`), or private IP address (`EC-T11`). |
+| `400 Bad Request` | `INVALID_ATTACHMENT` | `One or more referenced attachments are invalid or do not belong to this task: <uuid>` | Referenced attachment does not exist, belongs to another task, or belongs to another tenant (`EC-T24`). |
+| `401 Unauthorized` | `UNAUTHORIZED` / `AUTH_TOKEN_MISSING` | `Authentication token is required` / `Session time out` | Missing or invalid JWT bearer token. |
+| `403 Forbidden` | `FEATURE_NOT_AVAILABLE` | `This feature is not available on your current subscription plan.` | Organization lacks the `tasks.access` feature flag entitlement. |
+| `404 Not Found` | `TASK_NOT_FOUND` | `Task not found` | Task does not exist in tenant or caller is not the task assignee (uniform BOLA denial). |
+| `409 Conflict` | `TASK_TERMINATED` | `Cannot post comments on a cancelled task` | Task is in `cancelled` status (`EC-T23`). |
+| `429 Too Many Requests` | `TOO_MANY_COMMENTS` | `Rate limit exceeded: maximum 30 comments per hour allowed per task. Please wait <sec> seconds.` | User has posted $> 30$ comments on this task in the current UTC hour (`EC-T12`). Emits `Retry-After: <sec>` header. |
+
+---
+
+### 254. GET /api/v1/tasks/me/:id/comments
+
+* **API Number / Name:** `#254` / List Task Discussion Comments (Chronological Feed)
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/tasks/me/:id/comments`
+* **Purpose / Business Problem Solved:** Retrieves the paginated conversation feed for a task. Returns chronological user comments, milestone progress announcements, and automated administrative system comments (`REWORK REQUESTED`, `TASK REASSIGNED`, `TASK CANCELLED`) with eager-loaded author user profiles.
+
+#### Authentication & Authorization
+* **Authentication:** Mandatory via JWT Bearer Token.
+* **Tenant Scoping:** Hard-scoped to `org_id = req.user.orgId`.
+* **Feature Entitlement:** Gated by `requireFeature('tasks.access')`.
+* **Permitted Roles:** Accessible by any active tenant user participating in the task.
+* **Resource Ownership (BOLA):** Caller must be task assignee, task assigner, direct line manager of assignee in hierarchy, or HR/admin. Strangers receive a uniform HTTP `404 Not Found` (`TASK_NOT_FOUND`).
+
+#### Request Parameters
+* **Headers:**
+  * `Authorization` (String, Required): Format `Bearer <JWT>`.
+* **Path Parameters:**
+  * `id` (UUID, Required): Target task UUID (`tasks.id`).
+* **Query Parameters:**
+  * `page` (Integer, Optional, Default: `1`, Min: `1`): Page number.
+  * `limit` (Integer, Optional, Default: `50`, Min: `1`, Max: `100`): Results per page.
+  * `order` (String, Optional, Default: `'ASC'`, Valid: `'ASC'`, `'DESC'`, `'asc'`, `'desc'`): Chronological sort order by `created_at`. Case-insensitive.
+  * `is_progress_update` (Boolean, Optional): When specified (`true` or `false`), filters comments strictly by milestone flag.
+* **Request JSON Payload:** None (`GET` request).
+
+#### Detailed API Function & Business Behavior
+1. Validates `req.params.id` using `taskIdParamSchema`. Validates `req.query` inside controller handler via `validateOrThrow(listCommentsQuerySchema, req.query)`, avoiding Express 5 getter-only mutation errors (`EC-T13`).
+2. Looks up `tasks` where `id = taskId AND org_id = req.user.orgId`. Verifies caller is assignee, assigner, direct line manager in hierarchy, or Global Approver (`hr`, `admin`, `super-admin`). If not authorized, throws HTTP `404 TASK_NOT_FOUND`.
+3. Executes `TaskComment.findAndCountAll` filtering by `task_id` and `org_id`, eager-loading `User` (as `author`) and `UserProfile` (as `profile`). Applies limit, offset, and sort direction (`created_at ASC` or `created_at DESC`).
+4. Projects rows via `_formatCommentDto` and computes pagination envelope (`total_items`, `total_pages`, `has_next_page`, `has_prev_page`). Returns HTTP 200 OK.
+
+#### Database Impact, Transactions & Concurrency
+* **Database Operations:** Read-only `SELECT` query on `tasks` followed by `findAndCountAll` on `task_comments` joined with `users` and `user_profiles`.
+* **Indexes Utilized:** `task_comments_task_id_created_at_idx` `(task_id, created_at ASC)`.
+* **Transactions:** None (Read-only).
+* **Concurrency:** Non-locking query.
+* **Side Effects:** None.
+
+#### Exact Success Response Contract (HTTP 200 OK)
+```json
+{
+  "success": true,
+  "message": "Comments retrieved successfully",
+  "data": {
+    "comments": [
+      {
+        "id": "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+        "task_id": "a1b2c3d4-e5f6-4a1b-9c2d-3e4f5a6b7c8d",
+        "message": "Please make sure to reconcile against both regional and national sales targets.",
+        "is_progress_update": false,
+        "system_generated": false,
+        "external_links": [],
+        "attachment_ids": [],
+        "created_at": "2026-10-13T10:15:00.000Z",
+        "author": {
+          "id": "d4e5f6a1-b2c3-4d5e-8f9a-0b1c2d3e4f5a",
+          "name": "Sarah Jenkins",
+          "email": "sarah.jenkins@example.com",
+          "avatar": null
+        }
+      },
+      {
+        "id": "f1e2d3c4-b5a6-4f7e-8d9c-0b1a2c3d4e5f",
+        "task_id": "a1b2c3d4-e5f6-4a1b-9c2d-3e4f5a6b7c8d",
+        "message": "Completed initial draft of Western Region Q3 sales analysis. Discrepancies have been reconciled.",
+        "is_progress_update": true,
+        "system_generated": false,
+        "external_links": [
+          {
+            "label": "Western Region Reconciled Sheet",
+            "url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+          }
+        ],
+        "attachment_ids": [
+          "c8a1b2c3-d4e5-4f6a-8b9c-0d1e2f3a4b5c"
+        ],
+        "created_at": "2026-10-14T09:30:00.000Z",
+        "author": {
+          "id": "e5f6a1b2-c3d4-4e5f-8a9b-0c1d2e3f4a5b",
+          "name": "Jordan Hayes",
+          "email": "jordan.hayes@example.com",
+          "avatar": "https://cdn.example.com/avatars/jordan.png"
+        }
+      },
+      {
+        "id": "a9b8c7d6-e5f4-4a3b-2c1d-0e9f8a7b6c5d",
+        "task_id": "a1b2c3d4-e5f6-4a1b-9c2d-3e4f5a6b7c8d",
+        "message": "REWORK REQUESTED: Missing regional variance sheet reconciliation",
+        "is_progress_update": false,
+        "system_generated": true,
+        "external_links": [],
+        "attachment_ids": [],
+        "created_at": "2026-10-14T11:00:00.000Z",
+        "author": {
+          "id": "d4e5f6a1-b2c3-4d5e-8f9a-0b1c2d3e4f5a",
+          "name": "Sarah Jenkins",
+          "email": "sarah.jenkins@example.com",
+          "avatar": null
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "total_items": 3,
+      "total_pages": 1,
+      "has_next_page": false,
+      "has_prev_page": false
+    }
+  }
+}
+```
+
+##### Response Field Meanings
+| Field | Type | Nullable | Description |
+|---|---|:---:|---|
+| `success` | Boolean | No | Standard API success indicator (`true`). |
+| `message` | String | No | Confirmation message (`'Comments retrieved successfully'`). |
+| `data.comments` | Array\<Object\> | No | Chronological list of discussion comments. |
+| `data.comments[].id` | UUID | No | Unique comment identifier. |
+| `data.comments[].task_id` | UUID | No | Parent task identifier. |
+| `data.comments[].message` | String | No | Message text or system announcement body. |
+| `data.comments[].is_progress_update` | Boolean | No | True if comment was flagged as a progress milestone. |
+| `data.comments[].system_generated` | Boolean | No | True if generated by administrative workflow transitions (reopen, cancel, reassign). |
+| `data.comments[].external_links` | Array\<Object\> | No | Array of external reference links. |
+| `data.comments[].attachment_ids` | Array\<UUID\> | No | Array of attached task attachment UUIDs. |
+| `data.comments[].created_at` | ISO 8601 String | No | UTC timestamp when comment was posted. |
+| `data.comments[].author` | Object | Yes | Author user summary profile (null for system notes where author is omitted). |
+| `data.comments[].author.id` | UUID | No | User ID of the comment author. |
+| `data.comments[].author.name` | String | No | Full display name of the author. |
+| `data.comments[].author.email` | String | Yes | Email/identifier of the author. |
+| `data.comments[].author.avatar` | String | Yes | Profile avatar URL or null. |
+| `data.pagination.page` | Integer | No | Current page number. |
+| `data.pagination.limit` | Integer | No | Page size limit applied. |
+| `data.pagination.total_items` | Integer | No | Total comment records matching filters. |
+| `data.pagination.total_pages` | Integer | No | Total calculated pages. |
+| `data.pagination.has_next_page` | Boolean | No | True if subsequent page exists. |
+| `data.pagination.has_prev_page` | Boolean | No | True if prior page exists. |
+
+#### Exact Error Contract
+| HTTP Status | Error Code | Error Message | Trigger Condition |
+|---|---|---|---|
+| `400 Bad Request` | `VALIDATION_ERROR` | `Task ID must be a valid UUID` / `limit must be less than or equal to 100` | Non-UUID path param, invalid `page`, `limit` $> 100$, or invalid `order` string. |
+| `401 Unauthorized` | `UNAUTHORIZED` / `AUTH_TOKEN_MISSING` | `Authentication token is required` / `Session time out` | Missing or invalid JWT bearer token. |
+| `403 Forbidden` | `FEATURE_NOT_AVAILABLE` | `This feature is not available on your current subscription plan.` | Organization lacks the `tasks.access` feature flag entitlement. |
+| `404 Not Found` | `TASK_NOT_FOUND` | `Task not found` | Task not found in tenant or caller is an unrelated employee with no business relationship to the task. |
+
+---
+
+## 2. Managerial Discussion & Team Oversight APIs (`/api/v1/tasks/manager`)
+
+### 264. POST /api/v1/tasks/manager/:id/comments
+
+* **API Number / Name:** `#264` / Post Managerial Discussion Comment or Review Feedback
+* **HTTP Method:** `POST`
+* **Endpoint / Route:** `/api/v1/tasks/manager/:id/comments`
+* **Purpose / Business Problem Solved:** Enables People Managers, assigning supervisors, or HR administrators to post guidance, mid-flight review feedback, requests for clarification, or milestone sign-offs on a subordinate's task thread.
+
+#### Authentication & Authorization
+* **Authentication:** Mandatory via JWT Bearer Token.
+* **Tenant Scoping:** Hard-scoped to `org_id = req.user.orgId`.
+* **Feature Entitlement:** Gated by `requireFeature('tasks.access')`.
+* **Permitted Roles:** Gated by `authorize(['manager', 'hr', 'admin', 'super-admin'])`.
+* **Hierarchy Access Verification:** Caller must be:
+  1. The task assigner (`task.assigner_id === req.user.id`), OR
+  2. Direct line manager of the assignee (`task.assignee_id in hierarchyAccess.getAccessibleUserIds()`), OR
+  3. In global HR/Admin governance roles (`['hr', 'admin', 'super-admin']`).
+  If caller fails all three criteria, returns HTTP `403 Forbidden` (`FORBIDDEN_TASK_ACCESS`).
+* **Terminal State Guard:** If `task.status === 'cancelled'`, throws `409 Conflict` (`TASK_TERMINATED`, `EC-T23`).
+* **Anti-Spam Rate Limit:** Maximum 30 comments per user per task per hour (`EC-T12`).
+
+#### Request Parameters
+* **Headers:**
+  * `Authorization` (String, Required): Format `Bearer <JWT>`.
+  * `Idempotency-Key` (String, Optional): Client UUID for duplicate prevention (`EC-T5`).
+* **Path Parameters:**
+  * `id` (UUID, Required): Target task UUID (`tasks.id`).
+* **Query Parameters:** None.
+
+#### Request JSON Payload
+Identical to API `#253` schema (`message`, optional `is_progress_update`, optional `attachment_ids`, optional `external_links`).
+
+##### Example Request Payload
+```json
+{
+  "message": "Reviewed the draft slides. Please align slide 4 with national targets before submitting for final review.",
+  "is_progress_update": false,
+  "external_links": [
+    {
+      "label": "Corporate Target Guidelines",
+      "url": "https://wiki.corporate.example.com/finance/guidelines"
+    }
+  ]
+}
+```
+
+#### Detailed API Function & Business Behavior
+1. Validates `req.params.id` using `taskIdParamSchema`. Validates `req.body` using `postCommentSchema`.
+2. Inspects optional `Idempotency-Key` header via Redis idempotency utility. Replays cached response if previously processed.
+3. Queries task with tenant scoping. Throws HTTP `404 TASK_NOT_FOUND` if task does not exist in tenant organization.
+4. If `task.status === 'cancelled'`, throws HTTP `409 TASK_TERMINATED`.
+5. **Hierarchy Access Enforcement:** Checks if caller is HR/Admin, the task assigner, or direct manager of the assignee via `hierarchyAccess.getAccessibleUserIds()`. If not authorized, throws HTTP `403 FORBIDDEN_TASK_ACCESS`.
+6. Checks hourly rate limit via `checkCommentRate()`. Throws HTTP `429 TOO_MANY_COMMENTS` with `Retry-After` if $> 30$ comments/hr.
+7. Validates external links against SSRF rules via `_isSafeExternalUrl()`.
+8. Validates `attachment_ids` against `task_attachments` table for matching `task_id` and `org_id`.
+9. Persists comment row and audit log (`COMMENT_ADDED`) inside atomic database transaction.
+10. Eager-loads manager profile and returns HTTP 201 Created.
+
+#### Database Impact, Transactions & Concurrency
+* **Database Operations:** `SELECT` on `tasks`, `SELECT` on `task_attachments`, `INSERT` into `task_comments`, `INSERT` into `task_audit_logs`.
+* **Transaction Boundary:** Atomic transaction wraps comment insertion and audit recording.
+* **Concurrency:** Append-only concurrency independence.
+
+#### Exact Success Response Contract (HTTP 201 Created)
+```json
+{
+  "success": true,
+  "message": "Managerial comment posted successfully",
+  "data": {
+    "comment": {
+      "id": "b7c8d9e0-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+      "task_id": "a1b2c3d4-e5f6-4a1b-9c2d-3e4f5a6b7c8d",
+      "message": "Reviewed the draft slides. Please align slide 4 with national targets before submitting for final review.",
+      "is_progress_update": false,
+      "system_generated": false,
+      "external_links": [
+        {
+          "label": "Corporate Target Guidelines",
+          "url": "https://wiki.corporate.example.com/finance/guidelines"
+        }
+      ],
+      "attachment_ids": [],
+      "created_at": "2026-10-14T10:00:00.000Z",
+      "author": {
+        "id": "d4e5f6a1-b2c3-4d5e-8f9a-0b1c2d3e4f5a",
+        "name": "Sarah Jenkins",
+        "email": "sarah.jenkins@example.com",
+        "avatar": null
+      }
+    }
+  }
+}
+```
+
+##### Response Field Meanings
+Identical to API `#253` response field dictionary.
+
+#### Exact Error Contract
+| HTTP Status | Error Code | Error Message | Trigger Condition |
+|---|---|---|---|
+| `400 Bad Request` | `VALIDATION_ERROR` | `Comment message is required` / `Invalid external link` | Validation rule failure or SSRF link attempt. |
+| `400 Bad Request` | `INVALID_ATTACHMENT` | `One or more referenced attachments are invalid or do not belong to this task` | Attachment ID unverified or cross-task reference (`EC-T24`). |
+| `401 Unauthorized` | `UNAUTHORIZED` / `AUTH_TOKEN_MISSING` | `Authentication token is required` / `Session time out` | Missing or invalid JWT bearer token. |
+| `403 Forbidden` | `FEATURE_NOT_AVAILABLE` | `This feature is not available on your current subscription plan.` | Organization lacks the `tasks.access` feature flag entitlement. |
+| `403 Forbidden` | `FORBIDDEN` | `Forbidden: insufficient permissions` | Caller role is `employee` (rejected at route authorization layer). |
+| `403 Forbidden` | `FORBIDDEN_TASK_ACCESS` | `You do not have permission to comment on this task` | Manager caller is not the task assigner, does not manage the assignee, and is not HR. |
+| `404 Not Found` | `TASK_NOT_FOUND` | `Task not found` | Target task does not exist in tenant organization. |
+| `409 Conflict` | `TASK_TERMINATED` | `Cannot post comments on a cancelled task` | Target task is in `cancelled` status (`EC-T23`). |
+| `429 Too Many Requests` | `TOO_MANY_COMMENTS` | `Rate limit exceeded: maximum 30 comments per hour allowed per task. Please wait <sec> seconds.` | Manager has posted $> 30$ comments on this task in the current hour (`EC-T12`). Emits `Retry-After: <sec>`. |
+
+---
+
+### Companion Route: GET /api/v1/tasks/manager/:id/comments
+
+* **API Number / Name:** Companion Route / List Task Discussion Comments (Managerial Feed)
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/tasks/manager/:id/comments`
+* **Purpose / Business Problem Solved:** Provides People Managers and HR Administrators inspecting subordinate tasks with identical chronological conversation feed retrieval directly on the `/manager` route prefix, eliminating the need to switch client routes.
+* **Plane / Mount:** Manager Delegation & Oversight (`/api/v1/tasks/manager`)
+* **Authentication & Authorization:** Mandatory JWT Bearer Token, active tenant, `tasks.access` feature entitlement, role in `['manager', 'hr', 'admin', 'super-admin']`.
+* **Hierarchy Verification:** Caller must be assigner, direct line manager, or HR/admin. Strangers receive HTTP `404 TASK_NOT_FOUND`.
+* **Request Parameters, Success Response & Error Contract:** Fully identical to API `#254`.
+
+---
+
+## 3. Existing APIs Modified / Extended by Phase 4
+
+### 3.1 POST /api/v1/tasks/manager/:id/reopen (#260) — Automated System Rework Note Injection
+
+* **Endpoint Affected:** `POST /api/v1/tasks/manager/:id/reopen` (`#260`)
+* **Contract Extension:**
+  During task rejection and rework initiation, inside the atomic status transition database transaction (`db.sequelize.transaction`), `task.service.js` automatically invokes:
+  ```javascript
+  await taskCommentService.postSystemComment(
+    orgId,
+    taskId,
+    requesterUser.id,
+    `REWORK REQUESTED: ${payload.reopen_reason.trim()}`,
+    { transaction: t }
+  )
+  ```
+* **Behavioral Change:**
+  The manager's mandatory `reopen_reason` justification is now permanently recorded in the task's discussion feed as an indelible system note (`system_generated: true`). When the assignee inspects the task, they see the exact rework instructions at the top of the discussion feed without needing to inspect raw audit logs.
+* **Backward Compatibility:**
+  The HTTP response contract for API `#260` remains 100% backward compatible, returning the updated task DTO with status `reopened` and incremented `rework_count`.
+
+---
+
+### 3.2 POST /api/v1/tasks/manager/:id/reassign (#261) — Automated System Reassignment Notice Injection
+
+* **Endpoint Affected:** `POST /api/v1/tasks/manager/:id/reassign` (`#261`)
+* **Contract Extension:**
+  During task reallocation to another subordinate report, inside the atomic update transaction, `task.service.js` automatically invokes:
+  ```javascript
+  await taskCommentService.postSystemComment(
+    orgId,
+    taskId,
+    requesterUser.id,
+    `TASK REASSIGNED: Reassigned to ${newAssigneeName}. Reason: ${payload.reason.trim()}`,
+    { transaction: t }
+  )
+  ```
+* **Behavioral Change:**
+  A system-generated comment (`system_generated: true`) is inserted into `task_comments` establishing complete hand-off provenance. When the incoming assignee opens the task, they immediately see why the task was reassigned to them and who previously held ownership.
+* **Backward Compatibility:**
+  The HTTP response contract for API `#261` remains 100% backward compatible, returning the updated task DTO with updated `assignee_id` and incremented `reassignment_count`.
+
+---
+
+### 3.3 POST /api/v1/tasks/manager/:id/cancel (#262) — Automated System Cancellation Note Injection & Discussion Lock
+
+* **Endpoint Affected:** `POST /api/v1/tasks/manager/:id/cancel` (`#262`)
+* **Contract Extension:**
+  During task termination, inside the atomic cancellation transaction, `task.service.js` automatically invokes:
+  ```javascript
+  await taskCommentService.postSystemComment(
+    orgId,
+    taskId,
+    requesterUser.id,
+    `TASK CANCELLED: ${payload.cancellation_reason.trim()}`,
+    { transaction: t }
+  )
+  ```
+* **Behavioral Change:**
+  1. The manager's mandatory `cancellation_reason` is immutably recorded in the discussion feed as a system comment (`system_generated: true`).
+  2. The cancellation status immediately locks the task's conversation thread: any subsequent attempts to submit comments via `#253` or `#264` are rejected with HTTP `409 Conflict` (`TASK_TERMINATED`, `EC-T23`). Reading existing comments via `#254` remains permitted.
+* **Backward Compatibility:**
+  The HTTP response contract for API `#262` remains 100% backward compatible, returning the updated task DTO with status `cancelled` and recorded `cancellation_reason`.

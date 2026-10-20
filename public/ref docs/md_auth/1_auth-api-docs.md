@@ -286,12 +286,23 @@ Not required.
         "org_id": "uuid-1",
         "name": "Acme Corp",
         "status": "active",
-        "role": "hr"
+        "role": "hr",
+        "org_key": "acme_corp",
+        "org_alias": "Acme",
+        "logo_url": "https://bucket.s3.region.amazonaws.com/.../logo.png?X-Amz-...",
+        "profile_picture": "https://bucket.s3.region.amazonaws.com/.../logo.png?X-Amz-...",
+        "industry": "IT Services",
+        "size": "50-100",
+        "website": "https://acme.example.com",
+        "city": "Indore",
+        "state": "Madhya Pradesh",
+        "country": "India"
       }
     ]
   }
 }
 ```
+
 
 ### Error Responses
 

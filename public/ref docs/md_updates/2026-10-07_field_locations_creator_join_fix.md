@@ -67,7 +67,7 @@ GET /api/v1/attendance/manager/field-locations?page=1&limit=20
        }
      ]
      ```
-   - In `findPaginatedByOrg`, explicitly specified `distinct: true` and `col: 'OrganizationFieldLocations.id'`.
+   - In `findPaginatedByOrg`, specified `distinct: true` (omitting any redundant `col` property so Sequelize correctly applies `COUNT(DISTINCT("OrganizationFieldLocations"."id"))` without self-referential alias corruption).
    - Because `user_profiles` enforces `UNIQUE (org_id, user_id)`, `where: { org_id: orgId }` mathematically guarantees at most 1 matching profile per creator user in the organization. The join is strictly 1-to-1, preventing row multiplication.
 2. **Assignment Repository Hardening (`employee_field_assignments.repository.js`):**
    - In `findActiveByUser(orgId, userId)`: scoped `assigner.profile` with `where: { org_id: orgId }`.

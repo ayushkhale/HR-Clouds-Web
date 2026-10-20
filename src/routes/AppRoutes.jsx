@@ -72,6 +72,8 @@ import SelectOrgPage from "../auth/pages/SelectOrgPage";
 ──────────────────────────────────────────────────────────────────────── */
 const DashboardLayout = lazy(() => import("../shared/layouts/DashboardLayout"));
 const NotFoundPage = lazy(() => import("../shared/screens/NotFoundPage"));
+const MyDevicesPage = lazy(() => import("../shared/screens/MyDevicesPage"));
+const MyWorkLocationsPage = lazy(() => import("../shared/screens/MyWorkLocationsPage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
@@ -114,6 +116,9 @@ const ManagerOfficeLocationsPage = lazy(() => import("../roles/manager/screens/O
 const AttendanceCompOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffsPage"));
 const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage"));
 const AttendanceLockPeriodsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLockPeriodsPage"));
+// Device Trust (15 Oct 2026): the policy/rollout screen and the inventory.
+const RegisteredDevicesPage = lazy(() => import("../roles/hr/attendance/screens/RegisteredDevicesPage"));
+const EmployeeDevicesPage = lazy(() => import("../roles/hr/attendance/screens/EmployeeDevicesPage"));
 const AttendanceReportsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceReportsPage"));
 const BiometricDevicesPage = lazy(() => import("../roles/hr/screens/BiometricDevicesPage"));
 const LeaveTypesPage = lazy(() => import("../roles/hr/leaves/screens/LeaveTypesPage"));
@@ -374,6 +379,12 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/comp-offs" element={<AttendanceCompOffsPage />} />
         <Route path="/dashboard/hr/attendance/comp-off-policies" element={<AttendanceCompOffPoliciesPage />} />
         <Route path="/dashboard/hr/attendance/lock-periods" element={<AttendanceLockPeriodsPage />} />
+        <Route path="/dashboard/hr/attendance/registered-devices" element={<RegisteredDevicesPage />} />
+        {/* The page used to be called Device Checks and sat under Setup > Time.
+            The old path still lands on it: bookmarks and links in the audit
+            notes outlive a rename. */}
+        <Route path="/dashboard/hr/attendance/device-checks" element={<RegisteredDevicesPage />} />
+        <Route path="/dashboard/hr/attendance/trusted-devices" element={<EmployeeDevicesPage />} />
         <Route path="/dashboard/hr/attendance/devices" element={<BiometricDevicesPage />} />
         <Route path="/dashboard/hr/reports" element={<AttendanceReportsPage />} />
         {/* HR self-service attendance (all org roles may punch & request) */}
@@ -382,6 +393,8 @@ function AppRoutes() {
         <Route path="/dashboard/hr/my-attendance/anomalies" element={<AttendanceAnomaliesPage />} />
         <Route path="/dashboard/hr/my-attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/hr/my-attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/hr/my-attendance/devices" element={<MyDevicesPage />} />
+        <Route path="/dashboard/hr/my-attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
@@ -486,6 +499,8 @@ function AppRoutes() {
         <Route path="/dashboard/manager/attendance/locations" element={<ManagerOfficeLocationsPage />} />
         <Route path="/dashboard/manager/attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/manager/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/manager/attendance/devices" element={<MyDevicesPage />} />
+        <Route path="/dashboard/manager/attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
         <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
         <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
@@ -550,6 +565,8 @@ function AppRoutes() {
         <Route path="/dashboard/employee/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
         <Route path="/dashboard/employee/attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/employee/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/employee/attendance/devices" element={<MyDevicesPage />} />
+        <Route path="/dashboard/employee/attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/employee/leaves" element={<LeaveDashboard />} />
 
         {/* Employee payroll */}
