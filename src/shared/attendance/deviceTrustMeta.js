@@ -104,6 +104,12 @@ const APPROVAL_LABELS = DEVICE_APPROVAL_OPTIONS.reduce((map, a) => ({ ...map, [a
 
 export const approvalLabel = (value) => APPROVAL_LABELS[value] || "N/A";
 
+// Whether the label above is a real answer or the "N/A" fallback. A caller
+// putting the label into a SENTENCE needs to know: "New devices: n/a." is not
+// English, and a value this build has never heard of should drop the sentence
+// rather than print a shrug in the middle of it (CLAUDE.md §7).
+export const hasApprovalLabel = (value) => Boolean(APPROVAL_LABELS[value]);
+
 // ── Platforms ───────────────────────────────────────────────────────────────
 // `platform` is free-form server-side; these are the values it sends today.
 

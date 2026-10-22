@@ -3799,6 +3799,95 @@
         }
       }
     },
+    "organization.setup_checklist": {
+      "kind": "data",
+      "description": "The operational readiness checklist — Setup › Organisation setup (OrgSetupChecklistPage) and the SetupChecklistCard nudge on the HR dashboard. Contract: md_organization/7_org_setup_checklist_api.md. Four page-level entries for concepts the screen invents or computes (the page itself, the readiness figure, 'ready to run', what makes a step a must-do), plus one tab.<category_key> per area of the strip, which is the onboarding tier's tab help — the ⓘ beside the strip follows the open tab. Keys match the server's category_key, so an area the server stops sending simply stops being asked for. Nothing is wired per task row: a step's own sentence already says what it is for, and 22 info icons down a list is the noise the cap exists to prevent. HR only: the endpoint is HR_ONLY.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "What your organisation needs in place before attendance, leave and payroll work. A step counts as done once one of that thing exists.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does an HR admin have to set up before attendance, leave and payroll will work in HR Clouds, and what order should those steps be done in?"
+          }
+        },
+        "readiness_percentage": {
+          "tier": "onboarding",
+          "hint": "The share of setup steps that are done. It can fall again: delete the last of something and the step that needed it goes back to outstanding.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the organisation setup percentage worked out, and why can it go down after I have already completed a step?"
+          }
+        },
+        "is_operational": {
+          "tier": "onboarding",
+          "hint": "Yes once every must-do step is done — the point at which attendance and payroll can run. Optional steps left over don’t hold it back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it mean for an organisation to be ready to run, and which setup steps decide it?"
+          }
+        },
+        "is_core": {
+          "tier": "onboarding",
+          "hint": "A step attendance or payroll can’t work without. Skip one and hours don’t add up or people are left out of a pay run, with no error shown.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which organisation setup steps are essential rather than optional, and what goes wrong if an essential one is skipped?"
+          }
+        },
+        "tab.organization": {
+          "tier": "onboarding",
+          "hint": "The company’s own record, where people work, how they’re grouped and who approves for whom. Requests have nobody to go to until this is set.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does HR Clouds need offices, departments and reporting lines before leave and attendance requests will work?"
+          }
+        },
+        "tab.attendance": {
+          "tier": "onboarding",
+          "hint": "Working days, the shifts people are on, and the rules applied to a day. Until these exist, clock-ins can’t be turned into hours worked.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What has to be set up in HR Clouds before clock-ins can be turned into hours worked?"
+          }
+        },
+        "tab.leave": {
+          "tier": "onboarding",
+          "hint": "The kinds of leave people can take, how much they get, and who has been given them. Nobody can request leave until a type reaches them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What has to be in place before an employee can request leave in HR Clouds?"
+          }
+        },
+        "tab.payroll": {
+          "tier": "onboarding",
+          "hint": "What a salary is made of, PF, ESI and tax, and the accounts money is paid into. Anyone without a salary structure is skipped by a pay run.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does an organisation need in place before it can run its first payroll in HR Clouds?"
+          }
+        },
+        "tab.document": {
+          "tier": "onboarding",
+          "hint": "What you collect from your people and what you issue to them. A letter can’t be raised until a template for it exists.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do document types and letter templates work in HR Clouds, and what do I need before I can issue a letter?"
+          }
+        },
+        "tab.task": {
+          "tier": "onboarding",
+          "hint": "Rules for work you hand out and reminders for work running late. Nothing else in setup waits on this one.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are task rules and overdue reminders in HR Clouds, and when would an organisation need them?"
+          }
+        }
+      }
+    },
     "organization.profile_setup": {
       "kind": "form",
       "description": "An HR filling in their own job profile (md_organization/4_org_employee_api.md §11). The person who registers an organisation is created before it has any offices or departments, so their record starts blank and nobody else can fill it. Every field is fill-once, which is why the help says where each one lands rather than how to pick a value. HR only: the endpoints are 403 for everyone else.",
@@ -5658,6 +5747,13 @@
           "askMaya": {
             "enabled": true,
             "question": "Why can’t the page always tell which of my devices I’m using right now?"
+          }
+        },
+        "tab.all": {
+          "hint": "Every device you have registered, including ones you’ve shut off. Shut-off devices stay as a record and can’t be used to clock in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do devices I’ve shut off stay on my list instead of disappearing?"
           }
         },
         "page": {

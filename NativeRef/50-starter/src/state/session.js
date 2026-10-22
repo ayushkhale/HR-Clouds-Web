@@ -18,6 +18,7 @@ import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setToken, clearToken, decodeJWT } from '../api/client';
 import { clearDownloadCache } from '../api/files';
+import { clearDirectoryCache } from '../hooks/useDirectory';
 
 /* ─── Roles and workspaces ────────────────────────────────────────────────── */
 
@@ -161,5 +162,6 @@ export async function clearSession() {
     'hrclouds_attendance_work_mode',
     'hrclouds_last_tab',
   ]).catch(() => {});
+  clearDirectoryCache();
   await clearDownloadCache().catch(() => {});
 }

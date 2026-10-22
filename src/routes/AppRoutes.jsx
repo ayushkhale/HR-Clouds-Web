@@ -81,6 +81,7 @@ const DashboardPage = lazy(() => import("../roles/DashboardPage"));
 const GuestDashboard = lazy(() => import("../roles/guest/screens/GuestDashboard"));
 const HRDashboard = lazy(() => import("../roles/hr/screens/HRDashboard"));
 const HRInboxPage = lazy(() => import("../roles/hr/screens/HRInboxPage"));
+const OrgSetupChecklistPage = lazy(() => import("../roles/hr/screens/OrgSetupChecklistPage"));
 const EmployeesPage = lazy(() => import("../roles/hr/screens/EmployeesPage"));
 const InvitesPage = lazy(() => import("../roles/hr/screens/InvitesPage"));
 const EmployeeProfilePage = lazy(() => import("../roles/hr/screens/EmployeeProfilePage"));
@@ -349,6 +350,10 @@ function AppRoutes() {
       <Route element={<ProtectedRoute workspace="hr"><DashboardLayout role="hr" /></ProtectedRoute>}>
         <Route path="/dashboard/hr" element={<HRDashboard />} />
         <Route path="/dashboard/hr/inbox" element={<HRInboxPage />} />
+        {/* The operational readiness checklist. HR-only and mounted under the
+            HR prefix only: the endpoint behind it is HR_ONLY, so a manager
+            mount would be a screen that 403s (§2). */}
+        <Route path="/dashboard/hr/setup" element={<OrgSetupChecklistPage />} />
         <Route path="/dashboard/hr/employees" element={<EmployeesPage />} />
         <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
         <Route path="/dashboard/hr/departments" element={<DepartmentsPage />} />

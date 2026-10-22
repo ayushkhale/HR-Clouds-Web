@@ -61,20 +61,22 @@ import {
 } from "react-icons/hi";
 import { useSearchParams } from "react-router-dom";
 import DashboardTopBar from "../components/DashboardTopBar";
+import ScreenHeader from "../components/ScreenHeader";
+import SegmentedTabs from "../components/SegmentedTabs";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailSection, DetailText, rowPreviewProps } from "../components/DetailDialog";
 import FieldHelp, { HelpLabel } from "../fieldHelp/FieldHelp";
 import { attendanceAPI } from "../api";
 import { attendanceErrorMessage } from "../utils/attendanceErrors";
 import { fmtDate, fmtDateTime } from "../attendance/dates";
 import { listFrom } from "../attendance/normalize";
+import { TONE_CLASSES } from "../attendance/enums";
 import { EmptyState, ErrorState, InlineAlert, LoadingRows, Spinner, StatusBadge, Toast, useToast } from "../attendance/ui";
-import { TONE_CLASSES, TONE_DOT } from "../attendance/enums";
 import { DANGER_BTN, FIELD, FIELD_INVALID, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "../documents/ui";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../attendance/events";
 import { refreshDeviceTrustContext, useDeviceTrustContext } from "../attendance/deviceTrust";
 import {
   DEVICE_MODES, DEVICE_NAME_MAX, approvalLabel, deviceModeMeta, deviceStatusNote,
-  effectiveModeOf, enforceFromUpcoming, platformLabel, suggestDeviceName,
+  effectiveModeOf, enforceFromUpcoming, hasApprovalLabel, platformLabel, suggestDeviceName,
 } from "../attendance/deviceTrustMeta";
 import { webauthnSupported } from "../attendance/webauthn";
 import { forgetThisDevice, recallThisDevice, rememberThisDevice } from "../attendance/thisDevice";
@@ -125,49 +127,69 @@ const sortDevices = (devices) => [...devices].sort((a, b) => {
   return when(b).localeCompare(when(a));
 });
 
-/** The mode pill. Same shape as `StatusBadge`, from the same tone tables. */
-function ModePill({ view }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold whitespace-nowrap ${TONE_CLASSES[view.tone]}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${TONE_DOT[view.tone]}`} aria-hidden="true" />
-      {view.pill}
-    </span>
-  );
-}
+// The mode pill was a bordered badge beside a headline in a white panel. Both
+// are the hero's own furniture now — `badgeText` carries the pill and the
+// headline became the subtitle — so the component went with the panel.
 
 /**
- * How many of the allowed devices are in use, as segments rather than a
- * percentage: the cap is 1–3 in practice, so a bar would read as "33%" of
- * nothing meaningful while three pills can be counted at a glance.
+ * What rides on the right of the heading: how much room is left, and the two
+ * buttons. It sits in the quiet white `ScreenHeader`, so the segments are
+ * purple-on-slate and the ⓘ is an ordinary one.
  *
- * Renders nothing when the cap is unknown — an older server, or the feature
- * off — rather than inventing a limit (§7).
+ * The slots are SEGMENTS rather than a percentage: the cap is 1–3 in practice,
+ * so a bar would read as "33%" of nothing meaningful while three pills can be
+ * counted at a glance. They disappear when the cap is unknown — an older
+ * server, or the feature off — rather than inventing a limit (§7), leaving the
+ * buttons on their own.
  */
-function SlotMeter({ used, max }) {
-  if (!(max > 0)) return null;
+function DeviceHero({ mode, used, max, loading, approval, onRefresh, refreshing, registerButton }) {
+  const showSlots = mode !== DEVICE_MODES.OFF && max > 0 && !loading;
   const left = Math.max(0, max - used);
   const over = Math.max(0, used - max);
+
   return (
-    <div className="shrink-0 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3 sm:min-w-[210px]">
-      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Devices you can keep</p>
-      <p className="mt-1.5 text-lg font-bold text-slate-900 tabular-nums leading-none">
-        {used} <span className="text-sm font-semibold text-slate-400">of {max} in use</span>
-      </p>
-      <div className="flex items-center gap-1 mt-2.5" aria-hidden="true">
-        {Array.from({ length: Math.max(max, used) }).map((_, i) => (
-          <span
-            key={i}
-            className={`h-1.5 flex-1 min-w-[14px] rounded-full ${i < used ? "bg-purple-500" : "bg-slate-200"}`}
-          />
-        ))}
+    <div className="flex flex-col gap-3.5 w-full sm:w-auto sm:min-w-[232px]">
+      {showSlots && (
+        <div>
+          <p className="text-[11px] font-semibold text-slate-500">
+            <HelpLabel
+              text="Devices you can keep"
+              help={{ surface: SURFACE, field: "effective_mode", label: "what your organisation requires", size: "sm" }}
+            />
+          </p>
+          <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums leading-none">
+            {used} <span className="text-sm font-semibold text-slate-400">of {max} in use</span>
+          </p>
+          <div className="flex items-center gap-1 mt-2.5" aria-hidden="true">
+            {Array.from({ length: Math.max(max, used) }).map((_, i) => (
+              <span key={i} className={`h-1.5 flex-1 min-w-[16px] rounded-full ${i < used ? "bg-purple-600" : "bg-slate-200"}`} />
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+            {over > 0
+              ? "Shut one off to get back within what your organisation allows."
+              : left > 0
+                ? `You can register ${left === 1 ? "one more" : `${left} more`}.`
+                : "Registering another one replaces one of these for good."}
+            {/* Not lower-cased: the labels start with real words — "HR approves
+                each device" became "hr approves each device". */}
+            {hasApprovalLabel(approval) ? ` New devices: ${approvalLabel(approval)}.` : ""}
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        {registerButton}
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-3 py-2 text-xs font-bold text-slate-600 transition disabled:opacity-60"
+        >
+          <HiRefresh className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
-      <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
-        {over > 0
-          ? "Shut one off to get back within what your organisation allows."
-          : left > 0
-            ? `You can register ${left === 1 ? "one more" : `${left} more`}.`
-            : "Registering another one replaces one of these for good."}
-      </p>
     </div>
   );
 }
@@ -218,18 +240,30 @@ function RenameDeviceDialog({ device, busy, error, onSubmit, onClose }) {
   );
 }
 
-/* A read-only fact, styled like the inspector's so the page and the popup
-   don't disagree about what a label looks like. */
-const FACT_BOX = "min-h-10 flex items-center bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2 text-sm";
-
-function FactGrid({ items }) {
+/**
+ * The device's specification, in the shape every "About this device" screen
+ * uses: a ruled list, label left and value right (user decision, 21 Oct 2026).
+ *
+ * It used to be six facts in six bordered grey boxes. Read-only facts dressed
+ * as disabled form fields read as inputs that won't accept you, and six of
+ * them is most of what the tab shows — the boxes were the clutter, not the
+ * facts. A hairline carries the same grouping for none of the weight.
+ *
+ * Two columns from `sm` up: this card is page-wide, and one column of six put
+ * a value an entire screen away from its own label. Every row keeps its rule,
+ * including the last — the list ends on a line at both widths rather than
+ * losing one corner of it when the grid reflows.
+ */
+function SpecList({ items }) {
   return (
-    <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10">
       {items.map(({ label, value, help: hint }) => (
-        <div key={label} className="min-w-0 flex flex-col">
-          <dt className={LABEL}>{hint ? <HelpLabel text={label} help={hint} /> : label}</dt>
-          <dd className={`${FACT_BOX} flex-1 ${value === "N/A" ? "text-slate-400" : "text-slate-800 font-semibold"}`}>
-            <span className="min-w-0 break-words">{value}</span>
+        <div key={label} className="flex items-baseline justify-between gap-5 py-2.5 border-b border-slate-100">
+          <dt className="shrink-0 text-xs font-semibold text-slate-500">
+            {hint ? <HelpLabel text={label} help={hint} /> : label}
+          </dt>
+          <dd className={`min-w-0 text-right text-sm break-words ${value === "N/A" ? "text-slate-400" : "text-slate-800 font-semibold"}`}>
+            {value}
           </dd>
         </div>
       ))}
@@ -308,13 +342,19 @@ function ThisDeviceCard({
       </div>
 
       <div className="px-5 sm:px-6 py-5 space-y-4">
-        {deviceStatusNote(device.status) && (
-          <InlineAlert tone={device.status === "active" ? "emerald" : dead ? "rose" : "amber"}>
+        {/* Only where the state has a consequence to explain. An active device
+            already carries a "Ready" badge two lines above, so a full alert
+            repeating it in other words was one more panel between the person
+            and the thing they came to read (21 Oct 2026). Waiting-for-HR and
+            shut-off both say something the badge cannot — that a punch from
+            here will be refused — so they keep theirs. */}
+        {device.status !== "active" && deviceStatusNote(device.status) && (
+          <InlineAlert tone={dead ? "rose" : "amber"}>
             {deviceStatusNote(device.status)}
           </InlineAlert>
         )}
 
-        <FactGrid
+        <SpecList
           items={[
             { label: "Kind", value: platformLabel(device.platform) },
             {
@@ -510,66 +550,44 @@ export default function MyDevicesPage() {
     <>
       <DashboardTopBar title="My Registered Devices" />
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto flex-1">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              <HelpLabel text="My Registered Devices" help={{ surface: SURFACE, field: "page", label: "this page" }} />
-            </h1>
-            <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-              The computers and phones you’ve registered for clocking in. Registering one proves a punch came from a device you hold.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={load} disabled={state.loading} className={SECONDARY_BTN}>
-              <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} /> Refresh
-            </button>
-            {canRegister && registerButton}
-          </div>
-        </div>
+        {/* WHAT THE ORGANISATION ASKS FOR IS THE HEADER, not a panel under it.
+            It used to be an h1 block, then a white card holding the mode, then
+            a bordered tile holding the slot meter — three stacked boxes before
+            the person reached their own devices, saying one thing between them:
+            "this is what you have to do, and this is how much room is left".
+            All of it is the heading now. The frame is the QUIET `ScreenHeader`
+            and not the purple `PageHeader`: this is a working screen, not a
+            dashboard, and a full-width gradient above a three-row list was
+            more colour than the page has content. So the ⓘ in here are
+            ordinary ones, and the mode pill carries its own tone. */}
+        <ScreenHeader
+          icon={modeView.icon}
+          badge={
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${TONE_CLASSES[modeView.tone] || TONE_CLASSES.slate}`}>
+              {modeView.pill}
+            </span>
+          }
+          title={<HelpLabel text="My Registered Devices" help={{ surface: SURFACE, field: "page", label: "this page" }} />}
+          subtitle={ctxLoading
+            ? "Reading what your organisation asks for…"
+            : mode === DEVICE_MODES.MONITOR && enforceFrom
+              ? `We’re recording which punches come from a registered device. From ${fmtDate(enforceFrom)} it becomes compulsory, so register one before then.`
+              : modeMeta.hint}
+          rightContent={
+            <DeviceHero
+              mode={mode}
+              used={used}
+              max={max}
+              loading={ctxLoading}
+              approval={ctx?.registration_approval}
+              onRefresh={load}
+              refreshing={state.loading}
+              registerButton={canRegister ? registerButton : null}
+            />
+          }
+        />
 
         {actionError && <InlineAlert tone="rose">{actionError}</InlineAlert>}
-
-        {/* What the organisation currently asks for, and how much room is left.
-            Shown from the context, so an organisation that hasn't switched this
-            on reads "not required" rather than a page of instructions it
-            doesn't need yet. */}
-        {ctxLoading ? (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xs px-5 py-5 animate-pulse" aria-busy="true" aria-label="Loading what your organisation requires">
-            <div className="h-3.5 w-56 bg-slate-200 rounded" />
-            <div className="h-3 w-80 bg-slate-100 rounded mt-3" />
-            <div className="h-3 w-64 bg-slate-100 rounded mt-2" />
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xs px-5 py-5">
-            <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
-              <div className="flex items-start gap-3 min-w-0 flex-1">
-                <span className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 ${TONE_CLASSES[modeView.tone]}`}>
-                  <modeView.icon className="w-5 h-5" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                    <p className="text-sm font-bold text-slate-800">{modeView.headline}</p>
-                    <ModePill view={modeView} />
-                    {mode !== DEVICE_MODES.OFF && (
-                      <FieldHelp surface={SURFACE} field="effective_mode" label="what your organisation requires" size="sm" />
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                    {mode === DEVICE_MODES.MONITOR && enforceFrom
-                      ? `We’re recording which punches come from a registered device. From ${fmtDate(enforceFrom)} it becomes compulsory, so register one before then.`
-                      : modeMeta.hint}
-                  </p>
-                  {mode !== DEVICE_MODES.OFF && ctx?.registration_approval && (
-                    <p className="text-xs text-slate-500 mt-2">
-                      <span className="font-semibold text-slate-600">New devices:</span> {approvalLabel(ctx.registration_approval).toLowerCase()}.
-                    </p>
-                  )}
-                </div>
-              </div>
-              {mode !== DEVICE_MODES.OFF && <SlotMeter used={used} max={max} />}
-            </div>
-          </div>
-        )}
 
         {/* The next punch is already refused, so this comes before anything the
             person might browse. Fuchsia, not rose: nothing has failed yet, and
@@ -602,30 +620,25 @@ export default function MyDevicesPage() {
         {/* The ⓘ sits BESIDE the strip, never inside it: a help button inside a
             tablist is a third tab as far as the keyboard is concerned (§10). */}
         <div className="flex items-center gap-2">
-          <div className="inline-flex gap-1 bg-slate-100/80 p-1 rounded-xl" role="tablist" aria-label="My registered devices">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={tab === key}
-                onClick={() => setParams(key === "this" ? {} : { tab: key }, { replace: true })}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition ${tab === key ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-                {/* Live devices only (active + pending), never the total that
-                    includes shut-off records kept below — a person who shut both
-                    of their old devices off was reading "2" here as "you still
-                    have 2 devices" (16 Oct 2026). The table still lists the
-                    shut-off ones under its own footnote. */}
-                {key === "all" && active.length + pending.length > 0 && (
-                  <span className="text-[11px] font-bold text-slate-400">{active.length + pending.length}</span>
-                )}
-              </button>
-            ))}
+          <div className="min-w-0 flex-1">
+            <SegmentedTabs
+              /* Live devices only (active + pending), never the total that
+                 includes shut-off records kept below — a person who shut both
+                 of their old devices off was reading "2" here as "you still
+                 have 2 devices" (16 Oct 2026). The table still lists the
+                 shut-off ones under its own footnote. */
+              tabs={TABS.map(({ key, label, icon }) => ({
+                key,
+                label,
+                icon,
+                count: key === "all" ? active.length + pending.length : 0,
+              }))}
+              value={tab}
+              onChange={(key) => setParams(key === "this" ? {} : { tab: key }, { replace: true })}
+              ariaLabel="My registered devices"
+            />
           </div>
-          <FieldHelp surface={SURFACE} field={`tab.${tab}`} label={`the ${TABS.find((t) => t.key === tab)?.label} tab`} />
+          <FieldHelp surface={SURFACE} field={`tab.${tab}`} label={`the ${TABS.find((t) => t.key === tab)?.label} tab`} className="mb-0 shrink-0" />
         </div>
 
         {tab === "this" && (

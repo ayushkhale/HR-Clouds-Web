@@ -255,6 +255,37 @@ export const organizationAPI = {
     return request(`/organizations/locations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   },
 
+  // ── HR › Operational Setup Checklist ──────────────────────────────────────
+  //    Contract: `md_organization/7_org_setup_checklist_api.md`. HR only
+  //    (`hr` / `super-admin`) — a manager or employee gets 403, so the card and
+  //    the page are hidden for them rather than offered and refused (§2).
+  /**
+   * The whole "is this organisation ready to run" readout, in one call.
+   * GET /organizations/setup-checklist
+   *
+   * → `{ readiness_percentage, summary, categories[] }`, each category carrying
+   * `tasks[]` of `{ task_key, title, description, is_core, is_completed,
+   * completed_at, action_url, order }`. Every check is "at least 1 valid record
+   * exists", and it is bidirectional: delete your only department and the step
+   * goes back to pending on the next read.
+   *
+   * ─── TWO TRAPS ───────────────────────────────────────────────────────────
+   * · `recheck: true` is a WRITE WEARING A GET. It re-evaluates all 22 tasks
+   *   against the domain tables and PERSISTS the result to
+   *   `organization_setup_tasks`. It belongs to an explicit "Re-check now"
+   *   press only — never to a mount, an effect or a poll.
+   * · `action_url` IS NOT A ROUTE IN THIS APP. The server returns its own
+   *   URL space (`/dashboard/organization/profile`, `/dashboard/leave/types`,
+   *   `/dashboard/payroll/salary-assign`…) and not one of the 22 resolves
+   *   here — our HR routes all live under `/dashboard/hr/`. `setupChecklistMeta.js`
+   *   maps `task_key` → the real route and the field is ignored; see its header.
+   *
+   * @param {{ recheck?: boolean }} [params]
+   */
+  getSetupChecklist({ recheck = false } = {}) {
+    return request(`/organizations/setup-checklist${recheck ? "?recheck=true" : ""}`);
+  },
+
   // ── HR › My Own Job Profile (fill-once) ───────────────────────────────────
   //    Contract: `md_organization/4_org_employee_api.md` §11. HR only — a
   //    manager or employee gets 403, so the UI is hidden for them rather than

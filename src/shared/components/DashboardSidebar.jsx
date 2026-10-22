@@ -379,6 +379,10 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiCog,
           defaultCollapsed: true,
           items: [
+            // The index of this whole section: which of the 22 steps below are
+            // done and which aren't. First, and not inside a group, because it
+            // is what you read before you decide which group to open.
+            link("Organisation setup", `${H}/setup`, HiClipboardCheck),
             // Departments first: they exist before anyone is invited into one.
             group("Organisation", HiOfficeBuilding, [
               link("Departments", `${H}/departments`, HiOfficeBuilding, { nested: true }),

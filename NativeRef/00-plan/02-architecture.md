@@ -62,6 +62,7 @@ hrclouds-employee/
     │   └── index.js              barrel — screens import from here
     │
     ├── lib/                      PURE LOGIC — ported from web, no React, no RN
+    │                             (one exception: location.js, below)
     │   ├── normalize.js          isUuid · personName · unwrap · normalizePaginated
     │   ├── dates.js              every date/time/duration helper
     │   ├── format.js             formatDayCount · formatMoney · displayValue · …
@@ -69,6 +70,10 @@ hrclouds-employee/
     │   ├── geofence.js           work-mode vocabularies + punch outcomes
     │   ├── dayStatus.js          why a day has the status it has
     │   ├── liveHours.js          the running clock while clocked in
+    │   ├── location.js          THE EXCEPTION — permissions + a punch fix.
+    │   │                         Imports react-native; kept here because it
+    │   │                         is the native half of geofence.js and the
+    │   │                         two are read together
     │   ├── validation.js         pure form validators returning { errors, payload }
     │   ├── events.js             the app-wide refresh bus
     │   ├── promisePool.js        settleWithLimit
