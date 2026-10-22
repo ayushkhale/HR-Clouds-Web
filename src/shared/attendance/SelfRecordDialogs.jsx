@@ -34,6 +34,8 @@ import {
   fmtDate, fmtDateTime, fmtHours, fmtMinutes, fmtTime, toLocalYMD, workedLabel, ymdOnly,
 } from "./dates";
 import { StatusBadge } from "./ui";
+import ShiftPolicyPanel from "./ShiftPolicyPanel.jsx";
+import { useMyShift } from "./useMyShift.js";
 
 const LONG_DATE = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
 
@@ -221,6 +223,8 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
   const date = ymdOnly(item?.date || item?.record_date || recordOf(item)?.date);
   const record = recordOf(item);
   const status = String(item?.status || "pending").toLowerCase();
+  // Session-cached; the dialog adds no read of its own.
+  const { wrapper, policy } = useMyShift();
 
   return (
     <DetailDialog
@@ -256,6 +260,19 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
       {item?.reason && (
         <DetailSection title="Why the extra hours" icon={HiPencilAlt}>
           <DetailText>{item.reason}</DetailText>
+        </DetailSection>
+      )}
+
+      {/* The thresholds this was measured against — how much extra counts at
+          all, and whether it needs approving. Without them "28m" tells the
+          person nothing about why it is pending or why 12m on another day
+          wasn't recorded (2026-10-21). Sourced from the DAY, so an older
+          overtime shows the rules that applied then, not today's; `policy`
+          from `/attendance/shift` is only the fallback for a record with no
+          snapshot. Folded — the figures above are what they opened this for. */}
+      {(record?.policy_snapshot || record?.shift_snapshot || policy) && (
+        <DetailSection title="Shift & rules that applied" icon={HiClock} defaultOpen={false}>
+          <ShiftPolicyPanel source={record?.policy_snapshot || record?.shift_snapshot ? record : wrapper} viewer="self" />
         </DetailSection>
       )}
 

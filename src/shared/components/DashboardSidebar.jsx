@@ -60,6 +60,7 @@ import {
   HiShare,
   HiLibrary,
   HiDeviceMobile,
+  HiOutlineCalendar,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -230,6 +231,12 @@ function DashboardSidebar({ role = "guest" }) {
         // sites. Read-only; the assign controls are HR/manager-only, so an
         // employee reaches it here too (16 Oct 2026). One entry covers all three
         // workspaces because the employee menu reuses this same `time` array.
+        // The hours they're expected to work and the rules their attendance is
+        // graded by. Sits directly under My Attendance because it is the answer
+        // to every "why was I marked late / absent" that page raises
+        // (21 Oct 2026). Read-only; the policy and shift editors are HR-only,
+        // so one entry serves all three workspaces.
+        link("My Schedule & Rules", `${base}/my-schedule`, HiOutlineCalendar),
         link("My Work Locations", `${base}/my-locations`, HiLocationMarker),
         link("My Leaves", pay.leaves, HiCalendar),
         link(`My ${REGULARIZATION}s`, `${base}/regularizations`, HiClipboardList),

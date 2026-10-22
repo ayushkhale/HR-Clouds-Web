@@ -18,6 +18,20 @@
 // undifferentiated spinner during a flow with a fingerprint prompt in the
 // middle gets double-tapped, and a double-tap burns a second challenge.
 // Nothing about the punch PAYLOAD changed.
+//
+// POLICY VISIBILITY (2026-10-21). The card now says what the attendance policy
+// will do to this punch BEFORE it is made: when the grace window closes, the
+// half-day mark on the ring, and how much break allowance is left. The figures
+// come from `policy` on `/attendance/shift`, read through `policyRules.js` —
+// never off `policy` keys directly, because the thresholds are decimal HOURS
+// and one of them used to be read as minutes, which is why the ring's arc never
+// drew (see that file's header). All three surfaces are gated on the policy
+// actually arriving, so an organisation whose backend predates the enrichment
+// sees the card exactly as before rather than a row of "N/A" (§7).
+//
+// DELIBERATELY NOT HERE: ⓘ help. Arrival state, hours and break time are
+// everyday data read daily and are on the no-ⓘ list (user decision,
+// 2026-10-01). The explanations live on My Schedule, which is the rarer screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -29,7 +43,8 @@ import { DEVICE_MODES, DEVICE_OPERATIONS, DEVICE_PROGRESS, deviceTrustVisible, e
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
-import { fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { arrivalState, breakBudget, fullDayMinutes, graceMinutes, halfDayMinutes, policyOf, shiftOf } from "../../../shared/attendance/policyRules";
+import { fmtClockMinutes, fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { PUNCH_SOURCE_WEB, SHIFT_TYPES, WORK_MODES, WORK_MODE_VALUES, humanize } from "../../../shared/attendance/enums";
 import { choosesWorkMode, geofenceNotice, isFieldWorker, permittedWorkModes } from "../../../shared/attendance/geofence";
 import { PUNCH_NOTES_MAX } from "../../../shared/attendance/validation";
@@ -49,6 +64,18 @@ const readWorkMode = () => {
 };
 
 const RING = 2 * Math.PI * 40;
+
+/**
+ * A milestone notch across the ring's stroke, at `fraction` of the way round.
+ * The svg is rotated -90°, so a local angle of 0 lands at twelve o'clock, which
+ * is where the arc starts — no extra maths needed.
+ */
+function ringNotch(fraction) {
+  const a = fraction * 2 * Math.PI;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return { x1: 50 + 33 * c, y1: 50 + 33 * s, x2: 50 + 47 * c, y2: 50 + 47 * s };
+}
 
 // Card action keys ↔ the operation names the device-trust gate knows them by.
 const OPERATION_OF = {
@@ -127,10 +154,13 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const recordDate = ymdOnly(today?.date);
   const carriedOver = phase === "working" && !!recordDate && recordDate < todayYMD();
 
+  // One second while the day runs (the ring and the live timer); half a minute
+  // while it hasn't started, which is all the grace countdown needs — a second
+  // hand on a card nobody is watching re-rendered every dashboard needlessly.
   useEffect(() => {
-    if (phase !== "working") return undefined;
+    if (phase !== "working" && phase !== "idle") return undefined;
     setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), phase === "working" ? 1000 : 30_000);
     return () => clearInterval(id);
   }, [phase]);
 
@@ -177,15 +207,17 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   };
   const geoNote = geofenceNotice(geofence, locationNameFor(geofence));
 
-  // `/attendance/shift` (U13) answers `{ assignment, shift, rotation,
+  // `/attendance/shift` (U13) answers `{ assignment, shift, policy, rotation,
   // weekly_offs }`, not a bare shift. Reading `name` off the wrapper left the
   // shift line blank on every dashboard, so unwrap it; a wrapper whose `shift`
   // is null means no assignment and falls through to `/today`'s own copy.
-  const wrapped = !!shiftData && typeof shiftData === "object" && "shift" in shiftData;
-  const assigned = wrapped ? shiftData.shift : (typeof shiftData === "object" ? shiftData : null);
-  const shift = assigned || today?.shift || null;
-  const policy = assigned?.policy || shiftData?.policy || null;
-  const fullDayMinutes = Number(policy?.full_day_threshold_minutes) || null;
+  const shift = shiftOf(shiftData) || today?.shift || null;
+  // `policy` is a SIBLING of `shift`, so it survives having no shift assigned —
+  // that case falls back to the organisation's default policy server-side, and
+  // its rules still govern the day.
+  const policy = policyOf(shiftData) || policyOf(today);
+  const fullDayMin = fullDayMinutes(policy);
+  const halfDayMin = halfDayMinutes(policy);
 
   const worked = phase === "working"
     ? computeWorkedMs({ clockIn, breaks: today?.breaks, activeBreak: today?.active_break, breakMinutes: today?.break_duration_minutes, now })
@@ -200,9 +232,28 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     Number(result.early_exit_minutes) > 0 && ["Left early", fmtMinutes(result.early_exit_minutes)],
     result.half_day_type && ["Half day", humanize(result.half_day_type)],
   ].filter(Boolean) : [];
-  const progress = fullDayMinutes && phase !== "idle" ? Math.min(1, workedMinutes / fullDayMinutes) : 0;
+  const progress = fullDayMin && phase !== "idle" ? Math.min(1, workedMinutes / fullDayMin) : 0;
   // Server `break_duration_minutes` (closed breaks) + live open-break time (§2 C22).
   const breakMinutes = totalBreakMinutes(today?.breaks, now, today?.break_duration_minutes, today?.active_break);
+
+  // The half-day mark, as a fraction of the ring. The FULL-day mark needs no
+  // notch — a complete arc is already that signal, and a notch sitting on the
+  // arc's own start point read as a defect.
+  const halfDayMark = fullDayMin && halfDayMin && halfDayMin < fullDayMin ? halfDayMin / fullDayMin : null;
+
+  // How this punch will be graded, before it is made. Only ever shown when the
+  // policy states a grace figure — without one we would be asserting a late
+  // mark we can't actually predict.
+  const arrival = phase === "idle" && shift && graceMinutes(policy) !== null
+    ? arrivalState(shift, policy, new Date(now))
+    : null;
+
+  // Break allowance. `breaks[]` carries the open break too, so its length is the
+  // count taken today. Null when the policy caps neither count nor duration.
+  const budget = breakBudget(policy, {
+    count: Array.isArray(today?.breaks) ? today.breaks.length : today?.break_count,
+    minutes: breakMinutes,
+  });
 
   const persistWorkMode = (value) => {
     const next = value === workMode ? "" : value;
@@ -442,12 +493,23 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     setShowNotes(!showNotes);
   };
 
+  // Break time so far, against the allowance when the policy sets one. Reading
+  // "45m of 1h · 2 of 3" is the whole point — people were finding out about the
+  // cap from a payroll deduction at month end.
+  const breakLine = !breakMinutes && !budget
+    ? ""
+    : !budget
+      ? ` Breaks so far: ${fmtMinutes(breakMinutes)}.`
+      : ` Breaks: ${fmtMinutes(breakMinutes)}${budget.minutesMax !== null ? ` of ${fmtMinutes(budget.minutesMax)}` : ""}${budget.countMax !== null ? ` · ${budget.countUsed} of ${budget.countMax}` : ""}.`;
+
   const stateLine = phase === "working" ? (
     <p className="flex items-start gap-2 text-sm font-medium text-slate-500">
       <HiOutlineClock className="w-5 h-5 text-slate-400 shrink-0 mt-px" />
       <span>
         {onBreak ? `On break since ${fmtTime(today.active_break?.start_time)}.` : `Clocked in at ${fmtTime(clockIn)}.`}
-        {breakMinutes ? ` Breaks so far: ${fmtMinutes(breakMinutes)}.` : ""}
+        {/* Over either cap goes rose: break time is deducted from hours worked,
+            so this one genuinely costs them something (§5). */}
+        <span className={budget && (budget.overCount || budget.overDuration) ? "text-rose-600 font-semibold" : undefined}>{breakLine}</span>
       </span>
     </p>
   ) : phase === "done" ? (
@@ -463,6 +525,10 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
         {progress > 0 && (
           <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} className={`${onBreak ? "text-fuchsia-400" : "text-purple-600"} transition-all duration-700`} strokeLinecap="round" />
         )}
+        {/* Where half a day's credit begins, so the ring says how far along the
+            policy's own scale the day is rather than just "some of it". Drawn
+            over the arc so it stays visible once the arc passes it. */}
+        {halfDayMark !== null && <line {...ringNotch(halfDayMark)} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-slate-300" />}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <span className="text-xl font-extrabold text-slate-800 tracking-tight tabular-nums">
@@ -472,6 +538,13 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           {phase === "working" ? (worked.breaksKnown ? "worked" : "elapsed") : phase === "done" ? "effective" : "hrs"}
         </span>
       </div>
+      {/* The notch is the sighted cue; these are the same two facts for a screen
+          reader, which can't see where a line sits on a circle. */}
+      {(halfDayMin || fullDayMin) && (
+        <span className="sr-only">
+          {halfDayMin ? `Half a day needs ${fmtMinutes(halfDayMin)}. ` : ""}{fullDayMin ? `A full day needs ${fmtMinutes(fullDayMin)}.` : ""}
+        </span>
+      )}
     </div>
   );
 
@@ -487,6 +560,21 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
           <p className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold mt-1.5 truncate" title={shiftTitle || undefined}>
             <HiClock className="w-3.5 h-3.5 text-purple-500 shrink-0" />
             <span className="truncate">{shiftLabel}</span>
+          </p>
+        )}
+        {/* What the grace window does to a punch made RIGHT NOW. One line in
+            every state so the card can't change height as the clock crosses
+            the cutoff, and absent entirely once they've clocked in. Fuchsia is
+            the warning tone, rose the cost (§5). */}
+        {arrival && (
+          <p className={`text-[11px] font-semibold mt-1.5 ${arrival.state === "late" ? "text-rose-600" : arrival.state === "grace" ? "text-fuchsia-600" : "text-slate-400"}`}>
+            {arrival.state === "before"
+              ? `Your shift starts at ${fmtClockMinutes(arrival.startsAt)}.`
+              : arrival.state === "grace"
+                ? `Clock in within ${fmtMinutes(arrival.minutesLeft)} to avoid a late mark.`
+                : arrival.cutoff !== null
+                  ? "Clocking in now records a late arrival."
+                  : `Your shift started at ${fmtClockMinutes(arrival.startsAt)}.`}
           </p>
         )}
         {stateLine && <div className="mt-3">{stateLine}</div>}

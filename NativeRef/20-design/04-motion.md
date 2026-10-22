@@ -94,8 +94,9 @@ const animatedProps = useAnimatedProps(() => ({
 ```
 
 - `CIRCUMFERENCE = 2 * Math.PI * 40` — the same radius the web card uses.
-- Driven by **worked minutes against the policy's `full_day_threshold_minutes`**,
-  not by elapsed wall time.
+- Driven by **worked minutes against the policy's full-day threshold**
+  (`fullDayMinutes()`, `shared/attendance/policyRules.js` — the policy states it
+  as `full_day_min_hours`, in decimal hours), not by elapsed wall time.
 - No threshold → no ring, just the figure. Don't invent an 8-hour default; the
   policy decides what a full day is.
 - Under reduce-motion the ring **jumps** to its value rather than sweeping.

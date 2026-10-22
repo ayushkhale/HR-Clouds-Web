@@ -33,6 +33,13 @@ export const SELF_SERVICE_PAGES = {
   // `/my-locations`, not `/locations`, so it never collides with the HR/manager
   // admin Office Locations page at `${prefix}/attendance/locations`.
   locations: "/my-locations",
+  // Shift & Policy Visibility (2026-10-21): the hours this person is expected
+  // to work and the rules their attendance is graded by, read-only. Same
+  // reasoning again — every role punches and every role is graded, so HR reads
+  // its own schedule under `/hr/my-attendance`, not under `/employee`.
+  // `/my-schedule`, not `/schedule`, to stay clear of the HR/manager admin
+  // Shift Roster at `${prefix}/attendance/roster`.
+  schedule: "/my-schedule",
 };
 
 /**

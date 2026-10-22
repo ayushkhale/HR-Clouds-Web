@@ -1,13 +1,29 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // RegularizationCard — "My Regularizations" list (U7), submit form (U6) and
 // cancel action (U8). Data fetching/pagination is owned by the page.
+//
+// THE CORRECTION WINDOW (2026-10-21). The policy decides how far back a
+// request may reach (`regularization_window_days`) and whether requests are
+// allowed at all (`regularization_allowed`). Both used to be invisible here:
+// the picker offered every past date, the person typed a reason, and the server
+// answered `400 INVALID_REGULARIZATION_DATE` on a form they had finished. Now
+//   · the picker's `min` is the window, so an out-of-range day can't be picked;
+//   · the window is checked before the call, so the message is ours, not an
+//     API key's (§11.1) — and the press reveals, reddens and travels (§11.2);
+//   · with corrections switched off, New request is ABSENT with a line saying
+//     to ask HR, never a button that 403s (§2).
+// With no policy to hand (a backend that predates the enrichment) the form
+// behaves exactly as it did: past dates only, and the server stays the backstop.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from "react";
 import { attendanceAPI } from "../../../shared/api";
 import { attendanceErrorMessage } from "../../../shared/utils/attendanceErrors";
 import { validateRegularization, hasErrors, REGULARIZATION_REASON_MAX } from "../../../shared/attendance/validation";
-import { addDaysYMD, fmtDate, fmtDateTime, fmtTime, parseYMDLocal, todayYMD, toLocalYMD, ymdOnly } from "../../../shared/attendance/dates";
+import { CORRECTIONS_OFF, correctionWindow } from "../../../shared/attendance/policyRules";
+import { useMyShift } from "../../../shared/attendance/useMyShift";
+import { focusFirstProblem } from "../../../shared/utils/formGuard";
+import { fmtDate, fmtDateTime, fmtTime, parseYMDLocal, toLocalYMD, ymdOnly } from "../../../shared/attendance/dates";
 import { REGULARIZATION_FILTERS, WORK_MODES } from "../../../shared/attendance/enums";
 import { entityId } from "../../../shared/attendance/normalize";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
@@ -33,9 +49,18 @@ function RequestedTime({ iso, date }) {
   );
 }
 
-function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
-  const maxDate = addDaysYMD(todayYMD(), -1);
-  const validInitial = initialDate && parseYMDLocal(initialDate) && initialDate <= maxDate ? initialDate : "";
+// A problem key → the box it belongs to. `times` has no box of its own (it is
+// "one of these two"), so it points at clock-in, the first of the pair; the
+// time fields are blocks rather than inputs, and formGuard focuses the first
+// control inside one (§11.5).
+const PROBLEM_ID = (key) => `reg-${key === "times" ? "clockIn" : key}`;
+
+function RegularizationFormModal({ initialDate, policy, onClose, onSubmitted }) {
+  const { minDate, maxDate, days } = correctionWindow(policy);
+  // A deep link can carry a date the window has since closed on — drop it
+  // rather than opening the form already in error (§11.3).
+  const inRange = (d) => !!d && !!parseYMDLocal(d) && d <= maxDate && (!minDate || d >= minDate);
+  const validInitial = inRange(initialDate) ? initialDate : "";
   const [form, setForm] = useState({ date: validInitial, clockIn: "", clockOut: "", outNextDay: false, reason: "", work_mode: "" });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -55,8 +80,11 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (submitting) return;
-    const { errors: v, payload } = validateRegularization(form);
+    const { errors: v, payload } = validateRegularization(form, { policy });
     setErrors(v);
+    // The press does the checking and takes them to the first thing that needs
+    // them — a form of six boxes can't say "something above is wrong" (§11.2).
+    if (focusFirstProblem(v, PROBLEM_ID)) return;
     if (hasErrors(v)) return;
     setSubmitting(true);
     setError("");
@@ -92,9 +120,21 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
           {error && <InlineAlert tone="rose">{error}</InlineAlert>}
           <div className="grid sm:grid-cols-2 gap-x-5 gap-y-4">
             <div>
-              <label htmlFor="reg-date" className="block text-sm font-semibold text-slate-700 mb-1.5">Date *</label>
-              <input id="reg-date" type="date" max={maxDate} className={inputClass(!!errors.date)} value={form.date} onChange={(e) => set("date", e.target.value)} />
-              {errors.date ? <FieldError message={errors.date} /> : <p className="text-[11px] text-slate-400 mt-1">Only past dates within your policy's correction window can be requested.</p>}
+              <div className="flex items-center">
+                <label htmlFor="reg-date" className="block text-sm font-semibold text-slate-700 mb-1.5">Date *</label>
+                <FieldHelp surface="attendance.regularization" field="regularization_window_days" label="how far back you can go" className="mb-1.5" />
+              </div>
+              {/* `min` is the policy's window, so a day the server would refuse
+                  can't be picked in the first place. Without a policy there is
+                  no min — we don't invent a window we weren't told. */}
+              <input id="reg-date" type="date" min={minDate || undefined} max={maxDate} className={inputClass(!!errors.date)} value={form.date} onChange={(e) => set("date", e.target.value)} />
+              {errors.date ? <FieldError message={errors.date} /> : (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {days !== null
+                    ? `Any day from ${fmtDate(minDate)} to ${fmtDate(maxDate)} — the last ${days === 1 ? "day" : `${days} days`}.`
+                    : "Any past day. Today can't be corrected until it's over."}
+                </p>
+              )}
             </div>
             <div>
               <div className="flex items-center">
@@ -107,12 +147,14 @@ function RegularizationFormModal({ initialDate, onClose, onSubmitted }) {
               </select>
               {errors.work_mode ? <FieldError message={errors.work_mode} /> : <p className="text-[11px] text-slate-400 mt-1">Applied to the day if the correction is approved.</p>}
             </div>
-            <div>
+            {/* The ids sit on the wrappers, not the TimeFields — formGuard
+                focuses the first control inside a block it is pointed at. */}
+            <div id="reg-clockIn">
               <span className="block text-sm font-semibold text-slate-700 mb-1.5">Clock in</span>
               <TimeField label="Clock in" value={form.clockIn} onChange={(v) => set("clockIn", v)} invalid={!!(errors.clockIn || errors.times)} />
               <FieldError message={errors.clockIn} />
             </div>
-            <div>
+            <div id="reg-clockOut">
               <span className="block text-sm font-semibold text-slate-700 mb-1.5">Clock out</span>
               <TimeField label="Clock out" value={form.clockOut} onChange={(v) => set("clockOut", v)} invalid={!!(errors.clockOut || errors.times)} />
             </div>
@@ -156,6 +198,13 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
   const [cancelling, setCancelling] = useState(null);
   const [selected, setSelected] = useState(null);
   const { toast, showToast, clearToast } = useToast();
+  // Session-cached, shared with the punch card and My Schedule — not a second
+  // read of `/attendance/shift` for this one screen.
+  const { policy, loading: policyLoading } = useMyShift();
+  // A capability this person hasn't got is ABSENT, not broken (§2). Until the
+  // policy is known the action stays as it was: assuming "off" would hide the
+  // button from everybody for a moment on every load.
+  const canRequest = correctionWindow(policy).allowed;
 
   // Status is filtered client-side on the loaded page (the server ignores it).
   const visible = statusFilter === "all"
@@ -168,12 +217,15 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
   const filterLabel = REGULARIZATION_FILTERS.find((f) => f.value === statusFilter)?.label.toLowerCase() || statusFilter;
 
   // Deep link from history / daily log: /regularizations?date=YYYY-MM-DD
+  // Held until the policy is known, so the form opens with its window already
+  // applied rather than with an unbounded picker that narrows a tick later.
   useEffect(() => {
-    if (!initialDate) return;
+    if (!initialDate || policyLoading) return;
+    if (!canRequest) { onPrefillConsumed?.(); return; }
     setPrefill(initialDate);
     setIsModalOpen(true);
     onPrefillConsumed?.();
-  }, [initialDate, onPrefillConsumed]);
+  }, [initialDate, policyLoading, canRequest, onPrefillConsumed]);
 
   const handleCancel = async (req) => {
     const id = entityId(req);
@@ -201,11 +253,17 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
         </h2>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
           <FilterTabs options={REGULARIZATION_FILTERS} value={statusFilter} onChange={onStatusChange} />
-          <button type="button" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm" onClick={() => { setPrefill(""); setIsModalOpen(true); }}>
-            <HiPlus /> New request
-          </button>
+          {canRequest && (
+            <button type="button" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm" onClick={() => { setPrefill(""); setIsModalOpen(true); }}>
+              <HiPlus /> New request
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Why there is no button, rather than a button that would 403. Past
+          requests stay readable — the rules changed, the history didn't. */}
+      {!canRequest && <InlineAlert tone="slate" className="mb-5">{CORRECTIONS_OFF}</InlineAlert>}
 
       {list.error ? (
         <ErrorState error={list.error} onRetry={list.reload} fallback="Couldn't load your requests." />
@@ -216,7 +274,11 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
           <EmptyState
             icon={HiPencilAlt}
             title="No requests"
-            message={list.items.length === 0 ? "Missed a punch? Request a correction and your manager will review it." : `No ${filterLabel} requests on this page.`}
+            message={list.items.length === 0
+              ? canRequest
+                ? "Missed a punch? Request a correction and your manager will review it."
+                : "Nothing here yet, and your attendance policy doesn’t allow correction requests — ask HR to fix a day for you."
+              : `No ${filterLabel} requests on this page.`}
           />
           {list.items.length > 0 && <Pagination className="mt-4" page={list.page} totalPages={list.totalPages} total={list.total} limit={list.limit} onPageChange={list.setPage} disabled={list.loading} />}
         </>
@@ -271,6 +333,7 @@ function RegularizationCard({ list, statusFilter, onStatusChange, initialDate, o
       {isModalOpen && (
         <RegularizationFormModal
           initialDate={prefill}
+          policy={policy}
           onClose={() => setIsModalOpen(false)}
           onSubmitted={() => {
             setIsModalOpen(false);

@@ -74,6 +74,7 @@ const DashboardLayout = lazy(() => import("../shared/layouts/DashboardLayout"));
 const NotFoundPage = lazy(() => import("../shared/screens/NotFoundPage"));
 const MyDevicesPage = lazy(() => import("../shared/screens/MyDevicesPage"));
 const MyWorkLocationsPage = lazy(() => import("../shared/screens/MyWorkLocationsPage"));
+const MySchedulePage = lazy(() => import("../shared/screens/MySchedulePage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
@@ -395,6 +396,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/my-attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/hr/my-attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/hr/my-attendance/my-locations" element={<MyWorkLocationsPage />} />
+        <Route path="/dashboard/hr/my-attendance/my-schedule" element={<MySchedulePage />} />
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
@@ -501,6 +503,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/manager/attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/manager/attendance/my-locations" element={<MyWorkLocationsPage />} />
+        <Route path="/dashboard/manager/attendance/my-schedule" element={<MySchedulePage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
         <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
         <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
@@ -567,6 +570,7 @@ function AppRoutes() {
         <Route path="/dashboard/employee/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/employee/attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/employee/attendance/my-locations" element={<MyWorkLocationsPage />} />
+        <Route path="/dashboard/employee/attendance/my-schedule" element={<MySchedulePage />} />
         <Route path="/dashboard/employee/leaves" element={<LeaveDashboard />} />
 
         {/* Employee payroll */}

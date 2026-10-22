@@ -197,6 +197,26 @@ export function zoneMinutesFrom(ymd, iso, timeZone) {
   return minutes + Math.round((actual - base) / 86_400_000) * 1440;
 }
 
+/**
+ * The calendar date an instant falls on IN `timeZone`, as `YYYY-MM-DD`.
+ * `toLocalYMD` answers the same question for the browser's zone, which is the
+ * wrong one whenever a schedule is expressed in the employer's: a 06:00 pm IST
+ * deadline read in London belongs to the same working day, not the day before.
+ * Returns "" for bad input rather than today, so a caller can fall back.
+ */
+export function ymdInZone(iso, timeZone) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const opts = { year: "numeric", month: "2-digit", day: "2-digit" };
+  try {
+    // en-CA formats as YYYY-MM-DD, which is the wire format already.
+    return new Intl.DateTimeFormat("en-CA", { ...opts, timeZone: timeZone || undefined }).format(d);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", opts).format(d);
+  }
+}
+
 /** Minutes → "1h 5m" / "45m" / "0m". null/undefined → fallback. */
 export function fmtMinutes(value, fallback = "0m") {
   if (value === null || value === undefined || value === "") return fallback;

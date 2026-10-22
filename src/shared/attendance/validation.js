@@ -12,6 +12,7 @@
 
 import { combineLocalDateTime, parseYMDLocal, todayYMD } from "./dates.js";
 import { WORK_MODE_VALUES } from "./enums.js";
+import { correctionDateProblem } from "./policyRules.js";
 
 const isBlank = (v) => v === undefined || v === null || String(v).trim() === "";
 const toNumber = (v) => (isBlank(v) ? NaN : Number(v));
@@ -69,14 +70,30 @@ export const REGULARIZATION_REASON_MAX = 1000;
 
 /**
  * Times are sent as full ISO datetimes so overnight corrections are unambiguous (§1.7).
+ *
+ * `policy` is the attendance policy in force for the caller, when the screen
+ * has it. The backend refuses a date outside `regularization_window_days` with
+ * `400 INVALID_REGULARIZATION_DATE`, and that refusal names an API key, so the
+ * window is checked HERE — it is the only way the person reads our words
+ * instead of the server's (§11.1). With no policy to hand, only "must be in the
+ * past" applies and the server stays the backstop; the form never guesses a
+ * window it hasn't been told.
+ *
  * @param {{date: string, clockIn?: string, clockOut?: string, outNextDay?: boolean, reason: string, work_mode?: string}} form
+ * @param {{today?: string, now?: Date, policy?: object|null}} options
  */
-export function validateRegularization(form, { today = todayYMD(), now = new Date() } = {}) {
+export function validateRegularization(form, { today = todayYMD(), now = new Date(), policy = null } = {}) {
   const errors = {};
   const reason = String(form.reason || "").trim();
 
   if (!form.date || !parseYMDLocal(form.date)) errors.date = "Select the date you want to correct.";
   else if (form.date >= today) errors.date = "Only past dates can be corrected.";
+  else {
+    // One string, declared once in policyRules and reused as the field error,
+    // the hint under the box and the reason the action is absent (§11.5).
+    const outside = correctionDateProblem(form.date, policy, today);
+    if (outside) errors.date = outside;
+  }
 
   // Schema: .or('requested_clock_in', 'requested_clock_out')
   if (!form.clockIn && !form.clockOut) errors.times = "Enter a corrected clock-in time, clock-out time, or both.";

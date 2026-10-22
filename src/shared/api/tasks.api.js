@@ -54,9 +54,18 @@ const seg = (value) => encodeURIComponent(String(value ?? ""));
 
 /** Shared list filters (#249, #256, #257, #266). */
 const LIST_FILTERS = ["status", "priority", "category", "is_overdue", "search", "page", "limit"];
-const MY_FILTERS = [...LIST_FILTERS, "is_viewed"];
+/**
+ * Deadline window + ordering, added 2026-10-22 for the forward schedule
+ * (`2026-10-22_my_schedule_forward_view_api_delivery.md` §4.1). `due_from` /
+ * `due_to` are `YYYY-MM-DD` read as WHOLE days in the organisation's zone, so
+ * `due_to` keeps the tasks due late on the closing day — the commonest
+ * deadline there is. They AND with `is_overdue` rather than replacing it.
+ * `sort=due_date` defaults to ASC; the default sort is still `created_at`.
+ */
+const DUE_WINDOW_FILTERS = ["due_from", "due_to", "sort", "order"];
+const MY_FILTERS = [...LIST_FILTERS, ...DUE_WINDOW_FILTERS, "is_viewed"];
 const ASSIGNED_BY_ME_FILTERS = [...LIST_FILTERS, "assignee_id"];
-const TEAM_FILTERS = [...LIST_FILTERS, "subordinate_id"];
+const TEAM_FILTERS = [...LIST_FILTERS, ...DUE_WINDOW_FILTERS, "subordinate_id"];
 const ORG_FILTERS = [...LIST_FILTERS, "department_id", "assigner_id", "assignee_id"];
 
 /**

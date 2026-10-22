@@ -5,17 +5,24 @@
 //    biometric punches that were processed asynchronously).
 //  • Refreshes just after local midnight so a card left open rolls to the new day.
 //  • Out-of-order responses are discarded.
+//
+// The `/shift` half is NOT read here — it goes through `useMyShift`, which
+// caches it for the session and shares it with the correction form and My
+// Schedule (2026-10-21). It changes only when HR edits a policy, a shift or an
+// assignment, and that emits `CONFIG`, which `useMyShift` already subscribes
+// to. `shift` keeps its old shape (the whole wrapper) because AttendanceCard
+// reads `policy` off it as well as the shift itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { attendanceAPI } from "../api";
 import { unwrap } from "./normalize.js";
-import { ATTENDANCE_EVENTS, useAttendanceChanged } from "./events.js";
+import { useMyShift } from "./useMyShift.js";
 
 export function useTodayAttendance() {
-  const [state, setState] = useState({ today: null, shift: null, loading: true, error: null });
+  const [state, setState] = useState({ today: null, loading: true, error: null });
   const todayReq = useRef(0);
-  const shiftReq = useRef(0);
+  const { wrapper: shift, reload: reloadShift } = useMyShift();
 
   const refresh = useCallback(async () => {
     const id = ++todayReq.current;
@@ -29,23 +36,7 @@ export function useTodayAttendance() {
     }
   }, []);
 
-  const loadShift = useCallback(async () => {
-    const id = ++shiftReq.current;
-    try {
-      const res = await attendanceAPI.getMyShift();
-      if (id === shiftReq.current) setState((s) => ({ ...s, shift: unwrap(res) || null }));
-    } catch {
-      // No active assignment is a valid state — the card shows "No shift assigned".
-      if (id === shiftReq.current) setState((s) => ({ ...s, shift: null }));
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    loadShift();
-  }, [refresh, loadShift]);
-
-  useAttendanceChanged([ATTENDANCE_EVENTS.CONFIG], loadShift);
+  useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -60,10 +51,12 @@ export function useTodayAttendance() {
     const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
     const timer = setTimeout(() => {
       refresh();
-      loadShift();
+      // A rotational shift is resolved for TODAY, so the day rolling over can
+      // change which shift is in force even though nothing was edited.
+      reloadShift();
     }, nextMidnight - now);
     return () => clearTimeout(timer);
-  }, [refresh, loadShift, state.today?.date]);
+  }, [refresh, reloadShift, state.today?.date]);
 
-  return { ...state, refresh, reloadShift: loadShift };
+  return { ...state, shift, refresh, reloadShift };
 }

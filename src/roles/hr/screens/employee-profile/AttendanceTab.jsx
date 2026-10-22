@@ -4,8 +4,9 @@ import { memberAttendanceApi } from "../../../../shared/attendance/memberAttenda
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
 import { unwrap } from "../../../../shared/attendance/normalize";
+import ShiftPolicyPanel from "../../../../shared/attendance/ShiftPolicyPanel";
 import { anomalyStatusKey, anomalyLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
-import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
 import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
 import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
@@ -74,16 +75,16 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
             />
           </DetailSection>
 
-          {log.shift && (
-            <DetailSection title="Applied shift" icon={HiClock}>
-              <DetailGrid
-                items={[
-                  ["Shift", log.shift.name],
-                  ["Starts", fmtClockTime(log.shift.start_time)],
-                  ["Ends", fmtClockTime(log.shift.end_time)],
-                  ["Type", humanize(log.shift.type || log.shift.shift_type)],
-                ]}
-              />
+          {/* The shift AND the rules it was judged by. This used to be the
+              shift alone, so a manager looking at a late mark or a half day had
+              to leave for the policy screen to find out what the thresholds
+              were — the approval dialog beside it has shown both since it was
+              written. Same component now, so they can't drift (2026-10-21).
+              Folded by default: it is the context behind the figures above, not
+              the answer somebody opened the day for (§3). */}
+          {(log.shift || log.shift_snapshot || log.policy || log.policy_snapshot) && (
+            <DetailSection title="Shift & rules that applied" icon={HiClock} defaultOpen={false}>
+              <ShiftPolicyPanel source={log} viewer="other" emptyNote="The rules this day was judged by weren’t recorded with it." />
             </DetailSection>
           )}
 

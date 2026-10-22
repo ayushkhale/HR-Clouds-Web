@@ -22,6 +22,21 @@ const ATTENDANCE_ERROR_MESSAGES = {
   NOT_HR: "Only HR administrators can perform this action.",
   HIERARCHY_VIOLATION: "This employee is outside your reporting line, so you can't view or action their attendance.",
   EMPLOYEE_NOT_IN_TEAM: "This employee isn't in your team, so you can't view their attendance.",
+  // The schedule agenda's own denial (2026-10-22). Uniform by design — a
+  // non-existent person and someone else's report are indistinguishable, so
+  // this must never be worded as though the person exists.
+  CANNOT_ACCESS_OUTSIDE_HIERARCHY: "That person doesn't report to you, so their schedule isn't yours to see.",
+
+  // §12 Forward schedule (2026-10-22). The three SCHEDULE_* refusals are bugs
+  // in our own code rather than anything the reader did: the windows we offer
+  // are fixed at 7/30/90 days inside the server's 92-day cap, and we send no
+  // `include`. They are mapped anyway so that if one ever does surface it
+  // reads as our words and not as "Range must not exceed 92 days (requested
+  // 150)", which names a limit nobody chose and no one can act on.
+  SCHEDULE_RANGE_TOO_LARGE: "That's too long a stretch to show at once. Pick a shorter one.",
+  SCHEDULE_RANGE_INVALID: "Those dates don't make a period we can show. Pick a start before the end.",
+  SCHEDULE_INCLUDE_INVALID: "We asked for something your organisation doesn't keep. Try again, and tell us if it keeps happening.",
+  TEAM_TOO_LARGE: "You have too many people reporting to you to show cover for all of them at once.",
 
   // §3.1 Punch / clock
   ALREADY_CLOCKED_IN: "You're already clocked in for today. Your status has been refreshed.",
@@ -152,7 +167,13 @@ const SESSION_EXPIRED = "Your session has expired. Please sign in again.";
 const SERVER_ERROR = "The server ran into a problem. Please try again shortly.";
 const RATE_LIMITED = "Too many requests. Please wait a moment and try again.";
 
-/** The typed backend code, if any (`code`; `errorCode` kept for older envelopes). */
+/**
+ * The typed backend code, if any. BOTH spellings are live: the attendance
+ * module answers `code`, while the newer schedule endpoints answer `errorCode`
+ * — the integration guide of 2026-10-22 calls that out explicitly ("note the
+ * field is `errorCode`, not `code`"). Neither branch is legacy; don't tidy
+ * either away.
+ */
 export function attendanceErrorCode(err) {
   return err?.data?.code || err?.data?.errorCode || null;
 }

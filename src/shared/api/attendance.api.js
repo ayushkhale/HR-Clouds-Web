@@ -394,8 +394,43 @@ export const attendanceAPI = {
 
   // ── Shift & Holidays (U13, U20) ────────────────────────────────────────────
   getMyShift: () => request("/attendance/shift"),
-  /** Takes no parameters — a `year` would be ignored (§4.3). Filter by date client-side. */
-  getUpcomingHolidays: () => request("/attendance/holidays"),
+  /**
+   * `year` (2000–2100) OR `from`+`to` together — a lone bound is a 400, and so
+   * is an unvalidated `year` now (both fixed 2026-10-22; the old note here said
+   * `year` was ignored, which was wrong — it was always honoured, just never
+   * validated, so `?year=abc` used to 500). Prefer `from`/`to` for a window
+   * that crosses a calendar-year boundary, which `year` cannot express.
+   */
+  getUpcomingHolidays: ({ year, from, to } = {}) =>
+    request(`/attendance/holidays${qs({ year, from, to })}`),
+
+  // ── Forward schedule: the agenda (2026-10-22) ──────────────────────────────
+  //    One request builds the whole forward view. The server resolves `day_kind`
+  //    with the SAME code unit the roster, the HR planes and the auto-absent
+  //    cron use, so this page cannot contradict the payslip — never re-derive a
+  //    day's kind here from shift/holiday/leave presence.
+  /**
+   * `{ range, summary, lanes, days[] }` — dense, one entry per calendar date.
+   * No `user_id`: the subject is the token.
+   * @param {{from?: string, to?: string, include?: string[]}} [params]
+   *   `include` names the OPTIONAL lanes only (`tasks`, `documents`,
+   *   `comp_offs`, `shift_changes`); an unknown name is a 400, not ignored.
+   *   Omit it for all lanes. `shift`/`holidays`/`leave` can never be excluded.
+   */
+  getMyAgenda: ({ from, to, include } = {}) =>
+    request(`/attendance/schedule/agenda${qs({
+      from,
+      to,
+      include: Array.isArray(include) ? include.join(",") : include,
+    })}`),
+  /**
+   * Per-day coverage over the caller's DIRECT REPORTS — for every role,
+   * including HR, which is deliberately NOT org-wide here. Counts are computed
+   * server-side over the whole team; never derive them from `away[]`.
+   * A manager with no reports gets `team_size: 0` and a dense `days` array.
+   */
+  getTeamAgenda: ({ from, to, subordinateId } = {}) =>
+    request(`/attendance/manager/schedule/team-agenda${qs({ from, to, subordinate_id: subordinateId })}`),
 
   // ── Regularizations (U6–U8) ────────────────────────────────────────────────
   submitRegularization: (payload) => post("/attendance/regularization", payload),

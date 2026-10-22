@@ -3,10 +3,22 @@
 // targeting selectors (locations, departments, employees, employment types,
 // job statuses, shifts). Replaces the loaders duplicated in both modals and
 // fixes options with undefined labels (which crashed MultiSelectDropdown search).
+//
+// EMPLOYMENT TYPES AND JOB STATUSES ARE CANONICAL, NOT ROSTER-DERIVED (2026-10-22).
+// They used to be scraped off whoever happened to be on the roster, with
+// title-case fallbacks ("Active", "Full-time", "Notice Period"). Both were
+// wrong: a value nobody holds yet — an intern in an org with no interns — was
+// simply missing from the dropdown, so HR could not target it; and the
+// fallbacks were non-canonical strings the matcher never equals and the API
+// refuses with VALIDATION_ERROR. The backend matches on strict enum equality,
+// so the options now come from the authoritative list in profileEnums.js, in
+// full, every time. Contract:
+// md_updates/2026-10-22_employee_job_status_and_employment_type_enums_guide.md §8.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
 import { organizationAPI, tokenHelper } from "../api";
+import { EMPLOYMENT_TYPE_OPTIONS, JOB_STATUS_OPTIONS } from "../organization/profileEnums.js";
 import { isUuid, listFrom } from "./normalize.js";
 import { useOrgEmployees } from "./EmployeePicker.jsx";
 
@@ -15,14 +27,6 @@ const CACHE_MS = 60_000;
 let orgCache = { key: null, at: 0, locations: [], departments: [] };
 const orgCacheFresh = () => orgCache.key === (tokenHelper.get() || "") && Date.now() - orgCache.at < CACHE_MS;
 const EMPTY = [];
-
-// No documented enum endpoint exists (audit C7). Values are taken from the org
-// roster; these are used only when no employee record carries a value.
-const FALLBACK_EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract"];
-const FALLBACK_JOB_STATUSES = ["Active", "Probation", "Notice Period"];
-
-const uniqueStrings = (values) =>
-  [...new Set(values.filter((v) => typeof v === "string" && v.trim()).map((v) => v.trim()))].sort((a, b) => a.localeCompare(b));
 
 export function useTargetingOptions({ shifts = EMPTY } = {}) {
   const employees = useOrgEmployees("shift_assignment");
@@ -48,10 +52,6 @@ export function useTargetingOptions({ shifts = EMPTY } = {}) {
   }, []);
 
   return useMemo(() => {
-    const raw = employees.options.map((o) => o.raw || {});
-    const pick = (e, key) => e?.[key] ?? e?.profile?.[key] ?? e?.employee_profile?.[key];
-    const employmentTypes = uniqueStrings(raw.map((e) => pick(e, "employment_type")));
-    const jobStatuses = uniqueStrings(raw.map((e) => pick(e, "job_status")));
     // `useOrgEmployees("shift_assignment")` already hands back current employees
     // only. `o.active` is the directory's own canonical flag, so this never
     // re-derives "is this person still here?" with a second, subtly different
@@ -67,8 +67,10 @@ export function useTargetingOptions({ shifts = EMPTY } = {}) {
       departmentOptions: org.departments.filter((d) => d.is_active !== false).map((d) => ({ value: d.id || d._id, label: d.name || "Unnamed department" })),
       // For PersonMultiSelect, the one people picker used app-wide.
       employeePeople: activeEmployees,
-      employmentTypeOptions: (employmentTypes.length ? employmentTypes : FALLBACK_EMPLOYMENT_TYPES).map((v) => ({ value: v, label: v })),
-      jobStatusOptions: (jobStatuses.length ? jobStatuses : FALLBACK_JOB_STATUSES).map((v) => ({ value: v, label: v })),
+      // The full canonical enums, so every value can be targeted even when no
+      // current employee holds it. See the header for why this is not derived.
+      employmentTypeOptions: EMPLOYMENT_TYPE_OPTIONS,
+      jobStatusOptions: JOB_STATUS_OPTIONS,
       shiftOptions: shifts.map((s) => ({ value: s.id, label: s.name || "Unnamed shift" })),
     };
   }, [employees.options, employees.loading, org, shifts]);
