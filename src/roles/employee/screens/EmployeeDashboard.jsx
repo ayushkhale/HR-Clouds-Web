@@ -13,6 +13,8 @@ import { attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import { HiCalendar, HiChartBar, HiSparkles, HiCheckCircle, HiChevronLeft, HiChevronRight, HiClock } from "react-icons/hi";
 import { useTodayAttendance } from "../../../shared/attendance/useTodayAttendance";
+import LiveEffectiveHours from "../../../shared/attendance/LiveEffectiveHours";
+import { computeWorkedMs } from "../../../shared/attendance/liveHours";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { listFrom, num, unwrap } from "../../../shared/attendance/normalize";
 import { fmtDate, fmtHours, fmtMinutes, monthLabel, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
@@ -116,11 +118,33 @@ function EmployeeDashboard() {
   // One bar per day of the month, paged in the same halves as the HR and
   // manager charts; days with nothing worked sit at zero.
   const todayKey = todayYMD();
+  // `/graph-data` states each day as it was last calculated, and a day still
+  // open has no `effective_hours` yet — so today's bar sat at zero and its row
+  // read "0m" while the punch card on this very screen counted up, two
+  // different answers for the same day on one page (2026-10-22). The live
+  // `/today` record is already here, so today's figure comes from it, with
+  // breaks deducted exactly as `computeWorkedMs` does everywhere else.
+  const liveToday = today?.clock_in_time && !today?.clock_out_time ? today : null;
+  const liveTodayMs = liveToday
+    ? computeWorkedMs({
+      clockIn: liveToday.clock_in_time,
+      breaks: liveToday.breaks,
+      activeBreak: liveToday.active_break,
+      breakMinutes: liveToday.break_duration_minutes,
+    }).workedMs
+    : null;
   const hoursByDay = daily
     .map((d) => {
       const date = ymdOnly(d.date);
       const note = beforeJoining(date) ? "Before you joined" : date > todayKey ? "Still to come" : null;
-      return { date, status: d.status || "not_marked", hours: note ? 0 : Math.max(0, parseFloat(d.effective_hours) || 0), worked: workedLabel(d), note };
+      const live = date === todayKey ? liveTodayMs : null;
+      return {
+        date,
+        status: d.status || "not_marked",
+        hours: note ? 0 : live != null ? live / 3600000 : Math.max(0, parseFloat(d.effective_hours) || 0),
+        worked: live != null ? fmtMinutes(Math.floor(live / 60000), "0m") : workedLabel(d),
+        note,
+      };
     })
     .filter((d) => d.date)
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -304,7 +328,13 @@ function EmployeeDashboard() {
                           <td className="px-2 py-3"><StatusBadge status={row.status} /></td>
                           <td className={`px-2 py-3 ${late > 0 ? "text-fuchsia-600" : "text-slate-400"}`}>{fmtMinutes(late)}</td>
                           <td className={`px-2 py-3 ${overtime > 0 ? "text-purple-600" : "text-slate-400"}`}>{overtime > 0 ? `+${fmtMinutes(overtime)}` : "0m"}</td>
-                          <td className="px-2 py-3 text-right text-slate-800 tabular-nums">{workedLabel(row)}</td>
+                          {/* Today is still being worked, so its figure comes
+                              from the live record, not from the month's
+                              snapshot — the same number the punch card above
+                              shows. */}
+                          <td className="px-2 py-3 text-right text-slate-800 tabular-nums">
+                            {ymdOnly(row.date) === todayKey && liveToday ? <LiveEffectiveHours record={liveToday} /> : workedLabel(row)}
+                          </td>
                         </tr>
                       );
                     })}

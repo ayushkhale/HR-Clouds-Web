@@ -54,7 +54,7 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
             items={[
               { label: "Clock in", value: fmtTime(log.clock_in_time), icon: HiClock },
               { label: "Clock out", value: fmtTime(log.clock_out_time), icon: HiClock },
-              { label: "Effective hours", value: <LiveEffectiveHours effectiveHours={log.effective_hours} formatted={log.worked_duration_formatted} clockInTime={log.clock_in_time} clockOutTime={log.clock_out_time} breaks={log.breaks} className="text-purple-800" />, icon: HiCheckCircle },
+              { label: "Effective hours", value: <LiveEffectiveHours record={log} className="text-purple-800" />, icon: HiCheckCircle },
               { label: "Break time", value: minutesOrZero(log.break_duration_minutes), icon: HiPause },
             ]}
           />
@@ -250,7 +250,7 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
                             ? na
                             : record.effective_hours === null && !record.clock_in_time
                               ? <span className="text-slate-400">0m</span>
-                              : <LiveEffectiveHours effectiveHours={record.effective_hours} formatted={record.worked_duration_formatted} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />}
+                              : <LiveEffectiveHours record={record} />}
                         </td>
                       </tr>
                     );

@@ -16,7 +16,7 @@ import { isSynthesizedDay } from "./dayStatus.js";
 import { anomalyLabel, humanize } from "./enums.js";
 import {
   browserTimeZone, clockMinutes, fmtClockMinutes, fmtClockTime, fmtDate, fmtDateTime,
-  fmtHours, fmtMinutes, formatInZone, workedLabel, ymdOnly, zoneMinutesFrom,
+  fmtHours, fmtMinutes, formatInZone, onClockLabel, workedLabel, ymdOnly, zoneMinutesFrom,
 } from "./dates.js";
 import { listFrom } from "./normalize.js";
 import { fullDayMinutes, halfDayMinutes, policyOf, shiftOf } from "./policyRules.js";
@@ -37,6 +37,13 @@ function shiftWindow(shift) {
   return { start, end, length: end - start };
 }
 
+/**
+ * The GROSS span between two punches, breaks included — never worked time
+ * (§ dates.js `workedLabel`). It is the only figure comparable between the
+ * recorded punches and the requested ones, because a correction request names
+ * clock-in and clock-out and says nothing about breaks. Label anything built
+ * from this "on the clock", not "worked" (2026-10-22).
+ */
 function spanMinutes(fromIso, toIso) {
   const a = new Date(fromIso).getTime();
   const b = new Date(toIso).getTime();
@@ -263,7 +270,11 @@ function RecordedDaySection({ record, title = "Recorded attendance", showPunches
             </Stat>
           </>
         )}
-        <Stat label="Total time">{fmtHours(record.total_hours, "N/A")}</Stat>
+        {/* The gross span, the breaks, then the net: the three read together
+            so the arithmetic is visible. This is the ONE place `total_hours`
+            belongs — through `onClockLabel`, so the gross/net choice is named
+            rather than retyped (2026-10-22). */}
+        <Stat label="Total time" hint="breaks included">{onClockLabel(record)}</Stat>
         <Stat label="Breaks">{fmtMinutes(record.break_duration_minutes, "N/A")}</Stat>
         <Stat label="Effective hours" hint={effectiveHint?.text} hintTone={effectiveHint?.tone}>{workedLabel(record, "N/A")}</Stat>
         <Stat label="Work mode">{record.work_mode ? humanize(record.work_mode) : "N/A"}</Stat>
@@ -378,11 +389,18 @@ export function RegularizationDetails({ item, person }) {
           {punches.map((p) => <CompareCard key={p.label} {...p} />)}
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-2 mt-4 pt-4 border-t border-slate-100 text-xs">
+          {/* Both figures are clock-out minus clock-in, breaks included. It
+              read "Time worked", which means the NET figure everywhere else,
+              so this panel appeared to contradict the "Effective hours" below
+              it by exactly the break time (2026-10-22). The span is the right
+              number here — a correction request names only the two punches —
+              so the label moves to match it. */}
           <span className="text-slate-500">
-            Time worked <strong className="text-slate-700">{recSpan !== null ? fmtMinutes(recSpan) : "Not recorded"}</strong>
+            Time on the clock <strong className="text-slate-700">{recSpan !== null ? fmtMinutes(recSpan) : "Not recorded"}</strong>
             <span className="mx-1 text-slate-300">→</span>
             <strong className="text-slate-900">{reqSpan !== null ? fmtMinutes(reqSpan) : "N/A"}</strong>
             {spanDelta && <span className="ml-1.5 font-bold text-violet-700">{spanDelta}</span>}
+            <span className="ml-1.5 text-slate-400">(breaks not taken off)</span>
           </span>
           <span className="text-slate-500">
             Work mode <strong className="text-slate-900">{item.work_mode ? humanize(item.work_mode) : record?.work_mode ? humanize(record.work_mode) : "N/A"}</strong>

@@ -155,7 +155,7 @@ export default function OverviewTab({ userId, employeeRole, viewer = "hr" }) {
                 ))}
                 <div className="flex items-center justify-between text-xs p-2 rounded-xl bg-purple-50/40 border border-purple-100/50">
                   <span className="text-purple-600 font-bold uppercase tracking-wider text-[9px]">Hours</span>
-                  <LiveEffectiveHours effectiveHours={todayRecord?.effective_hours} formatted={todayRecord?.worked_duration_formatted} clockInTime={todayRecord?.clock_in_time} clockOutTime={todayRecord?.clock_out_time} breaks={todayRecord?.breaks} className="text-purple-700 text-sm" />
+                  <LiveEffectiveHours record={todayRecord} className="text-purple-700 text-sm" />
                 </div>
               </>
             ) : (

@@ -239,7 +239,11 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
         items={[
           { label: "Extra time", value: minutes != null ? fmtMinutes(minutes) : null, hint: "beyond your shift", icon: HiLightningBolt },
           { label: "Day", value: fmtDate(date), icon: HiCalendar },
-          { label: "Time on the clock", value: record ? workedLabel(record) : null, icon: HiClock },
+          // Net worked time — the figure the overtime was measured against.
+          // It was labelled "Time on the clock", which is the GROSS span on
+          // every other screen, so the same words named two different numbers
+          // (2026-10-22). The label moves to match the value.
+          { label: "Time worked", value: record ? workedLabel(record) : null, hint: "breaks taken out", icon: HiClock },
         ]}
       />
 

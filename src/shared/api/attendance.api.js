@@ -211,7 +211,19 @@ export const attendanceAPI = {
   //    employees' OWN phones and laptops, proving at punch time that a punch
   //    came from a device the organisation knows about.
   //    Contract: md_attendance/8_device_trust_api_analysis.md §6.
-  /** @param {{user_id?: string, status?: "pending"|"active"|"suspended"|"revoked", platform?: string, device_bound?: boolean, page?: number, limit?: number}} params */
+  /**
+   * The org-wide device inventory — one row per DEVICE.
+   *
+   * Rows carry `user_id` (= `users.id`) and `last_user_agent` as of the backend
+   * delivery of 22 Oct 2026 (md_updates/2026-10-22_device_trust_frontend_delivery.md
+   * §2); the original contract in §6 of the analysis doc omitted both. Names,
+   * emails, departments and photos are deliberately NOT denormalised onto these
+   * rows — resolve them from `useEmployeeDirectory()` via `user_id` (§7).
+   *
+   * For "who has a device and who hasn't", use `getDeviceTrustPeople` instead:
+   * a list of devices can never show somebody who has none.
+   * @param {{user_id?: string, status?: "pending"|"active"|"suspended"|"revoked", platform?: string, device_bound?: boolean, page?: number, limit?: number}} params
+   */
   getTrustedDevices: (params = {}) => request(`/attendance/hr/trusted-devices${qs(params)}`),
   /** `pending` → `active`. No body. A second decision is 409 DEVICE_INVALID_STATE_TRANSITION. */
   approveTrustedDevice: (id) => post(`/attendance/hr/trusted-devices/${seg(id)}/approve`),
@@ -242,8 +254,33 @@ export const attendanceAPI = {
   }),
   /** Verification failures + lifecycle audit. @param {{action?: string, user_id?: string, page?: number, limit?: number}} params */
   getDeviceTrustEvents: (params = {}) => request(`/attendance/hr/device-trust/events${qs(params)}`),
-  /** { enrolled_users, active_members, coverage_percentage } — read before switching to enforce. */
+  /**
+   * Org-wide readiness, read before switching the mode to Required.
+   * `{ enrolled_users, active_members, coverage_percentage, uncovered_users,
+   *    pending_users, pending_devices, suspended_users, by_group[] }`
+   * — everything after `coverage_percentage` arrived 22 Oct 2026, so treat each
+   * as absent-until-proven (§7) rather than assuming a number is there.
+   *
+   * `active_members` counts `user_roles.is_active = true`, the same population
+   * `getDeviceTrustPeople` left-joins against, so the two always agree.
+   */
   getDeviceTrustCoverage: () => request("/attendance/hr/device-trust/coverage"),
+  /**
+   * WHO has a device and who hasn't — one row per PERSON, pre-aggregated
+   * server-side, including everybody with zero devices. This is the read the
+   * Registered Devices people list is built on; the device inventory can only
+   * ever list devices, so a person with none is invisible to it.
+   *
+   * Rows are `{ user_id, device_count, active_count, pending_count,
+   * suspended_count, revoked_count, covered, last_used_at }` and carry NO
+   * display data by design — join names and photos from the directory (§7).
+   *
+   * `coverage` is a true partition (`covered` | `pending` | `blocked` | `none`),
+   * mirrored client-side by `coverageStateOf()` so a server-filtered page and a
+   * client-filtered one can never disagree.
+   * @param {{coverage?: "none"|"pending"|"covered"|"blocked", role?: "employee"|"manager"|"hr", search?: string, page?: number, limit?: number}} params
+   */
+  getDeviceTrustPeople: (params = {}) => request(`/attendance/hr/device-trust/people${qs(params)}`),
 
   // ── HR › Locations (Geofencing) ────────────────────────────────────────────
   //    Delegates to organizationAPI for location management

@@ -249,11 +249,38 @@ export function fmtHours(value, fallback = "0m") {
  * ("8h 32m", breaks already taken off, the same figure the policy and overtime
  * use) is the source of truth; `effective_hours` is only the fallback for reads
  * that don't carry it yet. Never derive it from clock-in/out.
+ *
+ * ── Gross vs net: the day carries BOTH, and they are not interchangeable ────
+ * A day record ships two durations and picking the wrong one overstates the
+ * day by exactly the break time:
+ *
+ *   total_hours      GROSS — clock-in to clock-out, breaks INCLUDED → onClockLabel()
+ *   effective_hours  NET   — breaks deducted; what the policy, overtime and
+ *                            payroll all count as worked        → workedLabel()
+ *
+ * The contract's own example is `total_hours: "8.50"`, `effective_hours:
+ * "8.00"`, `break_duration_minutes: 30`. "Worked", "effective" and every
+ * headline hours figure mean the NET one. Reach for `total_hours` only where
+ * the screen says "on the clock" and shows the break line beside it, and take
+ * it from `onClockLabel()` so the choice is named rather than retyped
+ * (2026-10-22: screens had drifted onto different fields under labels that
+ * promised the same thing).
  */
 export function workedLabel(record, fallback = "0m") {
   const text = typeof record?.worked_duration_formatted === "string" ? record.worked_duration_formatted.trim() : "";
   if (text) return tidyDuration(text);
   return fmtHours(record?.effective_hours, fallback);
+}
+
+/**
+ * The GROSS span between the punches — `total_hours`, breaks included. The
+ * counterpart of `workedLabel` and never a substitute for it: only for a cell
+ * that says "on the clock" and sits beside the break figure, so the two
+ * numbers explain each other. Defaults to "N/A", not "0m": a read that omits
+ * `total_hours` hasn't measured nothing, it hasn't said (§5).
+ */
+export function onClockLabel(record, fallback = "N/A") {
+  return fmtHours(record?.total_hours, fallback);
 }
 
 // The server writes "8h 0m" and "0h 0m"; fmtMinutes writes "8h" and "0m". The

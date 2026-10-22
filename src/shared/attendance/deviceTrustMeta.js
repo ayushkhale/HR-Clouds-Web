@@ -179,27 +179,124 @@ export function summariseDevices(devices) {
 }
 
 /**
+ * One row of the per-person roster (`GET /hr/device-trust/people`, API #18),
+ * in the SAME shape `summariseDevices` returns — so a table row renders
+ * identically whether it was built from pre-aggregated counts or from the
+ * person's real device rows, and only one set of components has to exist.
+ *
+ * `null` answers all-zeros: the roster includes people with no devices at all,
+ * and so does the directory half of the join when the roster hasn't arrived.
+ */
+export function rosterSummary(row) {
+  const n = (value) => Math.max(0, Math.trunc(Number(value) || 0));
+  const active = n(row?.active_count);
+  const pending = n(row?.pending_count);
+  const suspended = n(row?.suspended_count);
+  const revoked = n(row?.revoked_count);
+  const counted = active + pending + suspended + revoked;
+  return {
+    // Trust the server's own total when it sent one: a status this build has
+    // never heard of would otherwise vanish from the count.
+    total: Math.max(n(row?.device_count), counted),
+    active,
+    pending,
+    suspended,
+    revoked,
+    lastUsedAt: row?.last_used_at ? String(row.last_used_at) : "",
+    covered: typeof row?.covered === "boolean" ? row.covered : active > 0,
+  };
+}
+
+/** Shared by every person the roster hasn't answered for. Frozen — it is reused. */
+export const EMPTY_DEVICE_SUMMARY = Object.freeze(rosterSummary(null));
+
+// ── The one verdict: "can this person clock in on Monday?" ───────────────────
+// These five states are a PARTITION — every person is in exactly one — and the
+// four `scope` values are precisely the server's `coverage` filter (delivery
+// doc §4). That is deliberate: the roster endpoint can filter server-side and
+// this file can filter client-side, and the two can never disagree about who
+// belongs in "No device". Change one and you must change the other.
+//
+// `expired` and `none` share the `none` scope on purpose. The server cannot
+// tell them apart and doesn't need to, but HR does: somebody whose only device
+// was shut off has to register a NEW one, which is a different sentence from
+// somebody who never got round to it. Same bucket, different words.
+
+export const COVERAGE_STATES = Object.freeze({
+  covered: {
+    key: "covered",
+    scope: "covered",
+    label: "Can clock in",
+    cls: "bg-violet-50 text-violet-700 border-violet-200",
+  },
+  pending: {
+    key: "pending",
+    scope: "pending",
+    label: "Waiting for you",
+    cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  },
+  blocked: {
+    key: "blocked",
+    scope: "blocked",
+    label: "Blocked",
+    cls: "bg-rose-50 text-rose-700 border-rose-200",
+  },
+  expired: {
+    key: "expired",
+    scope: "none",
+    label: "Needs a new one",
+    cls: "bg-slate-50 text-slate-600 border-slate-200",
+  },
+  none: {
+    key: "none",
+    scope: "none",
+    label: "No device",
+    cls: "bg-slate-50 text-slate-500 border-slate-200",
+  },
+});
+
+/**
+ * `{ key, scope, label, cls }` — the single source of the verdict badge and of
+ * which filter bucket a person falls in. Read in the order the server does:
+ * one usable device beats everything, then a decision HR owes, then a block HR
+ * can lift, then a device that is gone for good.
+ */
+export function coverageStateOf(summary) {
+  if (!summary) return COVERAGE_STATES.none;
+  if (summary.covered || summary.active > 0) return COVERAGE_STATES.covered;
+  if (summary.pending > 0) return COVERAGE_STATES.pending;
+  if (summary.suspended > 0) return COVERAGE_STATES.blocked;
+  if (summary.revoked > 0) return COVERAGE_STATES.expired;
+  return COVERAGE_STATES.none;
+}
+
+/**
+ * Whoever HR has to act on first. A device waiting for a decision is the only
+ * thing on this screen that is blocked on HR, so it sorts to the top; a block
+ * HR can lift comes next; somebody who simply hasn't registered is the
+ * employee's move, and people who can already clock in need no attention.
+ */
+export const COVERAGE_STATE_RANK = Object.freeze({
+  pending: 0, blocked: 1, expired: 2, none: 3, covered: 4,
+});
+
+/**
  * How HR narrows the people list. "No device" is the whole reason this view
  * exists — the device inventory can never show those people, because they have
- * nothing in it.
+ * nothing in it. The values are the server's `coverage` filter verbatim.
  */
 export const DEVICE_PEOPLE_SCOPES = [
   { value: "", label: "Everyone" },
   { value: "none", label: "No device" },
   { value: "pending", label: "Waiting for approval" },
   { value: "covered", label: "Has a working device" },
-  { value: "blocked", label: "Blocked or shut off" },
+  { value: "blocked", label: "Blocked" },
 ];
 
 /** Does one person's summary belong in this scope? */
 export function matchesDeviceScope(summary, scope) {
-  switch (scope) {
-    case "none": return summary.total === 0;
-    case "pending": return summary.pending > 0;
-    case "covered": return summary.covered;
-    case "blocked": return summary.suspended > 0 || summary.revoked > 0;
-    default: return true;
-  }
+  if (!scope) return true;
+  return coverageStateOf(summary).scope === scope;
 }
 
 // ── Audit events (HR) ───────────────────────────────────────────────────────
@@ -328,24 +425,65 @@ export const SYNCED_PASSKEY_HELP = {
 };
 
 /**
+ * Browser and OS out of a User-Agent string. Order matters: Edge and Opera both
+ * carry `Chrome/`, and every Chromium browser carries `Safari/`, so the most
+ * specific test has to run first. `""` for anything unrecognised — this never
+ * guesses, because the answer is shown to HR as fact.
+ */
+function parseUserAgent(ua) {
+  const s = String(ua || "");
+  const browser = /Edg\/|EdgiOS\/|Edge\//.test(s) ? "Edge"
+    : /OPR\/|Opera/.test(s) ? "Opera"
+      : /Firefox\/|FxiOS\//.test(s) ? "Firefox"
+        : /CriOS\/|Chrome\//.test(s) ? "Chrome"
+          : /Safari\//.test(s) ? "Safari"
+            : "";
+  const os = /Windows/.test(s) ? "Windows"
+    : /Android/.test(s) ? "Android"
+      : /iPad/.test(s) ? "iPad"
+        : /iPhone|iPod/.test(s) ? "iPhone"
+          : /Macintosh|Mac OS X/.test(s) ? "Mac"
+            : /Linux|X11|CrOS/.test(s) ? "Linux"
+              : "";
+  return { browser, os };
+}
+
+/**
+ * `last_user_agent` as something HR can read — "Chrome on Windows" rather than
+ * 120 characters of `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit…`.
+ * The raw string is NEVER shown: it is noise to the only people who see this
+ * screen, and it is long enough to break a detail grid.
+ *
+ * Available on device rows since 22 Oct 2026 (delivery doc §2); absent on
+ * anything older, which is why the fallback is a caller's decision (§7).
+ */
+export function describeUserAgent(ua, fallback = "N/A") {
+  const { browser, os } = parseUserAgent(ua);
+  if (browser && os) return `${browser} on ${os}`;
+  return browser || os || fallback;
+}
+
+/**
+ * "Chrome on Windows · 103.21.124.5" — the two things that say where a punch
+ * came from, as one line. Either half can be missing on a row written before
+ * the telemetry existed, so whatever is known is shown and "N/A" means nothing
+ * is, never that the device was never used (§5).
+ */
+export function lastSeenFrom(device) {
+  const parts = [describeUserAgent(device?.last_user_agent, ""), device?.last_ip].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "N/A";
+}
+
+/**
  * A default name for the device being registered. Derived from the browser, 1–100
  * characters, and editable — a raw User-Agent string is never sent as a name.
+ * Unlike `describeUserAgent` this one has to produce *something* typeable, so an
+ * unrecognised browser becomes the generic "Browser" rather than nothing.
  */
 export function suggestDeviceName() {
-  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent || "";
-  const browser = /Edg\//.test(ua) ? "Edge"
-    : /OPR\//.test(ua) ? "Opera"
-      : /Chrome\//.test(ua) ? "Chrome"
-        : /Safari\//.test(ua) ? "Safari"
-          : /Firefox\//.test(ua) ? "Firefox"
-            : "Browser";
-  const os = /Windows/.test(ua) ? "Windows"
-    : /Macintosh|Mac OS X/.test(ua) ? "Mac"
-      : /Android/.test(ua) ? "Android"
-        : /iPhone|iPad|iPod/.test(ua) ? "iPhone"
-          : /Linux/.test(ua) ? "Linux"
-            : "";
-  return (os ? `${browser} on ${os}` : browser).slice(0, 100);
+  const { browser, os } = parseUserAgent(typeof navigator === "undefined" ? "" : navigator.userAgent);
+  const named = browser || "Browser";
+  return (os ? `${named} on ${os}` : named).slice(0, DEVICE_NAME_MAX);
 }
 
 export const DEVICE_NAME_MAX = 100;

@@ -5,7 +5,8 @@ import { attendanceAPI } from "../../../shared/api";
 import { HiClock, HiChartBar, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle, HiPencil, HiFingerPrint, HiPause, HiFlag } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, unwrap } from "../../../shared/attendance/normalize";
-import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, shiftMonth, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
+import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, onClockLabel, shiftMonth, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
+import LiveEffectiveHours from "../../../shared/attendance/LiveEffectiveHours";
 import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyLabel, humanize } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
@@ -50,12 +51,18 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
     entry.latitude == null && entry.source === "web" ? "No location" : null,
   ].filter(Boolean).join(" · ");
 
+  // A day still open has no settled worked figure yet, and "0m" in the header
+  // would read as a day spent working for nothing. Say the state instead; the
+  // live figure is in the stats below.
+  const stillOpen = !!record?.clock_in_time && !record?.clock_out_time;
+  const headerSubtitle = record ? (stillOpen ? "Still clocked in" : workedLabel(record)) : undefined;
+
   return (
     <DetailDialog
       eyebrow="Daily log"
       icon={HiClock}
       title={fmtDate(date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
-      subtitle={record ? workedLabel(record) : undefined}
+      subtitle={headerSubtitle}
       badge={record?.status ? <StatusBadge status={record.status} /> : undefined}
       loading={state.loading}
       onClose={onClose}
@@ -81,7 +88,10 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
                 items={[
                   { label: "Clocked in", value: fmtTime(record.clock_in_time), icon: HiClock },
                   { label: "Clocked out", value: fmtTime(record.clock_out_time), icon: HiClock },
-                  { label: "Time worked", value: workedLabel(record), hint: "breaks taken out", icon: HiCheckCircle },
+                  // Live while the day is open, so this reads the same figure
+                  // the punch card shows — and the same one HR sees on this
+                  // person's profile for the same day (§2).
+                  { label: "Time worked", value: <LiveEffectiveHours record={record} className="text-purple-800" />, hint: "breaks taken out", icon: HiCheckCircle },
                   { label: "On a break", value: minutesOrZero(record.break_duration_minutes), icon: HiPause },
                 ]}
               />
@@ -94,7 +104,12 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
                   items={[
                     ["Late by", minutesOrZero(record.late_minutes)],
                     ["Extra hours", minutesOrZero(record.overtime_minutes)],
-                    ["Total on the clock", totalWorkedLabel(record)],
+                    // GROSS, breaks included — the sibling of "Time worked"
+                    // above, which is net. It read `totalWorkedLabel`, a
+                    // MONTHLY helper, so it looked for keys a day record has
+                    // never carried and printed "0m" on every finished day
+                    // (2026-10-22). `onClockLabel` names the gross field.
+                    ["Total on the clock", onClockLabel(record)],
                     ["Half day", record.half_day_type ? humanize(record.half_day_type) : "No"],
                   ]}
                 />
@@ -286,7 +301,14 @@ export default function EmployeeAttendancePage() {
                             </td>
                             <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_in_time)}</td>
                             <td className="px-4 py-3 text-slate-600">{fmtTime(record.clock_out_time)}</td>
-                            <td className="px-4 py-3 text-slate-800 font-bold">{workedLabel(record)}</td>
+                            {/* Today's row is still open, so `effective_hours`
+                                hasn't been computed and the static label read
+                                "0m" beside a clock that was plainly running
+                                (2026-10-22). The live figure deducts breaks
+                                the same way the finished one does. */}
+                            <td className="px-4 py-3 text-slate-800 font-bold">
+                              {record.clock_in_time && !record.clock_out_time ? <LiveEffectiveHours record={record} /> : workedLabel(record)}
+                            </td>
                             <td className="px-4 py-3 text-slate-500">{minutesOrZero(record.late_minutes)}</td>
                             <td className="px-4 py-3 text-slate-500">{minutesOrZero(record.early_exit_minutes)}</td>
                             <td className="px-4 py-3 text-purple-600">{minutesOrZero(record.overtime_minutes)}</td>

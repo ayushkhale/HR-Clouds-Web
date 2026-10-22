@@ -8,6 +8,7 @@ import { humanize } from "../../../shared/attendance/enums";
 import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { attendedDay, dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
+import LiveEffectiveHours from "../../../shared/attendance/LiveEffectiveHours";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
 
 // Contract §2 C15 / §8.1: GET /manager/team/history ignores every query
@@ -207,7 +208,20 @@ function ManagerTeamHistoryPage() {
                               </td>
                               <td className="px-5 py-3 text-xs">{r.clock_in_time ? fmtTime(r.clock_in_time) : na}</td>
                               <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : na}</td>
-                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null && !r.worked_duration_formatted ? zero : workedLabel(r)}</td>
+                              {/* A day still open carries no `effective_hours`
+                                  yet, so the static label read "0m" for a
+                                  team member who was working at that moment
+                                  (2026-10-22). These dense rows don't carry
+                                  break data, so the live component says
+                                  "elapsed" rather than implying breaks were
+                                  taken off — honest, where "0m" was simply
+                                  wrong. HR's live directory already reads
+                                  this way (§2). */}
+                              <td className="px-5 py-3 text-xs font-semibold">
+                                {r.clock_in_time && !r.clock_out_time
+                                  ? <LiveEffectiveHours record={r} />
+                                  : metric(r.effective_hours) === null && !r.worked_duration_formatted ? zero : workedLabel(r)}
+                              </td>
                               <td className="px-5 py-3 text-xs">
                                 {/* Somebody who wasn't there is neither late nor
                                     on time — an absent day sends a real 0, so

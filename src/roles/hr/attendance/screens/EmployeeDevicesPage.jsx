@@ -53,7 +53,7 @@ import { fmtDate, fmtDateTime } from "../../../../shared/attendance/dates";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import {
-  DEVICE_REASON_MAX, DEVICE_REASON_MIN, deviceStatusNote, platformLabel,
+  DEVICE_REASON_MAX, DEVICE_REASON_MIN, deviceStatusNote, lastSeenFrom, platformLabel,
 } from "../../../../shared/attendance/deviceTrustMeta";
 import {
   DEVICE_DECISIONS, deviceDecisionFailure, deviceDecisionsFor, runDeviceDecision,
@@ -306,9 +306,12 @@ export default function EmployeeDevicesPage() {
                   { label: "Approved", value: selected.approved_at ? fmtDateTime(selected.approved_at) : "Not needed" },
                   { label: "Last used", value: selected.last_used_at ? fmtDateTime(selected.last_used_at) : "Not yet used" },
                   {
+                    // Browser and address together — the same cell, and the
+                    // same words, as the person inspector on Registered
+                    // Devices (§2: one decision, worded once).
                     label: "Last seen from",
-                    value: selected.last_ip || "N/A",
-                    help: help("last_ip", { label: "the last network address" }),
+                    value: lastSeenFrom(selected),
+                    help: help("last_ip", { label: "where it was last seen" }),
                   },
                 ]}
               />

@@ -5820,7 +5820,7 @@
     },
     "attendance.device_checks": {
       "kind": "form",
-      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage): the coverage tiles, the People tab (the employee directory joined to the device inventory), the Settings tab over GET/PUT device-trust/policy, and the Activity tab. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained.",
+      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage): the readiness card and its two action tiles, the People tab (the employee directory joined to the per-person device roster, API #18), the Settings tab over GET/PUT device-trust/policy, and the Activity tab. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained.",
       "workspaces": [
         "hr"
       ],
@@ -5841,9 +5841,17 @@
             "question": "Which device settings should I decide first when I’m setting this up?"
           }
         },
+        "tab.activity": {
+          "tier": "onboarding",
+          "hint": "Every device decision and every refused punch, newest first. Where to look when somebody says they couldn’t clock in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I find out why somebody’s punch was refused?"
+          }
+        },
         "devices": {
           "tier": "onboarding",
-          "hint": "What this person has registered, and how many of those can actually be used right now.",
+          "hint": "What this person has registered, and how many of those can be used right now — a dot each for ready, waiting, blocked and shut off.",
           "askMaya": {
             "enabled": true,
             "question": "What should I do when somebody has a device waiting and no working one?"
@@ -5851,7 +5859,7 @@
         },
         "coverage_state": {
           "tier": "onboarding",
-          "hint": "Whether this person can clock in today. “Waiting for you” means a device of theirs needs your decision before they can.",
+          "hint": "Whether this person can clock in today. “Waiting for you” needs your decision; “Needs a new one” means their only device was shut off for good.",
           "askMaya": {
             "enabled": true,
             "question": "What stops an employee clocking in once device checks are compulsory?"
@@ -5891,10 +5899,26 @@
         },
         "coverage_percentage": {
           "tier": "onboarding",
-          "hint": "The share of your people who have a device ready. Make checks compulsory before this is high and the rest can’t clock in at all.",
+          "hint": "How many of your people can already clock in from a registered device. Reach the mark on the bar before you make it compulsory.",
           "askMaya": {
             "enabled": true,
             "question": "How high should device coverage be before I make a registered device compulsory?"
+          }
+        },
+        "uncovered_users": {
+          "tier": "onboarding",
+          "hint": "People with no device that works yet. Make a registered device compulsory and these are exactly the people who could not clock in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should I do about people who still have no registered device?"
+          }
+        },
+        "pending_users": {
+          "tier": "onboarding",
+          "hint": "People waiting on a decision from you. Their device is registered but can’t be used to clock in until you approve it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What am I checking when I approve or reject somebody’s device?"
           }
         },
         "enforcement_mode": {
@@ -5988,7 +6012,7 @@
       "fields": {
         "last_ip": {
           "tier": "onboarding",
-          "hint": "Roughly where on the network this device last punched from. Useful for spotting something odd, not proof of who used it.",
+          "hint": "The browser, and roughly where on the network this device last punched from. Useful for spotting something odd, never proof of who used it.",
           "askMaya": {
             "enabled": true,
             "question": "What can the network address on a device record tell me about where someone clocked in from?"
