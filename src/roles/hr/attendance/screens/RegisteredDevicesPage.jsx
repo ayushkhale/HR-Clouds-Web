@@ -45,11 +45,33 @@
 // over a list of six. One derived number beats two authoritative ones that can
 // contradict each other on screen.
 //
-// ─── COVERAGE IS STILL THE FIRST THING ─────────────────────────────────────
+// ─── COVERAGE IS A TAB, NOT PAGE FURNITURE ─────────────────────────────────
 // Switching the mode to Required while half the organisation has no device
 // locks that half out of clocking in — the most expensive mistake this screen
-// can make — so readiness sits above the tabs, in every tab, with the 95% gate
-// drawn on the bar, and the Settings tab's own confirm quotes it back.
+// can make — so readiness keeps the 95% gate drawn on its bar and the Settings
+// tab's own confirm quotes it back.
+//
+// Where it sits has been decided three times, so don't move it back:
+//   1. three cards in a four-column grid ABOVE the tab bar, on every tab —
+//      cards stacked over a tab strip is the arrangement the user rejected
+//      across this product;
+//   2. one `ReadinessStrip` at the top of the People tab (22 Oct 2026) — still
+//      a meter, a warning banner and two filter strips stacked over the list
+//      HR actually came for ("it looks so cluttered still");
+//   3. its own **Status** tab (22 Oct 2026, same day) — the readiness card and
+//      the low-coverage warning, nothing else. People is a list and reads like
+//      one. The card is a RING with a legend (user: "show status in pie
+//      chart"), which is a legitimate part-to-whole: three mutually exclusive
+//      buckets of one headcount. The 95% gate the bar used to draw survives as
+//      a notch on the ring — see `ReadinessRing`.
+// The two numbers on the strip still drive the list: `focusList` crosses to
+// People with the filter set, so the figure and the rows behind it stay one
+// gesture apart. Settings reads the same `coverage` through its own props.
+//
+// The five coverage states were a second strip of FilterTabs under the role
+// tabs; they are a `<select>` beside the search now, counts carried into the
+// option labels. The role tabs stay tabs — three groups, always worth seeing
+// (§5 rejected a `<select>` of roles, and that still stands).
 //
 // No ids anywhere (§4): people come from `useEmployeeDirectory().activeOptions`
 // — the NORMALIZED entries, whose `id` is the resolved user id — never the raw
@@ -59,8 +81,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  HiArrowNarrowRight, HiBriefcase, HiClipboardList, HiCog, HiDeviceMobile,
-  HiRefresh, HiSearch, HiShieldCheck, HiUserGroup, HiUsers,
+  HiArrowNarrowRight, HiBriefcase, HiChartBar, HiClipboardList, HiCog,
+  HiDeviceMobile, HiRefresh, HiSearch, HiShieldCheck, HiUserGroup, HiUsers,
 } from "react-icons/hi";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
@@ -93,7 +115,11 @@ const TABS = [
   { key: "people", label: "People", icon: HiUserGroup },
   { key: "settings", label: "Settings", icon: HiCog },
   { key: "activity", label: "Activity", icon: HiClipboardList },
+  { key: "status", label: "Status", icon: HiChartBar },
 ];
+
+/* The same control the Activity tab filters with — one screen, one dropdown. */
+const SELECT = "px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition";
 
 /* The three workspaces, used as the role filter. `workspaceForRole` is reused
    rather than a fourth role→group map: admin and super-admin read as HR there,
@@ -122,25 +148,114 @@ const isMissingEndpoint = (error) => [404, 405, 501].includes(Number(error?.stat
 /* ─── Readiness ──────────────────────────────────────────────────────────── */
 
 /**
- * Coverage against the gate, as one glance. The 95% mark is drawn ON the bar
- * rather than written under it: "66% covered" means nothing without the number
- * it has to beat, and a line in the track answers "how much further?" without
- * arithmetic. Fuchsia below the gate, violet at or above it — rose is reserved
- * for what has actually gone wrong, and a pilot that hasn't finished has not (§5).
+ * The ring's three fills, VALIDATED rather than chosen by eye — dataviz
+ * `validate_palette.js --mode light --pairs all` on #8b5cf6, #e879f9, #94a3b8:
+ * all-pairs CVD worst ΔE 8.8 (deutan, slate↔fuchsia), normal vision worst 17.9.
+ *
+ * Slate is a REMAINDER, not a fourth hue — it trips the checker's chroma floor
+ * on purpose. Three chromatic slots cannot pass inside a purple-only palette
+ * (§5): violet↔fuchsia↔indigo came back at ΔE 0.6–5.6, which is two slices
+ * nobody with red-green colour blindness could tell apart. Every slice carries
+ * its own word and its own number in the legend, which is the relief the
+ * sub-3:1 contrast warning asks for — nothing here is encoded in colour alone.
+ *
+ * `key` is the payload key the figure comes from AND its field-help entry; the
+ * three are mutually exclusive and add up to `active_members`, see `ringSlices`.
  */
-function CoverageBar({ percent, low }) {
-  const width = Math.max(0, Math.min(100, Number(percent) || 0));
+const RING_SLICES = [
+  { key: "enrolled_users", label: "Can clock in", stroke: "stroke-violet-500", swatch: "bg-violet-500", scope: "covered" },
+  { key: "pending_users", label: "Waiting for your approval", stroke: "stroke-fuchsia-400", swatch: "bg-fuchsia-400", scope: "pending" },
+  { key: "uncovered_users", label: "Nothing registered yet", stroke: "stroke-slate-400", swatch: "bg-slate-400", scope: "none" },
+];
+
+const RING_R = 52;
+const RING_C = 2 * Math.PI * RING_R;
+/* Arc units are px at r=52, so this IS the 2px surface gap the mark specs ask
+   for, rounded up to survive the ring's thickness. */
+const RING_GAP = 3;
+
+/**
+ * The split, built so the three slices cannot fail to add up to the whole.
+ *
+ * `pending_users` is a SUBSET of the people who can't clock in — a device
+ * waiting on HR's decision cannot be used yet — so it is carved OUT of the
+ * remainder rather than added beside it. Treating the two as separate
+ * quantities drew a ring summing to more than the headcount, which is the one
+ * thing a part-to-whole chart must never do.
+ */
+function ringSlices(coverage, pendingUsers) {
+  const members = Number(coverage?.active_members);
+  const enrolled = Number(coverage?.enrolled_users);
+  if (!Number.isFinite(members) || !Number.isFinite(enrolled) || members <= 0) return null;
+
+  const covered = Math.max(0, Math.min(enrolled, members));
+  const rest = members - covered;
+  const waiting = Math.max(0, Math.min(Number.isFinite(pendingUsers) ? pendingUsers : 0, rest));
+  const values = { enrolled_users: covered, pending_users: waiting, uncovered_users: rest - waiting };
+
+  return { total: members, slices: RING_SLICES.map((slice) => ({ ...slice, value: values[slice.key] })) };
+}
+
+/**
+ * Who can clock in, as a ring (user decision, 22 Oct 2026 — "show status in pie
+ * chart"). It replaced a bar meter, and the thing the bar did that a ring does
+ * not is answer "how much further?" at a glance, so the 95% gate is NOTCHED
+ * INTO the ring at its own angle: a figure like 88.9% means nothing without the
+ * number it has to beat, and the notch answers it without arithmetic.
+ *
+ * Drawn with `stroke-dasharray` on stacked circles rather than arc paths — the
+ * slices are a single series around one circumference, and an arc path per
+ * slice is four chances to get a sweep flag wrong for no visible gain.
+ */
+function ReadinessRing({ slices, total, percent, known, label }) {
+  let cursor = 0;
+  const gate = (COVERAGE_SAFE_PERCENT / 100) * Math.PI * 2;
+
   return (
-    <div className="relative h-2 rounded-full bg-slate-100">
-      <div
-        className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${low ? "bg-fuchsia-500" : "bg-violet-500"}`}
-        style={{ width: `${width}%` }}
-      />
-      <span
-        className="absolute -top-1 -bottom-1 w-0.5 rounded-full bg-slate-400"
-        style={{ left: `${COVERAGE_SAFE_PERCENT}%` }}
-        aria-hidden="true"
-      />
+    <div className="relative w-[184px] h-[184px] shrink-0 mx-auto lg:mx-0">
+      {/* -rotate-90 puts 0% at twelve o'clock, so the gate below is computed in
+          the unrotated frame where 0 rad is three o'clock. */}
+      <svg viewBox="0 0 128 128" className="w-full h-full -rotate-90" role="img" aria-label={label}>
+        <circle cx="64" cy="64" r={RING_R} fill="none" strokeWidth="16" className="stroke-slate-100" />
+        {slices.map((slice) => {
+          const length = (slice.value / total) * RING_C;
+          // A slice that is the whole circle keeps no gap, or the ring would
+          // show a notch where nothing is missing.
+          const drawn = Math.max(0, length === RING_C ? length : length - RING_GAP);
+          const offset = cursor;
+          cursor += length;
+          if (slice.value <= 0) return null;
+          return (
+            <circle
+              key={slice.key}
+              cx="64"
+              cy="64"
+              r={RING_R}
+              fill="none"
+              strokeWidth="16"
+              strokeDasharray={`${drawn} ${Math.max(0, RING_C - drawn)}`}
+              strokeDashoffset={-offset}
+              className={`${slice.stroke} transition-all duration-500`}
+            />
+          );
+        })}
+        <line
+          x1={64 + Math.cos(gate) * 41}
+          y1={64 + Math.sin(gate) * 41}
+          x2={64 + Math.cos(gate) * 63}
+          y2={64 + Math.sin(gate) * 63}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          className="stroke-slate-900"
+        />
+      </svg>
+
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <p className="text-3xl font-bold tabular-nums leading-none text-slate-900">
+          {known ? `${percent}%` : "N/A"}
+        </p>
+        <p className="text-[11px] font-semibold text-slate-500 mt-1.5">can clock in</p>
+      </div>
     </div>
   );
 }
@@ -151,92 +266,150 @@ const ValuePulse = ({ className = "h-7 w-20" }) => (
 );
 
 /**
- * The hero: where the organisation stands against the one threshold that
- * matters, plus the plain-words verdict on whether the mode can be switched
- * today. It is two columns wide because the bar needs the room — three equal
- * tiles gave the headline metric the same weight as its own denominator.
+ * One slice, as the tile that names it. The legend is not decoration here — it
+ * is where the counts live, where the ⓘ hangs, and where a number HR is told to
+ * act on becomes the way to go and look at those people.
+ *
+ * Three tiles ACROSS the card rather than three rows down its left edge: as
+ * rows, the counts ended up flung against the right margin of a `max-w-7xl`
+ * page, a hand-span from the words they belonged to. Zero tiles stay, with
+ * their caption instead of a link — "0 waiting for you" is an answer, and a
+ * tile that vanished would leave HR counting slices.
  */
-function ReadinessCard({ coverage, loading, error, percent, known, low }) {
-  const enrolled = Number(coverage?.enrolled_users);
-  const members = Number(coverage?.active_members);
-  const haveBoth = Number.isFinite(enrolled) && Number.isFinite(members);
+function RingSlice({ slice, total, caption, actionLabel, onAction }) {
+  const live = slice.value > 0;
+  const share = total > 0 ? Math.round((slice.value / total) * 100) : 0;
+  return (
+    <li className="min-w-0">
+      <p className="flex items-start gap-2 text-[11px] font-bold text-slate-600 leading-tight">
+        <span className={`w-2.5 h-2.5 rounded-sm shrink-0 mt-0.5 ${slice.swatch}`} aria-hidden="true" />
+        <HelpLabel text={slice.label} help={help(slice.key, { size: "sm" })} />
+      </p>
+      <p className="mt-2.5 text-2xl font-bold tabular-nums leading-none text-slate-900">{slice.value}</p>
+      <p className="mt-1.5 text-[11px] font-semibold text-slate-400 tabular-nums">{share}% of everybody</p>
+      {live && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-800 hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-200"
+        >
+          {actionLabel} <HiArrowNarrowRight className="w-3.5 h-3.5" />
+        </button>
+      ) : (
+        <p className="mt-2 text-[11px] text-slate-500">{caption}</p>
+      )}
+    </li>
+  );
+}
+
+/**
+ * How ready the organisation is — the whole of the Status tab (22 Oct 2026).
+ * It was three bordered cards above the tab bar, then one strip at the top of
+ * the People tab, and both were furniture over a list HR came to read ("it
+ * looks so cluttered still").
+ *
+ * So it is a ring and its legend, on a tab of its own, because it is still the
+ * most consequential thing on this screen: switching the mode to Required while
+ * people have no device locks them out of their own attendance. Each legend row
+ * takes HR to the people it counted — `focusList` crosses to People with that
+ * filter already set, so a number and the rows behind it are one gesture apart.
+ */
+function ReadinessStrip({
+  coverage, loading, error, percent, known, low,
+  uncovered, pendingUsers, pendingDevices, onShowUncovered, onShowPending,
+}) {
+  const first = loading && !coverage;
+  const ring = ringSlices(coverage, pendingUsers);
+  const members = ring?.total;
+  const enrolled = ring?.slices[0]?.value;
+
+  const actions = {
+    enrolled_users: null,
+    pending_users: {
+      onAction: onShowPending,
+      label: pendingDevices
+        ? `Decide ${pendingDevices === 1 ? "1 device" : `${pendingDevices} devices`}`
+        : "Show who’s waiting",
+      caption: "Nothing to approve",
+    },
+    uncovered_users: {
+      onAction: onShowUncovered,
+      label: "Show these people",
+      caption: "Everybody has registered",
+    },
+  };
 
   return (
-    <div className="sm:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-2xs px-5 py-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-2xs px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
           <HelpLabel text="Device readiness" help={help("coverage_percentage", { size: "sm", label: "how ready the organisation is" })} />
         </p>
-        {known && (
-          <span className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-bold whitespace-nowrap ${low ? "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
+        {known && !first && (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${low ? "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
             {low ? "Too early to make it compulsory" : "Safe to make it compulsory"}
           </span>
         )}
       </div>
 
-      {loading && !coverage ? (
-        <div className="mt-2 space-y-3">
-          <ValuePulse className="h-8 w-28" />
-          <ValuePulse className="h-2 w-full" />
+      {first ? (
+        <div className="mt-5 flex flex-col lg:flex-row lg:items-center gap-8">
+          <span className="w-[184px] h-[184px] rounded-full bg-slate-100 animate-pulse shrink-0 mx-auto lg:mx-0" />
+          <div className="flex-1 space-y-4">
+            <ValuePulse className="h-5 w-full" />
+            <ValuePulse className="h-5 w-full" />
+            <ValuePulse className="h-5 w-2/3" />
+          </div>
+        </div>
+      ) : error || !ring ? (
+        /* "Couldn't load" and "nobody registered" are different answers and
+           must not share one (§7). A ring drawn from numbers we don't have
+           would be a picture of a guess. */
+        <div className="mt-4">
+          <p className="text-2xl font-bold text-slate-900">{error ? "Couldn’t load" : "N/A"}</p>
+          <p className="text-xs text-slate-500 mt-1.5">
+            {error
+              ? "We couldn’t read how many people can clock in. Refresh to try again."
+              : "There’s nobody to count yet — nobody is active in the organisation."}
+          </p>
         </div>
       ) : (
         <>
-          <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <p className={`text-3xl font-bold tabular-nums ${low ? "text-fuchsia-700" : "text-slate-900"}`}>
-              {error ? "Couldn’t load" : known ? `${percent}%` : "N/A"}
-            </p>
-            <p className="text-xs font-semibold text-slate-500 pb-1">
-              {haveBoth
-                ? `${enrolled} of ${members} ${members === 1 ? "person" : "people"} can clock in`
-                : "Everyone who could be asked to clock in"}
-            </p>
+          <div className="mt-5 flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-10">
+            <ReadinessRing
+              slices={ring.slices}
+              total={ring.total}
+              percent={percent}
+              known={known}
+              label={`${enrolled} of ${members} people can clock in from a registered device`}
+            />
+            <ul className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-4 lg:border-l lg:border-slate-100 lg:pl-10">
+              {ring.slices.map((slice) => (
+                <RingSlice
+                  key={slice.key}
+                  slice={slice}
+                  total={ring.total}
+                  caption={actions[slice.key]?.caption}
+                  actionLabel={actions[slice.key]?.label}
+                  onAction={actions[slice.key]?.onAction}
+                />
+              ))}
+            </ul>
           </div>
-          <div className="mt-3">
-            <CoverageBar percent={known ? percent : 0} low={low} />
-          </div>
-          <p className="text-[11px] font-semibold text-slate-500 mt-2">
-            The mark on the bar is {COVERAGE_SAFE_PERCENT}% — reach it before a registered device is compulsory.
+
+          <p className="text-[11px] font-semibold text-slate-500 mt-5 pt-4 border-t border-slate-100">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-0.5 h-3 rounded-full bg-slate-900 shrink-0" aria-hidden="true" />
+              The notch on the ring is {COVERAGE_SAFE_PERCENT}% — reach it before a registered device is compulsory.
+            </span>
+            {Number.isFinite(uncovered) && uncovered > 0 && (
+              <span className="text-slate-400">
+                {" "}{uncovered === 1 ? "1 person" : `${uncovered} people`} short of everybody.
+              </span>
+            )}
           </p>
         </>
       )}
-    </div>
-  );
-}
-
-/**
- * One number HR acts on. The ⓘ sits in the heading and the only interactive
- * thing inside is the footer link, never the whole card: a help button nested
- * inside a button is one control as far as the keyboard is concerned (§10), and
- * a card that is mysteriously clickable all over still reads as a card.
- */
-function ActionTile({ field, label, value, caption, actionLabel, loading, error, onAction }) {
-  const count = Number(value);
-  const live = Number.isFinite(count) && count > 0;
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-2xs px-5 py-4 flex flex-col">
-      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-        <HelpLabel text={label} help={help(field, { size: "sm" })} />
-      </p>
-      {loading && value === undefined ? (
-        <div className="mt-1.5"><ValuePulse /></div>
-      ) : (
-        <p className={`mt-1.5 text-2xl font-bold tabular-nums ${live ? "text-fuchsia-700" : "text-slate-900"}`}>
-          {error ? "Couldn’t load" : Number.isFinite(count) ? count : "N/A"}
-        </p>
-      )}
-      <div className="mt-auto pt-1.5">
-        {live && onAction ? (
-          <button
-            type="button"
-            onClick={onAction}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-800 hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-200"
-          >
-            {actionLabel} <HiArrowNarrowRight className="w-3.5 h-3.5" />
-          </button>
-        ) : (
-          <p className="text-xs text-slate-500">{caption}</p>
-        )}
-      </div>
     </div>
   );
 }
@@ -512,13 +685,10 @@ function PeopleTab({ people, role, onRole, scope, onScope, showToast }) {
     };
   });
 
-  const scopeOptions = DEVICE_PEOPLE_SCOPES.map((option) => ({
-    ...option,
-    label: `${option.label} (${scopeCounts[option.value] ?? 0})`,
-  }));
-
   return (
     <div className="space-y-4">
+      {/* These two describe the list below them, so they stay in this tab. How
+          ready the organisation is does not — that moved to Status. */}
       {people.ownerless && (
         <InlineAlert tone="sky">
           The device list isn’t saying who each device belongs to, so the columns below are blank.
@@ -532,39 +702,55 @@ function PeopleTab({ people, role, onRole, scope, onScope, showToast }) {
         </InlineAlert>
       )}
 
+      {/* ONE card and ONE toolbar row: role tabs left, state filter and search
+          right, then the rows. The five states used to be a second strip of
+          tabs under the first, on its own hairline — two rows of filter
+          furniture over one list, which is what read as cluttered. They are a
+          dropdown now, and the counts travel into the option labels so nothing
+          is lost by folding them away (user decision, 22 Oct 2026).
+
+          The dropdown is absent, not disabled, when we can't tell whose device
+          is whose: every count would read "No device" and every option would be
+          a lie, and a control that can't do its job shouldn't be on screen (§2).
+
+          No ⓘ here. "Can clock in" is one concept and the column header already
+          carries it (§10, once per concept) — and the options spell themselves
+          out, which is more than the hint could add in a toolbar. */}
       <div className="bg-white rounded-2xl shadow-2xs border border-slate-100 overflow-hidden">
         <div className="p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <FilterTabs options={roleOptions} value={role} onChange={onRole} />
-          <div className="relative xl:w-64">
-            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search name or code…"
-              aria-label="Search people"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
-            />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 xl:shrink-0">
+            {!people.ownerless && (
+              <label className="inline-flex items-center gap-2 shrink-0">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Show</span>
+                <select
+                  value={scope}
+                  onChange={(e) => onScope(e.target.value)}
+                  className={`${SELECT} w-full sm:w-auto`}
+                >
+                  {DEVICE_PEOPLE_SCOPES.map((option) => (
+                    <option key={option.value || "all"} value={option.value}>
+                      {option.label} ({scopeCounts[option.value] ?? 0})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div className="relative sm:w-64">
+              <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search name or code…"
+                aria-label="Search people"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition"
+              />
+            </div>
           </div>
         </div>
-        {/* The state filter is the point of the screen, so it is a visible strip
-            with its counts showing rather than a dropdown that hides them. The
-            ⓘ sits BESIDE the strip, never inside it (§10).
 
-            It is absent, not disabled, when we can't tell whose device is whose:
-            every count would read "No device" and every bucket would be a lie,
-            and a control that can't do its job shouldn't be on screen (§2). */}
-        {!people.ownerless && (
-          <div className="px-4 pb-4 pt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-100">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider inline-flex items-center">
-              <HelpLabel text="Show" help={help("coverage_state", { size: "sm", label: "what these groups mean" })} />
-            </span>
-            <FilterTabs options={scopeOptions} value={scope} onChange={onScope} />
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white border border-slate-100 shadow-2xs rounded-2xl overflow-hidden">
+        <div className="border-t border-slate-100">
         {dirError || people.error ? (
           <ErrorState
             error={dirError || people.error}
@@ -669,6 +855,7 @@ function PeopleTab({ people, role, onRole, scope, onScope, showToast }) {
             </div>
           </>
         )}
+        </div>
       </div>
 
       {selected && (
@@ -678,6 +865,49 @@ function PeopleTab({ people, role, onRole, scope, onScope, showToast }) {
           onChanged={people.reload}
           showToast={showToast}
         />
+      )}
+    </div>
+  );
+}
+
+/* ─── The status tab ─────────────────────────────────────────────────────── */
+
+/**
+ * Where the organisation stands, on a tab of its own (user decision, 22 Oct
+ * 2026). Readiness sat above the list in every arrangement this screen has had,
+ * and it is not what HR opens the screen to do — they open it to find a person.
+ * It is still the most consequential thing here, which is why it gets a tab
+ * rather than a corner: switching the mode to Required while people have no
+ * device locks them out of their own attendance.
+ *
+ * The warning lives here too, beside the number that causes it. It used to sit
+ * over the list, where it repeated in words what the meter it followed had just
+ * said in a bar.
+ */
+function StatusTab({
+  coverage, loading, error, percent, known, low,
+  uncovered, pendingUsers, pendingDevices, onShowUncovered, onShowPending, warn,
+}) {
+  return (
+    <div className="space-y-4">
+      <ReadinessStrip
+        coverage={coverage}
+        loading={loading}
+        error={error}
+        percent={percent}
+        known={known}
+        low={low}
+        uncovered={uncovered}
+        pendingUsers={pendingUsers}
+        pendingDevices={pendingDevices}
+        onShowUncovered={onShowUncovered}
+        onShowPending={onShowPending}
+      />
+      {warn && (
+        <InlineAlert tone="amber">
+          Some people can’t clock in yet. Make a registered device compulsory only once nearly
+          everyone has one, or they’ll be locked out of their own attendance on the day it turns on.
+        </InlineAlert>
       )}
     </div>
   );
@@ -746,7 +976,11 @@ export default function RegisteredDevicesPage() {
     people.reload();
   };
 
-  /** Send HR from a readiness number to the people it counted. */
+  /**
+   * Send HR from a readiness number to the people it counted. The empty search
+   * params ARE the People tab, so this crosses from Status to the list with the
+   * filter already set — the number and the rows behind it are one gesture.
+   */
   const focusList = (nextScope) => {
     setScope(nextScope);
     setParams({}, { replace: true });
@@ -775,54 +1009,18 @@ export default function RegisteredDevicesPage() {
           </button>
         </div>
 
-        {/* ── How ready the organisation is. Above the tabs, so the number is
-               in front of HR whichever tab they are reading. The readiness
-               card is two columns wide: it carries the metric everything else
-               is measured against, and the bar needs the width. ─────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <ReadinessCard
-            coverage={coverage}
-            loading={coverageState.loading}
-            error={coverageState.error}
-            percent={coveragePercent}
-            known={coverageKnown}
-            low={lowCoverage}
-          />
-          <ActionTile
-            field="uncovered_users"
-            label="No working device"
-            value={uncovered}
-            caption="Everyone can clock in today"
-            actionLabel={`Show ${uncovered === 1 ? "this person" : "these people"}`}
-            loading={coverageState.loading}
-            error={coverageState.error}
-            onAction={() => focusList("none")}
-          />
-          <ActionTile
-            field="pending_users"
-            label="Waiting for you"
-            value={pendingUsers}
-            caption="Nothing needs your approval"
-            actionLabel={pendingDevices
-              ? `Decide ${pendingDevices === 1 ? "1 device" : `${pendingDevices} devices`}`
-              : "Show who’s waiting"}
-            loading={coverageState.loading}
-            error={coverageState.error}
-            onAction={() => focusList("pending")}
-          />
-        </div>
+        {/* ── THE TABS COME STRAIGHT AFTER THE TITLE (22 Oct 2026) ────────
+               Three readiness cards used to sit between them, which is the
+               shape the user rejected across this product: "i see tabs below
+               two cards that is not obviously looking good". Readiness is not
+               page furniture — it is the Status tab.
 
-        {lowCoverage && uncovered > 0 && (
-          <InlineAlert tone="amber">
-            {uncovered} {uncovered === 1 ? "person has" : "people have"} no registered device. Leave this on
-            <span className="font-bold"> Watch only</span> until they do — on <span className="font-bold">Required</span> they can’t clock in at all.
-          </InlineAlert>
-        )}
-
-        {/* The ⓘ sits BESIDE the strip, never inside it: a help button inside a
-            tablist is a third tab as far as the keyboard is concerned (§10). */}
-        <div className="flex items-center gap-2">
-          <div className="inline-flex gap-1 bg-slate-100/80 p-1 rounded-xl" role="tablist" aria-label="Registered devices">
+               The bar is the Claims & Benefits underline bar, which is what
+               every tabbed screen here uses. The ⓘ sits BESIDE it, never
+               inside: a help button in a tablist is a fourth tab as far as
+               the keyboard is concerned (§10). */}
+        <div className="flex items-center gap-2 border-b border-slate-200">
+          <div className="flex items-center gap-1 -mb-px" role="tablist" aria-label="Registered devices">
             {TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -830,13 +1028,13 @@ export default function RegisteredDevicesPage() {
                 role="tab"
                 aria-selected={tab === key}
                 onClick={() => setParams(key === "people" ? {} : { tab: key }, { replace: true })}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition ${tab === key ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition ${tab === key ? "border-purple-600 text-purple-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}
               >
                 <Icon className="w-4 h-4" /> {label}
               </button>
             ))}
           </div>
-          <FieldHelp surface={SURFACE} field={`tab.${tab}`} label={`the ${TABS.find((t) => t.key === tab)?.label} tab`} />
+          <FieldHelp surface={SURFACE} field={`tab.${tab}`} label={`the ${TABS.find((t) => t.key === tab)?.label} tab`} className="mb-0 shrink-0" />
         </div>
 
         {tab === "people" && (
@@ -847,6 +1045,23 @@ export default function RegisteredDevicesPage() {
             scope={scope}
             onScope={setScope}
             showToast={showToast}
+          />
+        )}
+
+        {tab === "status" && (
+          <StatusTab
+            coverage={coverage}
+            loading={coverageState.loading}
+            error={coverageState.error}
+            percent={coveragePercent}
+            known={coverageKnown}
+            low={lowCoverage}
+            uncovered={uncovered}
+            pendingUsers={pendingUsers}
+            pendingDevices={pendingDevices}
+            warn={lowCoverage && uncovered > 0}
+            onShowUncovered={() => focusList("none")}
+            onShowPending={() => focusList("pending")}
           />
         )}
 

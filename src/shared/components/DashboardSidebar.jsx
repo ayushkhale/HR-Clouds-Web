@@ -204,10 +204,13 @@ function DashboardSidebar({ role = "guest" }) {
     const tasks = TASK_PATHS[workspace];
     return {
       // Where a person registers the device they clock in from — its own
-      // "My Registered Devices" dropdown (not inside My Time), opening onto the
-      // page's two tabs: This device / All my devices (user decision, 16 Oct
-      // 2026). The page still defaults to This device, so a locked-out person
-      // lands on the one that matters even if they click the group, not a tab.
+      // "My Registered Devices" dropdown (not inside My Time), holding the two
+      // entries This device / All my devices (user decision, 16 Oct 2026).
+      // THESE TWO ENTRIES ARE THE NAVIGATION: the page dropped its own tab
+      // strip on 22 Oct 2026 and reads `?tab=` straight from these links, so a
+      // screen is reached once, from here, and not twice. It still defaults to
+      // This device, so a locked-out person lands on the one that matters even
+      // if they click the group rather than an entry.
       devices: `${base}/devices`,
       // Work somebody has been GIVEN, which every role is — including HR, whose
       // own page sits here beside their leave and payslips rather than in the

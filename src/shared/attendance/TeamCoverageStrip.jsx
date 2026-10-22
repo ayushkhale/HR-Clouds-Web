@@ -12,6 +12,15 @@
 // columns simply get wider or narrower — because the array length is the
 // server's answer, not ours.
 //
+// IT IS A REAL COLUMN CHART AS OF 22 OCT 2026 (user: the graphs were awful).
+// Each day was a 2px vertical sliver inside a bordered card — the numbers were
+// right and the shape was unreadable, which is the one thing a chart is for.
+// Now: full-width columns on one shared baseline, the track height IS
+// `team_size`, a two-tick axis beside it, 4px rounded data ends, a 2px gap
+// between columns, and every column's figure in text underneath. The fills are
+// a validated pair (see `BAR_CLASS`) and the legend names both, so no day is
+// identified by its colour alone.
+//
 // CONTRACT TRAPS (integration guide §7.4)
 //  · `team_size` IS THE DENOMINATOR. `working_count + away_count` can EXCEED
 //    it, because half-day leave counts the same person as both working and
@@ -85,10 +94,17 @@ function coverageOf(day, teamSize) {
   return { tone: "normal", flag: false, ratio };
 }
 
+/**
+ * The two fills this chart uses, validated as a pair rather than picked by eye:
+ * `purple-600` #9333ea against `fuchsia-400` #e879f9 separate at ΔE 15.9 for a
+ * protan reader and 21.1 for everyone else. Fuchsia-400 sits under 3:1 against
+ * white, which is why every column carries its figure in text underneath — the
+ * colour is the glance, the label is the answer.
+ */
 const BAR_CLASS = {
-  normal: "bg-purple-500",
-  thin: "bg-fuchsia-500",
-  closed: "bg-slate-200",
+  normal: "bg-purple-600",
+  thin: "bg-fuchsia-400",
+  closed: "bg-transparent",
 };
 
 /** Who is away on one day — the record inspector, not a tooltip (§3). */
@@ -186,54 +202,93 @@ export default function TeamCoverageStrip({ days, teamSize, lanes, loading, erro
               </InlineAlert>
             )}
 
-            <div className={`flex gap-1.5 ${loading ? "opacity-60 transition-opacity" : ""}`}>
-              {days.map((day) => {
-                const { tone, flag, ratio } = coverageOf(day, size);
-                const away = Array.isArray(day.away) ? day.away : [];
-                const openable = away.length > 0;
-                const label = `${fmtDate(day.date)}: ${day.working_count} of ${size} working${away.length ? `, ${away.length} away` : ""}`;
+            {/* ── The chart ────────────────────────────────────────────────
+                Seven columns on one baseline, the track height IS the team, so
+                a column you can see the top of is a day somebody is missing
+                from. It was a 2px sliver per day until 22 Oct 2026, which drew
+                the right numbers at a width nobody could read a shape in. */}
+            <div className={`flex items-stretch gap-3 ${loading ? "opacity-60 transition-opacity" : ""}`}>
+              {/* The axis: two ticks, because the only two values worth naming
+                  are "everybody" and "nobody". */}
+              <div className="shrink-0 w-8 h-28 flex flex-col justify-between items-end pb-px" aria-hidden="true">
+                <span className="text-[10px] font-bold text-slate-400 tabular-nums leading-none">{size}</span>
+                <span className="text-[10px] font-semibold text-slate-300 tabular-nums leading-none">0</span>
+              </div>
 
-                return (
-                  <button
-                    key={day.date}
-                    type="button"
-                    disabled={!openable}
-                    onClick={openable ? () => setSelected(day) : undefined}
-                    aria-label={label}
-                    title={label}
-                    className={`flex-1 min-w-0 rounded-xl border px-1 pt-1.5 pb-2 flex flex-col items-center gap-1.5 transition-colors ${
-                      openable
-                        ? "cursor-pointer border-slate-200 hover:border-purple-300 hover:bg-purple-50/40"
-                        : "border-slate-100 cursor-default"
-                    } ${flag ? "bg-fuchsia-50/50 border-fuchsia-200" : ""}`}
-                  >
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">{weekdayOf(day.date)}</span>
-                    <span className="text-xs font-bold text-slate-700">{dayNumberOf(day.date)}</span>
+              {/* The two axis lines are drawn once, over the whole plot, so the
+                  baseline sits under the COLUMNS rather than under the labels
+                  below them — seven separate borders would be seven dashes. */}
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute left-0 right-0 top-0 h-28 border-l border-b border-slate-200" aria-hidden="true" />
+                <div className="relative flex gap-0.5 pl-1">
+                {days.map((day) => {
+                  const { tone, flag, ratio } = coverageOf(day, size);
+                  const away = Array.isArray(day.away) ? day.away : [];
+                  const openable = away.length > 0;
+                  const label = `${fmtDate(day.date)}: ${day.working_count} of ${size} working${away.length ? `, ${away.length} away` : ""}`;
 
-                    {/* The bar is the glance; the figure under it is the check. */}
-                    <span className="w-2 h-12 rounded-full bg-slate-100 overflow-hidden flex flex-col justify-end" aria-hidden="true">
-                      <span
-                        className={`w-full rounded-full ${BAR_CLASS[tone]}`}
-                        style={{ height: `${Math.round(Math.min(1, Math.max(ratio, tone === "closed" ? 1 : 0.06)) * 100)}%` }}
-                      />
-                    </span>
+                  return (
+                    <button
+                      key={day.date}
+                      type="button"
+                      disabled={!openable}
+                      onClick={openable ? () => setSelected(day) : undefined}
+                      aria-label={label}
+                      title={label}
+                      className={`group flex-1 min-w-0 flex flex-col items-stretch rounded-t-lg px-0.5 transition-colors ${
+                        openable ? "cursor-pointer hover:bg-purple-50/70" : "cursor-default"
+                      }`}
+                    >
+                      {/* The column: anchored to the baseline, 4px rounded at
+                          the data end only, and a hairline track behind it so a
+                          thin day still reads as a share of something. */}
+                      <span className="h-28 flex flex-col justify-end" aria-hidden="true">
+                        <span className="w-full bg-slate-50 flex flex-col justify-end" style={{ height: "100%" }}>
+                          <span
+                            className={`w-full rounded-t ${BAR_CLASS[tone]} ${openable ? "group-hover:brightness-95" : ""}`}
+                            style={{ height: `${Math.round(Math.min(1, Math.max(ratio, tone === "closed" ? 0 : 0.04)) * 100)}%` }}
+                          />
+                        </span>
+                      </span>
 
-                    <span className={`text-[10px] font-bold ${flag ? "text-fuchsia-700" : tone === "closed" ? "text-slate-400" : "text-slate-600"}`}>
-                      {tone === "closed" ? "Off" : `${day.working_count}/${size}`}
-                    </span>
-
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${day.items_due_count > 0 ? "bg-purple-400" : "bg-transparent"}`}
-                      aria-hidden="true"
-                    />
-                  </button>
-                );
-              })}
+                      {/* Direct labels under every column: the figure is the
+                          answer, the fill only points at it. */}
+                      <span className={`mt-1.5 text-[11px] font-bold tabular-nums ${flag ? "text-fuchsia-700" : tone === "closed" ? "text-slate-400" : "text-slate-700"}`}>
+                        {tone === "closed" ? "Off" : `${day.working_count}/${size}`}
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                        {weekdayOf(day.date)} {dayNumberOf(day.date)}
+                      </span>
+                      <span className="h-2 flex items-center justify-center">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${day.items_due_count > 0 ? "bg-purple-400" : "bg-transparent"}`}
+                          aria-hidden="true"
+                        />
+                      </span>
+                    </button>
+                  );
+                })}
+                </div>
+              </div>
             </div>
 
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              Each bar is how much of your team is expected in that day. Days in pink are thin because someone is on
-              leave — open one to see who. A dot means the team owes something that day.
+            {/* A legend for two fills and a dot, so nothing on the chart is
+                identified by its colour alone. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 pl-11">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                <span className="w-2.5 h-2.5 rounded-sm bg-purple-600 shrink-0" aria-hidden="true" /> Expected in
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                <span className="w-2.5 h-2.5 rounded-sm bg-fuchsia-400 shrink-0" aria-hidden="true" /> Thin — someone’s on leave
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" aria-hidden="true" /> Something due
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-2.5 leading-relaxed">
+              Each column is how much of your team is expected in that day, out of {size === 1 ? "the one person" : `all ${size}`} reporting to you.
+              Open a day to see who’s away.
             </p>
           </div>
         )}

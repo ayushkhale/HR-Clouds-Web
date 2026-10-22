@@ -7,25 +7,41 @@
 // response — nothing here fetches, and nothing here decides what a day is. See
 // `agendaMeta.js` for why `day_kind` must stay the server's answer.
 //
-// ── WHY A WEEK BOARD AND NOT A LIST (rebuilt 2026-10-22) ────────────────────
-// The first build was a dense row per day, because the window could be 90 days
-// long and a row is the only thing that survives 90 of itself. With the window
-// now fixed at seven days (user decision — `AGENDA_WINDOW_DAYS`), the row was
-// the wrong shape: a week is read ACROSS, the way a calendar week is, and seven
-// cards side by side fit the whole window above the fold with room for the
-// hours, the day's name and what falls due on it. No horizontal scroll, no
-// truncation, no "see more".
+// ── THE WEEK IS A TABLE. DON'T MAKE IT CLEVER AGAIN ─────────────────────────
+// Four shapes have been tried for the same seven days, and the last one is the
+// user's decision (22 Oct 2026) after seeing the other three:
 //
-// It degrades by re-wrapping, not by changing: 7 columns at lg, 4 at sm, 2 on a
-// phone (measured at 1366 and 390 — §10's placement rule). Each card holds the
-// same four lines at every width, so nothing is hidden on a small screen.
+//  1. A dense ROW PER DAY, when the window could still be 90 days long.
+//  2. Seven CARDS side by side — five lines of reading each, ~140px of page,
+//     and a deadline list under it repeating every date. Rejected as clutter.
+//  3. ONE COLOUR RIBBON, seven labelled segments. Compact, and rejected on
+//     sight: "the ribbon is looking awful as hell". A week is not a chart —
+//     nobody reads a schedule for its shape, they read it for Thursday.
+//  4. A PLAIN TABLE, which is what ships: Date · Day · Hours · Falling due,
+//     the same shape as the attendance history on the next screen over. People
+//     already know how to read it, and the row opens the day.
 //
-// THE CARD OPENS THE DAY, as a `DetailDialog` record inspector — the house
-// pattern for every popup showing data (§3). A day that holds nothing beyond
-// its own label doesn't open, and says so by not offering: no hover, no focus
-// ring, no cursor. Cards are real `<button>`s rather than `rowPreviewProps`,
-// which is the `<tr>` mechanism; a button already carries click, Enter/Space
-// and a focus ring.
+// So: no fills carrying meaning, no legend, no colour that isn't also a word.
+// An ordinary working day gets no badge (`DAY_KINDS.working` has no tone) —
+// badging all five would hide the two that matter.
+//
+// THE PANEL FOLDS, because somebody who came for their days off or the rules
+// shouldn't have to scroll the week first. It starts open.
+//
+// THE ROW OPENS THE DAY, as a `DetailDialog` record inspector — the house
+// pattern for every popup showing data (§3) — through `rowPreviewProps`, which
+// is what gives a `<tr>` its click, Enter/Space and focus ring (§3 again: never
+// hand-roll onClick on a row). A day that holds nothing beyond its own label
+// doesn't open, and says so by not offering: no hover, no focus ring, no
+// cursor, and no View button in the row either.
+//
+// ── THE DEADLINE LIST IS GROUPED BY DAY (same rebuild) ──────────────────────
+// It was one flat list of up to a week's items, each row restating its own
+// date, under a week board that had just shown those dates. Now it is one
+// collapsible section per day — the shape of a schedule — so the date is said
+// once, in the section header, with the count beside it. Today and any day
+// holding something overdue start open; the rest start folded, which is what
+// makes a busy week short enough to read.
 //
 // A TASK OPENS THE REAL TASK INSPECTOR. The v2 payload carries the brief, the
 // assigner, the category and the extension history, which is enough to draw a
@@ -49,9 +65,10 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   HiBriefcase, HiCalendar, HiClipboardCheck, HiClock, HiDocumentText,
-  HiExclamationCircle, HiExternalLink, HiGift, HiOutlineCalendar, HiSwitchHorizontal,
+  HiChevronDown, HiExclamationCircle, HiExternalLink, HiGift, HiOutlineCalendar,
+  HiSwitchHorizontal,
 } from "react-icons/hi";
-import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailText, displayValue } from "../components/DetailDialog";
+import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailText, displayValue, rowPreviewProps } from "../components/DetailDialog";
 import { HelpLabel } from "../fieldHelp/FieldHelp";
 import TaskDetailDialog, { TaskFooterNote } from "../tasks/TaskDetailDialog";
 import { taskCategoryLabel, taskPriorityLabel, wasTaskExtended } from "../tasks/taskMeta";
@@ -61,10 +78,10 @@ import { useTaskPaths } from "./paths";
 import { EmptyState, InlineAlert, LoadingRows, PersonCell } from "./ui";
 import {
   DAY_KINDS, ITEM_LANES, LANE_TRUNCATED_NOTE, LEAVE_PORTIONS, SHIFT_SOURCES,
-  dayCardLabel, dayHeadline, dayReason, failedLaneNames, flattenAgendaItems, isDayOff,
-  itemDetail, itemDueLabel, itemDueTime, itemHeadline, itemKey, itemTone, leaveSpan,
-  mergeAgendaItems, shiftHoursLabel, shiftWindowLabel, summaryTiles, taskRowFromItem,
-  weeklyOffRule, worstLaneState,
+  dayHeadline, dayReason, failedLaneNames, flattenAgendaItems, itemDetail,
+  itemDueLabel, itemDueTime, itemHeadline, itemKey, itemTone, leaveSpan,
+  mergeAgendaItems, shiftWindowLabel, summaryTiles, taskRowFromItem, weeklyOffRule,
+  worstLaneState,
 } from "./agendaMeta";
 
 const SURFACE = "attendance.my_schedule";
@@ -102,96 +119,141 @@ const dayOpens = (day) =>
 // ── The week ────────────────────────────────────────────────────────────────
 
 /**
- * One day of the week, as a card. Four lines at every width: what day it is,
- * the date, what the day is, and the hours or what falls due.
+ * The four figures the week comes to, as the headline tiles of the page.
+ *
+ * Counts are server-computed throughout. A count we derived from `days[]` would
+ * under-report the moment a lane was capped, and under-reporting a deadline is
+ * the one failure that matters on this page. Day counts print through
+ * `formatDayCount` inside `summaryTiles` — never "4.5" (§6) — so no tile adds
+ * a "days" caption of its own.
  */
-function DayCard({ day, index, onOpen }) {
-  const kind = DAY_KINDS[day.day_kind] || DAY_KINDS.unassigned;
-  const muted = isDayOff(day);
-  const today = index === 0;
-  const items = Array.isArray(day.items) ? day.items : [];
-  const openable = dayOpens(day);
-  const hours = day.day_kind === "working" || day.day_kind === "half_day_leave"
-    ? shiftHoursLabel(day.shift)
-    : "";
-  const overdue = items.some((item) => itemTone(item) === "rose");
+export function AgendaTiles({ summary, loading }) {
+  const tiles = summaryTiles(summary);
 
-  const body = (
-    <>
-      <div className="flex items-baseline justify-between gap-1.5">
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${today ? "text-purple-600" : "text-slate-400"}`}>
-          {dayEyebrow(day, index)}
-        </span>
-        {items.length > 0 && (
-          <span
-            className={`shrink-0 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${
-              overdue ? "bg-rose-100 text-rose-700" : "bg-purple-100 text-purple-700"
-            }`}
-            title={`${items.length} ${items.length === 1 ? "thing" : "things"} due`}
-          >
-            {items.length}
-          </span>
-        )}
+  if (tiles.length === 0) {
+    if (!loading) return null;
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="bg-white border border-slate-100 rounded-2xl px-5 py-4">
+            <div className="h-2.5 w-16 rounded bg-slate-100 animate-pulse" />
+            <div className="h-6 w-14 rounded bg-slate-100 animate-pulse mt-2.5" />
+          </div>
+        ))}
       </div>
-
-      <p className={`text-base font-bold mt-0.5 ${muted ? "text-slate-500" : "text-slate-900"}`}>
-        {fmtDate(day.date, { day: "numeric", month: "short" })}
-      </p>
-
-      {/* The kind badge is the exception marker, so an ordinary working day
-          carries none — badging all five working days would hide the two that
-          matter (DAY_KINDS gives `working` no tone for the same reason). */}
-      <div className="mt-2 min-h-[22px]">
-        {kind.tone ? (
-          <span className={`inline-block text-[9px] font-bold uppercase tracking-wider rounded-full border px-2 py-0.5 ${TONE_CLASSES[kind.tone]}`}>
-            {kind.label}
-          </span>
-        ) : (
-          <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-slate-300">Working</span>
-        )}
-      </div>
-
-      <p className={`text-xs font-semibold mt-1.5 leading-snug ${muted ? "text-slate-400" : "text-slate-600"}`}>
-        {hours || dayCardLabel(day)}
-      </p>
-      {/* On a working day the shift NAME is the second line; on every other kind
-          the label above already said what the day is, so nothing follows. */}
-      {hours && day.shift?.name && (
-        <p className="text-[11px] text-slate-400 mt-0.5 truncate">{day.shift.name}</p>
-      )}
-    </>
-  );
-
-  const shell = `text-left rounded-2xl border p-3 min-w-0 transition-colors ${
-    today ? "border-purple-300 bg-purple-50/40 ring-1 ring-purple-100" : muted ? "border-slate-100 bg-slate-50/60" : "border-slate-200 bg-white"
-  }`;
-
-  if (!openable) return <div className={shell}>{body}</div>;
+    );
+  }
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`${fmtDate(day.date)}: ${dayHeadline(day)}`}
-      className={`${shell} hover:border-purple-300 hover:bg-purple-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400`}
-    >
-      {body}
-    </button>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {tiles.map((tile) => (
+        <div key={tile.key} className="bg-white border border-slate-100 rounded-2xl px-5 py-4">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <HelpLabel text={tile.label} help={{ surface: SURFACE, field: tile.key, label: tile.label, size: "sm" }} />
+          </p>
+          <p className="text-2xl font-bold text-slate-900 mt-1.5 tabular-nums">{tile.value}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
 /**
- * The week: the counts, seven cards, and the two "next" facts.
+ * What else the row has to say once the Day column has named the kind. A
+ * weekly off has nothing to add — the column already said it — so the cell is
+ * left empty rather than repeating itself or printing a dash (§5).
+ */
+function dayDetailLine(day) {
+  switch (day.day_kind) {
+    case "working":
+    case "half_day_leave":
+      return shiftWindowLabel(day.shift) || "";
+    case "holiday":
+      return day.holiday?.name || "";
+    case "leave":
+      return day.leave?.leave_type_name || "";
+    default:
+      return "";
+  }
+}
+
+/** One day, as a row of the week table. */
+function DayRow({ day, index, onOpen }) {
+  const kind = DAY_KINDS[day.day_kind] || DAY_KINDS.unassigned;
+  const today = index === 0;
+  const items = Array.isArray(day.items) ? day.items : [];
+  const overdue = items.some((item) => itemTone(item) === "rose");
+  const detail = dayDetailLine(day);
+  const openable = dayOpens(day);
+  const preview = openable ? rowPreviewProps(onOpen, `${fmtDate(day.date)} in full`) : null;
+
+  return (
+    <tr
+      {...(preview || { className: "" })}
+      className={`${preview?.className || ""} ${today ? "bg-purple-50/50" : ""}`}
+    >
+      <td className="px-4 sm:px-6 py-3 whitespace-nowrap">
+        <span className="font-bold text-slate-800">
+          {fmtDate(day.date, { weekday: "short", day: "numeric", month: "short" })}
+        </span>
+        {index < 2 && (
+          <span className={`ml-2 text-[10px] font-bold uppercase tracking-wider ${today ? "text-purple-600" : "text-slate-400"}`}>
+            {dayEyebrow(day, index)}
+          </span>
+        )}
+      </td>
+
+      <td className="px-4 sm:px-6 py-3 whitespace-nowrap">
+        {/* An ordinary working day gets no badge: badging all five would hide
+            the two that matter, which is why `DAY_KINDS.working` has no tone. */}
+        {kind.tone ? (
+          <span className={`inline-block text-[10px] font-bold uppercase tracking-wider rounded-full border px-2 py-0.5 ${TONE_CLASSES[kind.tone]}`}>
+            {kind.label}
+          </span>
+        ) : (
+          <span className="text-xs font-bold text-slate-600">{kind.label}</span>
+        )}
+      </td>
+
+      <td className="px-4 sm:px-6 py-3 text-slate-600">
+        <span className="block truncate max-w-[18rem]">{detail}</span>
+        {day.shift?.name && (day.day_kind === "working" || day.day_kind === "half_day_leave") && (
+          <span className="block text-[11px] text-slate-400 truncate max-w-[18rem]">{day.shift.name}</span>
+        )}
+      </td>
+
+      <td className="px-4 sm:px-6 py-3 text-right whitespace-nowrap">
+        {items.length > 0 && (
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+            overdue ? "bg-rose-100 text-rose-700" : "bg-purple-100 text-purple-700"
+          }`}>
+            {items.length}
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * The week as a plain table of seven days — the same shape as the attendance
+ * history people already read (user decision, 22 Oct 2026, after a card grid
+ * and then a colour ribbon were both rejected): a row per day, Date first, the
+ * kind beside it, and the row opens the day. Nothing is encoded in a colour
+ * that isn't also a word.
  *
- * Counts are server-computed throughout. A count we derived from `days[]` would
- * under-report the moment a lane was capped, and under-reporting a deadline is
- * the one failure that matters on this page.
+ * THE PANEL FOLDS. Somebody who came for the rules or their days off doesn't
+ * need the week in their way; it starts open, and shutting it leaves the header
+ * line, which still says what it holds.
  */
 export function AgendaWeek({ days, summary, timezone, loading }) {
   const [selected, setSelected] = useState(null);
-  const tiles = summaryTiles(summary);
+  const [open, setOpen] = useState(true);
   const nextOff = summary?.next_day_off;
   const nextHoliday = summary?.next_holiday;
+  const span = days.length > 0
+    ? `${fmtDate(days[0].date, { day: "numeric", month: "short" })} – ${fmtDate(days[days.length - 1].date, { day: "numeric", month: "short" })}`
+    : "";
 
   return (
     <>
@@ -201,41 +263,52 @@ export function AgendaWeek({ days, summary, timezone, loading }) {
           <h2 className="text-base font-bold text-slate-800">
             <HelpLabel text="Your next 7 days" help={{ surface: SURFACE, field: "days", label: "your next 7 days", size: "sm" }} />
           </h2>
-
-          {/* The figures live in the header rather than in four big tiles: over
-              one week they are a caption on the cards below, not a dashboard. */}
-          {tiles.length > 0 && (
-            <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1">
-              {tiles.map((tile) => (
-                <p key={tile.key} className="text-[11px] text-slate-500 whitespace-nowrap">
-                  <HelpLabel
-                    text={tile.label}
-                    help={{ surface: SURFACE, field: tile.key, label: tile.label, size: "sm" }}
-                  />
-                  <span className="ml-1.5 text-xs font-bold text-slate-800">{tile.value}</span>
-                </p>
-              ))}
-            </div>
-          )}
+          {span && <span className="text-[11px] font-semibold text-slate-400">{span}</span>}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="ml-auto shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-700 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+          >
+            {open ? "Hide" : "Show"}
+            <HiChevronDown className={`w-4 h-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+          </button>
         </div>
 
-        {loading && days.length === 0 ? (
-          <div className="p-6"><LoadingRows rows={3} /></div>
-        ) : days.length === 0 ? (
-          <EmptyState
-            icon={HiOutlineCalendar}
-            title="We couldn’t work out your week"
-            message="No days came back for the next seven. Try refreshing, and ask HR whether your shift is set up if it stays empty."
-          />
-        ) : (
-          <div className={`p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 ${loading ? "opacity-60 transition-opacity" : ""}`}>
-            {days.map((day, i) => (
-              <DayCard key={day.date} day={day} index={i} onOpen={() => setSelected(day)} />
-            ))}
-          </div>
+        {open && (
+          loading && days.length === 0 ? (
+            <div className="p-6"><LoadingRows rows={4} /></div>
+          ) : days.length === 0 ? (
+            <EmptyState
+              icon={HiOutlineCalendar}
+              title="We couldn’t work out your week"
+              message="No days came back for the next seven. Try refreshing, and ask HR whether your shift is set up if it stays empty."
+            />
+          ) : (
+            <div className={`overflow-x-auto ${loading ? "opacity-60 transition-opacity" : ""}`}>
+              <table className="w-full text-left text-sm min-w-[560px]">
+                <thead className="bg-slate-50/60 border-b border-slate-100 text-slate-500 font-semibold text-[11px] uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 sm:px-6 py-3">Date</th>
+                    <th className="px-4 sm:px-6 py-3">Day</th>
+                    {/* Hours carries the slack so Date and Day stay tight to the left;
+                        without it a four-column table spreads Date over a third of a
+                        1366 screen and the row reads as four islands. */}
+                    <th className="px-4 sm:px-6 py-3 w-full">Hours</th>
+                    <th className="px-4 sm:px-6 py-3 text-right whitespace-nowrap">Falling due</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {days.map((day, i) => (
+                    <DayRow key={day.date} day={day} index={i} onOpen={() => setSelected(day)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
 
-        {(nextOff || nextHoliday?.date) && (
+        {open && (nextOff || nextHoliday?.date) && (
           <div className="px-5 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex flex-wrap items-center gap-x-6 gap-y-1.5">
             {nextOff && (
               <p className="text-xs text-slate-600">
@@ -260,6 +333,7 @@ export function AgendaWeek({ days, summary, timezone, loading }) {
     </>
   );
 }
+
 
 // ── The day inspector ───────────────────────────────────────────────────────
 
@@ -463,7 +537,18 @@ function PlainItemBody({ item, timezone }) {
 }
 
 /**
- * Everything due in the week, soonest first, across all four item lanes.
+ * Everything due in the week, grouped into one collapsible section per day.
+ *
+ * WHY GROUPED. It was a flat list where every row restated its own date, under
+ * a week board that had just shown those dates. A schedule is read day by day,
+ * so the date is said once — in the section header, with the count beside it —
+ * and a week with eleven things in it is four headers instead of eleven rows
+ * (rebuilt 22 Oct 2026; see the file header).
+ *
+ * WHICH DAYS START OPEN. Today, and any day holding something already overdue.
+ * Nothing else: a week whose every section is open is the flat list again. If
+ * neither applies, the soonest day opens, so the panel never reads as empty
+ * when it holds things.
  *
  * `lanes` is read BEFORE the empty state, which is the whole point of the
  * field: a documents query that failed comes back with an empty item list, and
@@ -482,6 +567,7 @@ export function AgendaDeadlines({
   tasksAbsent = false,
 }) {
   const [openTask, setOpenTask] = useState(null);
+  const [folded, setFolded] = useState({});
   const taskPaths = useTaskPaths();
 
   // When the agenda's tasks lane failed, the hook has already re-read it from
@@ -500,6 +586,29 @@ export function AgendaDeadlines({
   const failed = failedLaneNames(lanes, reckoned);
   const busy = loading || tasksRecovering;
 
+  // Grouped in the order the items already arrive in (soonest first), so the
+  // sections need no second sort and a day can never appear twice.
+  const groups = [];
+  const byDate = new Map();
+  items.forEach((item) => {
+    let group = byDate.get(item.date);
+    if (!group) {
+      group = { date: item.date, items: [], index: days.findIndex((day) => day.date === item.date) };
+      byDate.set(item.date, group);
+      groups.push(group);
+    }
+    group.items.push(item);
+  });
+  groups.forEach((group) => {
+    group.overdue = group.items.some((item) => itemTone(item) === "rose");
+  });
+
+  // Open by default, then `folded` records only what the reader has shut. A
+  // state keyed the other way round would re-fold today's section every time
+  // the agenda refreshed under it.
+  const openByDefault = (group, i) => group.index === 0 || group.overdue || (i === 0 && !groups.some((g) => g.index === 0 || g.overdue));
+  const isOpen = (group, i) => (folded[group.date] === undefined ? openByDefault(group, i) : !folded[group.date]);
+
   // Everything we asked for was switched off — nothing to say, so say nothing.
   // Unless we hold rows anyway: a recovered lane beside three excluded ones
   // reads `excluded`, and hiding real deadlines would be the worse mistake.
@@ -510,11 +619,13 @@ export function AgendaDeadlines({
       <div className={PANEL}>
         <div className={PANEL_HEAD}>
           <HiClipboardCheck className="w-4 h-4 text-purple-600 shrink-0" />
-          <h2 className="text-base font-bold text-slate-800">
-            <HelpLabel text="Falling due this week" help={{ surface: SURFACE, field: "items_due", label: "falling due this week", size: "sm" }} />
-          </h2>
+          {/* No ⓘ here: `items_due` is the same concept as the "Falling due"
+              tile above, which carries it. Once per concept per screen (§10). */}
+          <h2 className="text-base font-bold text-slate-800">Falling due this week</h2>
           {items.length > 0 && (
-            <span className="text-[11px] font-bold text-purple-600">{items.length}</span>
+            <span className="text-[11px] font-bold text-purple-600">
+              {items.length === 1 ? "1 thing" : `${items.length} things`} over {groups.length === 1 ? "1 day" : `${groups.length} days`}
+            </span>
           )}
         </div>
 
@@ -559,38 +670,75 @@ export function AgendaDeadlines({
             />
           )
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {items.map((item, i) => {
-              const Icon = ITEM_ICONS[item.kind] || HiExclamationCircle;
-              const overdue = itemTone(item) === "rose";
-              const task = taskRowFromItem(item);
-              const Row = task ? "button" : "div";
-
+          <div className="divide-y divide-slate-100">
+            {groups.map((group, gi) => {
+              const open = isOpen(group, gi);
+              const eyebrow = group.index >= 0 ? dayEyebrow(group, group.index) : weekdayOf(group.date);
               return (
-                <li key={`${itemKey(item, i)}:${item.date}`}>
-                  <Row
-                    {...(task
-                      ? {
-                        type: "button",
-                        onClick: () => setOpenTask(task),
-                        "aria-label": `${itemHeadline(item)} — open task`,
-                        className: "w-full text-left px-5 sm:px-6 py-3.5 flex items-start gap-3 hover:bg-purple-50/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-400",
-                      }
-                      : { className: "px-5 sm:px-6 py-3.5 flex items-start gap-3" })}
-                  >
-                    <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${overdue ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      {task
-                        ? <TaskDueBody item={item} timezone={timezone} />
-                        : <PlainItemBody item={item} timezone={timezone} />}
-                    </div>
-                  </Row>
-                </li>
+                <section key={group.date}>
+                  <h3>
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      onClick={() => setFolded((f) => ({ ...f, [group.date]: open }))}
+                      className="w-full px-5 sm:px-6 py-3 flex items-center gap-3 text-left hover:bg-slate-50/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-400"
+                    >
+                      <HiChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
+                      <span className={`text-sm font-bold ${group.index === 0 ? "text-purple-700" : "text-slate-800"}`}>
+                        {eyebrow}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">
+                        {fmtDate(group.date, { weekday: "short", day: "numeric", month: "short" })}
+                      </span>
+                      <span className="ml-auto flex items-center gap-2 shrink-0">
+                        {group.overdue && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Past due</span>
+                        )}
+                        <span className="text-[11px] font-bold text-slate-500 tabular-nums">
+                          {group.items.length === 1 ? "1 thing" : `${group.items.length} things`}
+                        </span>
+                      </span>
+                    </button>
+                  </h3>
+
+                  {open && (
+                    <ul className="divide-y divide-slate-50 border-t border-slate-100 bg-slate-50/30">
+                      {group.items.map((item, i) => {
+                        const Icon = ITEM_ICONS[item.kind] || HiExclamationCircle;
+                        const overdue = itemTone(item) === "rose";
+                        const task = taskRowFromItem(item);
+                        const Row = task ? "button" : "div";
+
+                        return (
+                          <li key={`${itemKey(item, i)}:${item.date}`}>
+                            <Row
+                              {...(task
+                                ? {
+                                  type: "button",
+                                  onClick: () => setOpenTask(task),
+                                  "aria-label": `${itemHeadline(item)} — open task`,
+                                  className: "w-full text-left px-5 sm:px-6 py-3.5 flex items-start gap-3 hover:bg-purple-50/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-400",
+                                }
+                                : { className: "px-5 sm:px-6 py-3.5 flex items-start gap-3" })}
+                            >
+                              <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${overdue ? "bg-rose-50 text-rose-600" : "bg-white border border-slate-100 text-purple-600"}`}>
+                                <Icon className="w-4 h-4" />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                {task
+                                  ? <TaskDueBody item={item} timezone={timezone} />
+                                  : <PlainItemBody item={item} timezone={timezone} />}
+                              </div>
+                            </Row>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
               );
             })}
-          </ul>
+          </div>
         )}
       </div>
 

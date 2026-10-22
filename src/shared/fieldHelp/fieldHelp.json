@@ -2803,7 +2803,7 @@
     },
     "attendance.my_schedule": {
       "kind": "data",
-      "description": "My Schedule & Rules — the caller's own next seven days, what falls due in them, their shift and days off with the rule that gives them, and the attendance policy their days are graded by (MySchedulePage, all three workspaces under SELF_SERVICE_PAGES.schedule)",
+      "description": "My Schedule & Rules (MySchedulePage), all three workspaces under SELF_SERVICE_PAGES.schedule. REBUILT AS FOUR TABS 22 Oct 2026 (user decision): the four stacked bands are now tabs in ?tab=, keyed tab.week / tab.shift / tab.rules / tab.team, with one ⓘ beside the tab strip for whichever is open. Per screen state: Next 7 days = page, tab.week, leave_days and items_due on the headline tiles (4; the deadline panel heading is the same concept as the items_due tile, so it carries no ⓘ); Working week = page, tab.shift, weekly_offs, matched_by (4); How days are counted = page, tab.rules, policy, full_day_min_hours on the grading ladder (4); Who’s in = page, tab.team, working_count (3). grace_minutes, max_break_duration_minutes, regularization_window_days, overtime_enabled and auto_clock_out_enabled are PARKED, not wired: each rule card prints its own rule in plain words beside the figure, and six card hints put that tab five over the cap. Written to the person about their own schedule, so none of these is reused on a screen about somebody else; the team tab is neutral because a manager and HR both read it.",
       "workspaces": [
         "employee",
         "manager",
@@ -2815,6 +2815,48 @@
           "askMaya": {
             "enabled": true,
             "question": "Where do my shift and my attendance rules come from, and what should I do if they look wrong?"
+          }
+        },
+        "tab.week": {
+          "hint": "Your next seven days, the figures they add up to, and anything falling due inside them. Days off and holidays are shown as they come.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does my schedule take into account when it works out my next seven days?"
+          }
+        },
+        "tab.shift": {
+          "hint": "The hours you’re expected to work, the cycle they move on, and your regular days off. HR sets all three — ask them if something looks wrong.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who decides my shift and my days off, and what should I do if they’re wrong?"
+          }
+        },
+        "tab.rules": {
+          "hint": "The rules your clock-ins are measured against: how long you may arrive after your start time, what makes a full day, and how far back a fix can be asked for.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Where do the rules my attendance is measured against come from?"
+          }
+        },
+        "tab.team": {
+          "hint": "How much of your team is expected in each day of the week, and who is already away. Only the people who report to you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does team cover tell me, and who is counted in it?"
+          }
+        },
+        "leave_days": {
+          "hint": "Only the days actually taken off your balance. A weekend or holiday inside a leave stretch isn’t counted here, because it was never deducted.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is my leave count lower than the number of days I booked?"
+          }
+        },
+        "items_due": {
+          "hint": "Task deadlines, document dates and days off about to expire, grouped by the day they land on. Only the next seven days.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What kinds of things show up as falling due on my schedule?"
           }
         },
         "weekly_offs": {
@@ -2838,18 +2880,18 @@
             "question": "What is an attendance policy and who decides which one applies to me?"
           }
         },
-        "grace_minutes": {
-          "hint": "Extra time after your shift starts in which clocking in still counts as on time. Arrive after it and the day records a late arrival.",
-          "askMaya": {
-            "enabled": true,
-            "question": "How does a grace period work, and what happens to my attendance if I clock in after it?"
-          }
-        },
         "full_day_min_hours": {
           "hint": "Time worked, with breaks taken off, needed for the day to count. Below the half-day figure the day isn’t counted as attendance at all.",
           "askMaya": {
             "enabled": true,
             "question": "How are my hours worked turned into a full day, a half day or an absent day?"
+          }
+        },
+        "grace_minutes": {
+          "hint": "Extra time after your shift starts in which clocking in still counts as on time. Arrive after it and the day records a late arrival.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does a grace period work, and what happens to my attendance if I clock in after it?"
           }
         },
         "max_break_duration_minutes": {
@@ -2878,13 +2920,6 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens to my attendance if I forget to clock out?"
-          }
-        },
-        "leave_days": {
-          "hint": "Only the days actually taken off your balance. A weekend or holiday inside a leave stretch isn’t counted here, because it was never deducted.",
-          "askMaya": {
-            "enabled": true,
-            "question": "Why is my leave count lower than the number of days I booked?"
           }
         },
         "working_count": {
@@ -5735,32 +5770,25 @@
     },
     "attendance.my_devices": {
       "kind": "data",
-      "description": "My Devices (MyDevicesPage), mounted in all three workspaces under each one’s own self-service prefix. List state: page, effective_mode, status, last_used_at (4). Inspector state: device_bound, last_ip (2). Written to the person about their own device, so these entries are never reused on an HR screen about somebody else.",
+      "description": "My Devices (MyDevicesPage), mounted in all three workspaces under each one’s own self-service prefix. REBUILT AS TWO SCREENS 22 Oct 2026 (user decision): the on-page tab strip is gone and the sidebar’s two entries are the navigation, so there is no single `page` key any more — each screen keys its own <h1> help. This device: this_device (h1), effective_mode (the mode pill beside it), device_bound (spec list) — 3. All my devices: all_devices (h1), effective_mode, status (column) — 3. Inspector: device_bound, last_ip, last_used_at (3); last_used_at lives here rather than on the table header, because spotting a device you don’t recognise is done with the record open. Written to the person about their own device, so these entries are never reused on an HR screen about somebody else.",
       "workspaces": [
         "employee",
         "manager",
         "hr"
       ],
       "fields": {
-        "tab.this": {
+        "this_device": {
           "hint": "The device you’re on now, as long as you registered it in this browser. Registered it somewhere else? It’s under All my devices.",
           "askMaya": {
             "enabled": true,
             "question": "Why can’t the page always tell which of my devices I’m using right now?"
           }
         },
-        "tab.all": {
+        "all_devices": {
           "hint": "Every device you have registered, including ones you’ve shut off. Shut-off devices stay as a record and can’t be used to clock in.",
           "askMaya": {
             "enabled": true,
             "question": "Why do devices I’ve shut off stay on my list instead of disappearing?"
-          }
-        },
-        "page": {
-          "hint": "Clocking in can be limited to devices you have registered. Register one here, and shut off anything you no longer use.",
-          "askMaya": {
-            "enabled": true,
-            "question": "Why does my organisation ask me to register the device I clock in from?"
           }
         },
         "effective_mode": {
@@ -5820,7 +5848,7 @@
     },
     "attendance.device_checks": {
       "kind": "form",
-      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage): the readiness card and its two action tiles, the People tab (the employee directory joined to the per-person device roster, API #18), the Settings tab over GET/PUT device-trust/policy, and the Activity tab. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained.",
+      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage). REBUILT 22 Oct 2026 (user decision): readiness was three cards above the tab bar, then one strip inside the People tab, and is now its own STATUS tab drawn as a RING — coverage_percentage on the heading and in the middle of the ring, and one legend row per slice keyed enrolled_users / pending_users / uncovered_users, each row the way to the people it counted. The three slices are mutually exclusive and sum to active_members: pending is carved OUT of the uncovered remainder, because a device waiting on approval cannot be used yet — so uncovered_users labels \"Nothing registered yet\", not everybody who is short. Page help is keyed page beside the <h1>; tab help is one ⓘ beside the tab strip keyed tab.<open tab> (people, settings, activity, status). People tab keys devices, last_used_at and coverage_state — the Can clock in column carries it alone, since the state filter became a <select> whose options spell themselves out (once per concept). Settings tab covers the policy payload keys, Activity covers events. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained and the 4-per-screen cap does not apply.",
       "workspaces": [
         "hr"
       ],
@@ -5847,6 +5875,14 @@
           "askMaya": {
             "enabled": true,
             "question": "How do I find out why somebody’s punch was refused?"
+          }
+        },
+        "tab.status": {
+          "tier": "onboarding",
+          "hint": "How close the organisation is to everybody being able to clock in from a registered device, and whether it is safe to make one compulsory yet.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to people without a registered device once I make one compulsory?"
           }
         },
         "devices": {
@@ -5907,7 +5943,7 @@
         },
         "uncovered_users": {
           "tier": "onboarding",
-          "hint": "People with no device that works yet. Make a registered device compulsory and these are exactly the people who could not clock in.",
+          "hint": "People who haven’t registered anything that works yet. Make a registered device compulsory and these are exactly the people who could not clock in.",
           "askMaya": {
             "enabled": true,
             "question": "What should I do about people who still have no registered device?"
