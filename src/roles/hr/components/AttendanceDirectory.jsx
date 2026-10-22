@@ -18,6 +18,8 @@ import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, todayYMD } from "../../../sha
 import { RECORD_STATUS_FILTERS, normalizeStatusKey } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
+import { punchesState } from "../../../shared/attendance/punchMeta";
 
 const TABS = [
   { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance },
@@ -37,6 +39,9 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  // The clock-in/out punch (coords + photo) a reader asked to see, lifted out of
+  // the row so the viewer is a sibling of the table, not nested in a <tr> (§3).
+  const [viewPunch, setViewPunch] = useState(null);
   const today = todayYMD();
   const tab = TABS.find((t) => t.value === activeTab) || TABS[0];
 
@@ -89,6 +94,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div>
         <Heading className={`${headingLevel === "h1" ? "text-2xl text-slate-900" : "text-xl text-slate-800"} font-bold tracking-tight`}>{title}</Heading>
@@ -151,6 +157,11 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                     // synthesises these rows for past dates too (2026-10-03 fix), so
                     // the whole staff list shows on a holiday — not just the absent.
                     const noPunchOwed = ["holiday", "weekly_off", "on_leave"].includes(normalizeStatusKey(record.status));
+                    // The HR list rows carry only the first-in / last-out punch
+                    // (`punches`); the full leg-by-leg log lives behind the profile.
+                    // HR reads are never truncated (contract §6 — only the two
+                    // team endpoints set the flag), so truncated is always false.
+                    const punches = punchesState(record);
                     return (
                       <tr
                         key={record.user_id || record.id || idx}
@@ -169,11 +180,17 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                         </td>
                         <td className="px-6 py-3.5">{record.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={record.status || "not_marked"} />}</td>
                         <td className="px-6 py-3.5">
-                          {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">{noPunchOwed ? "N/A" : "Not clocked in"}</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">{noPunchOwed ? "N/A" : "Not clocked in"}</span>}
+                            <PunchInlineGlance punch={punches.in} onViewPhoto={setViewPunch} />
+                          </span>
                           {Number(record.late_minutes) > 0 && <p className="text-[10px] text-fuchsia-600 font-bold mt-0.5">{fmtMinutes(record.late_minutes)} late</p>}
                         </td>
                         <td className="px-6 py-3.5">
-                          {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}
+                            <PunchInlineGlance punch={punches.out} onViewPhoto={setViewPunch} />
+                          </span>
                         </td>
                         <td className="px-6 py-3.5 text-right text-sm">
                           <LiveEffectiveHours record={record} />
@@ -191,6 +208,8 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
         )}
       </div>
     </div>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    </>
   );
 }
 

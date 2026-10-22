@@ -9,6 +9,7 @@ import { anomalyStatusKey, anomalyLabel, humanize, statusMeta } from "../../../.
 import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
 import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
 import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
+import { PunchesSection, PunchPhotoViewer } from "../../../../shared/attendance/PunchDetails";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
 
 const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
@@ -16,6 +17,8 @@ const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
 /* ─── Daily log drilldown ─────────────────────────────────────── */
 function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
   const [state, setState] = useState({ log: null, loading: true, error: null });
+  // The enlarged punch photo — a sibling of DetailDialog (§3).
+  const [viewPunch, setViewPunch] = useState(null);
 
   const load = useCallback(() => {
     if (!userId || !date) return;
@@ -32,8 +35,13 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
   const sessions = Array.isArray(log?.sessions) ? log.sessions : [];
   const breaks = Array.isArray(log?.breaks) ? log.breaks : [];
   const anomalies = Array.isArray(log?.anomalies) ? log.anomalies : [];
+  // The raw punches, each now carrying its location and photo (§2 of the
+  // contract). The daily-log reads aren't list endpoints, so they never
+  // truncate — the photos are always resolved here.
+  const logs = Array.isArray(log?.logs) ? log.logs : (Array.isArray(log?.punches) ? log.punches : []);
 
   return (
+    <>
     <DetailDialog
       eyebrow="Daily log"
       icon={HiCalendar}
@@ -74,6 +82,12 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
               ]}
             />
           </DetailSection>
+
+          {/* Every punch, with the photo taken at it and where it landed. Added
+              2026-10-22 — the same section the employee sees for their own day,
+              so a manager or HR reviewing a late mark or an out-of-bounds flag
+              sees exactly what the employee does (§2). */}
+          <PunchesSection logs={logs} onViewPhoto={setViewPunch} />
 
           {/* The shift AND the rules it was judged by. This used to be the
               shift alone, so a manager looking at a late mark or a half day had
@@ -142,6 +156,8 @@ function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
         </>
       )}
     </DetailDialog>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    </>
   );
 }
 

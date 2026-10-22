@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
-import { HiClock, HiChartBar, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle, HiPencil, HiFingerPrint, HiPause, HiFlag } from "react-icons/hi";
+import { HiClock, HiChartBar, HiArrowRight, HiArrowLeft, HiDocumentSearch, HiCheckCircle, HiExclamationCircle, HiPencil, HiPause, HiFlag } from "react-icons/hi";
 import { usePagedList } from "../../../shared/attendance/usePagedList";
 import { num, unwrap } from "../../../shared/attendance/normalize";
 import { fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, monthRange, onClockLabel, shiftMonth, todayYMD, totalWorkedLabel, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import LiveEffectiveHours from "../../../shared/attendance/LiveEffectiveHours";
-import { PUNCH_TYPE_LABELS, anomalyStatusKey, anomalyLabel, humanize } from "../../../shared/attendance/enums";
+import { anomalyStatusKey, anomalyLabel, humanize } from "../../../shared/attendance/enums";
+import { PunchesSection, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
@@ -21,6 +22,9 @@ const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
 // Exported: the dashboard's Recent days rows open the same daily log.
 export function DailyLogModal({ date, onClose, onRequestCorrection }) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
+  // The enlarged punch photo. A sibling of DetailDialog (§3), so it owns the
+  // open punch here rather than letting the punch list raise it from inside.
+  const [viewPunch, setViewPunch] = useState(null);
 
   const load = useCallback(() => {
     setState({ data: null, loading: true, error: null });
@@ -43,14 +47,6 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
   const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp || a.punch_time || a.created_at) - new Date(b.timestamp || b.punch_time || b.created_at));
   const empty = !record && sortedLogs.length === 0 && breaks.length === 0 && sessions.length === 0 && anomalies.length === 0;
 
-  // "Web · Office · Device: Gate 2" — whatever of it the punch actually carries.
-  const punchOrigin = (entry) => [
-    entry.source && humanize(entry.source),
-    entry.work_mode && humanize(entry.work_mode),
-    entry.device_name && `Device: ${entry.device_name}`,
-    entry.latitude == null && entry.source === "web" ? "No location" : null,
-  ].filter(Boolean).join(" · ");
-
   // A day still open has no settled worked figure yet, and "0m" in the header
   // would read as a day spent working for nothing. Say the state instead; the
   // live figure is in the stats below.
@@ -58,6 +54,7 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
   const headerSubtitle = record ? (stillOpen ? "Still clocked in" : workedLabel(record)) : undefined;
 
   return (
+    <>
     <DetailDialog
       eyebrow="Daily log"
       icon={HiClock}
@@ -117,28 +114,10 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
             </>
           )}
 
-          {sortedLogs.length > 0 && (
-            <DetailSection title={`Punches (${sortedLogs.length})`} icon={HiFingerPrint}>
-              <DetailTable
-                rows={sortedLogs}
-                rowKey={(entry, i) => entry.id || i}
-                empty="No punches were recorded."
-                columns={[
-                  {
-                    header: "Punch",
-                    render: (entry) => (
-                      <span className="font-semibold text-slate-700">
-                        {PUNCH_TYPE_LABELS[entry.type || entry.log_type] || humanize(entry.type || entry.log_type) || "Punch"}
-                      </span>
-                    ),
-                  },
-                  { header: "Time", render: (entry) => <span className="tabular-nums">{fmtTime(entry.timestamp || entry.punch_time || entry.created_at)}</span> },
-                  { header: "Where it came from", render: (entry) => punchOrigin(entry) },
-                  { header: "Note", render: (entry) => entry.notes },
-                ]}
-              />
-            </DetailSection>
-          )}
+          {/* Each punch with its photo and geofence outcome. The shared section
+              reads the same here as on a manager/HR profile (§2); the photo
+              opens in a viewer this modal owns, not the list (§3). */}
+          <PunchesSection logs={sortedLogs} onViewPhoto={setViewPunch} />
 
           {breaks.length > 0 && (
             <DetailSection title={`Breaks (${breaks.length})`} icon={HiPause} defaultOpen={false}>
@@ -171,6 +150,8 @@ export function DailyLogModal({ date, onClose, onRequestCorrection }) {
         </>
       )}
     </DetailDialog>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    </>
   );
 }
 

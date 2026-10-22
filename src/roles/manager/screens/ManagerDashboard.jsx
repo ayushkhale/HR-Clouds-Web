@@ -19,6 +19,8 @@ import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMon
 import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
+import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
+import { punchesState, punchesTruncated } from "../../../shared/attendance/punchMeta";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 import { greetingFor } from "../../../shared/utils/greeting";
@@ -52,7 +54,7 @@ const LIVE_REFRESH_MS = 60_000;
 // One read of /manager/team/today. The dashboard shares it between the
 // overview stats and the directory, so the endpoint is called once, not twice.
 function useTeamToday({ enabled = true } = {}) {
-  const [state, setState] = useState({ records: [], loading: enabled, error: null, at: null });
+  const [state, setState] = useState({ records: [], loading: enabled, error: null, at: null, truncated: false });
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -70,9 +72,12 @@ function useTeamToday({ enabled = true } = {}) {
         return dept ? { ...r, department_name: dept } : r;
       });
       records.sort((a, b) => personName(a).localeCompare(personName(b)));
-      setState({ records, loading: false, error: null, at: new Date() });
+      // This endpoint drops each row's per-punch coords/photo (`punches`) from a
+      // large team to keep the list fast (contract §6 — the only read that does).
+      // The flag is a sibling of the bare array, read here so the table can say so.
+      setState({ records, loading: false, error: null, at: new Date(), truncated: punchesTruncated(res) });
     } catch (error) {
-      setState({ records: [], loading: false, error, at: null });
+      setState({ records: [], loading: false, error, at: null, truncated: false });
     }
   }, []);
 
@@ -98,6 +103,9 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
   const own = useTeamToday({ enabled: !team });
   const state = team || own;
   const { load } = state;
+  // The clock-in/out punch (coords + photo) a reader asked to enlarge, lifted
+  // out of the row so the viewer is a sibling of the table, not nested (§3).
+  const [viewPunch, setViewPunch] = useState(null);
 
   // Contract §8.2: the server computes this endpoint's "today" in UTC, so while
   // the local date is ahead of the UTC date (e.g. 00:00–05:30 IST) it still
@@ -106,6 +114,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
   const utcRollover = new Date(Math.ceil(Date.now() / 86_400_000) * 86_400_000);
 
   return (
+    <>
     <div className="flex flex-col h-full">
       <div className="flex items-end justify-between gap-4 mb-4">
         <div>
@@ -124,6 +133,13 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
       {utcLagging && (
         <InlineAlert tone="amber" className="mb-3">
           Until {fmtTime(utcRollover)} this list may still show yesterday's attendance. It updates to today automatically after that.
+        </InlineAlert>
+      )}
+      {/* On a large team the server leaves out each punch's photo and location
+          here; the clock-in/out times stay. Say where to find them (§6). */}
+      {state.truncated && (
+        <InlineAlert tone="sky" className="mb-3">
+          Punch photos and locations aren’t shown on this list for a team this size. Open a person to see where each punch landed.
         </InlineAlert>
       )}
       {state.loading && state.records.length === 0 ? <Skeleton type="table" rows={5} /> : (
@@ -188,10 +204,16 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                             Muted slate-400 is the house colour for a value
                             that isn't there. */}
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">
-                          {mem.clock_in_time ? fmtTime(mem.clock_in_time) : <span className="font-medium text-slate-400">N/A</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {mem.clock_in_time ? fmtTime(mem.clock_in_time) : <span className="font-medium text-slate-400">N/A</span>}
+                            <PunchInlineGlance punch={punchesState(mem).in} truncated={state.truncated} onViewPhoto={setViewPunch} />
+                          </span>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">
-                          {mem.clock_out_time ? fmtTime(mem.clock_out_time) : <span className="font-medium text-slate-400">N/A</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {mem.clock_out_time ? fmtTime(mem.clock_out_time) : <span className="font-medium text-slate-400">N/A</span>}
+                            <PunchInlineGlance punch={punchesState(mem).out} truncated={state.truncated} onViewPhoto={setViewPunch} />
+                          </span>
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           {!mem.clock_in_time ? <span className="text-slate-400 text-sm font-medium">N/A</span>
@@ -208,6 +230,8 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
         </div>
       )}
     </div>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    </>
   );
 }
 

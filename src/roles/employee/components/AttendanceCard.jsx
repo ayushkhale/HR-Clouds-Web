@@ -50,6 +50,7 @@ import { choosesWorkMode, geofenceNotice, isFieldWorker, permittedWorkModes } fr
 import { PUNCH_NOTES_MAX } from "../../../shared/attendance/validation";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
 import { ErrorState, InlineAlert, Spinner, StatusBadge, Toast, useToast } from "../../../shared/attendance/ui";
+import { TodayPunchStrip, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
 import { HiClock, HiLocationMarker, HiOfficeBuilding, HiOutlineClock, HiPencilAlt } from "react-icons/hi";
 import { BiCoffeeTogo, BiStopwatch } from "react-icons/bi";
 
@@ -115,6 +116,8 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const [showNotes, setShowNotes] = useState(false);
   const [geoIssue, setGeoIssue] = useState(null); // { status, message, kind }
   const [lastResult, setLastResult] = useState(null);
+  // The enlarged punch photo, opened from today's punch strip below.
+  const [viewPunch, setViewPunch] = useState(null);
   // The contractual work mode, the base office and any client sites, from
   // /my-field-assignments. `work_mode` there is already normalized and
   // fail-secure (a null profile reads as "office"), which is why we take the
@@ -589,6 +592,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   );
 
   return (
+    <>
     <div className={cardClass}>
       {horizontal ? (
         <>
@@ -628,6 +632,11 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
             outcome, and an out-of-bounds result is a flag for a manager to look
             at, not something the employee did wrong (§5.3). */}
         {geoNote && <InlineAlert tone={geoNote.tone}>{geoNote.text}</InlineAlert>}
+
+        {/* Today's punch photo and where each landed, read off `/today` so it
+            survives a reload — the note above belongs only to a punch made in
+            this browser session. Silent until there is a punch to show. */}
+        <TodayPunchStrip punches={today?.punches} onViewPhoto={setViewPunch} />
 
         {/* Field staff punch against their client sites UNION their base office,
             so both are listed together. Without this an out-of-bounds flag gives
@@ -781,6 +790,8 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
 
       <Toast toast={toast} onClose={clearToast} />
     </div>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    </>
   );
 }
 
