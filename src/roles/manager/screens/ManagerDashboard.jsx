@@ -26,6 +26,8 @@ import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 import { greetingFor } from "../../../shared/utils/greeting";
 import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import LocateDialogHost, { LocateCell } from "../../../shared/attendance/LocateQuickAction";
+import { LOCATE_COLUMN_LABEL, LOCATE_SURFACE, useLocateColumn } from "../../../shared/attendance/locateColumn";
 import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
 
 // HR's department summary endpoint is HR-only, so the manager's version is
@@ -111,6 +113,13 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
   // uses) instead of sending the manager off to the profile screen.
   const [openDayId, setOpenDayId] = useState(null);
 
+  // "Ask where they are", one press from the live team list — the same control
+  // HR has on its own Live Attendance, in the same place, worded the same (§2).
+  // This list is always today, so the column only disappears when the feature
+  // is off for the organisation or a refusal has said this role may not ask.
+  const locate = useLocateColumn({ viewer: "manager" });
+  const showLocate = locate.show && state.records.some(locate.canAsk);
+
   // Contract §8.2: the server computes this endpoint's "today" in UTC, so while
   // the local date is ahead of the UTC date (e.g. 00:00–05:30 IST) it still
   // returns yesterday's attendance. Tell the manager when that switches.
@@ -162,11 +171,16 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">In</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Out</th>
                     <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide">Lateness</th>
+                    {showLocate && (
+                      <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">
+                        <HelpLabel text={LOCATE_COLUMN_LABEL} help={{ surface: LOCATE_SURFACE, field: "column", label: "the Location column" }} />
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {state.records.length === 0 ? (
-                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium">No one reports to you yet, or no attendance has been recorded today.</td></tr>
+                    <tr><td colSpan={showLocate ? 8 : 7} className="px-6 py-12 text-center text-slate-400 font-medium">No one reports to you yet, or no attendance has been recorded today.</td></tr>
                   ) : state.records.map((mem) => {
                     const name = personName(mem);
                     const code = employeeCode(mem);
@@ -225,6 +239,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                             : late > 0 ? <span className="text-rose-600 font-bold text-xs">{fmtMinutes(late)} late</span>
                               : <span className="text-violet-600 font-bold text-xs">On time</span>}
                         </td>
+                        {showLocate && <LocateCell column={locate} row={mem} name={name} />}
                       </tr>
                     );
                   })}
@@ -236,6 +251,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
       )}
     </div>
     {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    <LocateDialogHost column={locate} />
     {openDayId && (
       <DailyLogDialog
         userId={openDayId}

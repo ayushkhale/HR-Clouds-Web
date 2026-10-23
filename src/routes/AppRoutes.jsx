@@ -76,6 +76,7 @@ const NotFoundPage = lazy(() => import("../shared/screens/NotFoundPage"));
 const MyDevicesPage = lazy(() => import("../shared/screens/MyDevicesPage"));
 const MyWorkLocationsPage = lazy(() => import("../shared/screens/MyWorkLocationsPage"));
 const MySchedulePage = lazy(() => import("../shared/screens/MySchedulePage"));
+const MyLocationChecksPage = lazy(() => import("../shared/screens/MyLocationChecksPage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
@@ -121,6 +122,7 @@ const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/
 const AttendanceLockPeriodsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLockPeriodsPage"));
 // Device Trust (15 Oct 2026): the policy/rollout screen and the inventory.
 const RegisteredDevicesPage = lazy(() => import("../roles/hr/attendance/screens/RegisteredDevicesPage"));
+const LiveLocationChecksPage = lazy(() => import("../roles/hr/attendance/screens/LiveLocationChecksPage"));
 const EmployeeDevicesPage = lazy(() => import("../roles/hr/attendance/screens/EmployeeDevicesPage"));
 const AttendanceReportsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceReportsPage"));
 const BiometricDevicesPage = lazy(() => import("../roles/hr/screens/BiometricDevicesPage"));
@@ -396,6 +398,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/device-checks" element={<RegisteredDevicesPage />} />
         <Route path="/dashboard/hr/attendance/trusted-devices" element={<EmployeeDevicesPage />} />
         <Route path="/dashboard/hr/attendance/devices" element={<BiometricDevicesPage />} />
+        <Route path="/dashboard/hr/attendance/live-location" element={<LiveLocationChecksPage />} />
         <Route path="/dashboard/hr/reports" element={<AttendanceReportsPage />} />
         {/* HR self-service attendance (all org roles may punch & request) */}
         <Route path="/dashboard/hr/my-attendance" element={<EmployeeAttendancePage />} />
@@ -406,6 +409,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/my-attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/hr/my-attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/hr/my-attendance/my-schedule" element={<MySchedulePage />} />
+        <Route path="/dashboard/hr/my-attendance/location-checks" element={<MyLocationChecksPage />} />
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
@@ -513,6 +517,7 @@ function AppRoutes() {
         <Route path="/dashboard/manager/attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/manager/attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/manager/attendance/my-schedule" element={<MySchedulePage />} />
+        <Route path="/dashboard/manager/attendance/location-checks" element={<MyLocationChecksPage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
         <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
         <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
@@ -580,6 +585,7 @@ function AppRoutes() {
         <Route path="/dashboard/employee/attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/employee/attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/employee/attendance/my-schedule" element={<MySchedulePage />} />
+        <Route path="/dashboard/employee/attendance/location-checks" element={<MyLocationChecksPage />} />
         <Route path="/dashboard/employee/leaves" element={<LeaveDashboard />} />
 
         {/* Employee payroll */}

@@ -40,6 +40,13 @@ export const SELF_SERVICE_PAGES = {
   // `/my-schedule`, not `/schedule`, to stay clear of the HR/manager admin
   // Shift Roster at `${prefix}/attendance/roster`.
   schedule: "/my-schedule",
+  // Live Location Checks (2026-10-23): the notice this person accepts before
+  // anyone may ask their phone where it is, and the list of who has asked.
+  // Mounted in all three workspaces for the usual reason — an HR admin can be
+  // located by another HR admin, so they need the page too. `/location-checks`
+  // rather than `/locations`, which is already the read-only site list above,
+  // and the word "tracking" stays out of every path and file name (§1).
+  locationChecks: "/location-checks",
 };
 
 /**

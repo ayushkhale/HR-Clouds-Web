@@ -288,6 +288,67 @@ export const attendanceAPI = {
   createLocation: (payload) => organizationAPI.createLocation(payload),
   updateLocation: (id, payload) => organizationAPI.updateLocation(id, payload),
 
+  // ── HR › Live location checks (2026-10-23) ─────────────────────────────────
+  // Ask a person's registered device where it is, right now. The push wakes the
+  // device, the device POSTs its fix to `/locations/live-ping`, and the asker
+  // reads the answer by POLLING — there is no SSE or WebSocket leg, and that is
+  // settled, not pending (implementation plan §B.9).
+  //
+  // The manager twin of each of these is in the manager block below; the paths
+  // differ enough (`/hr/employees/:id` vs `/manager/team/member/:id`) that
+  // parameterising one string would read worse than two honest pairs. Which
+  // pair a screen uses is decided once, in `shared/attendance/locatePlanes.js`.
+
+  /**
+   * Ask for one person's live location. body: `{ reason }`, trimmed, 10–255.
+   *
+   * `reason` is only *required* when the org policy sets `require_reason`, but
+   * we always send one: it is persisted and shown to the employee in their own
+   * history, and a manager has no endpoint that tells them whether it was
+   * required, so guessing would mean a 400 REASON_REQUIRED round trip.
+   *
+   * Returns `{ request_id, status: "dispatched"|"failed", timeout_seconds,
+   * last_known_location: { latitude, longitude, recorded_at, is_stale } | null }`.
+   * `status` is LOWERCASE. `failed` means no device could be woken at all —
+   * it is a terminal answer, not something to poll.
+   *
+   * Refusals (all typed, see `locationErrors` in attendanceErrors.js):
+   * 400 REASON_REQUIRED · 403 LOCATION_TRACKING_DISABLED / LOCATE_ROLE_NOT_ALLOWED ·
+   * 404 EMPLOYEE_NOT_FOUND · 422 CANNOT_LOCATE_SELF / EMPLOYEE_CONSENT_PENDING /
+   * EMPLOYEE_NOT_CLOCKED_IN / NO_ACTIVE_DEVICE (422, NOT 404) ·
+   * 429 LOCATE_COOLDOWN (carries `retry_after_seconds`) / LOCATE_DAILY_CAP_REACHED /
+   * LOCATE_RATE_LIMITED · 503 FEATURE_DISABLED.
+   */
+  locateEmployeeAsHR: (userId, payload) => post(`/attendance/hr/employees/${seg(userId)}/locate`, payload),
+  /**
+   * Poll one request. HR may poll any request in the org.
+   * `{ request_id, status, expires_at, reason, location: {...}|null, spoof_flagged }`
+   * — `location` stays null until `status === "reported"`.
+   */
+  getLocationRequestAsHR: (requestId) => request(`/attendance/hr/location-requests/${seg(requestId)}`),
+  /** Who asked for this person's location, when and why. @param {{page?: number, limit?: number}} params */
+  getEmployeeLocationHistoryAsHR: (userId, params = {}) => request(`/attendance/hr/employees/${seg(userId)}/location-history${qs(params)}`),
+
+  /**
+   * The org's one location-check policy row. `data.updated_at` is the If-Match
+   * token for the PUT — the same arrangement as the device-trust policy above,
+   * and for the same reason: `request()` parses JSON and cannot read the `ETag`
+   * header the server also sets.
+   */
+  getLocationPolicy: () => request("/attendance/hr/location-policy"),
+  /**
+   * PARTIAL update — send only the keys that changed. `If-Match` is MANDATORY:
+   * missing is 428, malformed is 400, stale is 412 SETTINGS_PRECONDITION_FAILED.
+   * A 412 is never retried blindly: re-read, reconcile, resubmit.
+   * @param {Record<string, unknown>} payload at least one policy field
+   * @param {string} updatedAt `updated_at` from the last successful read
+   */
+  updateLocationPolicy: (payload, updatedAt) => request("/attendance/hr/location-policy", {
+    method: "PUT",
+    headers: { "If-Match": String(updatedAt ?? "") },
+    body: JSON.stringify(payload),
+  }),
+
   // ── HR › Maintenance (H43) ─────────────────────────────────────────────────
   /** @param {{date?: string}} [params] optional YYYY-MM-DD; omitted = full sweep */
   recomputeStaleRecords: ({ date } = {}) => post("/attendance/hr/records/recompute-stale", date ? { date } : undefined),
@@ -339,6 +400,25 @@ export const attendanceAPI = {
   approveManagerCompOff: (id, payload) => post(`/attendance/manager/comp-offs/${seg(id)}/approve`, decisionBody(payload)),
   rejectManagerCompOff: (id, payload) => post(`/attendance/manager/comp-offs/${seg(id)}/reject`, decisionBody(payload)),
 
+  // ── Manager › Live location checks (2026-10-23) ────────────────────────────
+  // The manager twin of the three HR reads above. Same bodies, same responses,
+  // same four statuses — only the reach differs, which is the whole point of
+  // the plane adapter in `shared/attendance/locatePlanes.js`.
+  //
+  // TWO NARROWER SCOPES THAN HR, both answered as 404 so the endpoint never
+  // confirms somebody else's id exists:
+  //   · a target outside the manager's own DIRECT reports → 404 EMPLOYEE_NOT_FOUND
+  //   · a request the manager did not raise themselves → 404 LOCATION_REQUEST_NOT_FOUND
+  //
+  // THERE IS NO MANAGER POLICY READ. `/hr/location-policy` is HR-only, so a
+  // manager cannot know whether the feature is on, whether their role is
+  // allowed, or whether a reason is required. The UI therefore starts
+  // optimistic and learns from the server's refusal — see `locatePlanes.js`.
+  locateMemberAsManager: (userId, payload) => post(`/attendance/manager/team/member/${seg(userId)}/locate`, payload),
+  getLocationRequestAsManager: (requestId) => request(`/attendance/manager/location-requests/${seg(requestId)}`),
+  /** @param {{page?: number, limit?: number}} params */
+  getMemberLocationHistoryAsManager: (userId, params = {}) => request(`/attendance/manager/team/member/${seg(userId)}/location-history${qs(params)}`),
+
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  SELF-SERVICE (all org roles)
@@ -367,6 +447,48 @@ export const attendanceAPI = {
   getWeeklyCalendar: (date) => request(`/attendance/weekly-calendar${qs({ date })}`),
   /** @param {number} [months] 1–12 (backend default 3) */
   getTrends: (months) => request(`/attendance/trends${qs({ months })}`),
+
+  // ── My location checks (2026-10-23) ────────────────────────────────────────
+  // The three endpoints the SUBJECT of a location check owns. Every org role
+  // can be located, HR and managers included, so these are self-service and
+  // the page that uses them mounts in all three workspaces.
+
+  /**
+   * Accept the location notice. body: `{ version? }`.
+   * Required ONCE when the org policy is in `acknowledgement` mode — until then
+   * every locate against this person is `422 EMPLOYEE_CONSENT_PENDING`.
+   * Returns `{ acknowledged_at, consent_version }`.
+   *
+   * ⚠ THERE IS NO MATCHING READ. No endpoint tells a person whether they have
+   * already accepted, or whether their org even asks them to, so the notice
+   * card cannot render a settled "accepted on …" after a reload. The POST is an
+   * upsert, so accepting twice is harmless. Noted here rather than worked
+   * around — if `GET /attendance/locations/consent` ever lands, wire it up and
+   * delete this paragraph.
+   */
+  acknowledgeLocationNotice: (payload = {}) => post("/attendance/locations/consent", payload),
+  /**
+   * Who asked for my location, when and why. @param {{page?: number, limit?: number}} params
+   * Rows carry `{ id, reason, requested_by, requester_role, created_at,
+   * responded_at, fix_returned }`. The anti-spoof verdict is deliberately
+   * WITHHELD from the subject, so never expect `spoof_flagged` here.
+   */
+  getMyLocationRequests: (params = {}) => request(`/attendance/locations/mine${qs(params)}`),
+  /**
+   * Report this device's fix against a live request.
+   * body: `{ request_id, latitude, longitude, accuracy_meters, captured_at,
+   *          is_mock?, battery_level?, platform? }`
+   *
+   * IDEMPOTENT — re-posting the same `request_id` after success returns
+   * `{ logged: true }` again, so a flaky network is safe to retry.
+   * 404 LOCATION_REQUEST_NOT_FOUND (unknown or somebody else's),
+   * 409 LOCATION_REQUEST_EXPIRED (the 60 s window closed) — both are "stop",
+   * not "retry".
+   *
+   * `captured_at` MUST be the hardware fix time, never `new Date()`: the server
+   * flags a `stale_fix` when it falls outside the request's window.
+   */
+  reportLivePing: (payload) => post("/attendance/locations/live-ping", payload),
 
   // ── Field locations & assignments (2026-10-05) ─────────────────────────────
   // Mounted at IDENTICAL paths on the HR and manager routers — same payloads,

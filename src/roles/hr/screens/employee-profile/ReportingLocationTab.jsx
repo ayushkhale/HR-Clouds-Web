@@ -24,13 +24,43 @@
 // 403 outside the manager's own reporting line, so a manager's team card is an
 // info card, not a link — a grand-report's profile would 403 and §2 says a
 // capability a role lacks is absent, not broken.
+//
+// ─── THE LAYOUT, AND WHY IT IS THIS ONE (redesign 2026-10-24) ─────────────
+// The tab answers two different questions and used to put five same-weight
+// sections in one column, so neither question had a shape:
+//
+//   WHERE THEY SIT      the chain above them, the two people who matter, the
+//                       department, and the team below them.
+//   WHERE THEY WORK     the clock-in rules, the sites, and the live fix.
+//
+// So the sections are now grouped under two quiet eyebrows, and the first
+// group opens with ONE card instead of three:
+//
+// · ONE CARD TREATMENT, THREE TILES. "Reports to", "Head of department" and
+//   "Department" were a grey person card, a grey person card and a
+//   label-above-value DetailGrid — three visual languages for three facts of
+//   the same kind, stacked in 200px. They are one `md:grid-cols-3` row of
+//   identical tiles now, which also fills the width instead of leaving half
+//   the row empty (§5 — grid, don't narrow).
+// · THE DEPARTMENT TILE CARRIES ITS OWN STATES. Folding it into the row means
+//   a departments read that fails no longer blanks a whole section: the tile
+//   says "Couldn't load" and offers Retry while the two people beside it stay
+//   readable (§7 — "couldn't load" is not "nothing on file").
+// · THE CHAIN IS THE NEW INFORMATION. Who someone reports to is one name; who
+//   that person reports to is the thing an HR admin actually opens this tab to
+//   work out, and the roster already in hand answers it for free. It is drawn
+//   only when there is more than one link, because one link is the tile below
+//   it said twice.
+// · A LONG TEAM FOLDS (§3) with its count in the title, so a manager of thirty
+//   doesn't bury the work-location group under thirty cards.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   HiOfficeBuilding, HiUserGroup, HiMail, HiSearch, HiChevronRight,
-  HiStar, HiSwitchHorizontal, HiBriefcase, HiUser,
+  HiStar, HiSwitchHorizontal, HiBriefcase, HiUser, HiLocationMarker,
+  HiTrendingUp,
 } from "react-icons/hi";
 import { organizationAPI } from "../../../../shared/api";
 import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
@@ -38,14 +68,19 @@ import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { EmptyState, ErrorState, LoadingRows } from "../../../../shared/attendance/ui";
 import { humanize } from "../../../../shared/attendance/enums";
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
-import { DetailGrid, DetailSection } from "../../../../shared/components/DetailDialog";
+import { DetailSection } from "../../../../shared/components/DetailDialog";
+import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 import FieldAssignmentsPanel from "../../../../shared/attendance/FieldAssignmentsPanel";
+import LiveLocationPanel from "../../../../shared/attendance/LiveLocationPanel";
 
 const SURFACE = "organization.employee_profile";
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 const sameText = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 const reportsTo = (row) => row?.reporting_person ?? row?.reporting_person_id ?? row?.reporting_person_details?.user_id ?? null;
+
+// Above this many reports the team list starts folded (§3).
+const TEAM_FOLD_ABOVE = 8;
 
 const ALL_DEPTS = "__all__";
 const NO_DEPT_KEY = "__none__";
@@ -76,6 +111,81 @@ const teamDeptKeyOf = (member) => {
   return String(member?.department || "").trim() || NO_DEPT_KEY;
 };
 
+/** The quiet heading that separates "where they sit" from "where they work". */
+function GroupLabel({ children }) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 px-1">{children}</p>
+  );
+}
+
+/**
+ * The one card treatment the placement row uses — person tiles and the
+ * department tile alike, so three facts of the same kind look like three facts
+ * of the same kind. `onOpen` turns it into a button without changing its shape.
+ */
+function Tile({ label, icon: Icon, help, onOpen, children }) {
+  const shell = "rounded-2xl border border-slate-200 bg-white p-4 min-w-0 shadow-2xs";
+  // The ⓘ sits BESIDE the label, never inside the button that opens the
+  // colleague's record — a popover trigger nested in another interactive
+  // element is the one placement §10 forbids outright.
+  const head = (
+    <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+      <Icon className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+      {label}
+    </p>
+  );
+  if (!onOpen) {
+    return (
+      <div className={shell}>
+        <div className="flex items-start justify-between gap-2">
+          {head}
+          {help && <FieldHelp surface={help.surface} field={help.field} label={help.label} />}
+        </div>
+        {children}
+      </div>
+    );
+  }
+  // The ⓘ is a SIBLING of the button, in an unpadded relative wrapper, so the
+  // button keeps the card's own box. An earlier version pulled the button out
+  // over the wrapper's padding with `-m-4`, which made its bottom edge hang
+  // 16px below the card and its right edge stop 32px short — three tiles of
+  // that in a grid row is the overflow this comment exists to prevent coming
+  // back. Nothing here may use a negative margin.
+  return (
+    <div className="relative min-w-0">
+      {help && (
+        <div className="absolute top-3.5 right-9 z-10">
+          <FieldHelp surface={help.surface} field={help.field} label={help.label} />
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`${shell} w-full text-left relative hover:border-purple-300 hover:bg-purple-50/40 transition-colors group`}
+      >
+        {head}
+        {children}
+        <HiChevronRight className="w-4 h-4 text-slate-300 group-hover:text-purple-600 absolute top-4 right-3" />
+      </button>
+    </div>
+  );
+}
+
+/** The meta lines under a tile's headline — email, location, headcount. */
+function TileMeta({ items = [], className = "" }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 text-[11px] font-semibold text-slate-500 ${className}`}>
+      {items.map(({ icon: Icon, text }) => (
+        <span key={text} className="inline-flex items-center gap-1 min-w-0 max-w-full">
+          <Icon className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+          <span className="truncate" title={text}>{text}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function PersonTile({ name, subtitle, person, badge }) {
   return (
     <div className="flex items-center gap-3 min-w-0">
@@ -94,41 +204,95 @@ function PersonTile({ name, subtitle, person, badge }) {
 }
 
 /** The two people this record hangs off: the person above them, and their head of department. */
-function PersonCard({ label, name, person, meta = [], badge, onOpen = null, emptyText }) {
-  const body = (
-    <>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">{label}</p>
+function PersonCard({ label, icon, help, name, person, meta = [], badge, onOpen = null, emptyText }) {
+  return (
+    <Tile label={label} icon={icon} help={help} onOpen={name ? onOpen : null}>
       {name ? (
         <>
           <PersonTile name={name} person={person} subtitle={person?.designation || (person?.role ? humanize(person.role) : "")} badge={badge} />
-          {meta.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 sm:pl-14 text-[11px] font-semibold text-slate-500">
-              {meta.map(({ icon: Icon, text }) => (
-                <span key={text} className="inline-flex items-center gap-1 min-w-0 max-w-full">
-                  <Icon className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                  <span className="truncate" title={text}>{text}</span>
-                </span>
-              ))}
-            </div>
-          )}
+          <TileMeta items={meta} className="sm:pl-14" />
         </>
       ) : (
         <p className="text-sm font-semibold text-slate-400">{emptyText}</p>
       )}
-    </>
+    </Tile>
   );
+}
 
-  const shell = "rounded-2xl border border-slate-200 bg-slate-50/60 p-4 min-w-0";
-  if (!onOpen || !name) return <div className={shell}>{body}</div>;
+/**
+ * The third tile in the placement row. It is a place, not a person, so the
+ * avatar slot carries a glyph — same size, same position, so the row reads as
+ * one row. It owns its own loading / failed / nothing-on-file states because
+ * the departments read is separate from the roster behind the two tiles beside
+ * it, and one of them failing must not blank the other two (§7).
+ */
+function DepartmentTile({ name, location, headcount, closed, loading, error, onRetry, help }) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`${shell} w-full text-left relative hover:border-purple-300 hover:bg-purple-50/50 transition-colors group`}
-    >
-      {body}
-      <HiChevronRight className="w-4 h-4 text-slate-300 group-hover:text-purple-600 absolute top-4 right-3" />
-    </button>
+    <Tile label="Department" icon={HiOfficeBuilding} help={help}>
+      {loading && !name ? (
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-slate-100 animate-pulse shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3.5 w-2/3 rounded bg-slate-100 animate-pulse" />
+            <div className="h-2.5 w-1/3 rounded bg-slate-100 animate-pulse" />
+          </div>
+        </div>
+      ) : error && !name ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-slate-400">Couldn’t load the department.</p>
+          <button type="button" onClick={onRetry} className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition">Try again</button>
+        </div>
+      ) : !name ? (
+        <p className="text-sm font-semibold text-slate-400">Not in a department yet</p>
+      ) : (
+        <>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 border-2 border-white shadow-sm shrink-0 grid place-items-center">
+              <HiOfficeBuilding className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-sm font-bold text-slate-900 truncate" title={name}>{name}</p>
+                {closed && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">Closed</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 truncate">{headcount == null ? "N/A" : `${headcount} ${headcount === 1 ? "person" : "people"}`}</p>
+            </div>
+          </div>
+          <TileMeta items={[location && { icon: HiLocationMarker, text: location }].filter(Boolean)} className="sm:pl-14" />
+        </>
+      )}
+    </Tile>
+  );
+}
+
+/**
+ * Everyone above this person, top of the organisation first. Drawn from the
+ * roster already in hand, so it costs no request, and capped at CHAIN_MAX
+ * because a chain longer than that stops being a glance and starts being a
+ * list. `seen` stops a reporting loop (A reports to B reports to A) spinning
+ * the render forever — the data allows it even though the org chart shouldn't.
+ */
+const CHAIN_MAX = 5;
+function ReportingChain({ links, person, name }) {
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5" aria-label="Reporting chain, highest first">
+      {links.map((link, i) => (
+        <span key={link.id} className="flex items-center gap-1.5 shrink-0">
+          {i > 0 && <HiChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
+          <span className="inline-flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full border border-slate-200 bg-white">
+            <span className="w-6 h-6 rounded-full overflow-hidden shrink-0 text-[9px]"><GenderAvatar person={link.person} name={link.name} /></span>
+            <span className="text-[11px] font-bold text-slate-600 max-w-[9rem] truncate" title={link.name}>{link.name}</span>
+          </span>
+        </span>
+      ))}
+      <HiChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+      <span className="inline-flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full border border-purple-200 bg-purple-50 shrink-0">
+        <span className="w-6 h-6 rounded-full overflow-hidden shrink-0 text-[9px]"><GenderAvatar person={person} name={name} /></span>
+        <span className="text-[11px] font-bold text-purple-700 max-w-[9rem] truncate" title={name}>{name || "This person"}</span>
+      </span>
+    </div>
   );
 }
 
@@ -198,6 +362,24 @@ export default function ReportingLocationTab({
     },
   ].filter(Boolean);
 
+  // Everyone above the person above them. `reportsTo` on a roster row that the
+  // directory hasn't got yet is simply absent, so the chain stops rather than
+  // guessing — a short true chain beats a long speculative one.
+  const chain = useMemo(() => {
+    const out = [];
+    const seen = new Set([String(userId)]);
+    let cursor = managerId;
+    while (cursor && !seen.has(String(cursor)) && out.length < CHAIN_MAX) {
+      seen.add(String(cursor));
+      const row = entryOf(cursor);
+      const name = row?.name || nameOf(cursor, "");
+      if (!name) break; // not in the roster yet; never fall through to the id (§4)
+      out.unshift({ id: String(cursor), name, person: row });
+      cursor = reportsTo(row);
+    }
+    return out;
+  }, [managerId, userId, entryOf, nameOf]);
+
   // ── Head of department ───────────────────────────────────────────────────
   const headId = department?.head_of_department_id;
   const headRow = headId ? entryOf(headId) : null;
@@ -263,42 +445,11 @@ export default function ReportingLocationTab({
 
   return (
     <div className="space-y-6">
-      <DetailSection title="Reporting line" icon={HiUser} help={{ surface: SURFACE, field: "reporting_person" }}>
-        {rosterLoading && !managerName && !headName ? (
-          <LoadingRows rows={2} />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <PersonCard
-              label="Reports to"
-              name={managerName}
-              person={managerRow}
-              meta={managerMeta}
-              emptyText="Nobody — this person reports to no one yet"
-              badge={managerIsViewer && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shrink-0">You</span>
-              )}
-              onOpen={openMember(managerId) && !managerIsViewer ? () => navigate(openMember(managerId)) : null}
-            />
-            <PersonCard
-              label="Head of department"
-              name={headName}
-              person={headRow}
-              meta={headMeta}
-              emptyText={deptName ? "No head assigned" : "No department, so no head"}
-              badge={isHead && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shrink-0">
-                  <HiStar className="w-3 h-3" /> This person
-                </span>
-              )}
-              onOpen={!isHead && openMember(headId) ? () => navigate(openMember(headId)) : null}
-            />
-          </div>
-        )}
-      </DetailSection>
+      <GroupLabel>Where they sit</GroupLabel>
 
       <DetailSection
-        title="Department"
-        icon={HiOfficeBuilding}
+        title="Place in the organisation"
+        icon={HiUser}
         action={onTransfer && (
           <button
             type="button"
@@ -309,58 +460,89 @@ export default function ReportingLocationTab({
           </button>
         )}
       >
-        {state.loading && !deptName ? (
+        {rosterLoading && !managerName && !headName ? (
           <LoadingRows rows={2} />
-        ) : state.error && !deptName ? (
-          <ErrorState error={state.error} onRetry={load} fallback="Couldn't load the department." />
-        ) : !deptName ? (
-          <EmptyState
-            icon={HiOfficeBuilding}
-            title="No department assigned"
-            message={onTransfer ? "Assign a department to place this person in the organisation." : "Nobody has placed this person in a department yet."}
-            className="py-8"
-          />
         ) : (
-          <>
-            <DetailGrid
-              cols={3}
-              items={[
-                { label: "Department", value: deptName },
-                { label: "Where it sits", value: department?.location_name },
-                { label: "People in it", value: deptHeadcount == null || rosterBroken ? null : `${deptHeadcount}` },
-              ]}
-            />
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              {employee?.designation && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                  <HiBriefcase className="w-3.5 h-3.5" /> {employee.designation}
-                </span>
-              )}
-              {department?.is_active === false && (
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                  Department closed
-                </span>
-              )}
+          <div className="space-y-4">
+            {/* One link is the "Reports to" tile said twice; two or more is
+                the skip-level, which is the thing nothing else on this tab
+                shows. */}
+            {chain.length > 1 && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <HiTrendingUp className="w-3.5 h-3.5 text-purple-500 shrink-0" /> Reporting chain
+                </p>
+                <ReportingChain links={chain} person={entryOf?.(userId) || employee} name={displayName} />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <PersonCard
+                label="Reports to"
+                icon={HiUser}
+                help={{ surface: SURFACE, field: "reporting_person", label: "who this person reports to" }}
+                name={managerName}
+                person={managerRow}
+                meta={managerMeta}
+                emptyText="Nobody — this person reports to no one yet"
+                badge={managerIsViewer && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shrink-0">You</span>
+                )}
+                onOpen={openMember(managerId) && !managerIsViewer ? () => navigate(openMember(managerId)) : null}
+              />
+              <PersonCard
+                label="Head of department"
+                icon={HiStar}
+                help={{ surface: SURFACE, field: "head_of_department_id", label: "the head of department" }}
+                name={headName}
+                person={headRow}
+                meta={headMeta}
+                emptyText={deptName ? "No head assigned" : "No department, so no head"}
+                badge={isHead && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shrink-0">
+                    <HiStar className="w-3 h-3" /> This person
+                  </span>
+                )}
+                onOpen={!isHead && openMember(headId) ? () => navigate(openMember(headId)) : null}
+              />
+              <DepartmentTile
+                help={{ surface: SURFACE, field: "department_id", label: "the department" }}
+                name={deptName}
+                location={department?.location_name}
+                headcount={rosterBroken ? null : deptHeadcount}
+                closed={department?.is_active === false}
+                loading={state.loading}
+                error={state.error}
+                onRetry={load}
+              />
             </div>
-          </>
+
+            {(employee?.designation || (!deptName && onTransfer)) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {employee?.designation && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                    <HiBriefcase className="w-3.5 h-3.5" /> {employee.designation}
+                  </span>
+                )}
+                {!deptName && onTransfer && (
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Assign a department to place this person in the organisation.
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </DetailSection>
-
-      {/* Where their clock-ins are allowed: the mode, the base office, and the
-          client sites. HR can change the first two; both planes can assign a
-          site (§2 — the manager's own endpoints, one level deep). */}
-      <FieldAssignmentsPanel
-        key={userId}
-        userId={userId}
-        name={displayName}
-        viewer={viewer}
-        onEditWorkplace={onEditWorkplace}
-      />
 
       {isManager && (
         <DetailSection
           title={`Team members${rosterLoading ? "" : ` (${team.length})`}`}
           icon={HiUserGroup}
+          /* A manager of thirty would otherwise bury the work-location group
+             under thirty cards. The count is in the title, so folded still
+             answers "how many" (§3). */
+          defaultOpen={rosterLoading || team.length <= TEAM_FOLD_ABOVE}
           action={!rosterLoading && !rosterBroken && team.length > 0 && (
             <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
               {teamDepts.length > 1 && (
@@ -415,7 +597,7 @@ export default function ReportingLocationTab({
               className="py-8"
             />
           ) : (
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {filteredTeam.map((member) => {
                 const path = openMember(member.user_id);
                 const card = (
@@ -467,6 +649,34 @@ export default function ReportingLocationTab({
           )}
         </DetailSection>
       )}
+
+      <GroupLabel>Where they work</GroupLabel>
+
+      {/* Where their clock-ins are allowed: the mode, the base office, and the
+          client sites. HR can change the first two; both planes can assign a
+          site (§2 — the manager's own endpoints, one level deep). */}
+      <FieldAssignmentsPanel
+        key={userId}
+        userId={userId}
+        name={displayName}
+        viewer={viewer}
+        onEditWorkplace={onEditWorkplace}
+      />
+
+      {/* Where they are RIGHT NOW, which is the same question as the panel
+          above in the present tense — a fix means nothing until you can see
+          which sites it should be near. Hides itself entirely when the
+          organisation has location checks off, when this role may not use
+          them, and on your own record (§2). */}
+      <LiveLocationPanel
+        key={`locate-${userId}`}
+        userId={userId}
+        /* Never the id, even as a last resort (§4) — an unresolved person is
+           "this person", which is still true and still readable. */
+        name={displayName || nameOf(userId, "This person")}
+        person={entryOf?.(userId) || employee}
+        viewer={viewer}
+      />
     </div>
   );
 }

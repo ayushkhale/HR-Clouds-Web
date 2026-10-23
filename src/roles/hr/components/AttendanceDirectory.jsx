@@ -20,6 +20,9 @@ import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadg
 import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
 import { punchesState } from "../../../shared/attendance/punchMeta";
 import DailyLogDialog from "../../../shared/attendance/DailyLogDialog";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import LocateDialogHost, { LocateCell } from "../../../shared/attendance/LocateQuickAction";
+import { LOCATE_COLUMN_LABEL, LOCATE_SURFACE, useLocateColumn } from "../../../shared/attendance/locateColumn";
 
 const TABS = [
   { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance, role: "employee" },
@@ -96,6 +99,14 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
     return name === PLACEHOLDER_NAME ? orgNames?.get(record.user_id) || name : name;
   };
 
+  // "Ask where they are", one press from the live list — the quickest place HR
+  // reaches for when someone is marked present and unreachable. The column is
+  // only drawn when the organisation has the feature on, the date is today and
+  // at least one person on this page can actually be asked (§5), so on a past
+  // date or a page of nobody-clocked-in it disappears rather than greying out.
+  const locate = useLocateColumn({ viewer: "hr", date });
+  const showLocate = locate.show && list.items.some(locate.canAsk);
+
   return (
     <>
     <div className="space-y-6">
@@ -149,6 +160,11 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Clock In</th>
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Clock Out</th>
                     <th className="px-6 py-3.5 text-right text-[11px] uppercase tracking-wide">Hours</th>
+                    {showLocate && (
+                      <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">
+                        <HelpLabel text={LOCATE_COLUMN_LABEL} help={{ surface: LOCATE_SURFACE, field: "column", label: "the Location column" }} />
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -199,6 +215,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                         <td className="px-6 py-3.5 text-right text-sm">
                           <LiveEffectiveHours record={record} />
                         </td>
+                        {showLocate && <LocateCell column={locate} row={record} name={name} />}
                       </tr>
                     );
                   })}
@@ -213,6 +230,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
       </div>
     </div>
     {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    <LocateDialogHost column={locate} />
     {openDay && (
       <DailyLogDialog
         userId={openDay.userId}

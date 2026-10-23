@@ -241,6 +241,11 @@ function DashboardSidebar({ role = "guest" }) {
         // so one entry serves all three workspaces.
         link("My Schedule & Rules", `${base}/my-schedule`, HiOutlineCalendar),
         link("My Work Locations", `${base}/my-locations`, HiLocationMarker),
+        // Who has asked where this person is, and the notice they accept once
+        // (23 Oct 2026). Beside My Work Locations because it answers the same
+        // question in the present tense. One entry for all three workspaces:
+        // an HR admin can be located by another HR admin, so everybody needs it.
+        link("My Location Checks", `${base}/location-checks`, HiShieldCheck),
         link("My Leaves", pay.leaves, HiCalendar),
         link(`My ${REGULARIZATION}s`, `${base}/regularizations`, HiClipboardList),
         link("My Overtime", `${base}/overtime`, HiLightningBolt),
@@ -398,6 +403,11 @@ function DashboardSidebar({ role = "guest" }) {
               // organisation's people and their devices, not about hours
               // (user decision, 16 Oct 2026 — it was "Device Checks" under Time).
               ...(showDeviceAdmin ? [link("Registered Devices", `${H}/attendance/registered-devices`, HiDeviceMobile)] : []),
+              // Whether anyone may ask a colleague's phone where it is, and on
+              // what terms (23 Oct 2026). Here rather than under Time for the
+              // same reason as Registered Devices — it is a decision about
+              // people and their phones, not about hours.
+              link("Live Location Checks", `${H}/attendance/live-location`, HiShieldCheck),
             ]),
             // Which days are working days, then the hours on them and who works
             // them, then the rules applied to those hours, then what working an
