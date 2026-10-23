@@ -46,6 +46,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HiChatAlt2, HiCog, HiDownload, HiExclamationCircle, HiInformationCircle, HiStar,
 } from "react-icons/hi";
+import { tasksAPI } from "../api";
 import { DetailSection } from "../components/DetailDialog";
 import GenderAvatar from "../components/GenderAvatar";
 import FieldHelp from "../fieldHelp/FieldHelp";
@@ -411,12 +412,24 @@ function CommentComposer({ taskId, onPost }) {
     setSaving(true);
     setError("");
     try {
+      // Confirm the staged uploads now, not when they were picked. A file the
+      // user then unpicked never reaches this loop, so no row is written for
+      // it in `task_attachments` and the assignee never sees it. #269 is
+      // idempotent on `storage_key`, so a retry after a half-way failure
+      // replays rather than duplicating.
+      const confirmed = [];
+      for (const file of files) {
+        if (file.attachment?.id) { confirmed.push(file); continue; }
+        const res = await tasksAPI.confirmTaskAttachment(file.token);
+        const body = res?.data ?? res ?? {};
+        confirmed.push({ ...file, attachment: body.attachment ?? body });
+      }
       await onPost({
         message: trimmed,
         is_progress_update: milestone,
-        attachment_ids: files.map((file) => file.attachment?.id).filter(Boolean),
+        attachment_ids: confirmed.map((file) => file.attachment?.id).filter(Boolean),
         external_links: cleanLinks(links),
-      }, files);
+      }, confirmed);
       setMessage("");
       setMilestone(false);
       setLinks([]);
@@ -490,6 +503,7 @@ function CommentComposer({ taskId, onPost }) {
             taskId={taskId}
             context="comment"
             label="Files"
+            deferConfirm
           />
           <TaskLinksField
             rows={links}

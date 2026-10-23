@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
@@ -21,6 +21,7 @@ import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
 import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
 import { punchesState, punchesTruncated } from "../../../shared/attendance/punchMeta";
+import DailyLogDialog from "../../../shared/attendance/DailyLogDialog";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 import { greetingFor } from "../../../shared/utils/greeting";
@@ -98,7 +99,6 @@ function useTeamToday({ enabled = true } = {}) {
 // `team` is a useTeamToday() result owned by the caller; without it the table
 // loads its own.
 export function TeamDirectoryTable({ title = "Attendance Directory", headingLevel = "h2", description, team }) {
-  const navigate = useNavigate();
   const Heading = headingLevel;
   const own = useTeamToday({ enabled: !team });
   const state = team || own;
@@ -106,6 +106,10 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
   // The clock-in/out punch (coords + photo) a reader asked to enlarge, lifted
   // out of the row so the viewer is a sibling of the table, not nested (§3).
   const [viewPunch, setViewPunch] = useState(null);
+  // The team member whose day a reader opened. Selecting a row opens today's
+  // full breakdown in place (the same DailyLogDialog the member's profile tab
+  // uses) instead of sending the manager off to the profile screen.
+  const [openDayId, setOpenDayId] = useState(null);
 
   // Contract §8.2: the server computes this endpoint's "today" in UTC, so while
   // the local date is ahead of the UTC date (e.g. 00:00–05:30 IST) it still
@@ -170,14 +174,15 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     const dept = departmentName(mem);
                     const shift = mem.shift || mem.shift_snapshot;
                     const id = mem.user_id || mem.id;
-                    const open = () => id && navigate(`/dashboard/manager/team/member/${id}?tab=attendance`);
+                    const open = () => id && setOpenDayId(id);
                     return (
                       <tr
                         key={id || name}
                         onClick={open}
                         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), open())}
                         tabIndex={id ? 0 : -1}
-                        role={id ? "link" : undefined}
+                        role={id ? "button" : undefined}
+                        aria-haspopup={id ? "dialog" : undefined}
                         aria-label={id ? `Open ${name}'s attendance` : undefined}
                         className={`transition-colors outline-none ${id ? "hover:bg-purple-50/30 focus:bg-purple-50/40 cursor-pointer" : ""}`}
                       >
@@ -231,6 +236,14 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
       )}
     </div>
     {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    {openDayId && (
+      <DailyLogDialog
+        userId={openDayId}
+        date={todayYMD()}
+        viewer="manager"
+        onClose={() => setOpenDayId(null)}
+      />
+    )}
     </>
   );
 }

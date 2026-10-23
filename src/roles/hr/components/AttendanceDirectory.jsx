@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { attendanceAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { HiSearch, HiChevronLeft, HiChevronRight, HiUsers, HiBriefcase, HiShieldCheck, HiRefresh } from "react-icons/hi";
@@ -20,11 +19,12 @@ import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attenda
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
 import { punchesState } from "../../../shared/attendance/punchMeta";
+import DailyLogDialog from "../../../shared/attendance/DailyLogDialog";
 
 const TABS = [
-  { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance },
-  { value: "managers", label: "Managers", icon: HiBriefcase, fetch: attendanceAPI.getAllManagersAttendance },
-  { value: "hr", label: "HR", icon: HiShieldCheck, fetch: attendanceAPI.getAllHRsAttendance },
+  { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance, role: "employee" },
+  { value: "managers", label: "Managers", icon: HiBriefcase, fetch: attendanceAPI.getAllManagersAttendance, role: "manager" },
+  { value: "hr", label: "HR", icon: HiShieldCheck, fetch: attendanceAPI.getAllHRsAttendance, role: "hr" },
 ];
 const AUTO_REFRESH_MS = 120_000;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -33,7 +33,6 @@ const SEARCH_DEBOUNCE_MS = 350;
 // keeps the section heading "Attendance Directory".
 function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, headingLevel = "h2" }) {
   const Heading = headingLevel;
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("employees");
   const [date, setDate] = useState(todayYMD());
   const [searchInput, setSearchInput] = useState("");
@@ -42,6 +41,10 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
   // The clock-in/out punch (coords + photo) a reader asked to see, lifted out of
   // the row so the viewer is a sibling of the table, not nested in a <tr> (§3).
   const [viewPunch, setViewPunch] = useState(null);
+  // The person whose day a reader opened. Selecting a row opens the day's full
+  // breakdown in place (the same DailyLogDialog the profile tab uses), rather
+  // than ejecting to the profile screen for one day's figures.
+  const [openDay, setOpenDay] = useState(null);
   const today = todayYMD();
   const tab = TABS.find((t) => t.value === activeTab) || TABS[0];
 
@@ -70,7 +73,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
   useAttendanceChanged([ATTENDANCE_EVENTS.LOCK, ATTENDANCE_EVENTS.REGULARIZATION], reloadList);
 
   const filtered = !!(search || status);
-  const openProfile = (userId) => userId && navigate(`/dashboard/hr/employees/${userId}?tab=attendance`);
+  const openDayFor = (userId) => userId && setOpenDay({ userId, role: tab.role });
 
   // Until the backend creates the missing profile rows, resolve "Unknown" names
   // from the organisation list, whose name falls back to the login email.
@@ -165,10 +168,11 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                     return (
                       <tr
                         key={record.user_id || record.id || idx}
-                        onClick={() => openProfile(record.user_id)}
-                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openProfile(record.user_id))}
+                        onClick={() => openDayFor(record.user_id)}
+                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openDayFor(record.user_id))}
                         tabIndex={0}
-                        role="link"
+                        role="button"
+                        aria-haspopup="dialog"
                         aria-label={`Open ${name}'s attendance`}
                         className="hover:bg-slate-50/50 focus:bg-purple-50/40 outline-none transition-colors cursor-pointer"
                       >
@@ -209,6 +213,15 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
       </div>
     </div>
     {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    {openDay && (
+      <DailyLogDialog
+        userId={openDay.userId}
+        date={date}
+        employeeRole={openDay.role}
+        viewer="hr"
+        onClose={() => setOpenDay(null)}
+      />
+    )}
     </>
   );
 }

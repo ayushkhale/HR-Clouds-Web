@@ -200,7 +200,7 @@ export function TaskLinkList({ links }) {
  * @param {Array}  props.files    [{ token, file_name, file_size_bytes, attachment }]
  * @param {string} [props.taskId]
  */
-export function TaskAttachmentsField({ files, onChange, taskId, context = "briefing", max = TASK_LIMITS.ATTACHMENTS_PER_WRITE, help, label = "Attachments", disabled = false }) {
+export function TaskAttachmentsField({ files, onChange, taskId, context = "briefing", max = TASK_LIMITS.ATTACHMENTS_PER_WRITE, help, label = "Attachments", disabled = false, deferConfirm = false }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -220,7 +220,7 @@ export function TaskAttachmentsField({ files, onChange, taskId, context = "brief
     busyRef.current = true;
     setBusy(true);
     try {
-      const uploaded = await uploadTaskFile({ file, taskId, context });
+      const uploaded = await uploadTaskFile({ file, taskId, context, deferConfirm });
       onChange([...files, uploaded]);
     } catch (err) {
       setError(taskUploadErrorMessage(err));
