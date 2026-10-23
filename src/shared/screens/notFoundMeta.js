@@ -72,6 +72,7 @@ export const PUBLIC_PAGES = [
   { label: "Terms of Service", path: "/legal/terms", section: "Legal", keywords: "terms conditions" },
   { label: "Cookie Policy", path: "/legal/cookies", section: "Legal", keywords: "cookies" },
   { label: "Statutory Guidelines", path: "/legal/statutory", section: "Legal", keywords: "pf esi tax compliance law" },
+  { label: "Employee Account Deletion", path: "/legal/account-deletion", section: "Legal", keywords: "delete account remove data erase close" },
 ];
 
 /**

@@ -30,15 +30,45 @@ export function Bullets({ items }) {
   );
 }
 
+export function Steps({ items }) {
+  return (
+    <ol className="space-y-3">
+      {items.map((item, i) => (
+        <Reveal
+          as="li"
+          key={i}
+          variant="riseSmall"
+          index={i}
+          stagger={70}
+          className="flex gap-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5"
+        >
+          <span className="grid flex-none place-items-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 text-sm font-bold">
+            {i + 1}
+          </span>
+          <span className="pt-1 leading-relaxed">{item}</span>
+        </Reveal>
+      ))}
+    </ol>
+  );
+}
+
+/* The photograph behind every legal hero. Hotlinked from Pexels with their
+   compression params, the way the testimonial and team images already are, and
+   held at 60% over the near-black primary-500 so the header stays dark enough
+   for white text. One constant, because one shell renders all five documents. */
+const HERO_IMAGE =
+  "https://images.pexels.com/photos/13062477/pexels-photo-13062477.jpeg?auto=compress&cs=tinysrgb&w=1600";
+
 const LEGAL_LINKS = [
   { to: "/legal/privacy", label: "Privacy Policy" },
   { to: "/legal/terms", label: "Terms of Service" },
   { to: "/legal/cookies", label: "Cookie Policy" },
   { to: "/legal/statutory", label: "Statutory Guidelines" },
+  { to: "/legal/account-deletion", label: "Account Deletion" },
 ];
 
 /**
- * Shared shell for every legal document: purple hero, centred column of prose,
+ * Shared shell for every legal document: photographic hero, centred column of prose,
  * cross-links to the sibling policies, and the entity block when the company
  * details in company.js have been filled in.
  */
@@ -47,6 +77,21 @@ function LegalPage({ title, summary, children }) {
     <div className="min-h-screen bg-white">
       {/* Hero */}
       <section className="relative bg-primary-500 overflow-hidden pt-32 pb-16 sm:pt-36 sm:pb-20">
+        {/* Decorative only: the heading carries the meaning, so it is hidden
+            from assistive tech. Sits under the glows and the text column. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60 pointer-events-none"
+          style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+        />
+        {/* Scrim, not a second dimming of the photo: the picture is mid-tone
+            in places and white-on-mid-grey fails contrast, so the darkness is
+            weighted towards the bottom where the title, summary and date sit
+            while the top of the frame stays photographic. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-t from-primary-500/95 via-primary-500/70 to-primary-500/25 pointer-events-none"
+        />
         <div className="left-[-10%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-10 blur-3xl rounded-[50%] w-[40rem] h-40 -rotate-45 pointer-events-none" />
         <div className="bottom-0 right-[-10%] absolute bg-gradient-to-r from-purple-500/20 to-transparent blur-3xl rounded-[50%] w-[35rem] h-40 pointer-events-none" />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-8">

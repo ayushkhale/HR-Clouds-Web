@@ -30,6 +30,7 @@ const footerCols = [
       { name: "Privacy Policy", path: "/legal/privacy" },
       { name: "Terms of Service", path: "/legal/terms" },
       { name: "Statutory Guidelines", path: "/legal/statutory" },
+      { name: "Account Deletion", path: "/legal/account-deletion" },
     ],
   },
 ];
