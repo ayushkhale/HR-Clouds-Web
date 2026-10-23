@@ -23,6 +23,7 @@ import TermsOfService from "../landing/pages/legal/TermsOfService";
 // which took the whole router (and so the whole app) down in `npm run dev`.
 import CookiePolicy from "../landing/pages/legal/BrowserStoragePolicy";
 import StatutoryGuidelines from "../landing/pages/legal/StatutoryGuidelines";
+import EmployeeAccountDeletion from "../landing/pages/legal/EmployeeAccountDeletion";
 
 // Auth Layout & Pages
 import AuthLayout from "../auth/AuthLayout";
@@ -319,6 +320,9 @@ function AppRoutes() {
         <Route path="legal/terms" element={<TermsOfService />} />
         <Route path="legal/cookies" element={<CookiePolicy />} />
         <Route path="legal/statutory" element={<StatutoryGuidelines />} />
+        {/* Published for the app stores, which require a signed-out page
+            explaining how an account gets deleted. Keep it reachable. */}
+        <Route path="legal/account-deletion" element={<EmployeeAccountDeletion />} />
       </Route>
 
       {/* ─── AUTHENTICATION ROUTES ─── */}
