@@ -10,6 +10,11 @@
 // the active/inactive switch. `POST` and `PUT /organizations/locations` are
 // super-admin/admin/hr only (public/ref docs/md_organization/3_org_structure_api.md),
 // so the manager page mounts the same view with those props left off.
+//
+// The dialog's search box and pin drag go through shared/utils/geocoding.js
+// (Google Geocoding v4, then Nominatim — 2026-10-24) like every other map. It
+// used to call Nominatim inline, which would have left offices on one provider
+// while sites and the app's clock-in photo moved to another.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useRef } from "react";
@@ -18,6 +23,7 @@ import { HiPlus, HiX, HiSearch } from "react-icons/hi";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 import { useOfficeLocations } from "../../../../shared/attendance/officePlanes";
 import OfficeLocationsView from "../../../../shared/attendance/OfficeLocationsView";
+import { reverseGeocode, searchPlaces } from "../../../../shared/utils/geocoding";
 
 // Best-effort default timezone for new locations. The backend defaults to UTC
 // when omitted, which silently breaks attendance geofence/clock calculations,
@@ -96,22 +102,18 @@ function AttendanceLocationsPage() {
         setForm(prev => ({ ...prev, latitude: pos.lat.toFixed(6), longitude: pos.lng.toFixed(6) }));
         circle.setLatLng(pos);
         
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}&addressdetails=1`);
-          const data = await res.json();
-          if (data && data.address) {
-            setForm(prev => ({
-              ...prev,
-              address: data.display_name,
-              city: data.address.city || data.address.town || data.address.village || "",
-              state: data.address.state || "",
-              country: data.address.country || "",
-              pincode: data.address.postcode || ""
-            }));
-            setSearchQuery(data.display_name);
-          }
-        } catch (err) {
-          console.error("Reverse geocoding failed", err);
+        // Soft, like every geocode: no address found leaves the pin where it was dropped.
+        const place = await reverseGeocode(pos.lat, pos.lng);
+        if (place) {
+          setForm(prev => ({
+            ...prev,
+            address: place.address,
+            city: place.city,
+            state: place.state,
+            country: place.country,
+            pincode: place.pincode
+          }));
+          setSearchQuery(place.address);
         }
       });
 
@@ -168,8 +170,7 @@ function AttendanceLocationsPage() {
     setIsSearching(true);
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&addressdetails=1`);
-        const data = await res.json();
+        const data = await searchPlaces(searchQuery);
         if (data && data.length > 0) {
           setSuggestions(data.slice(0, 5)); // show top 5
           setShowSuggestions(true);

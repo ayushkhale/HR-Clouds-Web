@@ -55,6 +55,11 @@ export const ENV = {
     import.meta.env.VITE_DOCMIND_API_URL,
     'https://api.codewithrishi.fun/api/public'
   ),
+
+  // Google Geocoding v4 — address <-> coordinates (shared/utils/geocoding.js).
+  // No key -> OpenStreetMap only, exactly as before. Today a Maps DEMO key (no
+  // billing, a small daily allowance); it ships in the bundle like every VITE_ value.
+  GOOGLE_MAPS_API_KEY: cleanString(import.meta.env.VITE_GOOGLE_MAPS_API_KEY, ''),
 };
 
 // Where this build talks, said once at boot in every mode — the line that would

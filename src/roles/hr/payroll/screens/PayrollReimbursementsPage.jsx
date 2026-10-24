@@ -6,6 +6,7 @@ import { payrollAPI } from "../../../../shared/api";
 import {
   HiPlus, HiSearch, HiRefresh, HiChevronLeft, HiChevronRight, HiExclamationCircle,
   HiReceiptRefund, HiX, HiCheck, HiTag, HiPencil, HiBan, HiRefresh as HiReactivate,
+  HiCalendar,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
@@ -643,8 +644,40 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
             {months.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
           <PersonSelect className="w-64" people={directory.options} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} clearLabel="Any employee" aria-label="Employee" />
-          <input type="date" aria-label="Submitted from" value={filters.created_from} onChange={(e) => setFilter("created_from", e.target.value)} className={selectCls} />
-          <input type="date" aria-label="Submitted to" value={filters.created_to} onChange={(e) => setFilter("created_to", e.target.value)} className={selectCls} />
+          <div className="inline-flex items-center gap-1.5 h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400 transition shrink-0">
+            <HiCalendar className="w-4 h-4 text-purple-600 shrink-0" />
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Submitted:</span>
+            <input
+              type="date"
+              aria-label="Submitted from"
+              title="Submitted from"
+              value={filters.created_from}
+              max={filters.created_to || undefined}
+              onChange={(e) => setFilter("created_from", e.target.value)}
+              className="w-[115px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
+            />
+            <span className="text-slate-300 select-none">→</span>
+            <input
+              type="date"
+              aria-label="Submitted to"
+              title="Submitted to"
+              value={filters.created_to}
+              min={filters.created_from || undefined}
+              onChange={(e) => setFilter("created_to", e.target.value)}
+              className="w-[115px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
+            />
+            {(filters.created_from || filters.created_to) && (
+              <button
+                type="button"
+                onClick={() => setFilters((f) => ({ ...f, created_from: "", created_to: "" }))}
+                className="text-slate-400 hover:text-purple-600 p-0.5 rounded transition"
+                title="Clear date range"
+                aria-label="Clear date range"
+              >
+                <HiX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
