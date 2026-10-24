@@ -56,6 +56,13 @@ export const ENV = {
     'https://api.codewithrishi.fun/api/public'
   ),
 
+  // Web Push VAPID public key — must be the pair of the server's private key
+  // (`PUSH_WEBPUSH_*`). Blank is the supported state, not a misconfiguration:
+  // with no key the browser cannot subscribe at all, so the "browser alerts"
+  // switch is absent rather than offered and broken (§2). The in-app inbox is
+  // unaffected — it is REST, and it is the source of truth; push is a nudge.
+  PUSH_VAPID_PUBLIC_KEY: cleanString(import.meta.env.VITE_PUSH_VAPID_PUBLIC_KEY, ''),
+
   // Google Geocoding v4 — address <-> coordinates (shared/utils/geocoding.js).
   // No key -> OpenStreetMap only, exactly as before. Today a Maps DEMO key (no
   // billing, a small daily allowance); it ships in the bundle like every VITE_ value.

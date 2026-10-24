@@ -6255,10 +6255,76 @@
           }
         },
         "fix_returned": {
-          "hint": "Whether your phone sent a position back. It won’t have if the phone was off, had no signal, or you weren’t clocked in at the time.",
+          "hint": "Whether your device sent a position back. It won’t have if you let the request pass, had no signal, or weren’t clocked in at the time.",
           "askMaya": {
             "enabled": true,
-            "question": "What happens if my phone doesn’t answer a location request?"
+            "question": "What happens if I don’t answer a location request?"
+          }
+        }
+      }
+    },
+    "notification.inbox": {
+      "kind": "data",
+      "description": "The Notifications page, mounted in all three workspaces. The feed is scoped to whoever is reading it, so every hint is written to the person about their own notifications.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "A record of what has happened to your requests, your pay and your work. Opening one takes you to the thing it is about.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What kinds of things show up in my notifications?"
+          }
+        },
+        "category": {
+          "hint": "Which part of HR Clouds a notification came from. Filtering here never hides anything permanently.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the notification groups like Pay and Tasks cover?"
+          }
+        },
+        "mark_all_read": {
+          "hint": "Clears the count on everything that has already arrived. Nothing is deleted, and anything landing while you press it stays unread.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between marking a notification read and clearing it?"
+          }
+        },
+        "actor_name": {
+          "tier": "onboarding",
+          "hint": "Who caused this. “The system” means a scheduled job did it — an expiry, a reminder or a payroll run — not a person.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do some notifications say they came from the system instead of a person?"
+          }
+        },
+        "read_at": {
+          "tier": "onboarding",
+          "hint": "When you opened it. It is yours alone — nobody is told whether you have read a notification.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Can anyone see whether I have read a notification?"
+          }
+        }
+      }
+    },
+    "notification.browser_alerts": {
+      "kind": "form",
+      "description": "Turning Web Push on for one browser: the card on the Notifications page, the nudge in the bell panel and the post-login prompt all read the same state.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "push_enabled": {
+          "hint": "Lets this browser pop up a short alert when something happens, even with the tab closed. It covers this browser only and switches off when you sign out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does turning on desktop alerts actually send to me?"
           }
         }
       }

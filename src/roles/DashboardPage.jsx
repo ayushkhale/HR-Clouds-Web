@@ -5,22 +5,25 @@
 // redirecting to /dashboard again would spin on "Loading workspace…" forever.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import { workspaceForRole } from "../shared/auth/permissions";
 
 function DashboardPage() {
   const { isAuthenticated, role, getDashboardPath, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const hasWorkspace = Boolean(workspaceForRole(role));
 
   useEffect(() => {
+    const search = location.search || "";
+    const hash = location.hash || "";
     if (!isAuthenticated) {
-      navigate("/auth/login", { replace: true });
+      navigate(`/auth/login${search}${hash}`, { replace: true });
     } else if (hasWorkspace) {
-      navigate(getDashboardPath(role), { replace: true });
+      navigate(`${getDashboardPath(role)}${search}${hash}`, { replace: true });
     }
-  }, [isAuthenticated, hasWorkspace, role, getDashboardPath, navigate]);
+  }, [isAuthenticated, hasWorkspace, role, getDashboardPath, navigate, location.search, location.hash]);
 
   if (isAuthenticated && !hasWorkspace) {
     const signOut = () => {

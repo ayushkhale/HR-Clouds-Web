@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect } from "rea
 import { tokenHelper, authAPI } from "../api";
 import { SESSION_EXPIRED_EVENT, TOKEN_KEY, decodeJWT } from "../api/client";
 import { dashboardPathForRole } from "../auth/permissions";
+import { releasePushDevice } from "../notifications/pushRegistration";
 
 const AuthContext = createContext();
 
@@ -228,7 +229,24 @@ export function AuthContextProvider({ children }) {
 
   // Logout — clear everything. There is no server-side logout: the backend has
   // no /auth/logout route (not in the API reference docs; POST returns 404).
-  const logout = useCallback(() => {
+  /**
+   * Deliberate sign-out — NOT the 401 path (`expireSession`), which has no
+   * usable token left to spend.
+   *
+   * Taking this browser off the push register happens FIRST, and it is a
+   * security step rather than housekeeping: a Web Push subscription belongs to
+   * the browser, not to the person. Leave it registered on a shared or company
+   * machine and the next person to sign in receives the previous one's leave
+   * decisions and payslip alerts on their lock screen. The DELETE needs the
+   * token, so it has to run before `clearSession`.
+   *
+   * It never throws and never blocks the exit — a registry that is briefly
+   * wrong is a smaller problem than somebody who cannot leave. Callers that
+   * don't await this still navigate away immediately; only the token's removal
+   * waits, by a few hundred milliseconds.
+   */
+  const logout = useCallback(async () => {
+    await releasePushDevice();
     clearSession();
     setSessionExpired(false);
   }, [clearSession]);

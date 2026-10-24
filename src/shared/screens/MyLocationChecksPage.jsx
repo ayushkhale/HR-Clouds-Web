@@ -28,18 +28,22 @@
 // · THE POSITION ITSELF IS NOT RETURNED HERE either — only `fix_returned`,
 //   whether the device answered. The inspector therefore has no map, and says
 //   so in its footer rather than leaving an empty hole (§5).
-// · ANSWERING HAPPENS ON THE PHONE. The request is delivered by push to a
-//   registered mobile device; this browser is not one, and registering it
-//   would need push credentials this app does not ship. So the page explains
-//   where the answering happens instead of offering a control that cannot
-//   work (§2 — absent, not broken).
+// · THIS BROWSER CAN ANSWER NOW (changed 2026-10-24). It could not when this
+//   page was written — no push credentials shipped — and the page said so.
+//   Both halves have since landed: the browser registers itself as a device
+//   (`pushRegistration.js`) and `LocationRequestResponder` takes the fix. The
+//   block that used to read "your phone, not this browser" is `AnsweringHere`,
+//   and it now varies with whether THIS browser's alerts are on, because that
+//   is what decides it. Leaving the old sentence up is what had HR telling
+//   web-only employees to install an app they didn't need.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from "react";
 import {
   HiLocationMarker, HiShieldCheck, HiRefresh, HiCheckCircle, HiDeviceMobile,
-  HiUser, HiClock,
+  HiUser, HiClock, HiBell, HiDesktopComputer,
 } from "react-icons/hi";
+import { useBrowserAlerts } from "../notifications/useBrowserAlerts";
 import DashboardTopBar from "../components/DashboardTopBar";
 import DetailDialog, {
   DetailFooterNote, DetailGrid, DetailSection, DetailText, displayValue, rowPreviewProps,
@@ -71,12 +75,67 @@ const ASKER_ROLE = {
 /**
  * What happened to a request, from the subject's side. They are not told
  * whether the check passed — only whether their device answered, which is the
- * part they can actually act on ("my phone was off", "I had no signal").
+ * part they can actually act on ("it was off", "I had no signal").
+ *
+ * "Your device", not "your phone": since 2026-10-24 a browser answers these
+ * too, and a person who shared from this laptop should not read that their
+ * phone did it.
  */
 function outcomeOf(row) {
-  if (row.fix_returned) return { label: "Your phone answered", tone: "emerald" };
-  if (row.responded_at) return { label: "Your phone answered", tone: "emerald" };
-  return { label: "Your phone didn’t answer", tone: "slate" };
+  if (row.fix_returned) return { label: "You answered", tone: "emerald" };
+  if (row.responded_at) return { label: "You answered", tone: "emerald" };
+  return { label: "Not answered", tone: "slate" };
+}
+
+/**
+ * Which devices of this person's can actually answer, and how to add this one.
+ *
+ * It is state-dependent rather than a flat sentence because the honest answer
+ * differs per browser: one with alerts on can answer, one without cannot, and
+ * one the person has blocked cannot be fixed from in here. Getting this wrong
+ * is what produced the `NO_ACTIVE_DEVICE` confusion in the first place.
+ */
+function AnsweringHere() {
+  const { state, busy, error, enable } = useBrowserAlerts();
+
+  if (state === "on") {
+    return (
+      <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200">
+        <HiDesktopComputer className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
+        <p className="text-xs text-slate-500 leading-relaxed">
+          This browser can answer. A request pops up here and on your desktop, and sharing is always a press —
+          one position, once. The HR Clouds app on your phone can answer too, if you use it.
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "off" || state === "stale") {
+    return (
+      <section className="rounded-2xl border border-purple-100 bg-purple-50/50 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <p className="flex-1 text-xs text-slate-600 leading-relaxed">
+          {error || "Turn on alerts and you can answer from this browser. Without them a request can only reach the HR Clouds app on your phone — and with neither, whoever asks is simply told you have no device set up."}
+        </p>
+        <button type="button" onClick={enable} disabled={busy} className={`${PRIMARY_BTN} shrink-0`}>
+          {busy ? <Spinner className="w-4 h-4" /> : <HiBell className="w-4 h-4" />}
+          {busy ? "Turning on…" : "Turn on alerts"}
+        </button>
+      </section>
+    );
+  }
+
+  // Blocked, or a browser/build with no push at all. Both end at the phone,
+  // and neither has a button here that would do anything (§2).
+  return (
+    <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200">
+      <HiDeviceMobile className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
+      <p className="text-xs text-slate-500 leading-relaxed">
+        {state === "blocked"
+          ? "This browser is blocking alerts from HR Clouds, so a request can’t reach you here. Allow notifications in its site settings — usually the padlock beside the address — or answer from the HR Clouds app on your phone."
+          : "Requests reach the HR Clouds app on your phone. Your phone shows you the request and sends one position back; there is nothing to switch on here."}
+      </p>
+    </div>
+  );
 }
 
 function OutcomePill({ outcome }) {
@@ -202,16 +261,11 @@ export default function MyLocationChecksPage() {
           </div>
         </section>
 
-        {/* Where the answering actually happens. Said plainly, because the
-            obvious guess — that this browser answers — is wrong. */}
-        <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200">
-          <HiDeviceMobile className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Requests go to the HR Clouds app on your phone, not to this browser. Your phone shows you the
-            request and sends one position back — there is nothing to switch on here, and closing this page
-            changes nothing.
-          </p>
-        </div>
+        {/* Where the answering happens. This used to say "your phone, not this
+            browser", and that is no longer true — but it is only true of a
+            browser whose alerts are on, so the block says which one this is
+            rather than a general promise. */}
+        <AnsweringHere />
 
         {error && <ErrorState error={error} onRetry={load} fallback="Couldn’t load your location checks." />}
 
@@ -339,7 +393,7 @@ function MyRequestInspector({ row, nameOf, onClose }) {
       footer={
         <DetailFooterNote>
           There’s nothing to approve or undo here — this is the record of what happened. The position your
-          phone sent isn’t shown back to you; it goes to the person who asked, and is deleted after your
+          device sent isn’t shown back to you; it goes to the person who asked, and is deleted after your
           organisation’s retention period.
         </DetailFooterNote>
       }
@@ -351,7 +405,7 @@ function MyRequestInspector({ row, nameOf, onClose }) {
             { label: "Who asked", value: asker },
             { label: "Their role", value: ASKER_ROLE[row.requester_role] || "A colleague" },
             { label: "Asked", value: fmtDateTime(row.created_at) },
-            { label: "Your phone answered", value: row.responded_at ? fmtDateTime(row.responded_at) : "It didn’t" },
+            { label: "You answered", value: row.responded_at ? fmtDateTime(row.responded_at) : "You didn’t" },
           ]}
         />
         <DetailText label="The reason they gave">{displayValue(row.reason)}</DetailText>

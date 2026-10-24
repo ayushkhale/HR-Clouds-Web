@@ -12,7 +12,11 @@ import { deviceTrustVisible } from "../attendance/deviceTrustMeta";
 import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE, TASK_PATHS } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
+import { useNotifications } from "../notifications/NotificationsContext";
+import { badgeLabel } from "../notifications/notificationMeta";
+import { NOTIFICATION_PATHS } from "../notifications/notificationTargets";
 import {
+  HiBell,
   HiTemplate,
   HiChatAlt2,
   HiCalendar,
@@ -68,6 +72,13 @@ function DashboardSidebar({ role = "guest" }) {
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar, setNav } = useSidebar();
+  // The same store the bell reads, so the menu entry and the bell can never
+  // show different counts. It is polled once for the whole app, not here.
+  const {
+    available: notificationsOn,
+    unreadCount: notificationUnread,
+    unreadCapped: notificationUnreadCapped,
+  } = useNotifications();
   const [inboxCount, setInboxCount] = useState(() => {
     if (role === "manager") return inboxTotal(peekManagerInboxCounts());
     if (role === "hr") return inboxTotal(peekHrInboxCounts());
@@ -158,9 +169,8 @@ function DashboardSidebar({ role = "guest" }) {
     }
   });
 
-  function handleLogout() {
-    tokenHelper.clear();
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate("/");
   }
 
@@ -190,6 +200,17 @@ function DashboardSidebar({ role = "guest" }) {
   const REGULARIZATION = DICTIONARY.TERMS.REGULARIZATION;
   const ENCASHMENT = DICTIONARY.TERMS.ENCASHMENT;
   const inboxBadge = { badge: inboxCount > 0 ? inboxCount : null };
+
+  // Notifications sits directly under Dashboard in all three workspaces — same
+  // position, same label, same badge (§2) — and disappears entirely, rather
+  // than greying out, when ops have the engine switched off. The count is the
+  // store's, so it matches the bell in the top bar at every moment.
+  const notificationsLink = (workspace) => (notificationsOn
+    ? [link("Notifications", NOTIFICATION_PATHS[workspace], HiBell, {
+      badge: badgeLabel(notificationUnread, notificationUnreadCapped),
+      badgeClass: "bg-purple-600 text-white",
+    })]
+    : []);
 
   // Self-service pages mount in every workspace under that workspace's prefix,
   // and every one of them starts with "My": that word is what tells an HR user
@@ -376,6 +397,7 @@ function DashboardSidebar({ role = "guest" }) {
           flat: true,
           items: [
             link("Dashboard", H, HiViewGrid),
+            ...notificationsLink("hr"),
             link("Inbox", `${H}/inbox`, HiInboxIn, inboxBadge),
           ],
         },
@@ -565,6 +587,7 @@ function DashboardSidebar({ role = "guest" }) {
           flat: true,
           items: [
             link("Dashboard", M, HiViewGrid),
+            ...notificationsLink("manager"),
             link("Inbox", `${M}/requests/inbox`, HiInboxIn, inboxBadge),
           ],
         },
@@ -661,7 +684,10 @@ function DashboardSidebar({ role = "guest" }) {
       {
         title: "MAIN",
         flat: true,
-        items: [link("Dashboard", "/dashboard/employee", HiViewGrid)],
+        items: [
+          link("Dashboard", "/dashboard/employee", HiViewGrid),
+          ...notificationsLink("employee"),
+        ],
       },
       { title: "MY TIME", icon: HiClock, items: me.time },
       { title: "MY TASKS", icon: HiClipboardCheck, items: me.tasks },
@@ -812,7 +838,7 @@ function DashboardSidebar({ role = "guest" }) {
           <span className="truncate">{item.label}</span>
         </span>
         {item.badge ? (
-          <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+          <span className={`${item.badgeClass || "bg-rose-500 text-white"} text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center`}>
             {item.badge}
           </span>
         ) : item.dot ? (

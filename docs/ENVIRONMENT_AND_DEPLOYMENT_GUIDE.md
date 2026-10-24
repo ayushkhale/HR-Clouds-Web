@@ -79,6 +79,7 @@ The frontend uses **Vite + React**. Unlike backend services that read environmen
 | **`VITE_RAZORPAY_KEY_ID`** | Razorpay Public Key for plan subscriptions | `rzp_test_...` *(Test transactions)* | `rzp_live_...` *(Real payments)* | `src/auth/pages/RegisterOrgPage.jsx` |
 | **`VITE_DOCMIND_API_KEY`** | Chatbot API Key for Maya AI assistant | `pk_live_...` | `pk_live_...` | `src/shared/hooks/useDocMindChat.js` |
 | **`VITE_DOCMIND_API_URL`** | Chatbot backend URL *(Optional)* | Default: `https://api.codewithrishi.fun/api/public` | Default: `https://api.codewithrishi.fun/api/public` | `src/shared/hooks/useDocMindChat.js` |
+| **`VITE_PUSH_VAPID_PUBLIC_KEY`** | Web Push VAPID Public Key *(Optional, enables browser push alerts)* | Uncompressed P-256 Base64URL string | Same or Prod VAPID public key | `src/shared/notifications/pushRegistration.js` |
 
 ---
 
@@ -168,6 +169,7 @@ Configure these in **GitHub Repository → Settings → Secrets and variables �
 | `VITE_DOCMIND_API_URL` | Custom Chatbot Endpoint *(Optional)* | Both | `https://api.codewithrishi.fun/api/public` |
 | `VITE_RAZORPAY_KEY_ID_TEST`| Razorpay Test Mode Key | **Dev** | `rzp_test_THx4QiTxpST25G` |
 | `VITE_RAZORPAY_KEY_ID_LIVE`| Razorpay Live Mode Key | **Prod** | `rzp_live_xxxxxxxxxxxxxx` |
+| `VITE_PUSH_VAPID_PUBLIC_KEY`| Web Push VAPID Public Key | Both | `BPToTybB--MCwb...` |
 
 ---
 

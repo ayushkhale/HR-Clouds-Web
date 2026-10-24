@@ -1116,3 +1116,23 @@ _Requires Feature Flag: `documents.access`_
 > **Not yet shipped (Phase 5):** the notification dispatch and overdue-sweeper crons. The outbox section on #267 is therefore labelled "queued" rather than claiming anything was sent — that is honest, not a defect, and it will start moving on its own when phase 5 lands.
 
 
+
+---
+
+## Notification Module (inbox + Web Push device registry, 2026-10-24)
+
+Contract: `md_notifications/notification_api_contract.md` and
+`md_updates/2026-10-24_notification_inbox_apis_and_push_payload.md`. The feed is
+scoped to the caller, so there is no HR or manager view of somebody else's
+notifications and no role plane here — one shared page is mounted under all
+three workspace prefixes, which is why every row below is ticked three times.
+
+| # | Endpoint | Method | Protected | Allowed Roles | Dashboard | Description | Route File | Controller | Service | Employee UI | HR UI | Manager UI |
+|---|----------|--------|-----------|---------------|-----------|-------------|-----------|------------|---------|-------------|-------|------------|
+| 271 | `/api/v1/notifications` | GET | Yes | any active tenant user | employee, hr, manager | The caller's own feed, newest first. `page`, `limit` (max **50**), `is_read` (the STRING `"true"`/`"false"`), `category`. **No Joi `stripUnknown`: an unrecognised query param is a `400`**, so filters must come from the fixed four. `503 FEATURE_DISABLED` when ops switch the engine off — the whole surface hides rather than erroring. | `notification.routes.js` | `notification.controller.js` | `notification.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 272 | `/api/v1/notifications/unread-count` | GET | Yes | any active tenant user | employee, hr, manager | `{ unread_count, is_capped }`. **Counting stops at `NOTIFICATION_UNREAD_COUNT_CAP` (100)** — `is_capped` means "at least this many", so the badge renders `99+` and never a raw number past the cap. Index-only and built to be polled; the web polls it every 60 s, foreground only. | `notification.routes.js` | `notification.controller.js` | `notification.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 273 | `/api/v1/notifications/:id/read` | PATCH | Yes | any active tenant user | employee, hr, manager | Marks one read. **Takes NO body** (`Joi.object({}).max(0)`). Idempotent, so an optimistic double-fire is harmless. `404 NOTIFICATION_NOT_FOUND` for somebody else's. | `notification.routes.js` | `notification.controller.js` | `notification.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 274 | `/api/v1/notifications/mark-all-read` | PATCH | Yes | any active tenant user | employee, hr, manager | **Watermarked to the request moment** — anything arriving mid-request stays unread, so the client re-reads the count instead of assuming zero. No body. | `notification.routes.js` | `notification.controller.js` | `notification.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 275 | `/api/v1/notifications/:id` | DELETE | Yes | any active tenant user | employee, hr, manager | **Hard delete.** A second DELETE returns `404`, which the client treats as success — the row is gone either way, and that was the intent. The business event itself is audited by its own module, so nothing is lost. | `notification.routes.js` | `notification.controller.js` | `notification.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 276 | `/api/v1/notifications/devices` | POST | Yes | any active tenant user | employee, hr, manager | Registers a push device. Web sends `{ platform: "web", push_token: JSON.stringify(PushSubscription), device_name }`. **Upserts on a hash of `push_token`**, so re-registering one browser returns the same row. Until a browser does this, every locate against a web-only employee is `422 NO_ACTIVE_DEVICE`. | `notification.routes.js` | `notification_device.controller.js` | `notification_device.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |
+| 277 | `/api/v1/notifications/devices/:id` | DELETE | Yes | any active tenant user | employee, hr, manager | De-registers this browser. **A security step, not housekeeping**: a subscription belongs to the browser, not the person, so sign-out calls this BEFORE clearing the token or the next user of a shared machine receives the previous one's alerts. | `notification.routes.js` | `notification_device.controller.js` | `notification_device.service.js` | [ ✅ ] | [ ✅ ] | [ ✅ ] |

@@ -266,7 +266,7 @@ export const LOCATION_NOTICE = Object.freeze({
     "Only while you are clocked in — nobody can ask where you are outside your shift.",
     "Only HR and your own manager can ask, and only if your organisation allows it.",
     "Whoever asks has to say why, and you can read that reason on this page.",
-    "Your phone shows you a notice every time. Nothing runs in the background between requests.",
+    "Your device shows you a notice every time, and sharing is always a press. Nothing runs in the background between requests.",
     "Only the single position your device sends back is kept, and only for as long as your organisation's retention setting allows.",
   ],
   consentVersion: "v1",

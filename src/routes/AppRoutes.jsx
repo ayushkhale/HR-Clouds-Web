@@ -77,6 +77,10 @@ const MyDevicesPage = lazy(() => import("../shared/screens/MyDevicesPage"));
 const MyWorkLocationsPage = lazy(() => import("../shared/screens/MyWorkLocationsPage"));
 const MySchedulePage = lazy(() => import("../shared/screens/MySchedulePage"));
 const MyLocationChecksPage = lazy(() => import("../shared/screens/MyLocationChecksPage"));
+// Everyone's own notification archive. One component, mounted under each
+// workspace's own prefix — the feed is scoped to the caller, so there is no
+// role version of it and no `viewer` prop (§2).
+const NotificationsPage = lazy(() => import("../shared/screens/NotificationsPage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
@@ -355,6 +359,7 @@ function AppRoutes() {
          between these routes keeps its scroll position and expanded sections. */}
       <Route element={<ProtectedRoute workspace="hr"><DashboardLayout role="hr" /></ProtectedRoute>}>
         <Route path="/dashboard/hr" element={<HRDashboard />} />
+        <Route path="/dashboard/hr/notifications" element={<NotificationsPage />} />
         <Route path="/dashboard/hr/inbox" element={<HRInboxPage />} />
         {/* The operational readiness checklist. HR-only and mounted under the
             HR prefix only: the endpoint behind it is HR_ONLY, so a manager
@@ -505,6 +510,7 @@ function AppRoutes() {
       {/* ─── MANAGER WORKSPACE ─── */}
       <Route element={<ProtectedRoute workspace="manager"><DashboardLayout role="manager" /></ProtectedRoute>}>
         <Route path="/dashboard/manager" element={<ManagerDashboard />} />
+        <Route path="/dashboard/manager/notifications" element={<NotificationsPage />} />
         <Route path="/dashboard/manager/attendance" element={<EmployeeAttendancePage />} />
         <Route path="/dashboard/manager/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
         <Route path="/dashboard/manager/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
@@ -575,6 +581,7 @@ function AppRoutes() {
       {/* ─── EMPLOYEE WORKSPACE ─── */}
       <Route element={<ProtectedRoute workspace="employee"><DashboardLayout role="employee" /></ProtectedRoute>}>
         <Route path="/dashboard/employee" element={<EmployeeDashboard />} />
+        <Route path="/dashboard/employee/notifications" element={<NotificationsPage />} />
         <Route path="/dashboard/employee/org-chart" element={<OrgChartPage />} />
         <Route path="/dashboard/employee/company" element={<CompanyProfilePage />} />
         <Route path="/dashboard/employee/attendance" element={<EmployeeAttendancePage />} />

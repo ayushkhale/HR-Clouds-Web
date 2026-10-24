@@ -147,7 +147,12 @@ const ATTENDANCE_ERROR_MESSAGES = {
   EMPLOYEE_NOT_CLOCKED_IN: "This person isn't clocked in right now, so they can only be asked for their location once their shift has started.",
   // 422, not 404 — the earlier draft of the guide got this wrong, so if you see
   // a 404 handler for it somewhere, that handler is the bug.
-  NO_ACTIVE_DEVICE: "This person hasn't set up a device that can answer, so there's nothing to ask. They'll need to sign in to the mobile app first.",
+  // Said "They'll need to sign in to the mobile app first" until 2026-10-24,
+  // which was wrong and sent HR chasing people for an app they didn't need: a
+  // browser can answer a location check as soon as it is registered for
+  // alerts. Keep both routes in this sentence — most web employees hit this
+  // because nobody told them to switch desktop alerts on.
+  NO_ACTIVE_DEVICE: "This person has no device set up to answer yet. They'll need to turn on alerts on their Notifications page, or sign in to the mobile app, before they can be asked.",
   LOCATE_COOLDOWN: "You asked this person very recently. Give it a moment before asking again.",
   LOCATE_DAILY_CAP_REACHED: "This person has been asked as many times today as your organisation allows.",
   LOCATE_RATE_LIMITED: "Your organisation has made a lot of location requests in the last hour. Try again shortly.",
