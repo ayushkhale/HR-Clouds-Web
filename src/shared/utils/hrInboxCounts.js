@@ -1,4 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
 // hrInboxCounts.js — How many items wait on HR in each approval queue, for the
 // HR Inbox page and its sidebar badge.
 //
@@ -37,12 +37,8 @@ export const HR_INBOX_QUEUES = [
   { key: "salaryApprovals", load: () => payrollAPI.getProposals({ status: "proposed" }).then(total(["proposals", "records"])) },
   {
     key: "claims",
-    // Claims wait on HR both straight after submission and after a manager's review.
-    load: () =>
-      Promise.all([
-        payrollAPI.getReimbursementClaims({ status: "submitted" }),
-        payrollAPI.getReimbursementClaims({ status: "under_review" }),
-      ]).then((results) => results.reduce((sum, res) => sum + total(["claims", "records"])(res), 0)),
+    // Claims waiting on HR review (under_review after manager approval; limit: 1 for pagination count only)
+    load: () => payrollAPI.getReimbursementClaims({ status: "under_review", limit: 1 }).then(total(["claims", "records"])),
   },
   { key: "loans", load: () => payrollAPI.getLoans({ status: "pending" }).then(total(["loans", "records"])) },
   {

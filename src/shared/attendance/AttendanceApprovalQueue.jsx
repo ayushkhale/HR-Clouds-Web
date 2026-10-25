@@ -228,7 +228,7 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const res = await cfg.fetch();
-      const items = listFrom(res, cfg.listKeys).sort((a, b) => itemDate(a).localeCompare(itemDate(b)));
+      const items = listFrom(res, cfg.listKeys).sort((a, b) => itemDate(b).localeCompare(itemDate(a)) || String(b.id || "").localeCompare(String(a.id || "")));
       setState({ items, loading: false, error: null });
       onCountChange?.(type, items.length);
       prevLoadRef.current += 1;

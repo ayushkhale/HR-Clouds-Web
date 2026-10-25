@@ -814,23 +814,32 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
 
 const TABS = [["claims", "Claims"], ["categories", "Categories"]];
 
-/** embedded: HR Inbox view — the claims queue only, opened on submitted claims, without touching the host URL. */
-export default function PayrollReimbursementsPage({ embedded = false } = {}) {
+/** embedded: HR Inbox view — the claims queue only, opened on under_review claims, without touching the host URL. */
+export default function PayrollReimbursementsPage({ embedded = false, initialStatus } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [embeddedTab, setEmbeddedTab] = useState("claims");
   const { toast, showToast, hideToast } = useToast();
   const people = useEmployeeDirectory();
   const directory = people.directory;
   const nameOf = useCallback((id) => people.nameOf(id), [people]);
 
-  const rawTab = embedded ? "claims" : searchParams.get("tab");
+  const rawTab = embedded ? embeddedTab : searchParams.get("tab");
   const tab = TABS.some(([v]) => v === rawTab) ? rawTab : "claims";
-  const seedStatus = useRef(embedded ? "submitted" : searchParams.get("status") || "").current;
+  const seedStatus = useRef(initialStatus || (embedded ? "under_review" : searchParams.get("status") || "")).current;
 
   useEffect(() => {
-    if (rawTab && !TABS.some(([v]) => v === rawTab)) setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", "claims"); return n; }, { replace: true });
-  }, [rawTab, setSearchParams]);
+    if (!embedded && rawTab && !TABS.some(([v]) => v === rawTab)) {
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", "claims"); return n; }, { replace: true });
+    }
+  }, [embedded, rawTab, setSearchParams]);
 
-  const setTab = (value) => setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", value); return n; }, { replace: true });
+  const setTab = (value) => {
+    if (embedded) {
+      setEmbeddedTab(value);
+    } else {
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", value); return n; }, { replace: true });
+    }
+  };
 
   return (
     <>

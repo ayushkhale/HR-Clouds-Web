@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI, attendanceAPI } from "../../../shared/api";
+import { sortNewestFirst } from "../../../shared/utils/sortUtils";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
@@ -53,7 +54,7 @@ const LEAVE_STATUS_TABS = [
 ];
 
 // ─── Cancel Confirm Modal ─────────────────────────────────────────────────────
-function CancelConfirmModal({ request, onClose, onConfirm }) {
+function CancelConfirmModal({ request, onClose, onConfirm, busy }) {
   const needsApproval = hasLeaveStarted(request.start_date);
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -68,14 +69,19 @@ function CancelConfirmModal({ request, onClose, onConfirm }) {
         </div>
         <div className="p-6 flex gap-3">
           <button
+            type="button"
             onClick={onConfirm}
-            className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-2.5 rounded-xl transition"
+            disabled={busy}
+            className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2"
           >
-            {needsApproval ? "Request Cancellation" : "Yes, Cancel Leave"}
+            {busy && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />}
+            <span>{busy ? "Cancelling..." : (needsApproval ? "Request Cancellation" : "Yes, Cancel Leave")}</span>
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="px-5 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+            disabled={busy}
+            className="px-5 py-2.5 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50 transition"
           >
             Keep It
           </button>
@@ -649,10 +655,15 @@ function ApplyLeaveDrawer({ leaveTypes, balances = [], requests = [], onClose, o
           {/* Pinned like the header: at 768px tall the form outgrows the dialog
               and Submit used to scroll out of sight. */}
           <div className="flex gap-3 sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white border-t border-slate-100">
-            <button type="submit" disabled={loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-3 rounded-xl transition">
-              {loading ? "Submitting…" : "Submit Leave Request"}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2"
+            >
+              {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />}
+              <span>{loading ? "Submitting…" : "Submit Leave Request"}</span>
             </button>
-            <button type="button" onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Cancel</button>
+            <button type="button" disabled={loading} onClick={onClose} className="px-6 py-3 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50 transition">Cancel</button>
           </div>
         </form>
       </div>
@@ -853,7 +864,7 @@ export default function LeaveDashboard() {
   const loadRequests = useCallback(async () => {
     try {
       const res = await leaveAPI.getMyRequests();
-      setRequests(res.data || []);
+      setRequests(sortNewestFirst(res.data || []));
     } catch { /* non-critical */ }
   }, []);
 
@@ -894,9 +905,8 @@ export default function LeaveDashboard() {
   }
 
   async function executeCancelRequest() {
-    if (!cancelTarget) return;
+    if (!cancelTarget || cancelling) return;
     const id = cancelTarget.id;
-    setCancelTarget(null);
     setCancelling(id);
     try {
       const res = await leaveAPI.cancelRequest(id);
@@ -906,6 +916,7 @@ export default function LeaveDashboard() {
       } else {
         showToast("Leave cancelled successfully.");
       }
+      setCancelTarget(null);
       await Promise.all([loadBalances(), loadRequests()]);
     } catch (err) {
       showToast(leaveErrorMessage(err, "Failed to cancel leave."), "error");
@@ -986,7 +997,8 @@ export default function LeaveDashboard() {
       {cancelTarget && (
         <CancelConfirmModal
           request={cancelTarget}
-          onClose={() => setCancelTarget(null)}
+          busy={cancelling === cancelTarget.id}
+          onClose={() => !cancelling && setCancelTarget(null)}
           onConfirm={executeCancelRequest}
         />
       )}

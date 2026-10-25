@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import { useEmployeeDirectory } from "../../../../shared/contexts/EmployeeDirectoryContext";
 import { leaveErrorMessage } from "../../../../shared/utils/leaveErrors";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
@@ -393,7 +394,7 @@ export default function HRLeaveRequestsPage() {
     setPendingLoading(true);
     try {
       const res = await leaveAPI.getTeamPendingRequests();
-      setPending(res.data || []);
+      setPending(sortNewestFirst(res.data || []));
     } catch (err) {
       showToast(leaveErrorMessage(err, "Failed to load pending requests."), "error");
     } finally {
@@ -408,7 +409,7 @@ export default function HRLeaveRequestsPage() {
       if (statusFilter) params.status = statusFilter;
       if (userFilter) params.user_id = userFilter;
       const res = await leaveAPI.getTeamRequests(params);
-      setHistory(res.data || []);
+      setHistory(sortNewestFirst(res.data || []));
     } catch (err) {
       showToast(leaveErrorMessage(err, "Failed to load leave history."), "error");
     } finally {

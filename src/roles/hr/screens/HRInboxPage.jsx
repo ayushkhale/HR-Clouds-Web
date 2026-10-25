@@ -62,7 +62,7 @@ const GROUPS = [
     cols: "lg:grid-cols-4",
     items: [
       { key: "salaryApprovals", label: "Salary approvals", hint: "Proposed salary structures", icon: HiCurrencyRupee, render: () => <PayrollApprovalsPage /> },
-      { key: "claims", label: "Claims", hint: "New and manager-reviewed claims", icon: HiReceiptRefund, render: () => <PayrollReimbursementsPage embedded /> },
+      { key: "claims", label: "Claims", hint: "Manager-reviewed claims awaiting final approval", icon: HiReceiptRefund, render: () => <PayrollReimbursementsPage embedded /> },
       { key: "loans", label: "Loans & advances", hint: "Loan requests to approve", icon: HiCash, render: () => <PayrollLoansPage initialStatus="pending" /> },
       { key: "declarations", label: "Tax declarations", hint: "Submitted this financial year", icon: HiClipboardCheck, render: () => <TaxDeclarationsPage /> },
     ],

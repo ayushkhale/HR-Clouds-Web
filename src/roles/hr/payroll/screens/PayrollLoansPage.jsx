@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
@@ -107,6 +108,11 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
   const [foreclosing, setForeclosing] = useState(null); // loan
   const [fcForm, setFcForm] = useState({ settlement_mode: "recover_via_payroll", recovery_month: now.getMonth() + 1, recovery_year: now.getFullYear(), reason: "" });
 
+  const [submittingGrant, setSubmittingGrant] = useState(false);
+  const [submittingForeclose, setSubmittingForeclose] = useState(false);
+  const [submittingReject, setSubmittingReject] = useState(false);
+  const [actingLoanId, setActingLoanId] = useState(null);
+
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -117,7 +123,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
     setLoading(true);
     try {
       const loanRes = await payrollAPI.getLoans(statusFilter ? { status: statusFilter } : undefined);
-      setLoans(loanRes.data?.records || loanRes.data || []);
+      setLoans(sortNewestFirst(loanRes.data?.records || loanRes.data || []));
     } catch (err) {
       showToast(err.message || "Failed to load loans", "error");
     } finally {
@@ -138,7 +144,9 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingGrant) return;
     if (!form.user_id) return showToast("Choose an employee", "error");
+    setSubmittingGrant(true);
     try {
       const payload = {
         loan_type: form.loan_type,
@@ -159,10 +167,14 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
       loadData();
     } catch (err) {
       showToast(err.message || "Failed to grant loan", "error");
+    } finally {
+      setSubmittingGrant(false);
     }
   };
 
-  const act = async (fn, okMsg) => {
+  const act = async (loanId, fn, okMsg) => {
+    if (actingLoanId) return;
+    setActingLoanId(loanId);
     try {
       await fn();
       showToast(okMsg);
@@ -172,21 +184,30 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
       loadData();
     } catch (err) {
       showToast(err.message || "Action failed", "error");
+    } finally {
+      setActingLoanId(null);
     }
   };
 
   // window.confirm resolves asynchronously (GlobalAlertProvider) — always await it.
   const handleCancelLoan = async (loan) => {
+    if (actingLoanId) return;
     if (!(await window.confirm("Cancel this loan? Only allowed with zero deducted installments."))) return;
-    act(() => payrollAPI.cancelLoan(loan.id), "Loan cancelled");
+    act(loan.id, () => payrollAPI.cancelLoan(loan.id), "Loan cancelled");
   };
 
   const handleReject = async (e) => {
     e.preventDefault();
+    if (submittingReject) return;
     if (!rejectionReason.trim()) return showToast("Reason required", "error");
-    await act(() => payrollAPI.rejectLoan(rejectingId, { rejection_reason: rejectionReason }), "Loan rejected");
-    setRejectingId(null);
-    setRejectionReason("");
+    setSubmittingReject(true);
+    try {
+      await act(rejectingId, () => payrollAPI.rejectLoan(rejectingId, { rejection_reason: rejectionReason }), "Loan rejected");
+      setRejectingId(null);
+      setRejectionReason("");
+    } finally {
+      setSubmittingReject(false);
+    }
   };
 
   const openSchedule = async (loan) => {
@@ -207,6 +228,8 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
 
   const handleForeclose = async (e) => {
     e.preventDefault();
+    if (submittingForeclose) return;
+    setSubmittingForeclose(true);
     try {
       const payload = { settlement_mode: fcForm.settlement_mode, reason: fcForm.reason.trim() };
       if (fcForm.settlement_mode === "recover_via_payroll")
@@ -218,6 +241,8 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
       loadData();
     } catch (err) {
       showToast(err.message || "Failed to foreclose", "error");
+    } finally {
+      setSubmittingForeclose(false);
     }
   };
 
@@ -293,15 +318,47 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                           <div className="flex justify-end gap-1.5">
                             {l.status === "pending" && (
                               <>
-                                <button onClick={() => act(() => payrollAPI.approveLoan(l.id), "Loan approved — schedule generated")} className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition" title="Approve"><HiCheck className="w-4 h-4" /></button>
-                                <button onClick={() => setRejectingId(l.id)} className="p-1.5 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 rounded-lg transition" title="Reject"><HiX className="w-4 h-4" /></button>
+                                <button
+                                  type="button"
+                                  disabled={actingLoanId === l.id}
+                                  onClick={() => act(l.id, () => payrollAPI.approveLoan(l.id), "Loan approved — schedule generated")}
+                                  className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
+                                  title="Approve"
+                                >
+                                  {actingLoanId === l.id ? (
+                                    <span className="w-4 h-4 border-2 border-violet-600/30 border-t-violet-600 rounded-full animate-spin inline-block" />
+                                  ) : (
+                                    <HiCheck className="w-4 h-4" />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={actingLoanId === l.id}
+                                  onClick={() => setRejectingId(l.id)}
+                                  className="p-1.5 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
+                                  title="Reject"
+                                >
+                                  <HiX className="w-4 h-4" />
+                                </button>
                               </>
                             )}
                             {l.status === "active" && (
                               <button onClick={() => openForeclose(l)} className="px-2.5 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-purple-700 rounded-lg transition flex items-center gap-1"><HiLightningBolt className="w-3.5 h-3.5" /> Foreclose</button>
                             )}
                             {(l.status === "pending" || l.status === "active") && (
-                              <button onClick={() => handleCancelLoan(l)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Cancel"><HiTrash className="w-4 h-4" /></button>
+                              <button
+                                type="button"
+                                disabled={actingLoanId === l.id}
+                                onClick={() => handleCancelLoan(l)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
+                                title="Cancel"
+                              >
+                                {actingLoanId === l.id ? (
+                                  <span className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin inline-block" />
+                                ) : (
+                                  <HiTrash className="w-4 h-4" />
+                                )}
+                              </button>
                             )}
                           </div>
                         </td>
@@ -423,8 +480,21 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-6 sm:px-8 py-4 border-t border-slate-100 bg-slate-50/60 rounded-b-2xl">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 transition">Cancel</button>
-                <button type="submit" className="sm:min-w-[200px] px-6 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Grant Loan</button>
+                <button type="button" disabled={submittingGrant} onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingGrant}
+                  className="sm:min-w-[200px] px-6 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-purple-200 flex items-center justify-center gap-2"
+                >
+                  {submittingGrant ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Granting Loan...</span>
+                    </>
+                  ) : (
+                    "Grant Loan"
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -536,8 +606,21 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 <textarea required value={fcForm.reason} onChange={(e) => setFcForm({ ...fcForm, reason: e.target.value })} rows={2} className={`${fieldClass} resize-none`} placeholder="e.g. Employee requested early payoff" />
               </div>
               <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setForeclosing(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Foreclose</button>
+                <button type="button" disabled={submittingForeclose} onClick={() => setForeclosing(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingForeclose}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-purple-200 flex items-center justify-center gap-2"
+                >
+                  {submittingForeclose ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Foreclosing...</span>
+                    </>
+                  ) : (
+                    "Foreclose"
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -558,8 +641,21 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                 <textarea required value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} rows={3} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-rose-400 outline-none resize-none" placeholder="Provide a reason..." />
               </div>
               <div className="flex gap-3 pt-4 mt-2 border-t border-slate-100">
-                <button type="button" onClick={() => { setRejectingId(null); setRejectionReason(""); }} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md shadow-rose-200">Reject</button>
+                <button type="button" disabled={submittingReject} onClick={() => { setRejectingId(null); setRejectionReason(""); }} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingReject}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-rose-200 flex items-center justify-center gap-2"
+                >
+                  {submittingReject ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Rejecting...</span>
+                    </>
+                  ) : (
+                    "Reject"
+                  )}
+                </button>
               </div>
             </form>
           </div>

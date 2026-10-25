@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import InboxCard from "../../../shared/components/InboxCard";
 import { attendanceAPI, leaveAPI, tasksAPI } from "../../../shared/api";
+import { sortNewestFirst } from "../../../shared/utils/sortUtils";
 import { EmbeddedPageContext } from "../../../shared/contexts/EmbeddedPageContext";
 import TaskReviewScreen from "../../../shared/tasks/TaskReviewScreen";
 import { DICTIONARY } from "../../../shared/config/dictionary";
@@ -77,7 +78,7 @@ function ManagerApprovalsInbox() {
     try {
       const res = await leaveAPI.getTeamPendingRequests();
       const rows = res.success ? (res.data || []) : [];
-      setLeaves(rows);
+      setLeaves(sortNewestFirst(rows));
       setCounts((c) => ({ ...c, leaves: rows.length }));
     } catch {
       setLeaves([]);

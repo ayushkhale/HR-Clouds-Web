@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiPencil, HiTrash, HiDocumentText, HiEye, HiCog, HiCheck, HiInformationCircle, HiCurrencyRupee, HiCalculator } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
@@ -98,6 +99,8 @@ export default function PayrollTemplatesPage() {
   const [editingCompId, setEditingCompId] = useState(null);
   const [editComp, setEditComp] = useState({ calculation_type: "flat", value: "" });
   const [savingComp, setSavingComp] = useState(false);
+  const [submittingTemplate, setSubmittingTemplate] = useState(false);
+  const [submittingComp, setSubmittingComp] = useState(false);
 
   // Target-CTC budget for the Manage Components modal (frontend-only target).
   const [budgetTarget, setBudgetTarget] = useState("");
@@ -129,7 +132,7 @@ export default function PayrollTemplatesPage() {
         payrollAPI.getComponents({ is_active: true }),
         payrollAPI.getStatutoryConfig().catch(() => null),
       ]);
-      setTemplates(tplRes.data?.records || tplRes.data || []);
+      setTemplates(sortNewestFirst(tplRes.data?.records || tplRes.data || []));
       setComponents(compRes.data?.records || compRes.data || []);
       setStatutoryConfig(cfgRes?.data || null);
     } catch (err) {
@@ -154,6 +157,8 @@ export default function PayrollTemplatesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingTemplate) return;
+    setSubmittingTemplate(true);
     try {
       if (editingTemplate) {
         await payrollAPI.updateTemplate(editingTemplate.id, formData);
@@ -166,6 +171,8 @@ export default function PayrollTemplatesPage() {
       loadData();
     } catch (err) {
       showToast(err.message || "Failed to save template", "error");
+    } finally {
+      setSubmittingTemplate(false);
     }
   };
 
@@ -265,9 +272,11 @@ export default function PayrollTemplatesPage() {
   // requires a value even for balancing lines.
   const handleAddComponent = async (e, fillValue) => {
     e.preventDefault();
+    if (submittingComp) return;
     const payload = componentFormData.calculation_type === "balancing"
       ? { ...componentFormData, value: String(fillValue ?? 0) }
       : componentFormData;
+    setSubmittingComp(true);
     try {
       await payrollAPI.addTemplateComponent(managingTemplate.id, payload);
       showToast("Component added successfully");
@@ -277,6 +286,8 @@ export default function PayrollTemplatesPage() {
       setComponentFormData({ component_id: "", calculation_type: "flat", value: "" });
     } catch (err) {
       showToast(err.message || "Failed to add component", "error");
+    } finally {
+      setSubmittingComp(false);
     }
   };
 
@@ -602,8 +613,21 @@ export default function PayrollTemplatesPage() {
                 </select>
               </div>
               <div className="flex gap-3 pt-4 mt-6 border-t border-slate-100">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition">Save Template</button>
+                <button type="button" disabled={submittingTemplate} onClick={() => setIsModalOpen(false)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingTemplate}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                >
+                  {submittingTemplate ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    "Save Template"
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -756,7 +780,20 @@ export default function PayrollTemplatesPage() {
                     </p>
                   )}
                   <div className="col-span-2">
-                    <button type="submit" disabled={selectableComponents.length === 0} className="w-full px-4 py-2 bg-purple-600 text-white font-bold text-sm rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed">Add to Template</button>
+                    <button
+                      type="submit"
+                      disabled={selectableComponents.length === 0 || submittingComp}
+                      className="w-full px-4 py-2 bg-purple-600 text-white font-bold text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                    >
+                      {submittingComp ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                          <span>Adding...</span>
+                        </>
+                      ) : (
+                        "Add to Template"
+                      )}
+                    </button>
                   </div>
                 </form>
               </div>

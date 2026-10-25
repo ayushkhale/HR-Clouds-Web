@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiDatabase,
@@ -83,29 +84,35 @@ export default function PayrollAuditLogPage() {
   // Never show a raw UUID: unresolved ids read "Unknown user" (e.g. a system actor).
   const empName = useCallback((id) => nameOf(id, "Unknown user"), [nameOf]);
 
-  const loadLogs = useCallback(async () => {
+  useEffect(() => {
+    let active = true;
     setLoading(true);
-    try {
-      const params = { page, limit: PAGE_SIZE };
-      Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
-      const res = await payrollAPI.getAuditLogs(params);
-      const body = res?.data;
-      setLogs(Array.isArray(body) ? body : body?.records || body?.logs || []);
-      // Payroll lists send `pagination` next to `data`; older shapes nested it.
-      const meta = res?.pagination || body?.pagination || null;
-      const total = meta?.total ?? body?.total ?? null;
-      const pages = meta?.total_pages ?? meta?.totalPages ?? body?.pages
-        ?? (total != null ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null);
-      setPageInfo({ total, pages });
-    } catch (err) {
-      showToast(payrollErrorMessage(err, "Failed to load audit logs"), "error");
-      setLogs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, filters, showToast]);
+    const params = { page, limit: PAGE_SIZE };
+    Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
 
-  useEffect(() => { loadLogs(); }, [loadLogs]);
+    payrollAPI.getAuditLogs(params)
+      .then((res) => {
+        if (!active) return;
+        const body = res?.data;
+        const rawLogs = Array.isArray(body) ? body : body?.records || body?.logs || [];
+        setLogs(sortNewestFirst(rawLogs));
+        const meta = res?.pagination || body?.pagination || null;
+        const total = meta?.total ?? body?.total ?? null;
+        const pages = meta?.total_pages ?? meta?.totalPages ?? body?.pages
+          ?? (total != null ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null);
+        setPageInfo({ total, pages });
+      })
+      .catch((err) => {
+        if (!active) return;
+        showToast(payrollErrorMessage(err, "Failed to load audit logs"), "error");
+        setLogs([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [page, filters, showToast]);
 
   const applyFilters = (e) => {
     e?.preventDefault();
@@ -161,11 +168,31 @@ export default function PayrollAuditLogPage() {
               <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
             </div>
             <div className="flex items-end gap-2 h-full pb-0">
-              <button type="submit" className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 rounded-xl transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200">
-                <HiFilter className="w-4 h-4" /> Apply
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 h-[42px] text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition flex justify-center items-center gap-1.5 shadow-sm shadow-purple-200"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                    <span>Applying...</span>
+                  </>
+                ) : (
+                  <>
+                    <HiFilter className="w-4 h-4" />
+                    <span>Apply</span>
+                  </>
+                )}
               </button>
               {hasFilters && (
-                <button type="button" onClick={resetFilters} className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 border border-transparent rounded-xl transition" title="Clear filters">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={resetFilters}
+                  className="h-[42px] px-3 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-50 border border-transparent rounded-xl transition"
+                  title="Clear filters"
+                >
                   <HiX className="w-4 h-4" />
                 </button>
               )}
