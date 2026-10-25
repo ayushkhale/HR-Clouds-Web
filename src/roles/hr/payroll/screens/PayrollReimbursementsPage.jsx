@@ -20,6 +20,7 @@ import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/
 import { listFrom } from "../../../../shared/attendance/normalize";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { useBadgeCounts } from "../../../../shared/hooks/useBadgeCounts";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
@@ -28,7 +29,7 @@ import { plural } from "../runMeta";
 import {
   claimStatusMeta, claimStage, claimActions, normalizeClaimDetail, limitViolations,
   parseMoney, claimLimitText, periodLimitText, receiptRuleText, LIMIT_PERIOD_LABEL,
-  CLAIM_STATUS_FILTERS, CATEGORY_STATUS_FILTERS,
+  CLAIM_PENDING_HR, CLAIM_STATUS_FILTERS, CATEGORY_STATUS_FILTERS,
 } from "../../../../shared/utils/reimbursementMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
@@ -532,13 +533,33 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
   const [rejectError, setRejectError] = useState("");
   const [viewAttachment, setViewAttachment] = useState(null);
 
-  const filterKey = JSON.stringify(filters);
+  // `pending_hr` shipped with the badge endpoint, so the badge answering is
+  // the one honest signal that the filter exists here. It matters: a server
+  // without it STRIPS the unknown parameter rather than refusing it, and the
+  // queue would quietly widen to every claim ever filed.
+  const { supported: supportsPendingHr, loading: badgeLoading } = useBadgeCounts();
+
+  // Until that first read answers, "does this server have `pending_hr`?" has
+  // no answer, and asking on the wrong assumption means either a list that is
+  // briefly too narrow or one that is briefly far too wide. The queue waits
+  // the one read out instead, behind the skeleton it would be showing anyway.
+  const awaitingSupport = filters.status === CLAIM_PENDING_HR && badgeLoading;
+  const filterKey = JSON.stringify({ ...filters, supportsPendingHr });
   const fetchPage = useCallback(({ page, limit }) => {
     const params = { page, limit };
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+    if (params.status === CLAIM_PENDING_HR) {
+      // Never both: the server refuses the pair outright (D-10).
+      delete params.status;
+      // An older server can only express the half of this queue it has always
+      // shown — the claims a manager passed up. That is today's behaviour, not
+      // a regression, and it corrects itself the moment the server is updated.
+      if (supportsPendingHr) params.pending_hr = true;
+      else params.status = "under_review";
+    }
     return payrollAPI.getReimbursementClaims(params);
-  }, [filters]);
-  const list = usePagedList(fetchPage, { limit: PAGE_SIZE, keys: ["claims", "rows", "records"], filterKey });
+  }, [filters, supportsPendingHr]);
+  const list = usePagedList(fetchPage, { limit: PAGE_SIZE, keys: ["claims", "rows", "records"], filterKey, enabled: !awaitingSupport });
 
   useEffect(() => {
     let cancelled = false;
@@ -681,7 +702,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
         </div>
       </div>
 
-      {list.loading ? <Skeleton type="table" rows={6} /> : list.error ? (
+      {list.loading || awaitingSupport ? <Skeleton type="table" rows={6} /> : list.error ? (
         <div className="py-12 px-6 text-center bg-white rounded-2xl border border-rose-200">
           <HiExclamationCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
           <p className="text-sm font-semibold text-rose-700">{payrollErrorMessage(list.error, "Couldn't load claims.")}</p>
@@ -814,7 +835,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
 
 const TABS = [["claims", "Claims"], ["categories", "Categories"]];
 
-/** embedded: HR Inbox view — the claims queue only, opened on under_review claims, without touching the host URL. */
+/** embedded: HR Inbox view — the claims queue only, opened on everything waiting on HR, without touching the host URL. */
 export default function PayrollReimbursementsPage({ embedded = false, initialStatus } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [embeddedTab, setEmbeddedTab] = useState("claims");
@@ -825,7 +846,9 @@ export default function PayrollReimbursementsPage({ embedded = false, initialSta
 
   const rawTab = embedded ? embeddedTab : searchParams.get("tab");
   const tab = TABS.some(([v]) => v === rawTab) ? rawTab : "claims";
-  const seedStatus = useRef(initialStatus || (embedded ? "under_review" : searchParams.get("status") || "")).current;
+  // The Inbox card counts everything waiting on HR, so the queue it opens has
+  // to list exactly that — the card and its panel are one number (§3).
+  const seedStatus = useRef(initialStatus || (embedded ? CLAIM_PENDING_HR : searchParams.get("status") || "")).current;
 
   useEffect(() => {
     if (!embedded && rawTab && !TABS.some(([v]) => v === rawTab)) {

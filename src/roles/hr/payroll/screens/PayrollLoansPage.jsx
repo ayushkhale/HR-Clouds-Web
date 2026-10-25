@@ -111,7 +111,9 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
   const [submittingGrant, setSubmittingGrant] = useState(false);
   const [submittingForeclose, setSubmittingForeclose] = useState(false);
   const [submittingReject, setSubmittingReject] = useState(false);
-  const [actingLoanId, setActingLoanId] = useState(null);
+  // { id, action } while an approve / reject / cancel call is in flight. Both
+  // the loan and which action, so only the button that fired spins (§11).
+  const [acting, setActing] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -172,28 +174,33 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
     }
   };
 
-  const act = async (loanId, fn, okMsg) => {
-    if (actingLoanId) return;
-    setActingLoanId(loanId);
+  // One approve / reject / cancel at a time, and only the button that fired it
+  // spins: `acting` carries the action too, so the approve tick and the cancel
+  // trash no longer spin together (the original bug). The press is swallowed
+  // until the call settles, so a loan is never approved, rejected or cancelled
+  // twice by a double-click (§11 — standard-system button discipline). Every
+  // path lands here, so the inbox badge follows and any open detail closes.
+  const act = async (loanId, action, fn, okMsg) => {
+    if (acting) return;
+    setActing({ id: loanId, action });
     try {
       await fn();
       showToast(okMsg);
-      // Approve / reject / cancel all land here, so the inbox badge follows.
       emitAttendanceChanged(ATTENDANCE_EVENTS.LOAN, {});
       setSchedule(null);
       loadData();
     } catch (err) {
       showToast(err.message || "Action failed", "error");
     } finally {
-      setActingLoanId(null);
+      setActing(null);
     }
   };
 
   // window.confirm resolves asynchronously (GlobalAlertProvider) — always await it.
   const handleCancelLoan = async (loan) => {
-    if (actingLoanId) return;
+    if (acting) return;
     if (!(await window.confirm("Cancel this loan? Only allowed with zero deducted installments."))) return;
-    act(loan.id, () => payrollAPI.cancelLoan(loan.id), "Loan cancelled");
+    act(loan.id, "cancel", () => payrollAPI.cancelLoan(loan.id), "Loan cancelled");
   };
 
   const handleReject = async (e) => {
@@ -202,7 +209,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
     if (!rejectionReason.trim()) return showToast("Reason required", "error");
     setSubmittingReject(true);
     try {
-      await act(rejectingId, () => payrollAPI.rejectLoan(rejectingId, { rejection_reason: rejectionReason }), "Loan rejected");
+      await act(rejectingId, "reject", () => payrollAPI.rejectLoan(rejectingId, { rejection_reason: rejectionReason }), "Loan rejected");
       setRejectingId(null);
       setRejectionReason("");
     } finally {
@@ -320,12 +327,12 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                               <>
                                 <button
                                   type="button"
-                                  disabled={actingLoanId === l.id}
-                                  onClick={() => act(l.id, () => payrollAPI.approveLoan(l.id), "Loan approved — schedule generated")}
+                                  disabled={acting?.id === l.id}
+                                  onClick={() => act(l.id, "approve", () => payrollAPI.approveLoan(l.id), "Loan approved — schedule generated")}
                                   className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
                                   title="Approve"
                                 >
-                                  {actingLoanId === l.id ? (
+                                  {acting?.id === l.id && acting.action === "approve" ? (
                                     <span className="w-4 h-4 border-2 border-violet-600/30 border-t-violet-600 rounded-full animate-spin inline-block" />
                                   ) : (
                                     <HiCheck className="w-4 h-4" />
@@ -333,7 +340,7 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={actingLoanId === l.id}
+                                  disabled={acting?.id === l.id}
                                   onClick={() => setRejectingId(l.id)}
                                   className="p-1.5 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
                                   title="Reject"
@@ -348,12 +355,12 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
                             {(l.status === "pending" || l.status === "active") && (
                               <button
                                 type="button"
-                                disabled={actingLoanId === l.id}
+                                disabled={acting?.id === l.id}
                                 onClick={() => handleCancelLoan(l)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
                                 title="Cancel"
                               >
-                                {actingLoanId === l.id ? (
+                                {acting?.id === l.id && acting.action === "cancel" ? (
                                   <span className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin inline-block" />
                                 ) : (
                                   <HiTrash className="w-4 h-4" />
@@ -504,20 +511,49 @@ export default function PayrollLoansPage({ initialStatus = "" } = {}) {
       {/* Loan details preview */}
       {schedule && (() => {
         const loan = schedule.loan;
+        // The detail dialog carries the same decisions as the row it opened from
+        // (a pending loan had none before — the bug). Approve / Cancel run
+        // through `act`, so they are swallowed until the call settles and only
+        // the pressed one spins; Reject and Foreclose raise their own modals,
+        // which sit at z-[150] above this z-[140] shell. Every button on the
+        // row for this status is here, and no other.
+        const actingThis = acting?.id === loan.id;
+        const spinner = (tone) => <span className={`w-4 h-4 border-2 ${tone} rounded-full animate-spin inline-block`} />;
+        let footer = null;
+        if (loan.status === "pending") {
+          footer = (
+            <>
+              <button type="button" disabled={actingThis} onClick={() => setRejectingId(loan.id)} className="px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition">Reject</button>
+              <button type="button" disabled={actingThis} onClick={() => handleCancelLoan(loan)} className="px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition inline-flex items-center gap-2">
+                {actingThis && acting.action === "cancel" && spinner("border-slate-400/40 border-t-slate-500")} Cancel request
+              </button>
+              <button type="button" disabled={actingThis} onClick={() => act(loan.id, "approve", () => payrollAPI.approveLoan(loan.id), "Loan approved — schedule generated")} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition inline-flex items-center gap-2 shadow-md shadow-purple-200">
+                {actingThis && acting.action === "approve" ? spinner("border-white/40 border-t-white") : <HiCheck className="w-4 h-4" />} Approve loan
+              </button>
+            </>
+          );
+        } else if (loan.status === "active") {
+          footer = (
+            <>
+              <button type="button" disabled={actingThis} onClick={() => handleCancelLoan(loan)} className="px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition inline-flex items-center gap-2">
+                {actingThis && acting.action === "cancel" && spinner("border-slate-400/40 border-t-slate-500")} Cancel
+              </button>
+              <button type="button" disabled={actingThis} onClick={() => openForeclose(loan)} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
+                <HiLightningBolt className="w-4 h-4" /> Foreclose loan
+              </button>
+            </>
+          );
+        }
         return (
           <DetailDialog
             eyebrow="Loan details"
             icon={HiCash}
             title={empName(loan.user_id)}
             subtitle={prettify(loan.loan_type) ? `${prettify(loan.loan_type)} · first payment ${fmtPeriod(loan.start_period_month)}` : undefined}
-            badge={<DetailPill tone="onDark">{loan.status || "N/A"}</DetailPill>}
+            badge={<DetailPill tone="onDark">{humanize(loan.status) || "N/A"}</DetailPill>}
             loading={schedule.loading}
             onClose={() => setSchedule(null)}
-            footer={loan.status === "active" && (
-              <button onClick={() => openForeclose(loan)} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200">
-                <HiLightningBolt className="w-4 h-4" /> Foreclose loan
-              </button>
-            )}
+            footer={footer}
           >
             <DetailStats
               items={[

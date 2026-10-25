@@ -105,7 +105,7 @@ async function safeParseBody(response) {
 // Core fetch wrapper — handles headers, JSON, and error responses centrally
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function request(endpoint, options = {}) {
+async function performRequest(endpoint, options) {
   const token = tokenHelper.get();
 
   const headers = {
@@ -161,6 +161,63 @@ export async function request(endpoint, options = {}) {
   }
 
   return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// One GET at a time per URL
+//
+// Two components that want the same thing at the same moment used to make two
+// requests for it. That happens constantly and for honest reasons: a page and
+// the sidebar both need the roster, a filter settles one render after the list
+// mounts, and React's StrictMode runs every effect twice in development — the
+// same URL, twice, back to back. The second reply is always identical to the
+// first, so the second request was never worth making.
+//
+// A GET already on the wire is therefore SHARED with whoever asks for it next,
+// and the entry is dropped the moment it settles. Nothing is cached: a call
+// made after the previous one finished is a fresh request, so a re-read after
+// a write still reads what the write did.
+//
+// A WRITE ENDS EVERY SHARE. A read issued after an approve, a reject or a save
+// must never be answered by a read that left before it — that reply was
+// composed against the old state and would put the row back on screen. Any
+// non-GET empties the map, so the next read of anything starts its own
+// request. (The window is one request long, but it is exactly the window a
+// decision lands in.)
+//
+// Deliberately NOT shared:
+// · anything but GET — two POSTs are two intentions, never one;
+// · a caller that passed its own `signal`, because it may abort, and aborting
+//   somebody else's read is worse than making a second request;
+// · a caller that passed its own `headers`, which may change the answer.
+//
+// Both callers get the SAME parsed object, as they already do everywhere this
+// app caches a read (the employee directory, the device-trust context). Treat
+// a response as read-only — it was never yours alone.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const inFlightReads = new Map();
+
+export function request(endpoint, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET" || options.signal || options.headers || options.body) {
+    if (method !== "GET") inFlightReads.clear();
+    return performRequest(endpoint, options);
+  }
+
+  // Keyed by the session too: the same URL answers differently for two people,
+  // and a sign-in mid-flight must not hand the new user the old one's reply.
+  const key = `${tokenHelper.get() || "anon"} :: ${endpoint}`;
+  const existing = inFlightReads.get(key);
+  if (existing) return existing;
+
+  const shared = performRequest(endpoint, options).finally(() => {
+    // Only if it is still ours: a write between then and now cleared the map,
+    // and a newer read for the same URL may have taken the slot since.
+    if (inFlightReads.get(key) === shared) inFlightReads.delete(key);
+  });
+  inFlightReads.set(key, shared);
+  return shared;
 }
 
 export const ENVIRONMENT = import.meta.env.VITE_ENVIRONMENT || "development";

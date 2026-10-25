@@ -14,6 +14,7 @@ import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, 
 import GenderAvatar from "../../../../shared/components/GenderAvatar";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 
 function Toast({ toast, onClose }) {
@@ -267,6 +268,9 @@ export default function BankVerificationPage() {
       const verified = res.data ?? { ...(acctByUser[id] || {}), is_verified: true };
       setAcctByUser((m) => ({ ...m, [id]: verified }));
       setPreview((p) => (p && userId(p.user) === id ? { ...p, account: verified } : p));
+      // One account left the queue, so the sidebar badge is now one too high
+      // until the next poll unless we say so (§7).
+      emitAttendanceChanged(ATTENDANCE_EVENTS.BANK_ACCOUNT);
       showToast(`${userName(user)}'s account verified`);
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to verify account"), "error");

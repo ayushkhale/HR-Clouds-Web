@@ -11,11 +11,15 @@
 // notification centre. Every role has a bell, including employees, who have no
 // approvals queue at all.
 //
-// ─── THE BADGE IS A COUNT, NOT AN ALARM ────────────────────────────────────
-// Purple, not red (§5): rose is reserved for errors and destructive things,
-// and "you have four notifications" is neither. It caps at 99+ because the
-// server stops counting at 100 — printing a raw number past the cap would be
-// a figure the contract told us not to trust.
+// ─── THE BADGE IS A RED COUNT, LIKE EVERY OTHER COUNT ──────────────────────
+// A red circle with a white number — the one shape every count wears across
+// this product: the sidebar Inbox, each sidebar queue, the top-bar approvals
+// tray. The bell used to be the lone purple holdout; it now matches them, so
+// a person reads every count the same way (user decision, 2026-10-26, which
+// overrode the earlier "purple, not red (§5)" choice — rose here is a count,
+// not an alarm). It caps at 99+ because the server stops counting at 100 —
+// printing a raw number past the cap would be a figure the contract told us
+// not to trust.
 //
 // ─── WHEN THE ENGINE IS OFF, THE BELL IS GONE ──────────────────────────────
 // Not greyed out, not showing an error: absent (§2). The kill switch is an ops
@@ -67,7 +71,7 @@ export default function NotificationBell() {
         <HiBell className="w-5 h-5" />
         {badge && (
           <span
-            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-purple-600 text-white text-[10px] font-bold leading-[18px] text-center ring-2 ring-white tabular-nums"
+            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-[18px] text-center ring-2 ring-white tabular-nums"
             aria-hidden="true"
           >
             {badge}

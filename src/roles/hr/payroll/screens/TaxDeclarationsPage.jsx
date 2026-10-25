@@ -1,3 +1,21 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// TaxDeclarationsPage.jsx — HR's Tax Declarations queue (#106–#108): employees'
+// investment-proof declarations waiting on a decision. Opening one lists each
+// declared item so HR can verify the amount or reject the proof, then Verify
+// (#107) or Reject (#108) the whole declaration.
+//
+// ─── CONTRACT TRAP: an item's proof_status is verified | rejected, nothing else ─
+// The verify call (#107) accepts only those two per item — the server refuses
+// anything else with `"items[0].proof_status" must be one of [verified,
+// rejected]`. Incoming items arrive as `submitted` / `pending` / null, so the
+// seed below collapses every non-rejected item to `verified` and the only two
+// options in the per-item select are Verified and Rejected. Do not re-add a
+// "Pending" option or pass an incoming status straight through — both send a
+// value the API bounces (observed live, 2026-10-26; the spec's vague "valid
+// enum" is why this is spelled out here, §9). Rejecting an item zeroes its
+// verified amount, which is what #107 expects.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
@@ -94,7 +112,10 @@ export default function TaxDeclarationsPage() {
         const id = it.item_id || it.id;
         seed[id] = {
           verified_amount: it.verified_amount ?? it.declared_amount ?? 0,
-          proof_status: it.proof_status && it.proof_status !== "pending" ? it.proof_status : "verified",
+          // Verify accepts only verified | rejected (see header). Anything that
+          // isn't already rejected starts as verified, so no incoming
+          // `submitted`/`pending`/null ever reaches the payload.
+          proof_status: it.proof_status === "rejected" ? "rejected" : "verified",
           verifier_remarks: it.verifier_remarks || "",
         };
       });
@@ -307,7 +328,6 @@ export default function TaxDeclarationsPage() {
                             <td className="px-4 py-3">
                               <select disabled={locked} value={v.proof_status || "verified"} onChange={(e) => setItem(id, { proof_status: e.target.value })} aria-label={`Proof status for ${it.section || "item"}`} className={`${inputCls} w-32`}>
                                 <option value="verified">Verified</option>
-                                <option value="pending">Pending</option>
                                 <option value="rejected">Rejected</option>
                               </select>
                               {it.proof_reference && <a href={/^https?:/.test(it.proof_reference) ? it.proof_reference : undefined} target="_blank" rel="noreferrer" className="block text-[11px] text-purple-600 truncate max-w-[10rem] mt-1">{it.proof_reference}</a>}

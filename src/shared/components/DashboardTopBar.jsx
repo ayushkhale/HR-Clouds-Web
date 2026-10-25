@@ -349,8 +349,9 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
             <HiDocumentText className="w-5 h-5" />
           </button>
           {/* The approvals tray: things waiting on this person's decision. It
-              shows a dot only when something actually is. Roles without a
-              queue get no tray at all. */}
+              wears the same red circle + white number as the bell and the
+              sidebar counts (user decision, 2026-10-26), capped at 99+ for
+              layout. Roles without a queue get no tray at all. */}
           {inbox && (
             <button
               onClick={() => navigate(inbox.path)}
@@ -359,7 +360,14 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
               aria-label={pending > 0 ? `Inbox, ${pending} waiting` : "Inbox"}
             >
               <HiInboxIn className="w-5 h-5" />
-              {pending > 0 && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+              {pending > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-[18px] text-center ring-2 ring-white tabular-nums"
+                  aria-hidden="true"
+                >
+                  {pending > 99 ? "99+" : pending}
+                </span>
+              )}
             </button>
           )}
           {/* Hides itself when the engine is off, so there is nothing to guard. */}

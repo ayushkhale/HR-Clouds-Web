@@ -25,7 +25,9 @@ import { REQUEST_PLANES } from "../../../../shared/documents/requestPlanes";
 import { listPayload } from "../../../../shared/documents/documentMeta";
 import { DocEmptyState, DocErrorState, SELECT } from "../../../../shared/documents/ui";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
+import { useBadgeCounts } from "../../../../shared/hooks/useBadgeCounts";
 import { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 
 const PAGE = 25;
 const plane = DOCUMENT_PLANES.hr;
@@ -36,6 +38,9 @@ export default function DocumentVerificationPage() {
   const { requestDueDays } = useDocumentSettings();
   const { rows: people, status: dirStatus, nameOf } = useEmployeeDirectory();
   const { toast, showToast, clearToast } = useToast();
+  // The same snapshot the sidebar badge reads, so the badge that brought
+  // someone here and the tile they land on are one number (#278).
+  const { groups: badgeGroups, loading: badgeLoading } = useBadgeCounts();
 
   const [filters, setFilters] = useState({ type_id: "", user_id: "" });
   const [asking, setAsking] = useState(null); // { userId, presetTypeId }
@@ -63,17 +68,37 @@ export default function DocumentVerificationPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // A decision empties a row out of the queue, so the sidebar badge and the
+  // tiles above — both read from the badge snapshot — have to be told, or they
+  // keep counting it until the next poll (§7).
+  const onDecided = useCallback(() => {
+    load();
+    emitAttendanceChanged(ATTENDANCE_EVENTS.DOCUMENT_VERIFICATION);
+  }, [load]);
+
   // A filter change resets the page in the same update — one request, not two.
   const updateFilters = (patch) => { setFilters((f) => ({ ...f, ...patch })); setPage(1); };
 
   // Roster rows carry the avatar, name and code PersonCell needs.
   const rowsById = useMemo(() => new Map(people.map((p) => [p.user_id ?? p.id, p])), [people]);
   const personOf = useCallback((id) => rowsById.get(id) || { name: nameOf(id, "Employee") }, [rowsById, nameOf]);
+  const filtered = !!(filters.type_id || filters.user_id);
+  // The server counts the whole queue in the same read that feeds the sidebar
+  // badge, so the three tiles reconcile with it: verify + reject + neither is
+  // exactly what is waiting. Counting the rows on screen was only ever right
+  // on page one of an unfiltered queue — which is why it said "(this page)".
+  // A filter narrows the table but not the badge, so the page-scoped count
+  // stays where one is on.
+  const orgWide = !filtered ? badgeGroups.documentVerification : null;
+  // Waiting on that first read rather than labelling the page-scoped figures
+  // org-wide and correcting both number and caption a moment later: a tile
+  // that renames itself after it has been read is worse than one that is
+  // briefly still loading.
+  const awaitingOrgWide = !filtered && !orgWide && badgeLoading;
   const recCounts = useMemo(() => ({
     verify: state.rows.filter((r) => r.recommendation === "verify").length,
     reject: state.rows.filter((r) => r.recommendation === "reject").length,
   }), [state.rows]);
-  const filtered = !!(filters.type_id || filters.user_id);
 
   return (
     <>
@@ -91,13 +116,13 @@ export default function DocumentVerificationPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: filtered ? "Waiting (filtered)" : "Waiting for a decision", value: state.total, icon: HiClipboardCheck, tone: "text-purple-500" },
-            { label: "Manager says verify (this page)", value: recCounts.verify, icon: HiThumbUp, tone: "text-violet-500", help: { surface: "documents.verification", field: "recommendation", label: "the manager’s recommendation" } },
-            { label: "Manager says reject (this page)", value: recCounts.reject, icon: HiThumbDown, tone: "text-rose-500" },
-          ].map(({ label, value, icon: Icon, tone, help }) => (
+            { label: filtered ? "Waiting (filtered)" : "Waiting for a decision", value: orgWide ? orgWide.waitingDecision : state.total, icon: HiClipboardCheck, tone: "text-purple-500" },
+            { label: orgWide || awaitingOrgWide ? "Manager says verify" : "Manager says verify (this page)", value: orgWide ? orgWide.managerApproved : recCounts.verify, pending: awaitingOrgWide, icon: HiThumbUp, tone: "text-violet-500", help: { surface: "documents.verification", field: "recommendation", label: "the manager’s recommendation" } },
+            { label: orgWide || awaitingOrgWide ? "Manager says reject" : "Manager says reject (this page)", value: orgWide ? orgWide.managerRejected : recCounts.reject, pending: awaitingOrgWide, icon: HiThumbDown, tone: "text-rose-500" },
+          ].map(({ label, value, pending, icon: Icon, tone, help }) => (
             <div key={label} className="rounded-2xl bg-white border border-slate-100 shadow-xs px-4 py-3.5">
               <div className="flex items-center gap-2 text-slate-400"><Icon className={`w-4 h-4 ${tone}`} /><span className="text-[11px] font-semibold truncate"><HelpLabel text={label} help={help} /></span></div>
-              <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none mt-2 tabular-nums">{state.loading && !state.rows.length ? "…" : value}</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-800 leading-none mt-2 tabular-nums">{pending || (state.loading && !state.rows.length) ? "…" : value}</p>
             </div>
           ))}
         </div>
@@ -142,7 +167,7 @@ export default function DocumentVerificationPage() {
           types={index}
           nameOf={nameOf}
           showToast={showToast}
-          onChanged={load}
+          onChanged={onDecided}
           onRequestReplacement={uploadTypes.length > 0 ? (doc) => {
             setDetail(null);
             setAsking({ userId: doc.user_id, presetTypeId: doc.document_type_id });

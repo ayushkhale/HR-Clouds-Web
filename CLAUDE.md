@@ -389,6 +389,14 @@ wouldn't load. Those keep the button off (§2 — never show a button that 403s)
 A missing *answer* is not one of them: a dead button cannot say which of twelve
 boxes across three folded steps it is waiting for.
 
+**An action button swallows repeat presses until its call settles** — approve,
+reject, cancel, foreclose, delete, not just form submits. Track which action is
+in flight (`acting = { id, action }`, not a bare id), disable every button on
+that record while it runs, and spin only the one that fired — two buttons
+sharing one `acting === id` flag spin together, which was the loan-row bug. The
+decision is never sent twice by a double-click, and nothing is reclickable
+until the response or timeout lands. Reference: `act()` in `PayrollLoansPage.jsx`.
+
 **This applies to every button that calls an API, not just the primary one.** A
 preview, a "see this letter", a recalculate or a dry-run sends the same payload
 and gets the same 400 — a secondary button firing an unfinished form was the

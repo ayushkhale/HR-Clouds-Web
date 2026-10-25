@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import InboxCard from "../../../shared/components/InboxCard";
 import AttendanceApprovalQueue from "../../../shared/attendance/AttendanceApprovalQueue";
-import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { EmbeddedPageContext } from "../../../shared/contexts/EmbeddedPageContext";
-import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../../../shared/utils/hrInboxCounts";
+import { sumCounts } from "../../../shared/contexts/badgeCountsStore";
+import { useBadgeCounts } from "../../../shared/hooks/useBadgeCounts";
 import HRLeaveRequestsPage from "../leaves/screens/HRLeaveRequestsPage";
 import PayrollApprovalsPage from "../payroll/screens/PayrollApprovalsPage";
 import PayrollReimbursementsPage from "../payroll/screens/PayrollReimbursementsPage";
@@ -62,7 +62,10 @@ const GROUPS = [
     cols: "lg:grid-cols-4",
     items: [
       { key: "salaryApprovals", label: "Salary approvals", hint: "Proposed salary structures", icon: HiCurrencyRupee, render: () => <PayrollApprovalsPage /> },
-      { key: "claims", label: "Claims", hint: "Manager-reviewed claims awaiting final approval", icon: HiReceiptRefund, render: () => <PayrollReimbursementsPage embedded /> },
+      // Both kinds of claim that wait on HR: one a manager has passed up, and
+      // one that comes straight here on a single-approval chain. The second
+      // was missing from this card and its list until `pending_hr` (#133).
+      { key: "claims", label: "Claims", hint: "Claims waiting for your decision", icon: HiReceiptRefund, render: () => <PayrollReimbursementsPage embedded /> },
       { key: "loans", label: "Loans & advances", hint: "Loan requests to approve", icon: HiCash, render: () => <PayrollLoansPage initialStatus="pending" /> },
       { key: "declarations", label: "Tax declarations", hint: "Submitted this financial year", icon: HiClipboardCheck, render: () => <TaxDeclarationsPage /> },
     ],
@@ -100,8 +103,12 @@ const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
  * line; everything else is a row of its own. The open queue's panel belongs to
  * the ROW, not to the section — an embedded page in a four-fifths column would
  * have its own table squeezed while a fifth of the page sat empty beside it.
+ *
+ * Computed from the groups left after the unavailable ones are dropped, so a
+ * pair that loses one half falls back to a full-width row of its own instead
+ * of leaving a gap where the other used to be.
  */
-const ROWS = GROUPS.reduce((rows, group) => {
+const rowsOf = (groups) => groups.reduce((rows, group) => {
   const last = rows[rows.length - 1];
   if (group.row && last?.[0]?.row === group.row) last.push(group);
   else rows.push([group]);
@@ -109,26 +116,37 @@ const ROWS = GROUPS.reduce((rows, group) => {
 }, []);
 
 export default function HRInboxPage() {
-  const [counts, setCounts] = useState(() => peekHrInboxCounts() || {});
-  const [loading, setLoading] = useState(true);
+  // One read for every card here and for the sidebar badge that links to this
+  // page, so the two can never disagree (#278). The queue open below still
+  // reports its own length after a decision, and that correction wins until
+  // the next read lands — see `counts`.
+  const { counts: badgeCounts, isUnavailable, loading, loadedAt, refreshing, rateLimited, refresh } = useBadgeCounts();
+  const [live, setLive] = useState({ at: 0, values: {} });
   const [selectedKey, setSelectedKey] = useState("regularizations");
 
-  const refresh = useCallback(async (force) => {
-    setLoading(true);
-    const next = await fetchHrInboxCounts(force);
-    setCounts(next);
-    setLoading(false);
-  }, []);
-
-  // Counts come from the shared cache; switching queues never re-reads all nine.
-  // Decisions refresh them through attendance events, and Refresh forces a read.
-  useEffect(() => { refresh(false); }, [refresh]);
-  useAttendanceChanged(INBOX_EVENT_KINDS, () => refresh(true));
+  // The panel's correction only outranks the snapshot while it is the newer
+  // of the two. The moment a read lands it covers every queue, including the
+  // one that was open, so the whole override is dropped — otherwise a count
+  // reported by a panel that has since closed would shadow the server's
+  // number for the rest of the session and quietly disagree with the sidebar.
+  const counts = useMemo(
+    () => (live.at > loadedAt ? { ...badgeCounts, ...live.values } : badgeCounts),
+    [badgeCounts, live, loadedAt],
+  );
+  // A queue this organisation cannot have — payroll switched off, a role that
+  // may not see it — is left out rather than shown as an empty queue nobody
+  // can ever act on (§2). Nothing is hidden on a server that still counts the
+  // old way, because those reads cannot tell "not for you" from "failed".
+  const groups = useMemo(() => GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => !isUnavailable(i.key)) }))
+    .filter((g) => g.items.length > 0), [isUnavailable]);
+  const visibleItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const rows = useMemo(() => rowsOf(groups), [groups]);
 
   // The open attendance queue reports its own length after every reload.
   const onQueueCount = useCallback((type, n) => {
     const item = ALL_ITEMS.find((i) => i.queue === type);
-    if (item) setCounts((c) => (c[item.key] === n ? c : { ...c, [item.key]: n }));
+    if (item) setLive((c) => ({ at: Date.now(), values: { ...c.values, [item.key]: n } }));
   }, []);
 
   // Open on the first queue that has work in it. Starting on an empty queue
@@ -142,12 +160,20 @@ export default function HRInboxPage() {
     if (picked.current || loading) return;
     picked.current = true;
     if ((counts[selectedKey] || 0) > 0) return;
-    const first = ALL_ITEMS.find((i) => (counts[i.key] || 0) > 0);
+    const first = visibleItems.find((i) => (counts[i.key] || 0) > 0);
     if (first) setSelectedKey(first.key);
-  }, [counts, loading, selectedKey]);
+  }, [counts, loading, selectedKey, visibleItems]);
 
-  const selected = ALL_ITEMS.find((i) => i.key === selectedKey);
-  const waiting = inboxTotal(counts);
+  // A queue that turns out to be unavailable must not stay open underneath
+  // the cards it has just disappeared from.
+  useEffect(() => {
+    if (visibleItems.length > 0 && !visibleItems.some((i) => i.key === selectedKey)) {
+      setSelectedKey(visibleItems[0].key);
+    }
+  }, [visibleItems, selectedKey]);
+
+  const selected = visibleItems.find((i) => i.key === selectedKey);
+  const waiting = sumCounts(counts);
 
   return (
     <>
@@ -160,12 +186,12 @@ export default function HRInboxPage() {
               {loading && !waiting ? "Checking every approval queue…" : `${waiting} item${waiting === 1 ? "" : "s"} waiting across the organisation.`}
             </p>
           </div>
-          <button type="button" onClick={() => refresh(true)} disabled={loading} className="inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
-            <HiRefresh className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <button type="button" onClick={() => refresh()} disabled={refreshing || rateLimited} title={rateLimited ? "Checked too often just now — this updates itself in a moment." : undefined} className="inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+            <HiRefresh className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </button>
         </div>
 
-        {ROWS.map((row) => {
+        {rows.map((row) => {
           const showPanel = selected && row.some((g) => g.items.includes(selected));
           return (
             <section key={row.map((g) => g.title).join("+")} className="space-y-4">
