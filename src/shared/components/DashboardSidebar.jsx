@@ -70,7 +70,7 @@ function DashboardSidebar({ role = "guest" }) {
   // app and refreshed by every decision. The HR sidebar used to fire thirteen
   // count requests of its own on mount, which is why it could only afford to
   // do it once a minute and drifted from the page it linked to.
-  const { counts: queueCounts, sidebar: badges, isUnavailable } = useBadgeCounts({ enabled: role === "hr" || role === "manager" });
+  const { counts: queueCounts, sidebar: badges, isUnavailable } = useBadgeCounts({ enabled: role !== "guest" });
   const inboxCount = badges.inboxTotal;
   // `null` is "couldn't read it", and an unavailable queue is hidden outright
   // rather than shown as a confident 0 (§2).
@@ -203,8 +203,8 @@ function DashboardSidebar({ role = "guest" }) {
       // has a tab per status, and duplicating them here would leave the sidebar
       // highlighting "Waiting for review" while the open tab said "All".
       tasks: [
-        link("My Tasks", tasks.mine, HiClipboardCheck),
-        link("Overdue Tasks", tasks.overdue, HiExclamationCircle),
+        link("My Tasks", tasks.mine, HiClipboardCheck, queueBadge("myTasks")),
+        link("Overdue Tasks", tasks.overdue, HiExclamationCircle, queueBadge("myTasksOverdue")),
       ],
       time: [
         link("My Attendance", base, HiClock),
@@ -241,7 +241,7 @@ function DashboardSidebar({ role = "guest" }) {
         link("My Document Home", docs.all, HiCollection),
         link("My Personal Documents", docs.documents, HiFolderOpen),
         link("My Company Documents", docs.company, HiOfficeBuilding),
-        link("My Document Requests", docs.requests, HiClipboardList),
+        link("My Document Requests", docs.requests, HiClipboardList, queueBadge("myDocumentRequests")),
       ],
     };
   };

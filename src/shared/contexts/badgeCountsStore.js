@@ -103,9 +103,13 @@ const INBOX_CATEGORIES = [
 ];
 
 /** UI key → the dotted name the server uses in `meta.unavailable_categories`. */
-export const INBOX_CATEGORY_PATHS = Object.freeze(
-  Object.fromEntries(INBOX_CATEGORIES.map((c) => [c.key, `inbox.${c.api}`])),
-);
+export const INBOX_CATEGORY_PATHS = Object.freeze({
+  ...Object.fromEntries(INBOX_CATEGORIES.map((c) => [c.key, `inbox.${c.api}`])),
+  myTasks: "tasks",
+  myTasksOverdue: "tasks",
+  myDocumentRequests: "document_requests",
+  myDocumentRequestsOverdue: "document_requests",
+});
 
 // Postgres hands `COUNT(*)` back as a string through the driver. The server
 // coerces, but a count that arrived as "3" would silently concatenate rather
@@ -134,6 +138,16 @@ export function shapeBadgeSummary(payload) {
     if (!category) return;
     counts[key] = read ? read(category) : num(category.total);
   });
+
+  // Self-service tasks & document requests (available across employee workspace and ME dropdowns)
+  if (!unavailable.has("tasks") && categories.tasks?.mine) {
+    counts.myTasks = num(categories.tasks.mine.open);
+    counts.myTasksOverdue = num(categories.tasks.mine.overdue);
+  }
+  if (!unavailable.has("document_requests") && categories.document_requests) {
+    counts.myDocumentRequests = num(categories.document_requests.outstanding);
+    counts.myDocumentRequestsOverdue = num(categories.document_requests.overdue);
+  }
 
   const group = (name, shape) => (unavailable.has(name) || !categories[name] ? null : shape(categories[name]));
 
@@ -177,7 +191,7 @@ export function shapeBadgeSummary(payload) {
 
 /** Sum of the queue counts on screen. `null` (couldn't load) counts as nothing. */
 export function sumCounts(counts) {
-  return Object.values(counts || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  return INBOX_CATEGORIES.reduce((sum, { key }) => sum + (Number(counts?.[key]) || 0), 0);
 }
 
 // ── The store ───────────────────────────────────────────────────────────────
@@ -276,6 +290,9 @@ async function readLegacy(workspace, force) {
     const counts = await fetchManagerInboxCounts(force);
     return { counts, sidebar: { inboxTotal: sumCounts(counts), unverifiedBanks: null, documentVerificationQueue: null } };
   }
+  if (workspace === "employee") {
+    return { counts: {}, sidebar: { inboxTotal: 0, unverifiedBanks: null, documentVerificationQueue: null } };
+  }
 
   const [queues, docs, banks] = await Promise.allSettled([
     fetchHrInboxCounts(force),
@@ -310,10 +327,10 @@ async function read({ force = false } = {}) {
   const { token, workspace } = session();
 
   if (snapshot.token !== token) resetFor(token);
-  // Signed out, or a workspace with no badges of its own (an employee, a
-  // guest, a platform user with no organisation). Nothing is ever requested
+  // Signed out, or a workspace with no badges of its own (a guest,
+  // a platform user with no organisation). Nothing is ever requested
   // for them, and nothing waits on a read that will not happen.
-  if (!token || !workspace || workspace === "employee" || workspace === "guest") {
+  if (!token || !workspace || workspace === "guest") {
     publish({ status: "unavailable" });
     return snapshot;
   }

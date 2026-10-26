@@ -6328,6 +6328,50 @@
           }
         }
       }
+    },
+    "organization.registration": {
+      "kind": "form",
+      "description": "Organisation registration & onboarding — RegisterOrgPage",
+      "workspaces": [
+        "guest"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Creating your workspace: pick a plan, then tell us about your company. You can change the plan later.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I choose the right plan and register my organisation in HR Clouds?"
+          }
+        },
+        "billing_cycle": {
+          "hint": "Paying for a year at once costs less than twelve monthly payments. You can switch later.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between monthly and yearly billing cycles for HR Clouds plans?"
+          }
+        },
+        "size": {
+          "hint": "Used to set up your workspace. Your plan decides how many people you can add; the list only shows sizes it covers.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does my organisation size relate to my chosen plan's employee seat limits?"
+          }
+        },
+        "gst_number": {
+          "hint": "Your company's GST registration number. It goes on the invoices we send you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Where is the GST number used and is it required for organisation registration?"
+          }
+        },
+        "company_pan_number": {
+          "hint": "Your company's PAN, not your own. It goes on the invoices we send you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do you need the company PAN number during organisation registration?"
+          }
+        }
+      }
     }
   }
 }

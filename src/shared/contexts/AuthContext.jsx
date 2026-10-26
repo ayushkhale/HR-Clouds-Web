@@ -53,7 +53,13 @@ export function AuthContextProvider({ children }) {
    * falls back, and a profile read that times out must not cost somebody their
    * session.
    */
-  const hydrateProfile = useCallback(() => {
+  const hydrateProfile = useCallback((overrideRole, overrideOrgId) => {
+    const effectiveRole = overrideRole ?? role;
+    const effectiveOrgId = overrideOrgId ?? orgId;
+
+    // Guests have no active organization or employee profile; GET /organizations/me returns 403 Access Denied
+    if (effectiveRole === "guest" || (!effectiveOrgId && effectiveRole !== "admin")) return;
+
     authAPI.me().then(res => {
       const profile = res.data || res.user;
       if (!profile) return;
@@ -62,8 +68,12 @@ export function AuthContextProvider({ children }) {
       // the identity check in applyStoredToken discard this profile on the
       // next token check.
       setUser(prev => ({ ...prev, ...profile, id: prev?.id ?? profile.id }));
-    }).catch(err => console.error("Failed to fetch user profile", err));
-  }, []);
+    }).catch(err => {
+      if (err?.status !== 403) {
+        console.error("Failed to fetch user profile", err);
+      }
+    });
+  }, [role, orgId]);
 
   // Restore a signed-in session from a stored access token.
   const applyStoredToken = useCallback((token) => {
@@ -74,7 +84,7 @@ export function AuthContextProvider({ children }) {
     setOrgId(session.orgId);
     setUser((prev) => (prev?.id === session.user.id ? { ...prev, ...session.user } : session.user));
     setTokenExp(tokenHelper.expiresAt(token));
-    hydrateProfile();
+    hydrateProfile(session.role, session.orgId);
   }, [hydrateProfile]);
 
   const clearSession = useCallback(() => {
@@ -207,7 +217,7 @@ export function AuthContextProvider({ children }) {
       // Signing in, selecting an org and switching org all land here, and none
       // of those replies carries the person's name — so ask for it now rather
       // than greeting them by their email address until the next refresh.
-      hydrateProfile();
+      hydrateProfile(authData.role, authData.orgId);
     }
     clearSelectionState();
     return authData;
