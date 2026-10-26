@@ -271,16 +271,20 @@ Create a unified, aggregated summary endpoint: `GET /api/v1/inbox/badges`.
 > [!NOTE]
 > **Observed UI Bug / Gap:**
 > In `DashboardSidebar.jsx`, `fetchHrInboxCounts` and `fetchManagerInboxCounts` only run once per session because running 13 calls flooded screens on route changes. Furthermore, mutations in `BankVerificationPage` and `DocumentVerificationPage` do not emit in-memory events, leaving the bank and document sidebar badges permanently stuck until manual browser refresh.
+>
+> **Document Requests Scope Clarification (2026-10-26):**
+> * For HR (`plane === 'org'`), `categories.document_requests` (`outstanding`, `overdue`, `fulfilled`) represents the organization-wide collection queue. It correctly powers the sidebar queue badge and metric tiles on `DOCUMENTS WE COLLECT > Document Requests` (`/documents/requests`).
+> * It must NOT be bound to HR's self-service "My Document Requests" under "ME". If HR personal document requests are to be badged in the "ME" dropdown, the backend should supply an optional `categories.document_requests.mine = { open, overdue }` sub-object, mirroring `tasks.mine`.
 
 #### Integration Steps Once API Is Delivered:
 1. In `src/shared/api/`:
    Add `inboxAPI.getBadgeSummary: () => request('/inbox/badges')`.
-2. In `src/shared/contexts/BadgeCountsContext.jsx`:
-   Create a dedicated Provider that polls `getBadgeSummary()` every 60s and refreshes on tab visibility (`document.visibilityState === "visible"`).
+2. In `src/shared/contexts/badgeCountsStore.js`:
+   Poll `getBadgeSummary()` with tab-visibility awareness and broadcast bus. Map `document_requests` to `documentRequests` (org queue) and `groups.documentRequests`.
 3. In `DashboardSidebar.jsx`:
-   Replace individual state variables (`inboxCount`, `unverifiedBankCount`, `pendingDocsCount`) with `useBadgeCounts()`.
-4. In `BankVerificationPage.jsx` and `DocumentVerificationPage.jsx`:
-   Replace manual `limit=1` tally fetches with the pre-calculated categories from `useBadgeCounts()`.
+   Attach `queueBadge("documentRequests")` to `DOCUMENTS WE COLLECT > Document Requests`.
+4. In `DocumentRequestsPage.jsx`:
+   Read `groups.documentRequests` directly from `useBadgeCounts()`, eliminating 3 out of 4 `limit=1` tally fetches on page mount.
 
 ---
 

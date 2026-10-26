@@ -53,6 +53,7 @@ export const ATTENDANCE_EVENTS = Object.freeze({
   // but both empty a queue, and a badge that outlives the queue it counts is
   // the bug this bus exists to prevent (§7).
   DOCUMENT_VERIFICATION: "document_verification",
+  DOCUMENT_REQUEST: "document_request",
   BANK_ACCOUNT: "bank_account",
 });
 
@@ -77,6 +78,7 @@ export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.TASK,
   ATTENDANCE_EVENTS.DEVICE,
   ATTENDANCE_EVENTS.DOCUMENT_VERIFICATION,
+  ATTENDANCE_EVENTS.DOCUMENT_REQUEST,
   ATTENDANCE_EVENTS.BANK_ACCOUNT,
 ];
 

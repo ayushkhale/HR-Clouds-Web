@@ -487,7 +487,7 @@ function DashboardSidebar({ role = "guest" }) {
           title: "DOCUMENTS WE COLLECT",
           icon: HiFolderOpen,
           items: [
-            link("Document Requests", `${H}/documents/requests`, HiClipboardList),
+            link("Document Requests", `${H}/documents/requests`, HiClipboardList, queueBadge("documentRequests")),
             link("Verification Queue", `${H}/documents/verification`, HiBadgeCheck, {
               badge: pendingDocsCount > 0 ? pendingDocsCount : null,
               dot: pendingDocsCount > 0,
@@ -606,7 +606,7 @@ function DashboardSidebar({ role = "guest" }) {
           title: "DOCUMENTS WE COLLECT",
           icon: HiFolderOpen,
           items: [
-            link("Document Requests", `${M}/documents/requests`, HiClipboardList),
+            link("Document Requests", `${M}/documents/requests`, HiClipboardList, queueBadge("documentRequests")),
             link("Employee Documents", `${M}/documents`, HiFolderOpen),
             link("Document Compliance", `${M}/documents/compliance`, HiClipboardCheck),
           ],

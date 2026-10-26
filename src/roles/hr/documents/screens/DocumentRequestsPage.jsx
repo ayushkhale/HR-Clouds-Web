@@ -42,6 +42,8 @@ import {
 } from "../../../../shared/documents/requestMeta";
 import { DocEmptyState, DocErrorState, PRIMARY_BTN, SECONDARY_BTN, SELECT } from "../../../../shared/documents/ui";
 import useEmployeeDirectory from "../../payroll/useEmployeeDirectory";
+import { useBadgeCounts } from "../../../../shared/hooks/useBadgeCounts";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 
 const PAGE = 25;
 const plane = REQUEST_PLANES.hr;
@@ -83,6 +85,7 @@ export default function DocumentRequestsPage() {
   //     `user_not_found`, which looked like a silent failure (2026-10-03).
   const { rows: people, directory, nameOf, status: peopleStatus } = useEmployeeDirectory();
   const { toast, showToast, clearToast } = useToast();
+  const { groups: badgeGroups, loading: badgeLoading, refresh: refreshBadgeCounts } = useBadgeCounts();
 
   const [page, setPage] = useState(1);
   const [state, setState] = useState({ rows: [], total: 0, loading: true, error: null });
@@ -91,6 +94,9 @@ export default function DocumentRequestsPage() {
   const [asking, setAsking] = useState(null); // { userId }
   const [bulkAsking, setBulkAsking] = useState(false); // the many-people dialog
   const [uploading, setUploading] = useState(null); // { userId, presetTypeId, presetTitle, askedFor }
+
+  const isOrgWide = !userId && !typeId;
+  const orgCounts = isOrgWide ? badgeGroups?.documentRequests : null;
 
   const query = useMemo(() => ({
     ...requestFilterQuery(status),
@@ -114,28 +120,34 @@ export default function DocumentRequestsPage() {
   useEffect(() => { load(); }, [load]);
 
   /**
-   * The four headline numbers. Each is a `limit: 1` read for its own filter —
-   * four cheap count queries beat one big read, because the list is paged and
-   * `total` only ever describes the filter that fetched it. "Still open" counts
-   * the overdue ones too, so the two tiles read as "12 open, 3 of them late"
-   * rather than as two sets that have to be added up.
+   * The four headline numbers. When viewing the unfiltered organisation queue,
+   * overdue, still open and fulfilled are answered instantly by the unified
+   * badge counts snapshot, eliminating 3 repeated limit: 1 queries.
    */
   const tallyRef = useRef(0);
   const loadTallies = useCallback(async () => {
     const token = ++tallyRef.current;
     const scope = { user_id: userId || undefined, document_type_id: typeId || undefined };
+    const wanted = (userId || typeId) ? REQUEST_TALLIES : ["cancelled"];
     const results = await Promise.allSettled(
-      REQUEST_TALLIES.map((f) => documentsAPI.getDocumentRequests({ ...scope, ...requestFilterQuery(f), limit: 1 })),
+      wanted.map((f) => documentsAPI.getDocumentRequests({ ...scope, ...requestFilterQuery(f), limit: 1 })),
     );
     if (token !== tallyRef.current) return;
-    setTallies(Object.fromEntries(REQUEST_TALLIES.map((f, i) => [
-      f, results[i].status === "fulfilled" ? requestListOf(results[i].value).total : null,
-    ])));
+    setTallies((prev) => ({
+      ...prev,
+      ...Object.fromEntries(wanted.map((f, i) => [
+        f, results[i].status === "fulfilled" ? requestListOf(results[i].value).total : null,
+      ])),
+    }));
   }, [userId, typeId]);
 
   useEffect(() => { loadTallies(); }, [loadTallies]);
 
-  const refresh = useCallback(() => { load(); loadTallies(); }, [load, loadTallies]);
+  const refresh = useCallback(() => {
+    load();
+    loadTallies();
+    refreshBadgeCounts();
+  }, [load, loadTallies, refreshBadgeCounts]);
 
   const update = (patch) => {
     const next = { status, user: userId, type: typeId, ...patch };
@@ -180,6 +192,7 @@ export default function DocumentRequestsPage() {
     const base = doc?.status === "pending_verification" ? `Added to ${who}'s file — it still needs verifying` : `Added to ${who}'s file`;
     showToast(doc?.fulfilled_request_id ? `${base}. That closes the request for it.` : base);
     refresh();
+    emitAttendanceChanged(ATTENDANCE_EVENTS.DOCUMENT_REQUEST);
   };
 
   return (
@@ -220,24 +233,41 @@ export default function DocumentRequestsPage() {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Tile
-            label="Overdue" value={tallies[OVERDUE_ONLY] ?? "…"} sub="Past their due date"
-            icon={HiExclamationCircle} tone="text-rose-500" alert={!!tallies[OVERDUE_ONLY]}
-            onClick={() => update({ status: status === OVERDUE_ONLY ? "" : OVERDUE_ONLY })} active={status === OVERDUE_ONLY}
+            label="Overdue"
+            value={orgCounts ? orgCounts.overdue : (tallies[OVERDUE_ONLY] ?? "…")}
+            sub="Past their due date"
+            icon={HiExclamationCircle}
+            tone="text-rose-500"
+            alert={!!(orgCounts ? orgCounts.overdue : tallies[OVERDUE_ONLY])}
+            onClick={() => update({ status: status === OVERDUE_ONLY ? "" : OVERDUE_ONLY })}
+            active={status === OVERDUE_ONLY}
           />
           <Tile
-            label="Still open" value={tallies[OUTSTANDING] ?? "…"} sub="Asked for and not yet provided"
-            icon={HiClock} tone="text-fuchsia-500"
-            onClick={() => update({ status: status === OUTSTANDING ? "" : OUTSTANDING })} active={status === OUTSTANDING}
+            label="Still open"
+            value={orgCounts ? orgCounts.outstanding : (tallies[OUTSTANDING] ?? "…")}
+            sub="Asked for and not yet provided"
+            icon={HiClock}
+            tone="text-fuchsia-500"
+            onClick={() => update({ status: status === OUTSTANDING ? "" : OUTSTANDING })}
+            active={status === OUTSTANDING}
           />
           <Tile
-            label="Done" value={tallies.fulfilled ?? "…"} sub="Closed by the document arriving"
-            icon={HiCheckCircle} tone="text-violet-500"
-            onClick={() => update({ status: status === "fulfilled" ? "" : "fulfilled" })} active={status === "fulfilled"}
+            label="Done"
+            value={orgCounts ? orgCounts.fulfilled : (tallies.fulfilled ?? "…")}
+            sub="Closed by the document arriving"
+            icon={HiCheckCircle}
+            tone="text-violet-500"
+            onClick={() => update({ status: status === "fulfilled" ? "" : "fulfilled" })}
+            active={status === "fulfilled"}
           />
           <Tile
-            label="Cancelled" value={tallies.cancelled ?? "…"} sub="Withdrawn, with a reason"
-            icon={HiX} tone="text-indigo-500"
-            onClick={() => update({ status: status === "cancelled" ? "" : "cancelled" })} active={status === "cancelled"}
+            label="Cancelled"
+            value={tallies.cancelled ?? "…"}
+            sub="Withdrawn, with a reason"
+            icon={HiX}
+            tone="text-indigo-500"
+            onClick={() => update({ status: status === "cancelled" ? "" : "cancelled" })}
+            active={status === "cancelled"}
           />
         </div>
 
@@ -322,6 +352,7 @@ export default function DocumentRequestsPage() {
             setAsking(null);
             showToast(`Asked ${who} for it. They’ll see it in their portal straight away.`);
             refresh();
+            emitAttendanceChanged(ATTENDANCE_EVENTS.DOCUMENT_REQUEST);
             if (created?.id) setDetail(created);
           }}
           onOpenExisting={(id) => { setAsking(null); setDetail({ id }); }}
@@ -339,7 +370,10 @@ export default function DocumentRequestsPage() {
           nameOf={nameOf}
           defaultDueDays={requestDueDays}
           viewer="hr"
-          onDone={refresh}
+          onDone={() => {
+            refresh();
+            emitAttendanceChanged(ATTENDANCE_EVENTS.DOCUMENT_REQUEST);
+          }}
           onClose={() => setBulkAsking(false)}
         />
       )}
@@ -351,7 +385,10 @@ export default function DocumentRequestsPage() {
           types={index}
           nameOf={nameOf}
           showToast={showToast}
-          onChanged={refresh}
+          onChanged={() => {
+            refresh();
+            emitAttendanceChanged(ATTENDANCE_EVENTS.DOCUMENT_REQUEST);
+          }}
           onUpload={uploadForRequest}
           uploadTypeIds={uploadTypeIds}
           onClose={() => setDetail(null)}

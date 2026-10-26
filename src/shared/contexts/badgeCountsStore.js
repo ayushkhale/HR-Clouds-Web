@@ -109,6 +109,8 @@ export const INBOX_CATEGORY_PATHS = Object.freeze({
   myTasksOverdue: "tasks",
   myDocumentRequests: "document_requests",
   myDocumentRequestsOverdue: "document_requests",
+  documentRequests: "document_requests",
+  documentRequestsOverdue: "document_requests",
 });
 
 // Postgres hands `COUNT(*)` back as a string through the driver. The server
@@ -139,14 +141,30 @@ export function shapeBadgeSummary(payload) {
     counts[key] = read ? read(category) : num(category.total);
   });
 
-  // Self-service tasks & document requests (available across employee workspace and ME dropdowns)
+  // Self-service tasks (available across employee workspace and ME dropdowns)
   if (!unavailable.has("tasks") && categories.tasks?.mine) {
     counts.myTasks = num(categories.tasks.mine.open);
     counts.myTasksOverdue = num(categories.tasks.mine.overdue);
   }
+
+  // Document requests:
+  // In HR & Manager workspaces (plane === "org" or role hr/admin), `categories.document_requests`
+  // represents the organisation-wide collection queue under "DOCUMENTS WE COLLECT > Document Requests".
+  // Self-service "My Document Requests" under ME reads from `categories.document_requests.mine` if provided,
+  // or `categories.document_requests` when scoped to self (employee).
   if (!unavailable.has("document_requests") && categories.document_requests) {
-    counts.myDocumentRequests = num(categories.document_requests.outstanding);
-    counts.myDocumentRequestsOverdue = num(categories.document_requests.overdue);
+    const isOrgPlane = data.scope?.plane === "org" || data.scope?.role === "hr" || data.scope?.role === "admin";
+    if (isOrgPlane) {
+      counts.documentRequests = num(categories.document_requests.outstanding);
+      counts.documentRequestsOverdue = num(categories.document_requests.overdue);
+      if (categories.document_requests.mine) {
+        counts.myDocumentRequests = num(categories.document_requests.mine.outstanding ?? categories.document_requests.mine.open);
+        counts.myDocumentRequestsOverdue = num(categories.document_requests.mine.overdue);
+      }
+    } else {
+      counts.myDocumentRequests = num(categories.document_requests.outstanding);
+      counts.myDocumentRequestsOverdue = num(categories.document_requests.overdue);
+    }
   }
 
   const group = (name, shape) => (unavailable.has(name) || !categories[name] ? null : shape(categories[name]));
@@ -184,6 +202,11 @@ export function shapeBadgeSummary(payload) {
         verified: num(g.verified),
         missingAccount: num(g.missing_account),
       })),
+      documentRequests: group("document_requests", (g) => ({
+        outstanding: num(g.outstanding),
+        overdue: num(g.overdue),
+        fulfilled: num(g.fulfilled),
+      })),
     },
     syncedAt: typeof data.synced_at === "string" ? data.synced_at : null,
   };
@@ -208,7 +231,7 @@ const IDLE = Object.freeze({
   plane: null,
   teamSize: null,
   sidebar: { inboxTotal: 0, unverifiedBanks: null, documentVerificationQueue: null },
-  groups: { documentVerification: null, bankVerification: null },
+  groups: { documentVerification: null, bankVerification: null, documentRequests: null },
   syncedAt: null,
   error: null,
   loadedAt: 0,

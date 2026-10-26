@@ -93,7 +93,7 @@ Below is the folder-style structure showing how screens, tabs, and counts map to
 │   │   ├── 📑 Tile: Waiting for decision ───► `document_verification.waiting_decision`
 │   │   ├── 📑 Tile: Manager recommends verify► `document_verification.manager_approved`
 │   │   └── 📑 Tile: Manager recommends reject► `document_verification.manager_rejected`
-│   └── 📄 Document Requests (`/documents/requests`)
+│   └── 📄 Document Requests (`/documents/requests`) [SIDEBAR BADGE: Outstanding Document Requests]
 │       ├── 📑 Tile: Still open ─────────────► `document_requests.outstanding`
 │       ├── 📑 Tile: Overdue ────────────────► `document_requests.overdue`
 │       └── 📑 Tile: Fulfilled ──────────────► `document_requests.fulfilled`
@@ -129,12 +129,13 @@ Below is the folder-style structure showing how screens, tabs, and counts map to
 ### Scoping Rules by Role:
 * **HR / Admin (`role = 'hr'` or `'admin'`):**
   * Evaluates all counts across `organization_id = req.user.organization_id`.
-  * Computes organization-wide queues for Bank Verification and Document Verification.
+  * Computes organization-wide queues for Bank Verification, Document Verification, and Document Requests (`categories.document_requests` powers `DOCUMENTS WE COLLECT > Document Requests` and its sidebar badge).
+  * If HR personal document requests are tracked in the "ME" dropdown, backend may optionally provide `categories.document_requests.mine = { open, overdue }` (analogous to `tasks.mine`).
 * **Manager (`role = 'manager'`):**
   * Evaluates counts for team members reporting to `req.user.id` (`manager_id = req.user.id` or via organization reporting hierarchy).
   * Excludes organization-wide admin queues (e.g. Bank Verification).
 * **Employee (`role = 'employee'`):**
-  * Evaluates self-scoped tasks (`assignee_id = req.user.id`), self-scoped document requests, and self unread notifications.
+  * Evaluates self-scoped tasks (`assignee_id = req.user.id`), self-scoped document requests (`categories.document_requests.outstanding` powers `MY DOCUMENTS > My Document Requests`), and self unread notifications.
 
 ---
 
