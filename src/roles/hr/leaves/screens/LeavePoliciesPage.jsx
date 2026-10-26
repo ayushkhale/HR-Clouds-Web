@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import { noticeModeOf, noticeValue } from "../../../../shared/utils/leaveConfig";
@@ -7,7 +7,7 @@ import { formatDayCount } from "../../../../shared/utils/formatUtils";
 import {
   HiPlus, HiPencil, HiTrash, HiX, HiCheckCircle, HiExclamationCircle,
   HiChevronDown, HiChevronRight, HiInformationCircle, HiTemplate,
-  HiExclamation, HiUserAdd,
+  HiUserAdd,
 } from "react-icons/hi";
 import FieldHelp, { HelpLabel } from "../../../../shared/fieldHelp/FieldHelp";
 import AssignLeavePolicyDialog from "../../../../shared/leaves/AssignLeavePolicyDialog";
@@ -368,7 +368,7 @@ function EntitlementModal({ templateId, editEntitlement, leaveTypes, existingTyp
 }
 
 // ─── Policy Card ──────────────────────────────────────────────────────────────
-function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEntitlement, onEditEntitlement, onDeleteEntitlement, onAssign, showToast }) {
+function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEntitlement, onDeleteEntitlement, onAssign, showToast }) {
   const [expanded, setExpanded] = useState(false);
   const [entitlementModal, setEntitlementModal] = useState(null); // null | "create" | entitlement obj
 
@@ -452,8 +452,8 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
           <div className="flex items-start gap-2.5 px-6 py-3 bg-fuchsia-50 border-b border-fuchsia-100">
             <HiInformationCircle className="w-4 h-4 text-fuchsia-500 shrink-0 mt-0.5" />
             <p className="text-xs text-fuchsia-700 font-medium">
-              Editing this policy won't change anything for employees who are <strong>already assigned</strong> to it.
-              To change a specific employee's leave right now, open their profile and use <strong>Customise Leave Rules</strong>.
+              Editing this policy won&apos;t change anything for employees who are <strong>already assigned</strong> to it.
+              To change a specific employee&apos;s leave right now, open their profile and use <strong>Customise Leave Rules</strong>.
             </p>
           </div>
 
@@ -477,14 +477,18 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {entitlements.map(ent => (
-                  <tr key={ent.id} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{ent.leave_type?.name || "N/A"}</span>
-                        <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{ent.leave_type?.code}</span>
-                      </div>
-                    </td>
+                {entitlements.map(ent => {
+                  const matchedType = ent.leave_type || leaveTypes.find(lt => lt.id === ent.leave_type_id);
+                  return (
+                    <tr key={ent.id} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-800">{matchedType?.name || "N/A"}</span>
+                          {matchedType?.code && (
+                            <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{matchedType.code}</span>
+                          )}
+                        </div>
+                      </td>
                     <td className="px-6 py-3 text-sm font-semibold text-slate-700">{formatDayCount(ent.annual_quota)}</td>
                     <td className="px-6 py-3"><AccrualPill type={ent.accrual_type} /></td>
                     <td className="px-6 py-3 text-xs text-slate-500">
@@ -504,7 +508,8 @@ function PolicyCard({ policy, leaveTypes, onEditPolicy, onDeletePolicy, onAddEnt
                       </div>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           )}
@@ -540,6 +545,12 @@ export default function LeavePoliciesPage() {
 
   function showToast(message, type = "success") {
     setToast({ message, type });
+    if (typeof window !== "undefined" && window.__showNotificationToast) {
+      window.__showNotificationToast({
+        message,
+        tone: type === "error" ? "rose" : "purple",
+      });
+    }
     setTimeout(() => setToast(null), 4000);
   }
 
@@ -550,10 +561,20 @@ export default function LeavePoliciesPage() {
         leaveAPI.getTemplates(),
         leaveAPI.getLeaveTypes({ include_inactive: false }),
       ]);
-      setTemplates(tmplRes.data || []);
-      setLeaveTypes(typesRes.data || []);
-    } catch {
-      showToast("Failed to load policies.", "error");
+      const tmplList = Array.isArray(tmplRes)
+        ? tmplRes
+        : Array.isArray(tmplRes?.data)
+        ? tmplRes.data
+        : tmplRes?.data?.records || [];
+      const typesList = Array.isArray(typesRes)
+        ? typesRes
+        : Array.isArray(typesRes?.data)
+        ? typesRes.data
+        : typesRes?.data?.records || [];
+      setTemplates(tmplList);
+      setLeaveTypes(typesList);
+    } catch (err) {
+      showToast(leaveErrorMessage(err, "Failed to load policies."), "error");
     } finally {
       setLoading(false);
     }

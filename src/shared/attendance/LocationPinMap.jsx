@@ -101,9 +101,10 @@ export default function LocationPinMap({
           zoomControl: false,
           attributionControl: true,
         });
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap",
-          maxZoom: 19,
+        L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+          attribution: "&copy; Google Maps",
+          maxZoom: 20,
+          subdomains: ["mt0", "mt1", "mt2", "mt3"],
         }).addTo(mapRef.current);
       }
 

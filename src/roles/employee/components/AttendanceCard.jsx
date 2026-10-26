@@ -34,12 +34,12 @@
 // 2026-10-01). The explanations live on My Schedule, which is the rarer screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { attendanceAPI } from "../../../shared/api";
 import { attendanceErrorMessage, isDeviceEnrollmentRequired, isDeviceSuspended, isStateReconciliation } from "../../../shared/utils/attendanceErrors";
 import { cancelDeviceCeremony, punchWithDeviceTrust, useDeviceTrustContext } from "../../../shared/attendance/deviceTrust";
-import { DEVICE_MODES, DEVICE_OPERATIONS, DEVICE_PROGRESS, deviceTrustVisible, effectiveModeOf, enforceFromUpcoming } from "../../../shared/attendance/deviceTrustMeta";
+import { DEVICE_MODES, DEVICE_OPERATIONS, DEVICE_PROGRESS, deviceTrustVisible, effectiveModeOf } from "../../../shared/attendance/deviceTrustMeta";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
 import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
@@ -86,20 +86,20 @@ const OPERATION_OF = {
   "break-end": DEVICE_OPERATIONS.BREAK_END,
 };
 
-const ACTION_BTN = "w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed";
-const PRIMARY_ACTION = `${ACTION_BTN} bg-purple-600 hover:bg-purple-700 text-white`;
-const BREAK_START_ACTION = `${ACTION_BTN} bg-white border-2 border-indigo-100 hover:border-indigo-200 text-indigo-700`;
-const BREAK_END_ACTION = `${ACTION_BTN} bg-indigo-600 hover:bg-indigo-700 text-white`;
-const CLOCK_OUT_ACTION = `${ACTION_BTN} bg-rose-500 hover:bg-rose-600 text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none`;
+const ACTION_BTN = "w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all active:scale-[0.99] disabled:cursor-not-allowed";
+const PRIMARY_ACTION = `${ACTION_BTN} bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md shadow-purple-600/25 disabled:opacity-60`;
+const BREAK_START_ACTION = `${ACTION_BTN} bg-purple-50 hover:bg-purple-100 border border-purple-200/80 text-purple-700 disabled:opacity-50`;
+const BREAK_END_ACTION = `${ACTION_BTN} bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-500/25 disabled:opacity-60`;
+const CLOCK_OUT_ACTION = `${ACTION_BTN} bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/20 disabled:bg-slate-100 disabled:text-slate-400 disabled:border disabled:border-slate-200/60 disabled:shadow-none disabled:opacity-60`;
 
 // One cell of the finished-day strip. The dividers run between cells only, so
 // the first cell of each row keeps its left edge clean at both breakpoints.
 function DayStat({ icon: Icon, label, value, accent = false }) {
   return (
-    <div className="min-w-0 px-4 py-3.5 border-slate-100 border-l [&:nth-child(odd)]:border-l-0 sm:[&:nth-child(odd)]:border-l sm:first:border-l-0 border-t [&:nth-child(-n+2)]:border-t-0 sm:border-t-0">
-      <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><Icon className="w-4 h-4" /></span>
+    <div className="min-w-0 px-4 py-3 border-slate-100 border-l [&:nth-child(odd)]:border-l-0 sm:[&:nth-child(odd)]:border-l sm:first:border-l-0 border-t [&:nth-child(-n+2)]:border-t-0 sm:border-t-0">
+      <span className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-1.5"><Icon className="w-3.5 h-3.5" /></span>
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate">{label}</p>
-      <p className={`text-base font-bold mt-0.5 truncate tabular-nums ${accent ? "text-purple-600" : "text-slate-800"}`}>{value}</p>
+      <p className={`text-sm sm:text-base font-bold mt-0.5 truncate tabular-nums ${accent ? "text-purple-600" : "text-slate-800"}`}>{value}</p>
     </div>
   );
 }
@@ -126,9 +126,6 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   // The `geofence` object from the last punch. NOT an error — the punch
   // succeeded in every outcome; this only explains where it landed.
   const [geofence, setGeofence] = useState(null);
-  // `{ text, tone }` — a failed punch is rose, a reconciled one slate (see `fail`).
-  // `register: true` adds the link to the devices page (device trust).
-  const [inlineNotice, setInlineNotice] = useState(null);
   // Which of the three device-trust steps is running, for the button's label.
   const [deviceStage, setDeviceStage] = useState(null);
   const { toast, showToast, clearToast } = useToast(5000);
@@ -157,13 +154,11 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   const recordDate = ymdOnly(today?.date);
   const carriedOver = phase === "working" && !!recordDate && recordDate < todayYMD();
 
-  // One second while the day runs (the ring and the live timer); half a minute
-  // while it hasn't started, which is all the grace countdown needs — a second
-  // hand on a card nobody is watching re-rendered every dashboard needlessly.
+  // Update every second while the card is idle or working for smooth live clock and progress timers.
   useEffect(() => {
     if (phase !== "working" && phase !== "idle") return undefined;
     setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), phase === "working" ? 1000 : 30_000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [phase]);
 
@@ -273,7 +268,6 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(key);
-    setInlineNotice(null);
     try {
       await task();
     } finally {
@@ -285,6 +279,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
 
   // The caller always refetches /today afterwards, so a stale card (e.g. already
   // clocked in from another device) self-corrects; the message explains why.
+  // Errors and device registration prompts are displayed via the top-right notification toast.
   const fail = (err, fallback) => {
     // They closed the operating system's prompt themselves — nothing to report.
     if (err?.silent) return;
@@ -294,29 +289,42 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     // registering this one; a suspended device is not — only HR can lift that,
     // so it gets no link (showing one would send them to a dead end).
     if (err?.needsReconcile) {
-      setInlineNotice({
-        text: "We couldn't tell whether that went through. Your status has been refreshed below — check it before trying again.",
-        tone: "slate",
-      });
+      showToast(
+        "We couldn't tell whether that went through. Your status has been refreshed below — check it before trying again.",
+        "info",
+        { title: "Status Refreshed", duration: 6000 }
+      );
       return;
     }
     if (err?.needsEnrollment || isDeviceEnrollmentRequired(err)) {
-      setInlineNotice({ text: attendanceErrorMessage(err, "This device isn't registered for clocking in."), tone: "rose", register: true });
+      showToast(
+        attendanceErrorMessage(err, "Register this device before you clock in from it."),
+        "error",
+        {
+          title: "Device Registration Required",
+          action: devicesPath ? { label: "Register this device", to: devicesPath } : null,
+          duration: 9000,
+        }
+      );
       return;
     }
     if (isDeviceSuspended(err)) {
-      setInlineNotice({ text: attendanceErrorMessage(err), tone: "rose" });
+      showToast(
+        attendanceErrorMessage(err, "This device is suspended. Contact HR to lift the restriction."),
+        "error",
+        { title: "Device Suspended", duration: 7000 }
+      );
       return;
     }
 
     // A 409 reconciliation isn't a failure — the server already holds the state
-    // the person asked for, and the refetch below puts the card right. Showing
-    // it in rose accused them of breaking something they hadn't.
+    // the person asked for, and the refetch below puts the card right.
     const reconciled = isStateReconciliation(err);
-    setInlineNotice({
-      text: reconciled ? attendanceErrorMessage(err) : attendanceErrorMessage(err, fallback),
-      tone: reconciled ? "slate" : "rose",
-    });
+    showToast(
+      reconciled ? attendanceErrorMessage(err) : attendanceErrorMessage(err, fallback),
+      reconciled ? "info" : "error",
+      { title: reconciled ? "Status Refreshed" : "Punch Error", duration: 6000 }
+    );
   };
 
   // Every punch in this card goes through here. With device trust off this is
@@ -436,15 +444,6 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     && deviceMode !== DEVICE_MODES.OFF
     && Number(deviceCtx?.my_active_device_count || 0) === 0
     && !!devicesPath;
-  const enforceFrom = enforceFromUpcoming(deviceCtx);
-  const deviceBanner = !needsDevice ? null : deviceMode === DEVICE_MODES.ENFORCE
-    ? { tone: "rose", text: "Clocking in from this device needs it registered first. It takes a minute and uses your screen lock or fingerprint." }
-    : {
-      tone: "sky",
-      text: enforceFrom
-        ? `Register a device before ${fmtDate(enforceFrom)} to keep clocking in.`
-        : "Register this device so you can keep clocking in once this becomes compulsory.",
-    };
   const base = className !== undefined
     ? className
     : horizontal
@@ -521,28 +520,66 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
     </p>
   ) : null;
 
-  const ring = phase === "idle" ? null : (
-    <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex items-center justify-center">
+  const currentTime = new Date(now);
+  const timeFormatted = fmtTime(currentTime).replace(/\s?[AP]M/i, "");
+  const timeAmPm = currentTime.toLocaleTimeString([], { hour12: true }).slice(-2).toUpperCase();
+
+  const ring = phase === "idle" ? (
+    <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex items-center justify-center select-none" title="Live clock">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="7" fill="none" className="text-purple-50" />
+        <circle
+          cx="50"
+          cy="50"
+          r="40"
+          stroke="currentColor"
+          strokeWidth="7"
+          fill="none"
+          strokeDasharray={RING}
+          strokeDashoffset={RING * 0.75}
+          className="text-purple-300/80 transition-all duration-700"
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight tabular-nums leading-none">
+          {timeFormatted}
+        </span>
+        <span className="text-[10px] font-bold text-purple-600 uppercase tracking-widest mt-1 flex items-center justify-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+          {timeAmPm}
+        </span>
+      </div>
+      <span className="sr-only">Current time: {fmtTime(currentTime)}</span>
+    </div>
+  ) : (
+    <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 flex items-center justify-center select-none">
       <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
         <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-100" />
         {progress > 0 && (
-          <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} className={`${onBreak ? "text-fuchsia-400" : "text-purple-600"} transition-all duration-700`} strokeLinecap="round" />
+          <circle
+            cx="50"
+            cy="50"
+            r="40"
+            stroke="currentColor"
+            strokeWidth="8"
+            fill="none"
+            strokeDasharray={RING}
+            strokeDashoffset={RING * (1 - progress)}
+            className={`${onBreak ? "text-amber-500" : "text-purple-600"} transition-all duration-700`}
+            strokeLinecap="round"
+          />
         )}
-        {/* Where half a day's credit begins, so the ring says how far along the
-            policy's own scale the day is rather than just "some of it". Drawn
-            over the arc so it stays visible once the arc passes it. */}
         {halfDayMark !== null && <line {...ringNotch(halfDayMark)} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-slate-300" />}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-xl font-extrabold text-slate-800 tracking-tight tabular-nums">
+        <span className="text-xl font-extrabold text-slate-800 tracking-tight tabular-nums leading-none">
           {phase === "working" ? fmtDuration(worked.workedMs).slice(0, 5) : phase === "done" ? fmtHours(effectiveHours, "--:--") : "--:--"}
         </span>
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-          {phase === "working" ? (worked.breaksKnown ? "worked" : "elapsed") : phase === "done" ? "effective" : "hrs"}
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+          {phase === "working" ? (onBreak ? "on break" : worked.breaksKnown ? "worked" : "elapsed") : phase === "done" ? "effective" : "hrs"}
         </span>
       </div>
-      {/* The notch is the sighted cue; these are the same two facts for a screen
-          reader, which can't see where a line sits on a circle. */}
       {(halfDayMin || fullDayMin) && (
         <span className="sr-only">
           {halfDayMin ? `Half a day needs ${fmtMinutes(halfDayMin)}. ` : ""}{fullDayMin ? `A full day needs ${fmtMinutes(fullDayMin)}.` : ""}
@@ -552,43 +589,75 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
   );
 
   const dayHeader = (
-    <>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h3 className="text-xl font-bold text-slate-800">{carriedOver ? "Open shift" : "Today"}</h3>
-          {badge}
-        </div>
-        {today?.date && <p className="text-xs text-slate-400 font-medium mt-0.5">{carriedOver ? "Started " : ""}{fmtDate(recordDate, { weekday: "long", day: "numeric", month: "short" }, "")}</p>}
-        {shiftLabel && (
-          <p className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold mt-1.5 truncate" title={shiftTitle || undefined}>
-            <HiClock className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-            <span className="truncate">{shiftLabel}</span>
-          </p>
-        )}
-        {/* What the grace window does to a punch made RIGHT NOW. One line in
-            every state so the card can't change height as the clock crosses
-            the cutoff, and absent entirely once they've clocked in. Fuchsia is
-            the warning tone, rose the cost (§5). */}
-        {arrival && (
-          <p className={`text-[11px] font-semibold mt-1.5 ${arrival.state === "late" ? "text-rose-600" : arrival.state === "grace" ? "text-fuchsia-600" : "text-slate-400"}`}>
-            {arrival.state === "before"
-              ? `Your shift starts at ${fmtClockMinutes(arrival.startsAt)}.`
-              : arrival.state === "grace"
-                ? `Clock in within ${fmtMinutes(arrival.minutesLeft)} to avoid a late mark.`
-                : arrival.cutoff !== null
-                  ? "Clocking in now records a late arrival."
-                  : `Your shift started at ${fmtClockMinutes(arrival.startsAt)}.`}
-          </p>
-        )}
-        {stateLine && <div className="mt-3">{stateLine}</div>}
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        <h3 className="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight">
+          {carriedOver ? "Open shift" : "Today"}
+        </h3>
+        {badge}
       </div>
+      {today?.date && (
+        <p className="text-xs text-slate-400 font-medium mt-0.5">
+          {carriedOver ? "Started " : ""}
+          {fmtDate(recordDate, { weekday: "long", day: "numeric", month: "short" }, "")}
+        </p>
+      )}
 
-      {hint && <p className="text-xs font-medium text-slate-500 mt-3">{hint}</p>}
+      {/* Structured Shift and Arrival card */}
+      {(shift || arrival) && (
+        <div className="mt-2.5 p-2.5 rounded-xl bg-purple-50/60 border border-purple-100/90 text-xs">
+          {shiftLabel && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 font-bold text-slate-700 truncate" title={shiftTitle || undefined}>
+                <HiClock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span className="truncate">{shift?.name || "Assigned Shift"}</span>
+              </span>
+              {shift?.start_time && shift?.end_time && (
+                <span className="text-[11px] font-bold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200/60 tabular-nums shrink-0">
+                  {fmtClockTime(shift.start_time)} – {fmtClockTime(shift.end_time)}
+                </span>
+              )}
+            </div>
+          )}
+          {arrival && (
+            <p className={`text-[11px] font-semibold mt-1.5 pt-1.5 border-t border-purple-100 flex items-center gap-1.5 ${arrival.state === "late" ? "text-rose-600" : arrival.state === "grace" ? "text-amber-700" : "text-purple-700"}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${arrival.state === "late" ? "bg-rose-500" : arrival.state === "grace" ? "bg-amber-500" : "bg-purple-500"}`} />
+              <span className="truncate">
+                {arrival.state === "before"
+                  ? `Shift starts at ${fmtClockMinutes(arrival.startsAt)}`
+                  : arrival.state === "grace"
+                    ? `Clock in within ${fmtMinutes(arrival.minutesLeft)} to avoid late mark`
+                    : arrival.cutoff !== null
+                      ? "Clocking in now records a late arrival"
+                      : `Shift started at ${fmtClockMinutes(arrival.startsAt)}`}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {stateLine && <div className="mt-2.5">{stateLine}</div>}
+      {hint && <p className="text-xs font-medium text-slate-500 mt-2">{hint}</p>}
+
+      {needsDevice && (
+        <div className="mt-2.5">
+          <Link
+            to={devicesPath}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
+            <span>{deviceMode === DEVICE_MODES.ENFORCE ? "Device registration required" : "Register this device"}</span>
+            <span className="font-extrabold ml-0.5">&rarr;</span>
+          </Link>
+        </div>
+      )}
 
       {carriedOver && (
-        <p className="text-[11px] font-semibold text-indigo-600 mt-3">Your shift from {fmtDate(recordDate, { weekday: "short", day: "numeric", month: "short" })} is still open. Clock out to finish it before starting a new day.</p>
+        <p className="text-[11px] font-semibold text-indigo-700 mt-2 bg-indigo-50 border border-indigo-100 p-2 rounded-lg">
+          Your shift from {fmtDate(recordDate, { weekday: "short", day: "numeric", month: "short" })} is still open. Clock out to finish it before starting a new day.
+        </p>
       )}
-    </>
+    </div>
   );
 
   return (
@@ -597,37 +666,16 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       {horizontal ? (
         <>
           <div className="lg:w-72 shrink-0 min-w-0">{dayHeader}</div>
-          {ring && <div className="shrink-0 lg:px-8 lg:border-x lg:border-slate-100">{ring}</div>}
+          <div className="shrink-0 lg:px-8 lg:border-x lg:border-slate-100">{ring}</div>
         </>
       ) : (
-        // The ring sits beside the day rather than under it: the day, the shift
-        // and the state line fill its height, so the card is one block with no
-        // empty band running across the middle.
-        <div className="flex items-center justify-between gap-4 mb-5">
-          <div className="min-w-0">{dayHeader}</div>
+        <div className="flex items-start justify-between gap-4 mb-4 pb-4 border-b border-slate-100/80">
+          {dayHeader}
           {ring}
         </div>
       )}
 
       <div className={horizontal ? "w-full lg:flex-1 lg:max-w-xl lg:ml-auto space-y-3 min-w-0" : "w-full space-y-3 mt-auto"}>
-        {inlineNotice && (
-          <InlineAlert tone={inlineNotice.tone}>
-            <p>{inlineNotice.text}</p>
-            {inlineNotice.register && devicesPath && (
-              <Link to={devicesPath} className="inline-block mt-1.5 underline font-bold">Register this device</Link>
-            )}
-          </InlineAlert>
-        )}
-
-        {/* The rollout nudge. Absent entirely when the organisation hasn't
-            turned device checks on, which is the default. */}
-        {deviceBanner && !inlineNotice && (
-          <InlineAlert tone={deviceBanner.tone}>
-            <p>{deviceBanner.text}</p>
-            <Link to={devicesPath} className="inline-block mt-1.5 underline font-bold">Register this device</Link>
-          </InlineAlert>
-        )}
-
         {/* Where the punch landed. Never rose: the punch succeeded whatever the
             outcome, and an out-of-bounds result is a flag for a manager to look
             at, not something the employee did wrong (§5.3). */}
@@ -639,31 +687,16 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
         <TodayPunchStrip punches={today?.punches} onViewPhoto={setViewPunch} />
 
         {/* Field staff punch against their client sites UNION their base office,
-            so both are listed together. Without this an out-of-bounds flag gives
-            them nothing to act on (§4 API 9).
-            GATED ON THE SITES THE SERVER RETURNED, NOT ON THE WORK MODE WE READ
-            (§7). It used to need `isFieldWorker(contractMode)`, and
-            `normalizeWorkMode` answers "office" for anything it doesn't
-            recognise — including a payload with no `work_mode` at all — so an
-            employee who had been assigned client sites saw none of them. If
-            /my-field-assignments came back with sites on it, this person has
-            sites; the base office still needs the mode, because listing "HQ ·
-            your base" to a purely office-based employee says nothing.
-            It also shows in every phase, not just before clocking in: clocking
-            OUT is geofenced too, so where they may stand matters all day. */}
+            so both are listed together. */}
         {(contract?.records?.length > 0 || (isFieldWorker(contractMode) && contract?.assigned_office)) && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-3">
-            <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-              <HiLocationMarker className="w-3.5 h-3.5 text-purple-500 shrink-0" aria-hidden="true" />
+          <div className="rounded-xl border border-purple-100 bg-purple-50/30 p-3">
+            <p className="flex items-center gap-1.5 text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2">
+              <HiLocationMarker className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" />
               Where you can clock in
             </p>
-            {/* Each place is a chip-icon + name over a quiet subline, so the base
-                office and the client sites read apart at a glance rather than as
-                one run of text. Base = purple (primary); client sites = indigo
-                (the "info" mapping, §5). */}
             <ul className="space-y-1.5">
               {contract.assigned_office?.name && (
-                <li className="flex items-center gap-2.5">
+                <li className="flex items-center gap-2.5 bg-white p-2 rounded-lg border border-purple-100/70">
                   <span className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                     <HiOfficeBuilding className="w-3.5 h-3.5" aria-hidden="true" />
                   </span>
@@ -674,7 +707,7 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
                 </li>
               )}
               {(contract.records || []).map((r) => (
-                <li key={r.id} className="flex items-center gap-2.5">
+                <li key={r.id} className="flex items-center gap-2.5 bg-white p-2 rounded-lg border border-purple-100/70">
                   <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                     <HiLocationMarker className="w-3.5 h-3.5" aria-hidden="true" />
                   </span>
@@ -710,24 +743,62 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
 
         {(phase === "idle" || (phase === "working" && !onBreak)) && (
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              {phase === "idle" && modeOptions.length > 1 && (
-                <div className={`flex-1 min-w-0 grid gap-0.5 p-1 bg-slate-100/80 rounded-xl ${modeOptions.length === 2 ? "grid-cols-2" : "grid-cols-4"}`} role="radiogroup" aria-label="Working from">
+            <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 border border-slate-200/70 rounded-xl">
+              {phase === "idle" && modeOptions.length > 1 ? (
+                <div className="flex-1 min-w-0 grid gap-1 grid-flow-col auto-cols-fr" role="radiogroup" aria-label="Working from">
                   {modeOptions.map((m) => (
-                    <button key={m.value} type="button" role="radio" aria-checked={workMode === m.value} disabled={disabled} onClick={() => persistWorkMode(m.value)} className={`py-1.5 rounded-lg text-[11px] font-bold truncate transition ${workMode === m.value ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}>
+                    <button
+                      key={m.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={workMode === m.value}
+                      disabled={disabled}
+                      onClick={() => persistWorkMode(m.value)}
+                      className={`py-1.5 px-2.5 rounded-lg text-xs font-bold truncate transition-all ${
+                        workMode === m.value
+                          ? "bg-white text-purple-700 shadow-xs border border-purple-200/80"
+                          : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/60"
+                      }`}
+                    >
                       {m.label}
                     </button>
                   ))}
                 </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2 text-xs font-semibold text-slate-500 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="truncate">{workMode ? humanize(workMode) : (contractMode ? humanize(contractMode) : "Standard Work Mode")}</span>
+                </div>
               )}
-              <button type="button" onClick={toggleNotes} disabled={disabled} aria-pressed={showNotes} title={showNotes ? "Remove note" : "Add a note"} className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-[11px] font-bold transition ${showNotes ? "bg-purple-50 text-purple-700" : "text-slate-500 hover:text-purple-600 hover:bg-slate-50"}`}>
-                <HiPencilAlt className="w-3.5 h-3.5" /> Note
+              <button
+                type="button"
+                onClick={toggleNotes}
+                disabled={disabled}
+                aria-pressed={showNotes}
+                title={showNotes ? "Remove note" : "Add a note"}
+                className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  showNotes || notes.trim()
+                    ? "bg-purple-100 text-purple-700 border border-purple-200"
+                    : "bg-white text-slate-600 hover:text-purple-600 hover:bg-purple-50/50 border border-slate-200/70"
+                }`}
+              >
+                <HiPencilAlt className="w-3.5 h-3.5 text-purple-600" />
+                <span>{notes.trim() ? "Note added" : "Note"}</span>
               </button>
             </div>
             {showNotes && (
-              <div>
-                <textarea rows={2} autoFocus maxLength={PUNCH_NOTES_MAX} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={disabled} placeholder={phase === "idle" ? "Note for this clock-in (optional)" : "Note for this clock-out (optional)"} className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 resize-none" />
-                <p className="text-[10px] text-slate-400 text-right tabular-nums">{notes.length}/{PUNCH_NOTES_MAX}</p>
+              <div className="p-2.5 rounded-xl bg-purple-50/40 border border-purple-100">
+                <textarea
+                  rows={2}
+                  autoFocus
+                  maxLength={PUNCH_NOTES_MAX}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={disabled}
+                  placeholder={phase === "idle" ? "Note for this clock-in (optional)…" : "Note for this clock-out (optional)…"}
+                  className="w-full px-3 py-2 text-xs bg-white border border-purple-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 resize-none text-slate-700"
+                />
+                <p className="text-[10px] text-slate-400 text-right tabular-nums mt-0.5">{notes.length}/{PUNCH_NOTES_MAX}</p>
               </div>
             )}
           </div>
@@ -738,18 +809,18 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
             Break → End Break) and Clock Out is there from the start, greyed
             out until there is an open day to close. */}
         {(phase === "idle" || phase === "working") && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 pt-1">
             {phase === "idle" ? (
               <button type="button" className={PRIMARY_ACTION} onClick={() => punch("clock-in")} disabled={disabled}>
-                {busy === "locating" ? <><HiLocationMarker className="w-4 h-4 animate-pulse" /> Locating…</> : busy === "clock-in" ? <><Spinner /> {deviceBusyLabel || "Clocking in…"}</> : "Clock In"}
+                {busy === "locating" ? <><HiLocationMarker className="w-4 h-4 animate-pulse" /> Locating…</> : busy === "clock-in" ? <><Spinner /> {deviceBusyLabel || "Clocking in…"}</> : <><HiClock className="w-4 h-4" /> Clock In</>}
               </button>
             ) : onBreak ? (
               <button type="button" className={BREAK_END_ACTION} onClick={() => breakAction("break-end")} disabled={disabled}>
-                {busy === "break-end" && <Spinner />} {busy === "break-end" && deviceBusyLabel ? deviceBusyLabel : "End Break"}
+                {busy === "break-end" && <Spinner />} {busy === "break-end" && deviceBusyLabel ? deviceBusyLabel : <><BiCoffeeTogo className="w-4 h-4" /> End Break</>}
               </button>
             ) : (
               <button type="button" className={BREAK_START_ACTION} onClick={() => breakAction("break-start")} disabled={disabled}>
-                {busy === "break-start" && <Spinner />} {busy === "break-start" && deviceBusyLabel ? deviceBusyLabel : "Start Break"}
+                {busy === "break-start" && <Spinner />} {busy === "break-start" && deviceBusyLabel ? deviceBusyLabel : <><BiCoffeeTogo className="w-4 h-4" /> Take Break</>}
               </button>
             )}
             <button

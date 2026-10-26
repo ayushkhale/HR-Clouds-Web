@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { leaveAPI } from "../../../../shared/api";
 import { fmtDate, ymdOnly } from "../../../../shared/attendance/dates";
 import { formatDayCount } from "../../../../shared/utils/formatUtils";
@@ -49,7 +49,7 @@ export function BalanceCard({ balance, index }) {
   const taken = parseFloat(balance.total_used);
 
   return (
-    <div className={`rounded-2xl border p-5 ${color.bg} ${color.border}`}>
+    <div className={`rounded-2xl border p-5 ${color.bg} ${color.border} w-full h-full flex flex-col`}>
       {/* The name wraps, never truncates: four cards across a 14" screen cut
           "Casual Leave" to "CASUAL L…", which named nothing. */}
       <div className="flex items-start gap-2 mb-3 min-w-0">
@@ -209,8 +209,8 @@ export default function LeaveTab({ userId, employeeName = "" }) {
         </div>
 
         {balancesLoading ? (
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-purple-50 rounded-2xl animate-pulse" />)}
+          <div className="p-6 flex items-stretch gap-4 overflow-x-auto pb-6 scroll-smooth">
+            {[...Array(4)].map((_, i) => <div key={i} className="shrink-0 w-[240px] sm:w-[260px] h-36 bg-purple-50 rounded-2xl animate-pulse" />)}
           </div>
         ) : balances.length === 0 ? (
           <div className="px-6 py-10 flex flex-col items-center gap-2 text-center">
@@ -221,8 +221,12 @@ export default function LeaveTab({ userId, employeeName = "" }) {
             <p className="text-xs text-slate-400">{year === LT_CURRENT_YEAR ? "Assign a policy below to give this employee their leave days." : `No leave balances recorded for ${year}.`}</p>
           </div>
         ) : (
-          <div className={`p-6 grid gap-4 ${balanceGridCols(balances.length)}`}>
-            {balances.map((b, i) => <BalanceCard key={b.id || b.leave_type_id} balance={b} index={i} />)}
+          <div className="p-6 flex items-stretch gap-4 overflow-x-auto pb-6 scroll-smooth [scrollbar-width:thin] [scrollbar-color:#c4b5fd_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-purple-200 hover:[&::-webkit-scrollbar-thumb]:bg-purple-400 [&::-webkit-scrollbar-thumb]:rounded-full">
+            {balances.map((b, i) => (
+              <div key={b.id || b.leave_type_id} className="shrink-0 w-[240px] sm:w-[260px] flex">
+                <BalanceCard balance={b} index={i} />
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -254,7 +258,7 @@ export default function LeaveTab({ userId, employeeName = "" }) {
           <div className="px-6 py-4 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Customise Leave Rules</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Change a leave type's rules for this employee only — the policy template stays the same for everyone else.
+              Change a leave type&apos;s rules for this employee only — the policy template stays the same for everyone else.
             </p>
           </div>
           <div className="overflow-x-auto">

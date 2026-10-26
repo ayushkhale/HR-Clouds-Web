@@ -38,7 +38,15 @@ import { settleWithLimit } from "../utils/promisePool.js";
 
 const itemDate = (i) => ymdOnly(i.date || i.record_date || recordOf(i)?.date || i.earned_date || i.worked_date);
 const otMinutes = (i) => i.overtime_minutes ?? i.minutes ?? i.requested_minutes ?? (i.hours != null ? Math.round(Number(i.hours) * 60) : null);
-const creditDays = (i) => i.days_earned ?? i.credit_days ?? i.days ?? null;
+const creditDays = (i) => {
+  const direct = i.days_earned ?? i.credit_days ?? i.days ?? i.comp_off_days ?? i.credited_days ?? i.earned_days ?? i.credit;
+  if (direct != null && direct !== "") return Number(direct);
+  if (i.worked_hours != null) {
+    const hrs = parseFloat(i.worked_hours);
+    if (!isNaN(hrs) && hrs > 0 && hrs < 5) return 0.5;
+  }
+  return 1;
+};
 const expiry = (i) => ymdOnly(i.expiry_date || i.expires_on || i.valid_until);
 const shiftOf = (i) => recordOf(i)?.shift_snapshot || recordOf(i)?.shift || null;
 

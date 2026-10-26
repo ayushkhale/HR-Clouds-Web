@@ -17,7 +17,7 @@
 // while sites and the app's clock-in photo moved to another.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { HiPlus, HiX, HiSearch } from "react-icons/hi";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
@@ -90,8 +90,10 @@ function AttendanceLocationsPage() {
       const lng = Number.isFinite(parsedLng) ? parsedLng : 77.209;
 
       const map = window.L.map(mapRef.current).setView([lat, lng], 15);
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap"
+      window.L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+        maxZoom: 20,
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        attribution: "&copy; Google Maps"
       }).addTo(map);
 
       const marker = window.L.marker([lat, lng], { draggable: true }).addTo(map);

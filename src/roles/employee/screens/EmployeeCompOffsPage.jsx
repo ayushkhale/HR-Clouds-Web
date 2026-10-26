@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../shared/api";
@@ -20,7 +20,15 @@ const TERM = DICTIONARY.TERMS.COMP_OFF;
 // Record shape is not documented (audit C11); these accessors accept the field
 // names used across the user, manager and HR views of the same entity.
 const workedDate = (r) => ymdOnly(r.earned_date || r.worked_date || r.date || r.work_date);
-const creditDays = (r) => r.days_earned ?? r.credit_days ?? r.days ?? r.comp_off_days ?? null;
+const creditDays = (r) => {
+  const direct = r.days_earned ?? r.credit_days ?? r.days ?? r.comp_off_days ?? r.credited_days ?? r.earned_days ?? r.credit;
+  if (direct != null && direct !== "") return Number(direct);
+  if (r.worked_hours != null) {
+    const hrs = parseFloat(r.worked_hours);
+    if (!isNaN(hrs) && hrs > 0 && hrs < 5) return 0.5;
+  }
+  return 1;
+};
 const expiryDate = (r) => ymdOnly(r.expiry_date || r.expires_on || r.expires_at || r.valid_until);
 
 function EmployeeCompOffsPage() {

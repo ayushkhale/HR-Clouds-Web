@@ -211,13 +211,15 @@ export default function LetterProposalsScreen({ plane: planeKey, people = [], pe
       ) : (
         <>
           {draftingClosed && !pathClosed && (
-            <p className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 leading-relaxed">
-              <HiInformationCircle className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
-              <span>
-                <span className="font-bold">Your organisation hasn’t opened letter drafting to managers.</span>{" "}
-                Ask HR to switch it on if you need to draft letters for your team — anything you’ve already asked for stays on this page.
-              </span>
-            </p>
+            <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <HiInformationCircle className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-slate-800">Your organisation hasn’t opened letter drafting to managers.</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Ask HR to switch it on to draft letters for your team. Existing requests remain visible here.
+                </p>
+              </div>
+            </div>
           )}
 
           {/* `catalog.allowed` matters: without it, a catalogue read that FAILED

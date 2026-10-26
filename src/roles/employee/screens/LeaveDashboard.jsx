@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI, attendanceAPI } from "../../../shared/api";
 import { sortNewestFirst } from "../../../shared/utils/sortUtils";
@@ -6,6 +6,7 @@ import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import {
   HiCalendar, HiPlus, HiX, HiCheckCircle, HiExclamationCircle,
   HiInformationCircle, HiClock, HiXCircle, HiChevronDown,
+  HiChevronLeft, HiChevronRight,
   HiDocumentText, HiScale
 } from "react-icons/hi";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailText, rowPreviewProps } from "../../../shared/components/DetailDialog";
@@ -198,7 +199,7 @@ function LeaveRequestDetailModal({ requestId, onClose }) {
 }
 
 // ─── Balance Cards ────────────────────────────────────────────────────────────
-function BalanceCards({ balances }) {
+function BalanceCards({ balances, scrollRef, onScroll }) {
   if (balances.length === 0) {
     return (
       <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-10 flex flex-col items-center gap-3 text-center">
@@ -212,26 +213,45 @@ function BalanceCards({ balances }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-3 pt-1 -mx-1 px-1 scroll-smooth [scrollbar-width:thin] [scrollbar-color:#c4b5fd_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-purple-200 hover:[&::-webkit-scrollbar-thumb]:bg-purple-400 [&::-webkit-scrollbar-thumb]:rounded-full"
+    >
       {balances.map((b) => (
-        <div key={b.id || b.leave_type_id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs flex flex-col justify-start">
-          {/* The leave type's configured code ("ECL_2026") used to sit here as
-              a chip. It is HR's handle on the policy, means nothing to the
-              person whose days these are, and the name is right underneath
-              (employee audit E-20, §4). */}
+        <div
+          key={b.id || b.leave_type_id}
+          className="shrink-0 w-[260px] sm:w-[280px] bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-xs flex flex-col justify-start hover:border-purple-200 transition-colors"
+        >
+          {/* Leave icon and code */}
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-purple-100 flex items-center justify-center text-purple-600 bg-purple-50">
               <HiCalendar className="w-5 h-5" />
             </div>
+            {b.leave_type?.code && (
+              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                {b.leave_type.code}
+              </span>
+            )}
           </div>
-          <p className="text-sm font-semibold text-slate-500 mb-1">{b.leave_type?.name || "Leave"}</p>
+          <p className="text-sm font-semibold text-slate-600 mb-1 truncate" title={b.leave_type?.name || "Leave"}>
+            {b.leave_type?.name || "Leave"}
+          </p>
           <div className="flex items-end gap-1 mb-4">
-             <span className="text-2xl font-black tracking-tight text-slate-800 leading-tight">{formatDayCount(b.current_balance, { fallback: "0d" })}</span>
-             <span className="text-xs font-semibold text-slate-400 mb-0.5 tracking-normal">left</span>
+            <span className="text-2xl font-black tracking-tight text-slate-800 leading-tight">
+              {formatDayCount(b.current_balance, { fallback: "0d" })}
+            </span>
+            <span className="text-xs font-semibold text-slate-400 mb-0.5 tracking-normal">left</span>
           </div>
           <div className="mt-auto pt-3 border-t border-slate-50 flex gap-4 text-[11px] font-semibold text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>{formatDayCount(b.total_accrued, { lower: true, fallback: "0d" })} given so far</span>
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50"></span>{formatDayCount(b.total_used, { lower: true, fallback: "0d" })} used</span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></span>
+              {formatDayCount(b.total_accrued, { lower: true, fallback: "0d" })} given so far
+            </span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-50 shrink-0"></span>
+              {formatDayCount(b.total_used, { lower: true, fallback: "0d" })} used
+            </span>
           </div>
         </div>
       ))}
@@ -765,7 +785,7 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
           </thead>
           <tbody className="text-xs font-semibold text-slate-700">
             {filtered.map(r => (
-              <React.Fragment key={r.id}>
+              <Fragment key={r.id}>
                 <tr {...rowPreviewProps(() => onView(r.id), "Leave request")}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -818,7 +838,7 @@ function RequestsTable({ requests, onView, onCancel, cancelling }) {
                     </td>
                   </tr>
                 )}
-              </React.Fragment>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -845,6 +865,33 @@ export default function LeaveDashboard() {
   const [cancelTarget, setCancelTarget] = useState(null);
   const [detailRequestId, setDetailRequestId] = useState(null);
   const [toast, setToast] = useState(null);
+
+  const balanceScrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkBalanceScroll = useCallback(() => {
+    const el = balanceScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(checkBalanceScroll, 60);
+    const handleResize = () => checkBalanceScroll();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [balances, checkBalanceScroll]);
+
+  const scrollBalances = (direction) => {
+    const el = balanceScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * 280, behavior: "smooth" });
+  };
 
   function showToast(message, type = "success") {
     setToast({ message, type });
@@ -887,7 +934,26 @@ export default function LeaveDashboard() {
   const loadLeaveTypes = useCallback(async () => {
     try {
       const res = await leaveAPI.getMyLeaveTypes();
-      setLeaveTypes(res.data || []);
+      const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+      if (list.length > 0) {
+        setLeaveTypes(list);
+        return;
+      }
+    } catch { /* try fallback */ }
+
+    // Fallback: If my-leave-types is empty or errors, load active organization leave types
+    try {
+      const allRes = await leaveAPI.getLeaveTypes({ include_inactive: false });
+      const allList = Array.isArray(allRes)
+        ? allRes
+        : Array.isArray(allRes?.data)
+        ? allRes.data
+        : Array.isArray(allRes?.data?.records)
+        ? allRes.data.records
+        : [];
+      if (allList.length > 0) {
+        setLeaveTypes(allList);
+      }
     } catch { /* non-critical */ }
   }, []);
 
@@ -953,7 +1019,33 @@ export default function LeaveDashboard() {
           {/* Balance Cards */}
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-slate-700"><HelpLabel text="Leave Balances" help={{ surface: "leaves.balances", field: "total_accrued", label: "your leave balance" }} /></h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-bold text-slate-700">
+                  <HelpLabel text="Leave Balances" help={{ surface: "leaves.balances", field: "total_accrued", label: "your leave balance" }} />
+                </h2>
+                {(canScrollLeft || canScrollRight) && (
+                  <div className="hidden sm:flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => scrollBalances(-1)}
+                      disabled={!canScrollLeft}
+                      className="w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-purple-600 hover:border-purple-200 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer"
+                      aria-label="Scroll balances left"
+                    >
+                      <HiChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollBalances(1)}
+                      disabled={!canScrollRight}
+                      className="w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-purple-600 hover:border-purple-200 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition shadow-2xs cursor-pointer"
+                      aria-label="Scroll balances right"
+                    >
+                      <HiChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
               <select
                 value={year}
                 onChange={e => setYear(Number(e.target.value))}
@@ -964,11 +1056,17 @@ export default function LeaveDashboard() {
               </select>
             </div>
             {balancesLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => <div key={i} className="h-36 bg-white rounded-2xl border border-slate-100 animate-pulse" />)}
+              <div className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-3 pt-1 -mx-1 px-1 scroll-smooth">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="shrink-0 w-[260px] sm:w-[280px] h-48 bg-white rounded-3xl border border-slate-100 animate-pulse" />
+                ))}
               </div>
             ) : (
-              <BalanceCards balances={balances} />
+              <BalanceCards
+                balances={balances}
+                scrollRef={balanceScrollRef}
+                onScroll={checkBalanceScroll}
+              />
             )}
           </div>
 

@@ -181,7 +181,7 @@ function RenameDeviceDialog({ device, busy, error, onSubmit, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <form onSubmit={submit} role="dialog" aria-modal="true" aria-label="Rename device" className="bg-white rounded-2xl shadow-2xl shadow-purple-900/20 w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-purple-100">
           <h2 className="text-lg font-bold text-slate-800">Rename this device</h2>

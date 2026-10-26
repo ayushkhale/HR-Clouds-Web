@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { attendanceAPI } from "../../../../shared/api";
 import { DICTIONARY } from "../../../../shared/config/dictionary";
@@ -20,7 +20,15 @@ import { settleWithLimit } from "../../../../shared/utils/promisePool";
 
 const TERM = DICTIONARY.TERMS.COMP_OFF;
 const workedDate = (r) => ymdOnly(r.earned_date || r.worked_date || r.date);
-const creditDays = (r) => r.days_earned ?? r.credit_days ?? r.days ?? null;
+const creditDays = (r) => {
+  const direct = r.days_earned ?? r.credit_days ?? r.days ?? r.comp_off_days ?? r.credited_days ?? r.earned_days ?? r.credit;
+  if (direct != null && direct !== "") return Number(direct);
+  if (r.worked_hours != null) {
+    const hrs = parseFloat(r.worked_hours);
+    if (!isNaN(hrs) && hrs > 0 && hrs < 5) return 0.5;
+  }
+  return 1;
+};
 const expiryDate = (r) => ymdOnly(r.expiry_date || r.expires_on || r.valid_until);
 
 const HR_ACTIONS = [
@@ -104,7 +112,7 @@ function AttendanceCompOffsPage() {
       <main className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
         <div>
           <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text={TERM} help={{ surface: "attendance.comp_off_queue", field: "page", label: `the ${TERM} page` }} /></h1>
-          <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits on the manager's behalf.</p>
+          <p className="text-sm text-slate-500 mt-1">Organisation-wide compensatory days. HR can approve or reject earned credits on the manager&apos;s behalf.</p>
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-hidden">
@@ -191,7 +199,7 @@ function AttendanceCompOffsPage() {
         title={`HR decision · ${TERM}`}
         subtitle={decision ? personName(decision, "Employee") : ""}
         actions={HR_ACTIONS}
-        notice={<InlineAlert tone="amber">This decision bypasses the manager step. Approving credits the {TERM.toLowerCase()} to the employee's leave balance; rejecting moves it to Rejected / cancelled.</InlineAlert>}
+        notice={<InlineAlert tone="amber">This decision bypasses the manager step. Approving credits the {TERM.toLowerCase()} to the employee&apos;s leave balance; rejecting moves it to Rejected / cancelled.</InlineAlert>}
         onSubmit={handleDecision}
         onClose={() => setDecision(null)}
       >

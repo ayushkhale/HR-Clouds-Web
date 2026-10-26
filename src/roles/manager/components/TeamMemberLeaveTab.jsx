@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HiCalendar, HiRefresh } from "react-icons/hi";
 import { leaveAPI } from "../../../shared/api";
 import { listFrom } from "../../../shared/attendance/normalize";
 import { fmtDate } from "../../../shared/attendance/dates";
 import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { EmptyState, ErrorState, LoadingRows } from "../../../shared/attendance/ui";
-import { BalanceCard, balanceGridCols } from "../../hr/screens/employee-profile/LeaveTab";
+import { BalanceCard } from "../../hr/screens/employee-profile/LeaveTab";
 
 const STATUS_TONE = {
   approved: "bg-violet-50 text-violet-700 border-violet-200",
@@ -56,8 +56,12 @@ export default function TeamMemberLeaveTab({ userId }) {
       ) : balances.items.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100"><EmptyState icon={HiCalendar} title="No balances" message="No leave policy is assigned to this person yet." /></div>
       ) : (
-        <div className={`grid gap-4 ${balanceGridCols(balances.items.length)}`}>
-          {balances.items.map((b, i) => <BalanceCard key={b.id || b.leave_type_id || i} balance={b} index={i} />)}
+        <div className="flex items-stretch gap-4 overflow-x-auto pb-4 scroll-smooth [scrollbar-width:thin] [scrollbar-color:#c4b5fd_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-purple-200 hover:[&::-webkit-scrollbar-thumb]:bg-purple-400 [&::-webkit-scrollbar-thumb]:rounded-full">
+          {balances.items.map((b, i) => (
+            <div key={b.id || b.leave_type_id || i} className="shrink-0 w-[240px] sm:w-[260px] flex">
+              <BalanceCard balance={b} index={i} />
+            </div>
+          ))}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
 import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
@@ -48,20 +48,28 @@ const ENTITY_TYPES = [
 const ENTITY_LABEL = Object.fromEntries(ENTITY_TYPES.map(([v, l]) => [v, l]));
 
 const fmtWhen = (d) => {
-  if (!d) return "N/A";
+  if (!d) return "—";
   const date = new Date(d);
   return Number.isNaN(date.getTime())
-    ? "N/A"
+    ? "—"
     : date.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "N/A");
+const prettify = (s) => (s ? String(s).replace(/_/g, " ") : "—");
 
 const emptyFilters = { entity_type: "", action: "", target_user_id: "", from: "", to: "" };
 const PAGE_SIZE = 20; // fixed request size — the user never changes it, so it must not depend on the response
 
 const logWhen = (log) => log.created_at || log.timestamp || log.performed_at;
-const logMeta = (log) => log.changes ?? log.metadata ?? log.details ?? log.diff ?? null;
+const logMeta = (log) => {
+  const m = log.changes ?? log.metadata ?? log.details ?? log.diff ?? null;
+  if (m && typeof m === "object" && !Array.isArray(m)) {
+    const rest = { ...m };
+    delete rest.entity_id;
+    return Object.keys(rest).length ? rest : null;
+  }
+  return m;
+};
 
 export default function PayrollAuditLogPage() {
   const [logs, setLogs] = useState([]);
@@ -222,7 +230,7 @@ export default function PayrollAuditLogPage() {
                         <span className="px-2 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border-purple-100">{prettify(log.action)}</span>
                       </td>
                       <td className="px-6 py-4 text-slate-600 capitalize">{ENTITY_LABEL[log.entity_type] || prettify(log.entity_type)}</td>
-                      <td className="px-6 py-4 text-slate-600">{log.target_user_id ? empName(log.target_user_id) : <span className="text-slate-400 font-medium">N/A</span>}</td>
+                      <td className="px-6 py-4 text-slate-600">{log.target_user_id ? empName(log.target_user_id) : <span className="text-slate-400 font-medium">None</span>}</td>
                     </tr>
                   ))}
                   {logs.length === 0 && (
@@ -261,14 +269,13 @@ export default function PayrollAuditLogPage() {
           >
             <DetailSection title="What happened" icon={HiDocumentText}>
               <DetailGrid
-                cols={3}
+                cols={preview.target_user_id ? 3 : 2}
                 items={[
                   ["When", fmtWhen(logWhen(preview))],
                   ["Done by", actorOf(preview)],
                   ["Action", prettify(preview.action)],
                   ["Entity", ENTITY_LABEL[preview.entity_type] || prettify(preview.entity_type)],
-                  { label: "Entity ID", value: preview.entity_id, mono: true },
-                  ["Affected employee", preview.target_user_id ? empName(preview.target_user_id) : null],
+                  ["Affected employee", preview.target_user_id ? empName(preview.target_user_id) : "None"],
                 ]}
               />
               {preview.reason && <div className="mt-3"><DetailText label="Reason">{preview.reason}</DetailText></div>}

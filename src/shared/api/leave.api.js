@@ -52,9 +52,20 @@ export const leaveAPI = {
    * GET /leaves/types
    * @param {Object} params - e.g. { include_inactive: true }
    */
-  getLeaveTypes: (params = {}) => {
+  getLeaveTypes: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return request(`/leaves/types${query ? `?${query}` : ""}`);
+    try {
+      return await request(`/leaves/types${query ? `?${query}` : ""}`);
+    } catch (err) {
+      if (query) {
+        try {
+          return await request("/leaves/types");
+        } catch {
+          throw err;
+        }
+      }
+      throw err;
+    }
   },
 
   /**

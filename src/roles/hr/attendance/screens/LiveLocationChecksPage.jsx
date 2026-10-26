@@ -133,6 +133,7 @@ function NumberField({ field, label, value, onChange, hint, suffix, error }) {
           max={bounds?.max}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onWheel={(e) => e.target.blur()}
           className={`${inputClass(!!error)} ${suffix ? "pr-20" : ""}`}
         />
         {suffix && (

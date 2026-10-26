@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { attendanceAPI } from "../../../../shared/api";
@@ -82,6 +82,7 @@ function NumberField({ label, hint, name, value, onChange, error, step = 1, min 
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(name, e.target.value)}
+          onWheel={(e) => e.target.blur()}
           className={inputClass(!!error)}
           aria-invalid={!!error}
         />

@@ -2303,14 +2303,14 @@
           }
         },
         "oldest_queued_age_seconds": {
-          "hint": "How long the letter at the front of the queue has been waiting. A long wait here, not a big number, is what means something is stuck.",
+          "hint": "How long the letter at the front of the queue has been waiting. Displays 0m when the queue is clear.",
           "askMaya": {
             "enabled": true,
             "question": "How can I tell whether letter production is stuck?"
           }
         },
         "failure_rate": {
-          "hint": "The share of letters that finished but didn’t come out. It reads N/A when nothing finished — that is no news, not a clean result.",
+          "hint": "The percentage of letters that finished but didn’t come out. Displays 0% when there are no failures.",
           "askMaya": {
             "enabled": true,
             "question": "What does the letter failure rate show, and what should I do if it is high?"
@@ -2333,14 +2333,14 @@
           }
         },
         "oldest_queued_age_seconds": {
-          "hint": "How long the payslip at the front of the queue has been waiting. A long wait here, not a big number, is what means something is stuck.",
+          "hint": "How long the payslip at the front of the queue has been waiting. Displays 0m when the queue is clear.",
           "askMaya": {
             "enabled": true,
             "question": "How can I tell whether payslip production is stuck?"
           }
         },
         "failure_rate": {
-          "hint": "The share of payslips that finished but didn’t come out. It reads N/A when nothing finished — that is no news, not a clean result.",
+          "hint": "The percentage of payslips that finished but didn’t come out. Displays 0% when there are no failures.",
           "askMaya": {
             "enabled": true,
             "question": "What does the payslip failure rate show, and what should I do if it is high?"

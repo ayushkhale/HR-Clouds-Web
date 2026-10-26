@@ -639,20 +639,19 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
 
   return (
     <>
-      {/* Search and actions on one line, filters wrapping underneath. Seven
-          controls in a single non-wrapping row ran off the card on a 14" screen. */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 space-y-3">
-        <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-0">
-          <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by employee, claim number or title" aria-label="Filter this page" className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {hasFilters && <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">Clear</button>}
-          <button type="button" onClick={() => list.reload()} aria-label="Refresh" title="Refresh" className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"><HiRefresh className="w-4 h-4" /></button>
-        </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Single-line toolbar: search, filters, and actions in one streamlined horizontal row */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 mb-5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative min-w-[200px] flex-1 max-w-xs">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search employee, claim # or title"
+              aria-label="Filter this page"
+              className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none transition"
+            />
+          </div>
           <select aria-label="Status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={selectCls}>
             {CLAIM_STATUS_FILTERS.hr.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
@@ -664,7 +663,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
             <option value="">Any pay month</option>
             {months.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
-          <PersonSelect className="w-64" people={directory.options} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} clearLabel="Any employee" aria-label="Employee" />
+          <PersonSelect className="w-52" people={directory.options} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} clearLabel="Any employee" aria-label="Employee" />
           <div className="inline-flex items-center gap-1.5 h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400 transition shrink-0">
             <HiCalendar className="w-4 h-4 text-purple-600 shrink-0" />
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Submitted:</span>
@@ -675,7 +674,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
               value={filters.created_from}
               max={filters.created_to || undefined}
               onChange={(e) => setFilter("created_from", e.target.value)}
-              className="w-[115px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
+              className="w-[110px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
             />
             <span className="text-slate-300 select-none">→</span>
             <input
@@ -685,7 +684,7 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
               value={filters.created_to}
               min={filters.created_from || undefined}
               onChange={(e) => setFilter("created_to", e.target.value)}
-              className="w-[115px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
+              className="w-[110px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
             />
             {(filters.created_from || filters.created_to) && (
               <button
@@ -698,6 +697,22 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
                 <HiX className="w-3.5 h-3.5" />
               </button>
             )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            {hasFilters && (
+              <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">
+                Clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => list.reload()}
+              aria-label="Refresh"
+              title="Refresh"
+              className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"
+            >
+              <HiRefresh className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>

@@ -245,24 +245,33 @@ export function TodayPunchStrip({ punches, onViewPhoto }) {
   ].filter(Boolean);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-3 space-y-2.5">
-      <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-        <HiCamera className="w-3.5 h-3.5 text-purple-500 shrink-0" aria-hidden="true" /> Where today’s punches landed
+    <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3 space-y-2">
+      <p className="flex items-center gap-1.5 text-[10px] font-bold text-purple-700 uppercase tracking-wider">
+        <HiCamera className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" /> Today’s Punch Activity
       </p>
-      {cells.map(({ key, label, punch }) => {
-        const view = punchLocationView(punch.location);
-        return (
-          <div key={key} className="flex items-center gap-3">
-            <PunchPhotoThumb punch={punch} size="md" onOpen={onViewPhoto} />
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 text-[12px] font-bold text-slate-700">
-                <HiClock className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" /> {label} · <span className="tabular-nums font-semibold">{fmtTime(punch.timestamp)}</span>
-              </p>
-              {view && <div className="mt-1"><LocationChip view={view} compact /></div>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {cells.map(({ key, label, punch }) => {
+          const view = punchLocationView(punch.location);
+          const hasPhoto = punchPhotoState(punch).kind !== "none";
+          return (
+            <div key={key} className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-purple-100/80 shadow-2xs min-w-0">
+              {hasPhoto ? (
+                <PunchPhotoThumb punch={punch} size="sm" onOpen={onViewPhoto} />
+              ) : (
+                <span className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                  <HiClock className="w-4 h-4" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-slate-700 truncate">
+                  {label} · <span className="tabular-nums font-semibold text-purple-700">{fmtTime(punch.timestamp)}</span>
+                </p>
+                {view && <div className="mt-0.5"><LocationChip view={view} compact /></div>}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

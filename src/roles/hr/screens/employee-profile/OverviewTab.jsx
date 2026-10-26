@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HiCheckCircle, HiExclamationCircle, HiClock, HiTrendingUp, HiCalendar, HiChevronLeft, HiChevronRight,
   HiLightningBolt, HiRefresh, HiInformationCircle,
@@ -206,7 +206,7 @@ export default function OverviewTab({ userId, employeeRole, viewer = "hr" }) {
                       {late > 0 && (
                         <>
                           <span className="text-slate-500">·</span>
-                          <span className="text-amber-300 font-bold">{fmtMinutes(late)} late</span>
+                          <span className="text-purple-300 font-bold">{fmtMinutes(late)} late</span>
                         </>
                       )}
                     </div>

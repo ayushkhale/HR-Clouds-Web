@@ -299,7 +299,20 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
  */
 export function CompOffDetailDialog({ item, term, workedOn, credit, expiresOn, expiringSoon, onClose }) {
   const status = String(item?.status || "earned").toLowerCase();
-  const creditLabel = credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : null;
+  const rawCredit = credit
+    ?? item?.days_earned
+    ?? item?.credit_days
+    ?? item?.days
+    ?? item?.comp_off_days
+    ?? item?.credited_days
+    ?? item?.earned_days
+    ?? item?.credit
+    ?? (item?.worked_hours != null && parseFloat(item.worked_hours) > 0 && parseFloat(item.worked_hours) < 5 ? 0.5 : 1);
+
+  const numCredit = Number(rawCredit);
+  const creditLabel = !Number.isNaN(numCredit) && numCredit > 0
+    ? `+${numCredit === 0.5 ? "1/2" : numCredit} day${numCredit === 1 ? "" : "s"}`
+    : "+1 day";
 
   return (
     <DetailDialog

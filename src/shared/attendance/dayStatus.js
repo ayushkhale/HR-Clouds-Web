@@ -93,15 +93,15 @@ export const TREND_COLORS_ON_DARK = {
  * grid and another in the table.
  */
 export const DAY_CHIPS = {
-  present:    { label: "Present",    tone: "emerald", heat: "bg-purple-700 border-purple-700 text-white" },
-  late:       { label: "Late",       tone: "amber",   heat: "bg-purple-400 border-purple-400 text-white" },
-  half_day:   { label: "Half day",   tone: "blue",    heat: "bg-purple-300 border-purple-300 text-purple-950" },
-  on_leave:   { label: "On leave",   tone: "amber",   heat: "bg-amber-100 border-amber-300 text-amber-800" },
-  absent:     { label: "Absent",     tone: "rose",    heat: "bg-rose-500 border-rose-500 text-white" },
-  holiday:    { label: "Holiday",    tone: "indigo",  heat: "bg-purple-100 border-purple-300 text-purple-700" },
-  weekly_off: { label: "Weekly off", tone: "slate",   heat: "bg-slate-200 border-slate-200 text-slate-600" },
-  no_data:    { label: "No data",    tone: "slate",   heat: "bg-slate-100 border-slate-200 text-slate-400" },
-  upcoming:   { label: "Upcoming",   tone: "slate",   heat: "bg-slate-50 border-slate-200 text-slate-400" },
+  present:    { label: "Present",    tone: "violet", heat: "bg-[#5B21B6] border-[#4C1D95] text-white" },
+  late:       { label: "Late",       tone: "violet", heat: "bg-[#7C3AED] border-[#6D28D9] text-white" },
+  half_day:   { label: "Half day",   tone: "violet", heat: "bg-[#9333EA] border-[#7E22CE] text-white" },
+  on_leave:   { label: "On leave",   tone: "violet", heat: "bg-[#8B5CF6] border-[#6D28D9] text-white" },
+  absent:     { label: "Absent",     tone: "violet", heat: "bg-[#DDD6FE] border-[#A78BFA] text-purple-950 font-bold" },
+  holiday:    { label: "Holiday",    tone: "violet", heat: "bg-[#EDE9FE] border-[#DDD6FE] text-purple-800" },
+  weekly_off: { label: "Weekly off", tone: "slate",  heat: "bg-[#F5F3FF] border-[#E9D5FF] text-purple-600" },
+  no_data:    { label: "No data",    tone: "slate",  heat: "bg-slate-50 border-slate-200 text-slate-400" },
+  upcoming:   { label: "Upcoming",   tone: "slate",  heat: "bg-white border-dashed border-purple-200 text-purple-300" },
 };
 
 /** Legend order — worked days first, then non-working, then the two unknowns. */

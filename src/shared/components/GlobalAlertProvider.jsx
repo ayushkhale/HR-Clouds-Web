@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { HiInformationCircle, HiQuestionMarkCircle } from "react-icons/hi";
 
 // A dialog ignores "OK" for this long after it appears, so the second click of
 // a double-click on the button that opened it can't confirm it by accident.
@@ -142,20 +143,30 @@ export function GlobalAlertProvider({ children }) {
 
       {/* Alert Modal */}
       {alert && (
-        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-10 sm:pt-16 bg-slate-900/40 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] transition-opacity">
           {/* key: each alert mounts fresh, so autoFocus runs again */}
-          <div key={alert.id} ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby={`global-alert-${alert.id}`} className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-xl shadow-2xl rounded-[14px] w-full max-w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-10 duration-300">
-            <div className="p-6 text-center min-h-[90px] flex items-center justify-center">
-              <p id={`global-alert-${alert.id}`} className="text-gray-900 dark:text-gray-100 text-[14px] font-medium leading-relaxed whitespace-pre-line">
+          <div
+            key={alert.id}
+            ref={dialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`global-alert-${alert.id}`}
+            className="bg-white border border-purple-100 shadow-2xl shadow-purple-950/15 rounded-2xl w-full max-w-[340px] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="p-6 text-center flex flex-col items-center justify-center">
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center mb-3 shrink-0">
+                <HiInformationCircle className="w-6 h-6" />
+              </div>
+              <p id={`global-alert-${alert.id}`} className="text-slate-800 text-[14px] font-semibold leading-relaxed whitespace-pre-line">
                 {alert.message}
               </p>
             </div>
-            <div className="border-t border-gray-300/50 dark:border-gray-700/50">
+            <div className="border-t border-slate-100 bg-slate-50/50">
               <button
                 type="button"
                 autoFocus
                 onClick={() => { if (!tooSoon()) closeAlert(alert.id); }}
-                className="w-full py-3.5 text-[#6D28D9] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
+                className="w-full py-3.5 text-purple-700 hover:text-purple-800 font-bold text-[15px] hover:bg-purple-50/70 active:bg-purple-100/50 transition-colors focus:outline-none focus-visible:bg-purple-50 cursor-pointer"
               >
                 OK
               </button>
@@ -166,29 +177,39 @@ export function GlobalAlertProvider({ children }) {
 
       {/* Confirm Modal */}
       {confirm && (
-        <div className="fixed inset-0 z-[99999] flex items-start justify-center pt-10 sm:pt-16 bg-slate-900/40 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] transition-opacity">
           {/* key: each question mounts fresh, so Cancel is focused again */}
-          <div key={confirm.id} ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby={`global-confirm-${confirm.id}`} className="bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-xl shadow-2xl rounded-[14px] w-full max-w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-10 duration-300">
-            <div className="p-6 text-center min-h-[90px] flex items-center justify-center">
-              <p id={`global-confirm-${confirm.id}`} className="text-gray-900 dark:text-gray-100 text-[14px] font-medium leading-relaxed whitespace-pre-line">
+          <div
+            key={confirm.id}
+            ref={dialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`global-confirm-${confirm.id}`}
+            className="bg-white border border-purple-100 shadow-2xl shadow-purple-950/15 rounded-2xl w-full max-w-[340px] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="p-6 text-center flex flex-col items-center justify-center">
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center mb-3 shrink-0">
+                <HiQuestionMarkCircle className="w-6 h-6" />
+              </div>
+              <p id={`global-confirm-${confirm.id}`} className="text-slate-800 text-[14px] font-semibold leading-relaxed whitespace-pre-line">
                 {confirm.message}
               </p>
             </div>
-            <div className="border-t border-gray-300/50 dark:border-gray-700/50 flex">
+            <div className="border-t border-slate-100 bg-slate-50/50 flex">
               <button
                 type="button"
                 // Focus the safe answer, so a stray Enter can't confirm, nor
                 // re-press the button that opened this question.
                 autoFocus
                 onClick={() => resolveConfirm(confirm.id, false)}
-                className="flex-1 py-3.5 border-r border-gray-300/50 dark:border-gray-700/50 text-[#6D28D9] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
+                className="flex-1 py-3.5 border-r border-slate-100 text-slate-600 hover:text-slate-800 font-semibold text-[15px] hover:bg-slate-100/70 active:bg-slate-200/50 transition-colors focus:outline-none focus-visible:bg-slate-100 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => { if (!tooSoon()) resolveConfirm(confirm.id, true); }}
-                className="flex-1 py-3.5 text-[#6D28D9] font-semibold text-[16px] hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors focus:outline-none focus-visible:bg-black/5"
+                className="flex-1 py-3.5 text-purple-700 hover:text-purple-800 font-bold text-[15px] hover:bg-purple-50/70 active:bg-purple-100/50 transition-colors focus:outline-none focus-visible:bg-purple-50 cursor-pointer"
               >
                 OK
               </button>

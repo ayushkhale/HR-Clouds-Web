@@ -13,6 +13,7 @@
 | **REQ-PAYROLL-001** | `GET /api/v1/payroll/hr/reimbursements/claims` | Payroll / Reimbursements | High | **Pending Backend** | Add `pending_hr=true` filter to return all claims currently awaiting HR action |
 | **REQ-INBOX-001** | `GET /api/v1/inbox/badges` | Core / Navigation & Approvals | High | **Pending Backend** | Unified Categorical Badge Counts & Inbox Summary Endpoint |
 | **REQ-NOTIF-001** | `GET /api/v1/notifications` & Event Emitters | Core / Notifications | Medium | **Frontend Mitigated** | Notification Template String Interpolation Sanitization & Tab Count Summaries |
+| **REQ-ATTENDANCE-001** | `GET /api/v1/attendance/comp-offs/mine` & related | Attendance / Comp-Off | Medium | **Frontend Mitigated** | Explicit `days_earned` / `credit_days` on Comp-Off Records |
 
 ---
 
@@ -352,6 +353,57 @@ Optionally return a summary counts object alongside `pagination`:
   Created `src/shared/notifications/formatNotificationText.js` with defensive regex and date formatters (`cleanActorName`, `cleanMessage`, `cleanTitle`) hooked into `normalizeNotification()` in `notificationMeta.js`. This transparently normalizes all notifications on the client side without regressions.
 * **Integration Steps Once Backend Delivers:**
   Once backend fixes the event templates, the frontend sanitizer will act as an unobtrusive safety net, and `state.tabCounts` can directly consume `res.data.counts`.
+
+---
+
+## REQ-ATTENDANCE-001: Explicit `days_earned` / `credit_days` on Comp-Off Records
+
+### 1. Target API & Route
+* **Endpoints:**
+  - `GET /api/v1/attendance/comp-offs/mine`
+  - `GET /api/v1/attendance/comp-offs` (HR view)
+  - `GET /api/v1/attendance/manager/comp-offs` (Manager approval queue)
+* **HTTP Method:** `GET`
+* **API Registry Reference:** API 19 & related (`user_attendance.routes.js` → `user_attendance.controller.js` → `comp_off.service.js`)
+
+### 2. Business Problem & Why This Is Needed
+When employees earn compensatory off (Earned Leave) by working on holidays or weekly off days, each comp-off record awards compensatory leave credit (typically 1 full day, or 0.5 day if hours worked are below the full-day threshold).
+Currently, the comp-off record objects returned by `GET /attendance/comp-offs/mine` carry:
+`{ id, earned_date, worked_type, worked_hours, status, expiry_date, used_on_date, used_leave_id }`
+The payload completely omits the awarded credit count (e.g. `days_earned` or `credit_days`).
+Consequently:
+1. When viewing the Earned Leave inspector popup (`CompOffDetailDialog`), the "Days credited" stat card and "How you earned it" grid showed `"N/A"`.
+2. In the history tables, the Credit column displayed `"N/A"` or had to be suppressed.
+
+### 3. Requested Backend Changes
+In `comp_off.service.js` (and the corresponding DTO / serializer for comp-off records):
+Ensure every comp-off item includes the credit figure:
+* **Field Name:** `days_earned` (also accept aliases `credit_days` / `days`)
+* **Type:** `Number` / `Decimal` (e.g., `1.0` or `0.5`)
+* **Calculation:** If not explicitly set in the table column, determine from the organization's `attendance_comp_off_policies` (`min_hours_for_full_day` vs `min_hours_for_half_day` applied against `worked_hours`), defaulting to `1.0`.
+
+```json
+{
+  "id": "9b1284c1-...",
+  "earned_date": "2026-08-15",
+  "worked_type": "holiday",
+  "worked_hours": "8.00",
+  "days_earned": 1.0,
+  "status": "approved",
+  "expiry_date": "2026-11-15"
+}
+```
+
+### 4. Frontend Developer Hint & Context
+* **Observed UI Bug / Gap:**
+  Clicking any Earned Leave record opened `CompOffDetailDialog`, displaying:
+  `Days credited: N/A`
+* **Temporary Workaround Applied:**
+  Updated `CompOffDetailDialog` in `src/shared/attendance/SelfRecordDialogs.jsx`, `EmployeeCompOffsPage.jsx`, `AttendanceCompOffsPage.jsx`, and `AttendanceApprovalQueue.jsx` to resolve:
+  `credit = r.days_earned ?? r.credit_days ?? r.days ?? r.comp_off_days ?? r.credited_days ?? r.earned_days ?? r.credit ?? (worked_hours && parseFloat(worked_hours) < 5 ? 0.5 : 1)`
+  This immediately guarantees that "Days credited" renders as `+1 day` (or `+1/2 day`) rather than `"N/A"`.
+* **Integration Steps Once Backend Delivers:**
+  The frontend fallback chain already places `r.days_earned` first, so once the backend includes `days_earned` in the payload, the client will consume the server value automatically.
 
 ---
 

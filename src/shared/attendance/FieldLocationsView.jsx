@@ -37,7 +37,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil, HiX, HiUser } from "react-icons/hi";
+import { HiLocationMarker, HiPlus, HiOfficeBuilding, HiUserGroup, HiTrash, HiPencil, HiX, HiUser, HiSearch } from "react-icons/hi";
 import DetailDialog, { DetailFooterNote, DetailGrid, DetailPill, DetailSection, DetailTable, displayValue, rowPreviewProps } from "../components/DetailDialog";
 import GeofenceMapPicker from "../components/GeofenceMapPicker";
 import AddressSearchField from "../components/AddressSearchField";
@@ -60,8 +60,8 @@ const SITE_PAGE = 100;
 
 /** The two questions this screen answers. Sites first — a site must exist before anyone can be put on one. */
 const VIEW_TABS = [
-  { value: "sites", label: "Sites" },
-  { value: "people", label: "People" },
+  { value: "sites", label: "Sites", icon: HiOfficeBuilding },
+  { value: "people", label: "People", icon: HiUserGroup },
 ];
 
 const BROWSER_TZ = (() => {
@@ -182,10 +182,32 @@ export default function FieldLocationsView({ viewer = "hr" }) {
           and its one-line description, which §2 requires to match the sidebar
           label and the top bar — repeating them here printed the same title
           twice. The page ⓘ lives beside that <h1>, per §10. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <FilterTabs options={VIEW_TABS} value={view} onChange={setView} />
+      {/* ── Top-level view tabs: Sites and People (matches RegisteredDevicesPage) ── */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200">
+        <div className="flex items-center gap-1 -mb-px" role="tablist" aria-label="Client sites view">
+          {VIEW_TABS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={view === value}
+              onClick={() => setView(value)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition ${
+                view === value
+                  ? "border-purple-600 text-purple-700"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {Icon && <Icon className="w-4 h-4" />} {label}
+            </button>
+          ))}
+        </div>
         {view === "sites" && (
-          <button type="button" onClick={() => setEditing({ site: null, assignedCount: 0 })} className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition">
+          <button
+            type="button"
+            onClick={() => setEditing({ site: null, assignedCount: 0 })}
+            className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition mb-1"
+          >
             <HiPlus className="w-4 h-4" /> Add a site
           </button>
         )}
@@ -204,20 +226,25 @@ export default function FieldLocationsView({ viewer = "hr" }) {
         />
       ) : (
         <>
-      <FilterTabs
-        options={STATUS_TABS.map((t) => (t.value === "active" ? { ...t, label: `Active${list.total && tab === "active" ? ` (${list.total})` : ""}` } : t))}
-        value={tab}
-        onChange={setTab}
-      />
-      <input
-        type="search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by site, client or city"
-        className="w-full sm:max-w-xs px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
-      />
-
-      <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+          {/* ONE card and ONE toolbar row: status tabs left, search right (matches RegisteredDevicesPage) */}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-2xs">
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
+              <FilterTabs
+                options={STATUS_TABS.map((t) => (t.value === "active" ? { ...t, label: `Active${list.total && tab === "active" ? ` (${list.total})` : ""}` } : t))}
+                value={tab}
+                onChange={setTab}
+              />
+              <div className="relative w-full sm:w-64">
+                <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search site, client, city..."
+                  className="w-full pl-9 pr-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 transition"
+                />
+              </div>
+            </div>
         {list.error ? (
           <div className="p-6"><ErrorState error={list.error} onRetry={refresh} fallback="Couldn't load client sites." /></div>
         ) : list.loading ? (

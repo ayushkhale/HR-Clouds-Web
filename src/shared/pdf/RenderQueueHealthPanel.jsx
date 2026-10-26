@@ -238,31 +238,33 @@ export default function RenderQueueHealthPanel({
           // Keyed on `queued`, not on `waiting`: a job a worker has already
           // picked up leaves the queue, so it has no wait left to measure.
           note={health.queue.queued === 0
-            ? "Nothing is waiting, so there is no wait to measure."
+            ? `Queue is clear — no waiting ${noun}.`
             : `How long the ${one} at the front of the queue has been waiting.`}
           help={help("oldest_queued_age_seconds")}
         />
         <Tile
           label="Being drawn now"
           value={health.queue.claimed}
-          valueTone="indigo"
+          valueTone={health.queue.claimed > 0 ? "indigo" : "violet"}
           note={health.queue.claimed === 0
-            ? "Nothing is in hand this moment."
+            ? "No render jobs currently in progress."
             : "Picked up and in progress. These finish on their own."}
         />
         <Tile
           label={`Drawn in ${healthWindowLabel(health.windowHours).toLowerCase()}`}
           // A measured zero, not a missing figure — so it stays a number.
           value={health.failureRate.terminal}
-          valueTone="slate"
-          note={`Everything that finished, one way or the other, in ${healthWindowLabel(health.windowHours).toLowerCase()}.`}
+          valueTone={health.failureRate.terminal > 0 ? "violet" : "slate"}
+          note={health.failureRate.terminal === 0
+            ? `0 ${noun} processed in ${healthWindowLabel(health.windowHours).toLowerCase()}.`
+            : `Total ${noun} successfully processed in ${healthWindowLabel(health.windowHours).toLowerCase()}.`}
         />
         <Tile
           label="Didn’t come out"
           value={health.failureRate.failed}
           valueTone={health.failureRate.failed > 0 ? "rose" : "violet"}
           note={health.failureRate.failed === 0
-            ? "Nothing failed in this window."
+            ? `0 failures recorded in ${healthWindowLabel(health.windowHours).toLowerCase()}.`
             : "Each batch lists its own, and says why."}
         />
         <Tile
