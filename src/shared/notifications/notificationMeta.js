@@ -29,6 +29,7 @@ import {
 } from "react-icons/hi";
 import { humanize } from "../attendance/enums";
 import { NOTIFICATION_CATEGORIES } from "../api/notifications.api";
+import { cleanActorName, cleanMessage, cleanTitle } from "./formatNotificationText";
 
 export { NOTIFICATION_CATEGORIES };
 
@@ -36,19 +37,65 @@ export { NOTIFICATION_CATEGORIES };
  * One entry per server category. `label` is the word on a tab, a column and a
  * pill — identical in all three workspaces (§2), and written for somebody who
  * does not work in HR (§6): "Pay", not "Payroll"; "People", not "Employee".
+ * Includes semantic visual tokens (tint, border, text) for category pills.
  */
 export const CATEGORY_META = {
-  leave: { label: "Leave", icon: HiCalendar },
-  attendance: { label: "Attendance", icon: HiClock },
-  payroll: { label: "Pay", icon: HiCurrencyRupee },
-  task: { label: "Tasks", icon: HiClipboardCheck },
-  document: { label: "Documents", icon: HiDocumentText },
-  shift: { label: "Shifts", icon: HiOutlineCalendar },
-  employee: { label: "People", icon: HiUserGroup },
-  system: { label: "System", icon: HiSparkles },
+  leave: {
+    label: "Leave",
+    icon: HiCalendar,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  attendance: {
+    label: "Attendance",
+    icon: HiClock,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  payroll: {
+    label: "Pay",
+    icon: HiCurrencyRupee,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  task: {
+    label: "Tasks",
+    icon: HiClipboardCheck,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  document: {
+    label: "Documents",
+    icon: HiDocumentText,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  shift: {
+    label: "Shifts",
+    icon: HiOutlineCalendar,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  employee: {
+    label: "People",
+    icon: HiUserGroup,
+    badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+    iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+  },
+  system: {
+    label: "System",
+    icon: HiSparkles,
+    badgeClasses: "bg-slate-50 text-slate-700 border-slate-200",
+    iconBgClasses: "bg-slate-50 border-slate-100 text-slate-500",
+  },
 };
 
-const UNKNOWN_CATEGORY = { label: "Update", icon: HiBell };
+const UNKNOWN_CATEGORY = {
+  label: "Update",
+  icon: HiBell,
+  badgeClasses: "bg-purple-50 text-purple-700 border-purple-200",
+  iconBgClasses: "bg-purple-50 border-purple-100 text-purple-600",
+};
 
 /** Never throws on a category the installed app has not heard of yet. */
 export const categoryMeta = (category) => CATEGORY_META[category] || UNKNOWN_CATEGORY;
@@ -92,7 +139,7 @@ export function badgeTitle(count, isCapped = false) {
 }
 
 /** Null actor is a cron or a deleted account, never an id to resolve (§4). */
-export const actorLabel = (actorName) => (actorName || "").trim() || "The system";
+export const actorLabel = (actorName) => cleanActorName(actorName);
 
 /**
  * A notification in the shape the UI uses, from whatever the server sent.
@@ -101,17 +148,25 @@ export const actorLabel = (actorName) => (actorName || "").trim() || "The system
  * client can branch cheaply and still show the timestamp. We re-derive rather
  * than trust the pair to agree: an optimistic local update sets `read_at` and
  * must not have to remember to set the boolean too.
+ *
+ * Applies frontend sanitization to title, message, and actorName to cleanly
+ * eliminate database template defects (dangling periods, duplicated words,
+ * unparsed pluralizations and raw date ranges).
  */
 export function normalizeNotification(raw) {
   if (!raw) return null;
   const readAt = raw.read_at || null;
+  const rawActor = raw.actor_name || null;
+  const rawTitle = raw.title || "";
+  const rawMessage = raw.message || "";
+
   return {
     id: raw.id,
     eventKey: raw.event_key || "",
     category: raw.category || "system",
-    title: (raw.title || "").trim() || "Notification",
-    message: (raw.message || "").trim(),
-    actorName: raw.actor_name || null,
+    title: cleanTitle(rawTitle),
+    message: cleanMessage(rawMessage),
+    actorName: rawActor ? cleanActorName(rawActor) : null,
     metadata: raw.metadata && typeof raw.metadata === "object" ? raw.metadata : {},
     readAt,
     isRead: readAt != null || raw.is_read === true,

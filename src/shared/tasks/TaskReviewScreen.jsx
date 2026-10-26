@@ -35,6 +35,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { HiClipboardList, HiPlus } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
@@ -51,6 +52,7 @@ import TaskFilterBar from "./TaskFilterBar";
 import AssignTaskDialog from "./AssignTaskDialog";
 import TaskReviewActions from "./TaskReviewActions";
 import { taskPlaneFor } from "./taskPlanes";
+import { useTaskPaths } from "../attendance/paths";
 import { TASK_STATUS_FILTERS } from "./taskMeta";
 
 const SCOPES = {
@@ -85,6 +87,10 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
   const adapter = taskPlaneFor(viewer);
   const config = SCOPES[scope] || SCOPES.assigned;
   const isOrgScope = scope === "all" && viewer === "hr";
+  const { taskId } = useParams();
+  const navigate = useNavigate();
+  const taskPaths = useTaskPaths();
+  const listPath = scope === "all" ? taskPaths?.all : taskPaths?.assigned;
 
   const [filters, setFilters] = useState({ status: initialStatus, priority: "", category: "", search: "", department_id: "" });
   const [selected, setSelected] = useState(null);
@@ -107,6 +113,25 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
     [scope, viewer, filterKey]
   );
   const list = usePagedList(fetchPage, { limit: 20, keys: ["tasks"], filterKey });
+
+  // Deep link: opening /tasks/assigned/:taskId auto-opens the TaskDetailDialog
+  useEffect(() => {
+    if (!taskId) return;
+    const found = list.items?.find((t) => t.id === taskId);
+    if (found) {
+      setSelected(found);
+    } else {
+      setSelected((curr) => (curr?.id === taskId ? curr : { id: taskId }));
+    }
+  }, [taskId, list.items]);
+
+  const closeDetail = useCallback(() => {
+    setSelected(null);
+    list.reload();
+    if (taskId && listPath) {
+      navigate(listPath, { replace: true });
+    }
+  }, [taskId, listPath, navigate, list]);
 
   useAttendanceChanged([ATTENDANCE_EVENTS.TASK], list.reload);
 
@@ -205,14 +230,14 @@ export default function TaskReviewScreen({ viewer = "manager", scope = "assigned
         <TaskDetailDialog
           task={selected}
           plane={viewer}
-          onClose={() => setSelected(null)}
+          onClose={closeDetail}
           onChanged={list.reload}
           footer={({ task, onActionError }) => (
             <TaskReviewActions
               task={task}
               viewer={viewer}
               onActionError={onActionError}
-              onDone={(message) => { showToast(message); setSelected(null); list.reload(); }}
+              onDone={(message) => { showToast(message); setSelected(null); list.reload(); if (taskId && listPath) navigate(listPath, { replace: true }); }}
             />
           )}
         />

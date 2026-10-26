@@ -119,7 +119,8 @@ const SCREEN_TARGETS = {
   // Attendance
   attendanceanomalies: (ws) => to(QUEUE_PATHS[ws]?.anomalies, "Open attendance checks"),
   myanomalies: (ws, mine) => to(mine.anomalies, "Open my attendance checks"),
-  regularizationdetail: (ws) => to(QUEUE_PATHS[ws]?.regularizations, "Open correction requests"),
+  regularizationdetail: (ws, mine) => to(QUEUE_PATHS[ws]?.regularizations || mine.regularizations, QUEUE_PATHS[ws]?.regularizations ? "Open correction requests" : "Open my corrections"),
+  mylocationhistory: (ws, mine) => to(mine.locationChecks, "Open my location checks"),
   myregularizations: (ws, mine) => to(mine.regularizations, "Open my corrections"),
   overtimedetail: (ws, mine) => to(mine.overtime, "Open my extra hours"),
   compoffdetail: (ws, mine) => to(mine.compOffs, "Open my comp-offs"),
@@ -137,7 +138,7 @@ const SCREEN_TARGETS = {
   // Tasks — the id matters here, so the page can open the one task.
   taskdetail: (ws, mine, id) => to(mine.myTasks && withId(mine.myTasks, id), "Open the task"),
   taskdetails: (ws, mine, id) => to(mine.myTasks && withId(mine.myTasks, id), "Open the task"),
-  taskreview: (ws) => to(TASK_PATHS[ws]?.assigned, "Open tasks I assigned"),
+  taskreview: (ws, mine, id) => to(TASK_PATHS[ws]?.assigned && withId(TASK_PATHS[ws]?.assigned, id), "Open tasks I assigned"),
 
   // Documents
   documentdetail: (ws, mine) => to(mine.documents, "Open my documents"),
@@ -176,7 +177,7 @@ const EVENT_TARGETS = {
   "attendance.missing_clock_out_reminder": (ws, mine) => to(mine.attendance, "Open my attendance"),
 
   "task.assigned": (ws, mine, id) => to(mine.myTasks && withId(mine.myTasks, id), "Open the task"),
-  "task.submitted_for_review": (ws) => to(TASK_PATHS[ws]?.assigned, "Open tasks I assigned"),
+  "task.submitted_for_review": (ws, mine, id) => to(TASK_PATHS[ws]?.assigned && withId(TASK_PATHS[ws]?.assigned, id), "Open tasks I assigned"),
   "task.reopened": (ws, mine, id) => to(mine.myTasks && withId(mine.myTasks, id), "Open the task"),
   "task.approved": (ws, mine, id) => to(mine.myTasks && withId(mine.myTasks, id), "Open the task"),
   "task.reassigned": (ws, mine, id) => to(mine.myTasks && withId(mine.myTasks, id), "Open the task"),
@@ -226,16 +227,16 @@ export function resolveNotificationTarget(notification, workspace) {
   const meta = notification.metadata || {};
   const id = meta.id || meta.entity_id || null;
 
-  const byScreen = SCREEN_TARGETS[normaliseScreen(meta.screen)];
-  if (byScreen) {
-    const target = byScreen(workspace, mine, id);
-    if (target) return target;
-  }
-
   const key = notification.eventKey || meta.event_key || "";
   const byEvent = EVENT_TARGETS[key];
   if (byEvent) {
     const target = byEvent(workspace, mine, id);
+    if (target) return target;
+  }
+
+  const byScreen = SCREEN_TARGETS[normaliseScreen(meta.screen)];
+  if (byScreen) {
+    const target = byScreen(workspace, mine, id);
     if (target) return target;
   }
 

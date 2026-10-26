@@ -34,13 +34,15 @@
 //   §5's "drop a column no row can fill" applies to a tab just as much.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { HiClipboardCheck, HiPlay, HiPause, HiUpload } from "react-icons/hi";
 import DashboardTopBar from "../components/DashboardTopBar";
 import { tasksAPI } from "../api";
 import { usePagedList } from "../attendance/usePagedList";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, Spinner, Toast, useToast } from "../attendance/ui";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "../attendance/events";
+import { useTaskPaths } from "../attendance/paths";
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
 import { HelpLabel } from "../fieldHelp/FieldHelp";
 import { isTaskFeatureDisabled, taskErrorMessage } from "../utils/taskErrors";
@@ -83,6 +85,11 @@ const COLUMN_HELP = {
 /** @param {{ view?: "all"|"overdue" }} props */
 export default function MyTasksPage({ view = "all" }) {
   const copy = VIEWS[view] || VIEWS.all;
+  const { taskId } = useParams();
+  const navigate = useNavigate();
+  const taskPaths = useTaskPaths();
+  const listPath = (view === "overdue" ? taskPaths?.overdue : taskPaths?.mine) || null;
+
   const [filters, setFilters] = useState({ status: "", priority: "", category: "", search: "" });
   const [selected, setSelected] = useState(null);
   const [submitting, setSubmitting] = useState(null);
@@ -103,6 +110,25 @@ export default function MyTasksPage({ view = "all" }) {
 
   const reload = useCallback(() => list.reload(), [list]);
 
+  // Deep link: opening /dashboard/*/my-tasks/:taskId opens the TaskDetailDialog
+  useEffect(() => {
+    if (!taskId) return;
+    const found = list.items?.find((t) => t.id === taskId);
+    if (found) {
+      setSelected(found);
+    } else {
+      setSelected((curr) => (curr?.id === taskId ? curr : { id: taskId }));
+    }
+  }, [taskId, list.items]);
+
+  const closeDetail = useCallback(() => {
+    setSelected(null);
+    reload();
+    if (taskId && listPath) {
+      navigate(listPath, { replace: true });
+    }
+  }, [taskId, listPath, navigate, reload]);
+
   const toggleStatus = async (task, onError) => {
     const target = nextOwnStatus(task);
     if (!target) return;
@@ -113,6 +139,7 @@ export default function MyTasksPage({ view = "all" }) {
       emitAttendanceChanged(ATTENDANCE_EVENTS.TASK, { id: task.id, action: "status" });
       reload();
       setSelected(null);
+      if (taskId && listPath) navigate(listPath, { replace: true });
     } catch (err) {
       const message = onError ? onError(err, "Couldn’t update this task.") : taskErrorMessage(err);
       showToast(message, "error");
@@ -129,6 +156,7 @@ export default function MyTasksPage({ view = "all" }) {
     setSubmitting(null);
     setSelected(null);
     reload();
+    if (taskId && listPath) navigate(listPath, { replace: true });
   };
 
   if (isTaskFeatureDisabled(list.error)) {
@@ -194,7 +222,7 @@ export default function MyTasksPage({ view = "all" }) {
         <TaskDetailDialog
           task={selected}
           plane="me"
-          onClose={() => setSelected(null)}
+          onClose={closeDetail}
           onChanged={reload}
           footer={({ task, onActionError }) => (
             <>

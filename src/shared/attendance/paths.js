@@ -231,6 +231,35 @@ export const TASK_PATHS = {
 };
 
 /**
+ * The same self-service Tasks page, under the caller's OWN workspace.
+ *
+ * Direct links or notification clicks might carry `/dashboard/employee/tasks/:id`
+ * or another role's prefix. Like `selfServiceDocumentEquivalent`, this translates
+ * rather than widens: `/dashboard/employee/tasks/abc` becomes
+ * `/dashboard/hr/my-tasks/abc` for an HR user, and `/dashboard/manager/my-tasks/abc`
+ * for a manager.
+ */
+export function selfServiceTaskEquivalent(pathname = "", workspace) {
+  const target = TASK_PATHS[workspace];
+  if (!target) return null;
+
+  const candidates = [];
+  Object.entries(TASK_PATHS).forEach(([space, pages]) => {
+    if (space === workspace) return;
+    Object.entries(pages).forEach(([page, base]) => {
+      if (base && (pathname === base || pathname.startsWith(`${base}/`))) {
+        candidates.push({ page, base });
+      }
+    });
+  });
+  if (candidates.length === 0) return null;
+
+  const { page, base } = candidates.sort((a, b) => b.base.length - a.base.length)[0];
+  const mine = target[page];
+  return mine ? `${mine}${pathname.slice(base.length)}` : null;
+}
+
+/**
  * The whole-organisation pages every role can read: the Org Chart and the
  * Company Profile (added 30 Sep 2026). Both endpoints are open to every tenant
  * role and return the same org for all of them, so each workspace mounts the

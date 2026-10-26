@@ -12,6 +12,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **REQ-PAYROLL-001** | `GET /api/v1/payroll/hr/reimbursements/claims` | Payroll / Reimbursements | High | **Pending Backend** | Add `pending_hr=true` filter to return all claims currently awaiting HR action |
 | **REQ-INBOX-001** | `GET /api/v1/inbox/badges` | Core / Navigation & Approvals | High | **Pending Backend** | Unified Categorical Badge Counts & Inbox Summary Endpoint |
+| **REQ-NOTIF-001** | `GET /api/v1/notifications` & Event Emitters | Core / Notifications | Medium | **Frontend Mitigated** | Notification Template String Interpolation Sanitization & Tab Count Summaries |
 
 ---
 
@@ -280,6 +281,73 @@ Create a unified, aggregated summary endpoint: `GET /api/v1/inbox/badges`.
    Replace individual state variables (`inboxCount`, `unverifiedBankCount`, `pendingDocsCount`) with `useBadgeCounts()`.
 4. In `BankVerificationPage.jsx` and `DocumentVerificationPage.jsx`:
    Replace manual `limit=1` tally fetches with the pre-calculated categories from `useBadgeCounts()`.
+
+---
+
+## REQ-NOTIF-001: Notification Template String Interpolation Sanitization & Tab Count Summaries
+
+### 1. Target API & Route
+* **Endpoint:** `GET /api/v1/notifications` & Backend Event Producers (`leave.applied`, `attendance.*`, `task.*`, etc.)
+* **HTTP Method:** `GET` / Event Emitters
+* **API Registry Reference:** `notifications.routes.js` → `notification.controller.js` → `notification.service.js`
+* **Current Supported Query Parameters:** `page`, `limit`, `is_read`, `category`
+
+---
+
+### 2. Business Problem & Why This Is Needed
+When notification events are written into the `notifications` table by various domain services (leave, attendance, tasks, documents), raw interpolation errors leak into `title`, `message`, and `actor_name`:
+1. **Dangling Periods from Missing Last Names:** If an employee has only a first name or no last name configured, string templates like `${firstName} ${lastName}.` produce `"Employee . has applied for..."`.
+2. **Duplicated Category / Type Suffixes:** Event producers that concatenate `${leaveType.name} leave` when the leave type name is already `"Emergency Leave"` produce `"Emergency Leave leave"`.
+3. **Raw ISO Dates & Single-Day Redundancies:** Messages storing raw ISO dates (`2026-10-30 to 2026-10-30 (1 day(s))`) are difficult for managers and employees to scan quickly, and duplicate the date when start and end dates are identical.
+4. **Missing Tab Counts in List Responses:** `GET /notifications` currently returns `pagination: { page, limit, total, total_pages }` which only counts the currently filtered subset. The UI must calculate or extrapolate `All`, `Unread`, and `Read` tab numbers because there is no top-level counts object.
+
+---
+
+### 3. Requested Backend Changes
+
+#### A. Backend String Template Sanitization:
+In `notification.service.js` (or event emitter helpers):
+1. **Actor Name Assembly:**
+   ```javascript
+   const actorName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || null;
+   ```
+   Do not append trailing periods to actor name strings before inserting into `notifications.actor_name` or message templates.
+2. **Leave Type Duplication Guard:**
+   Ensure `leave_type.name` is not suffixed with `"leave"` if it already ends in `"leave"` (case-insensitive):
+   ```javascript
+   const cleanLeaveTypeName = leaveType.name.replace(/\s+leave$/i, '') + ' Leave';
+   ```
+3. **Date Formatting in Event Payloads:**
+   Format start/end dates using standard human dates (`30 Oct 2026`) instead of raw ISO stamps (`YYYY-MM-DD`). For single-day leaves, emit `"for 30 Oct 2026 (1 day)"` rather than `"from 2026-10-30 to 2026-10-30 (1 day(s))"`.
+
+#### B. Optional `counts` Summary in `GET /api/v1/notifications`:
+Optionally return a summary counts object alongside `pagination`:
+```json
+{
+  "items": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 12,
+    "total_pages": 1
+  },
+  "counts": {
+    "all": 12,
+    "unread": 2,
+    "read": 10
+  }
+}
+```
+
+---
+
+### 4. Frontend Developer Hint & Context
+* **Observed UI Bug / Gap:**
+  Raw strings like `"Employee . has applied for Emergency Leave leave from 2026-10-30 to 2026-10-30 (1 day(s))."` were displayed directly on `/notifications` and in the top-bar Bell dropdown.
+* **Temporary Workaround Applied:**
+  Created `src/shared/notifications/formatNotificationText.js` with defensive regex and date formatters (`cleanActorName`, `cleanMessage`, `cleanTitle`) hooked into `normalizeNotification()` in `notificationMeta.js`. This transparently normalizes all notifications on the client side without regressions.
+* **Integration Steps Once Backend Delivers:**
+  Once backend fixes the event templates, the frontend sanitizer will act as an unobtrusive safety net, and `state.tabCounts` can directly consume `res.data.counts`.
 
 ---
 

@@ -2,7 +2,7 @@ import React, { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import { canAccessWorkspace, dashboardPathForRole, workspaceForRole } from "../shared/auth/permissions";
-import { selfServiceDocumentEquivalent } from "../shared/attendance/paths";
+import { selfServiceDocumentEquivalent, selfServiceTaskEquivalent } from "../shared/attendance/paths";
 import Skeleton from "../shared/components/Skeleton";
 
 // Landing Layout & Pages
@@ -293,8 +293,10 @@ function ProtectedRoute({ children, workspace }) {
     // own prefix, carrying the id, instead of dropping them on a dashboard with
     // no idea what they were asked to read. The gate itself is untouched: this
     // workspace is still never rendered for them.
-    const mine = selfServiceDocumentEquivalent(location.pathname, workspaceForRole(role));
-    if (mine && mine !== location.pathname) return <Navigate to={mine} replace />;
+    const docEquiv = selfServiceDocumentEquivalent(location.pathname, workspaceForRole(role));
+    if (docEquiv && docEquiv !== location.pathname) return <Navigate to={docEquiv} replace />;
+    const taskEquiv = selfServiceTaskEquivalent(location.pathname, workspaceForRole(role));
+    if (taskEquiv && taskEquiv !== location.pathname) return <Navigate to={taskEquiv} replace />;
     return <Navigate to={dashboardPathForRole(role)} replace />;
   }
 
@@ -503,7 +505,10 @@ function AppRoutes() {
         {/* Same page, the server's is_overdue filter pinned on — mounted under
             each workspace's own prefix, never by widening one gate (§2). */}
         <Route path="/dashboard/hr/my-tasks/overdue" element={<MyTasksPage view="overdue" />} />
+        <Route path="/dashboard/hr/my-tasks/:taskId" element={<MyTasksPage />} />
+        <Route path="/dashboard/hr/my-tasks/overdue/:taskId" element={<MyTasksPage view="overdue" />} />
         <Route path="/dashboard/hr/tasks/assigned" element={<AssignedTasksPage />} />
+        <Route path="/dashboard/hr/tasks/assigned/:taskId" element={<AssignedTasksPage />} />
         <Route path="/dashboard/hr/tasks/all" element={<AllTasksPage />} />
       </Route>
 
@@ -574,7 +579,10 @@ function AppRoutes() {
             the endpoints rather than by a different page (§2). */}
         <Route path="/dashboard/manager/my-tasks" element={<MyTasksPage />} />
         <Route path="/dashboard/manager/my-tasks/overdue" element={<MyTasksPage view="overdue" />} />
+        <Route path="/dashboard/manager/my-tasks/:taskId" element={<MyTasksPage />} />
+        <Route path="/dashboard/manager/my-tasks/overdue/:taskId" element={<MyTasksPage view="overdue" />} />
         <Route path="/dashboard/manager/tasks/assigned" element={<AssignedTasksPage />} />
+        <Route path="/dashboard/manager/tasks/assigned/:taskId" element={<AssignedTasksPage />} />
         <Route path="/dashboard/manager/tasks/all" element={<AllTasksPage />} />
       </Route>
 
@@ -612,6 +620,8 @@ function AppRoutes() {
             review pages are absent here rather than mounted and empty (§2). */}
         <Route path="/dashboard/employee/tasks" element={<MyTasksPage />} />
         <Route path="/dashboard/employee/tasks/overdue" element={<MyTasksPage view="overdue" />} />
+        <Route path="/dashboard/employee/tasks/:taskId" element={<MyTasksPage />} />
+        <Route path="/dashboard/employee/tasks/overdue/:taskId" element={<MyTasksPage view="overdue" />} />
       </Route>
 
       {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}

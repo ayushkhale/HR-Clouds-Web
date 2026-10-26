@@ -1,91 +1,164 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PushOptInCard — the explanatory half of the two-step permission prompt, at
-// the top of the Notifications page.
+// PushOptInCard — Compact, dismissible desktop alerts banner.
 //
-// The browser's own prompt says nothing useful ("hrclouds.in wants to show
-// notifications"), is one-shot, and is refused by most people who meet it
-// cold. This card is what is supposed to be read first: what the alerts are
-// for, what they will not contain, and that it applies to this browser only.
-// The native prompt is then raised by a press, with the answer already known.
-//
-// ─── THE BLOCKED STATE IS A DEAD END AND SAYS SO ───────────────────────────
-// Once somebody clicks Block, `requestPermission()` resolves "denied" without
-// showing anything, forever. A button there would be a control that silently
-// does nothing, so the card explains where the switch actually lives instead.
-//
-// ─── WHAT IT PROMISES ──────────────────────────────────────────────────────
-// "No amounts and no reasons" is not marketing — it is the server's contract.
-// The push payload carries a title, a short body and three routing keys; the
-// money and the manager's words stay in the in-app record, because a push
-// renders on a lock screen. Do not soften that line without checking the
-// catalog's push rules first.
+// ─── STREAMLINED DENSITY ────────────────────────────────────────────────────
+// 1. When blocked (permission denied): Renders a compact warning bar (~52px)
+//    with a "How to unblock" guide toggle and a dismiss (×) button saved in localStorage.
+// 2. When off (permission default): Renders a compact single-line card (~56px)
+//    with concise copy, an "Enable desktop alerts" CTA, and a dismiss button.
+// 3. When on (permission granted): Hides the full-width promotional card completely,
+//    reclaiming ~150–210px of prime above-the-fold vertical space.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { HiBell, HiVolumeOff, HiCheckCircle, HiDesktopComputer, HiLockClosed } from "react-icons/hi";
-import FieldHelp from "../fieldHelp/FieldHelp";
-import { PRIMARY_BTN, SECONDARY_BTN } from "../documents/ui";
-import { InlineAlert, Spinner } from "../attendance/ui";
+import { useState } from "react";
+import { HiBell, HiVolumeOff, HiCheckCircle, HiDesktopComputer, HiX } from "react-icons/hi";
+import { Spinner } from "../attendance/ui";
 import { useBrowserAlerts } from "./useBrowserAlerts";
 
-const SURFACE = "notification.browser_alerts";
+export const DESKTOP_ALERT_DISMISSED_KEY = "hrclouds_desktop_alert_banner_dismissed";
 
-export default function PushOptInCard() {
-  const { state, busy, error, enable, disable } = useBrowserAlerts();
+export function DesktopAlertsStatusToggle() {
+  const { state, busy, enable, disable } = useBrowserAlerts();
   if (state === "unavailable") return null;
 
   const on = state === "on";
+  return (
+    <button
+      type="button"
+      onClick={on ? disable : enable}
+      disabled={busy}
+      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition border cursor-pointer ${
+        on
+          ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+      }`}
+      title={on ? "Desktop alerts are on. Click to turn off." : "Click to turn on desktop alerts."}
+      aria-label={on ? "Desktop alerts: On" : "Desktop alerts: Off"}
+    >
+      {busy ? (
+        <Spinner className="w-3.5 h-3.5" />
+      ) : on ? (
+        <HiCheckCircle className="w-4 h-4 text-purple-600" />
+      ) : (
+        <HiBell className="w-4 h-4 text-slate-400" />
+      )}
+      <span className="hidden sm:inline">Desktop alerts:</span>
+      <strong className="font-bold">{on ? "On" : "Off"}</strong>
+    </button>
+  );
+}
+
+export default function PushOptInCard() {
+  const { state, busy, error, enable } = useBrowserAlerts();
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DESKTOP_ALERT_DISMISSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [showGuide, setShowGuide] = useState(false);
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(DESKTOP_ALERT_DISMISSED_KEY, "true");
+    } catch {
+      // Ignore private browsing restrictions
+    }
+  };
+
+  // If unavailable, already granted (on), or dismissed by user -> don't show full banner
+  if (state === "unavailable" || state === "on" || dismissed) return null;
+
   const blocked = state === "blocked";
 
-  return (
-    <section className="rounded-3xl border border-purple-100 shadow-xs bg-gradient-to-br from-purple-50/80 via-white to-white px-5 sm:px-6 py-5">
-      <div className="flex items-start gap-4 min-w-0">
-        <span className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center shrink-0 shadow-xs">
-          {on ? <HiCheckCircle className="w-6 h-6" /> : blocked ? <HiVolumeOff className="w-6 h-6" /> : <HiDesktopComputer className="w-6 h-6" />}
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <h2 className="text-sm sm:text-base font-bold text-slate-800">
-              {on ? "Desktop alerts are on for this browser" : "Get alerts on your desktop"}
-            </h2>
-            <FieldHelp surface={SURFACE} field="push_enabled" label="desktop alerts" size="sm" />
-          </div>
-
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-2 max-w-2xl">
-            {on
-              ? "This browser will pop up a short alert when a decision lands, a payslip is published or work is assigned to you — even when the tab is closed. The full wording stays on this page."
-              : "A short alert when a decision lands, a payslip is published or work is assigned to you, even when this tab is closed. It never carries an amount or anyone’s reason — those stay in here, where only you are looking."}
-          </p>
-
-          <p className="flex items-start gap-2 text-[11px] text-slate-400 leading-relaxed mt-2 max-w-2xl">
-            <HiLockClosed className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>
-              It applies to this browser on this computer only, and it is switched off automatically when you sign out —
-              so a shared machine never shows your alerts to the next person.
+  // State B: Blocked in browser -> compact collapsible warning bar
+  if (blocked) {
+    return (
+      <section
+        aria-label="Desktop notification settings"
+        className="rounded-2xl border border-purple-100 bg-purple-50/40 p-3 sm:px-4 sm:py-3 text-xs shadow-xs"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+              <HiVolumeOff className="w-4 h-4" />
             </span>
-          </p>
-
-          {error && <div className="mt-4"><InlineAlert tone="rose">{error}</InlineAlert></div>}
-
-          <div className="mt-5">
-            {blocked ? (
-              <InlineAlert tone="slate">
-                Your browser is blocking alerts from this site, and only you can undo that: open its site settings for
-                HR Clouds — usually the padlock beside the address — and set Notifications to Allow. Everything on this
-                page keeps working either way.
-              </InlineAlert>
-            ) : on ? (
-              <button type="button" onClick={disable} disabled={busy} className={SECONDARY_BTN}>
-                {busy ? <Spinner className="w-4 h-4" /> : <HiVolumeOff className="w-4 h-4" />}
-                {busy ? "Turning off…" : "Turn off for this browser"}
-              </button>
-            ) : (
-              <button type="button" onClick={enable} disabled={busy} className={PRIMARY_BTN}>
-                {busy ? <Spinner className="w-4 h-4" /> : <HiBell className="w-4 h-4" />}
-                {busy ? "Turning on…" : "Turn on desktop alerts"}
-              </button>
-            )}
+            <p className="font-semibold text-slate-800 truncate text-xs sm:text-[13px]">
+              Desktop alerts are blocked by your browser.
+            </p>
           </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowGuide((v) => !v)}
+              className="text-xs font-bold text-purple-700 hover:text-purple-800 underline underline-offset-2 cursor-pointer"
+            >
+              {showGuide ? "Hide instructions" : "How to unblock"}
+            </button>
+            <button
+              type="button"
+              onClick={handleDismiss}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition cursor-pointer"
+              aria-label="Dismiss blocked notification banner"
+              title="Dismiss"
+            >
+              <HiX className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {showGuide && (
+          <div className="mt-2.5 pt-2.5 border-t border-purple-100 text-slate-600 leading-relaxed text-[11px] sm:text-xs">
+            Open your browser&apos;s site settings for HR Clouds (click the lock or tune icon beside the address bar) and set <strong>Notifications</strong> to <strong>Allow</strong>. Everything on this page continues to work either way.
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  // State A: Default / Off -> compact promotional row
+  return (
+    <section
+      aria-label="Desktop notification promotion"
+      className="rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50/80 via-white to-white px-4 py-3 sm:px-5 sm:py-3.5 shadow-xs"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
+            <HiDesktopComputer className="w-5 h-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+              Get instant desktop alerts
+            </h2>
+            <p className="text-[11px] sm:text-xs text-slate-500 truncate max-w-xl">
+              Private alerts for approvals, payslips, and assigned work — automatically off when you sign out.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          {error && <span className="text-[11px] text-rose-600 font-semibold">{error}</span>}
+          <button
+            type="button"
+            onClick={enable}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition cursor-pointer"
+          >
+            {busy ? <Spinner className="w-3.5 h-3.5" /> : <HiBell className="w-3.5 h-3.5" />}
+            {busy ? "Turning on…" : "Enable desktop alerts"}
+          </button>
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Dismiss desktop alert prompt"
+            title="Dismiss"
+          >
+            <HiX className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </section>

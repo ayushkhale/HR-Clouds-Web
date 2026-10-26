@@ -1,41 +1,34 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// NotificationRow.jsx — one notification in the bell panel, plus the small
-// pieces the full page reuses so the two surfaces cannot drift apart.
+// NotificationRow.jsx — one notification in the bell panel and mobile feed,
+// plus the small presentational pieces the full page reuses.
 //
-// ─── HOW AN UNREAD ROW IS MARKED, AND WHY ONLY ONE THING MARKS IT ──────────
-// Exactly one signal on this screen carries colour: unread. A purple left edge,
-// a purple dot beside the title and a slightly heavier title — nothing else.
-// The eight categories are told apart by their ICON, never by a tint, because
-// eight tinted rows stacked in a dropdown is a fruit salad in which the one
-// thing you actually need to see (what is new) disappears. §5 leaves only
-// purple available in any case.
-//
-// ─── THE DISMISS BUTTON IS A SIBLING, NOT A CHILD ──────────────────────────
-// The whole row is a button, so the dismiss control cannot live inside it —
-// nested interactive elements are invalid and a click would open the row as
-// well. It sits absolutely positioned over the row's right edge as a sibling,
-// visible on hover and whenever it has focus, so a keyboard user can always
-// reach it.
-//
-// ─── TWO LINES, NEVER MORE ─────────────────────────────────────────────────
-// The server's `message` is display-ready prose that can run long (a leave
-// rejection carries the manager's own words). Clamped to two lines here; the
-// record inspector is where the whole thing is read. A panel that lets one
-// notification take six lines shows three notifications.
+// ─── HIGH-CONTRAST READ VS UNREAD VISUAL HIERARCHY ───────────────────────────
+// Unread:
+//   · Left border accent: 3px solid #7C3AED (brand purple)
+//   · Subtle purple surface tint (bg-purple-50/40)
+//   · 8px solid purple dot beside title
+//   · Title weight: font-bold text-slate-900
+// Read:
+//   · Pure white/transparent surface
+//   · No unread dot or accent border
+//   · Muted icon container
+//   · Title weight: font-medium text-slate-700
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { HiX } from "react-icons/hi";
+import { HiX, HiExternalLink } from "react-icons/hi";
 import { actorLabel, categoryLabel, categoryMeta } from "./notificationMeta";
 import { sinceLabel } from "../attendance/liveLocationMeta";
 import { fmtDateTime } from "../attendance/dates";
 
 /** The round icon chip that says which part of the product this came from. */
 export function CategoryIcon({ category, muted = false, className = "w-9 h-9" }) {
-  const { icon: Icon } = categoryMeta(category);
+  const meta = categoryMeta(category);
+  const Icon = meta.icon;
+  const activeClass = meta.iconBgClasses || "bg-purple-50 border-purple-100 text-purple-600";
   return (
     <span
       className={`${className} rounded-xl flex items-center justify-center shrink-0 border ${
-        muted ? "bg-slate-50 border-slate-100 text-slate-400" : "bg-purple-50 border-purple-100 text-purple-600"
+        muted ? "bg-slate-50 border-slate-100 text-slate-400" : activeClass
       }`}
       aria-hidden="true"
     >
@@ -44,17 +37,21 @@ export function CategoryIcon({ category, muted = false, className = "w-9 h-9" })
   );
 }
 
-/** The category as a word, for a table cell or the inspector header. */
-export function CategoryPill({ category }) {
+/** Semantic colored category badge for table cells, cards, and inspectors. */
+export function CategoryPill({ category, className = "" }) {
+  const meta = categoryMeta(category);
+  const badgeClasses = meta.badgeClasses || "bg-slate-50 border-slate-200 text-slate-600";
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap">
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${badgeClasses} ${className}`}
+    >
       {categoryLabel(category)}
     </span>
   );
 }
 
-/** "2 hours ago", with the exact moment on hover for anyone who needs it. */
-export function NotificationTime({ iso, className = "" }) {
+/** "2 hours ago", with the exact moment on hover and WCAG AA contrast. */
+export function NotificationTime({ iso, className = "text-slate-500" }) {
   return (
     <time dateTime={iso || undefined} title={fmtDateTime(iso)} className={className}>
       {sinceLabel(iso)}
@@ -82,11 +79,19 @@ export function NotificationSkeleton({ rows = 4 }) {
 /**
  * @param {{
  *   notification: object,
- *   onOpen: () => void,      // marks read and goes wherever it goes
- *   onDismiss?: () => void,  // absent in a read-only context
+ *   onOpen: () => void,           // opens inspector or navigates
+ *   onDismiss?: () => void,       // clears the notification
+ *   onQuickOpen?: () => void,     // direct 1-click navigate
+ *   quickOpenLabel?: string,
  * }} props
  */
-export default function NotificationRow({ notification, onOpen, onDismiss }) {
+export default function NotificationRow({
+  notification,
+  onOpen,
+  onDismiss,
+  onQuickOpen,
+  quickOpenLabel = "Open item",
+}) {
   const { category, title, message, actorName, createdAt, isRead } = notification;
 
   return (
@@ -94,51 +99,84 @@ export default function NotificationRow({ notification, onOpen, onDismiss }) {
       <button
         type="button"
         onClick={onOpen}
-        className={`w-full text-left flex items-start gap-3 pl-4 pr-10 py-3.5 transition-colors outline-none focus-visible:bg-purple-50/70 hover:bg-purple-50/40 ${
-          isRead ? "" : "bg-purple-50/30"
+        className={`w-full text-left flex items-start gap-3 pl-4 pr-14 py-3.5 transition-colors outline-none focus-visible:bg-purple-50/70 hover:bg-purple-50/40 cursor-pointer ${
+          isRead ? "bg-white" : "bg-purple-50/35"
         }`}
       >
-        {/* The unread edge. On the row's own left border so it reads as a
-            property of the row rather than as another icon competing with the
-            category chip. */}
+        {/* The unread edge: 3px solid brand-purple accent */}
         <span
-          className={`absolute left-0 top-0 bottom-0 w-[3px] ${isRead ? "bg-transparent" : "bg-purple-600"}`}
+          className={`absolute left-0 top-0 bottom-0 w-[3px] transition-colors ${
+            isRead ? "bg-transparent" : "bg-purple-600"
+          }`}
           aria-hidden="true"
         />
+
         <CategoryIcon category={category} muted={isRead} />
+
         <span className="flex-1 min-w-0">
           <span className="flex items-start gap-2">
-            <span className={`flex-1 min-w-0 text-[13px] leading-snug ${isRead ? "font-semibold text-slate-700" : "font-bold text-slate-900"}`}>
+            <span
+              className={`flex-1 min-w-0 text-[13px] leading-snug ${
+                isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"
+              }`}
+            >
               {title}
             </span>
             {!isRead && (
-              <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0 mt-1.5" aria-label="Unread" />
+              <span
+                className="w-2 h-2 rounded-full bg-purple-600 shrink-0 mt-1"
+                aria-label="Unread"
+                title="Unread"
+              />
             )}
           </span>
+
           {message && (
-            <span className="block text-xs text-slate-500 leading-relaxed mt-0.5 line-clamp-2">{message}</span>
+            <span className="block text-xs text-slate-600 leading-relaxed mt-0.5 line-clamp-2">
+              {message}
+            </span>
           )}
-          <span className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium mt-1.5">
+
+          <span className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium mt-1.5">
             <span className="truncate">{actorLabel(actorName)}</span>
             <span aria-hidden="true">·</span>
-            <NotificationTime iso={createdAt} className="shrink-0" />
+            <NotificationTime iso={createdAt} className="shrink-0 text-slate-500" />
           </span>
         </span>
       </button>
 
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          // Always reachable by keyboard, only visible on hover/focus so the
-          // panel isn't a column of grey crosses.
-          className="absolute top-3 right-2.5 p-1.5 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-rose-500 hover:bg-rose-50 transition cursor-pointer"
-          aria-label={`Clear “${title}”`}
-          title="Clear this notification"
-        >
-          <HiX className="w-3.5 h-3.5" />
-        </button>
-      )}
+      {/* Action buttons (Quick open & Dismiss) */}
+      <div className="absolute top-2.5 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        {onQuickOpen && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickOpen();
+            }}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
+            aria-label={quickOpenLabel}
+            title={quickOpenLabel}
+          >
+            <HiExternalLink className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDismiss();
+            }}
+            className="p-1.5 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition cursor-pointer"
+            aria-label={`Clear “${title}”`}
+            title="Clear this notification"
+          >
+            <HiX className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     </li>
   );
 }

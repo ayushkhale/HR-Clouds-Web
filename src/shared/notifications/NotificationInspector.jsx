@@ -24,14 +24,11 @@
 
 import { useState } from "react";
 import { HiCheck, HiExternalLink, HiTrash } from "react-icons/hi";
-import DetailDialog, {
-  DetailFooterNote, DetailGrid, DetailSection, DetailText,
-} from "../components/DetailDialog";
+import DetailDialog, { DetailFooterNote } from "../components/DetailDialog";
 import { DANGER_BTN, PRIMARY_BTN, SECONDARY_BTN } from "../documents/ui";
 import { fmtDateTime } from "../attendance/dates";
 import { Spinner } from "../attendance/ui";
 import { actorLabel, categoryLabel, categoryMeta } from "./notificationMeta";
-import { CategoryPill } from "./NotificationRow";
 
 /**
  * @param {{
@@ -59,14 +56,16 @@ export default function NotificationInspector({
     }
   };
 
+  const readAtDisplay = notification.isRead
+    ? (notification.readAt ? fmtDateTime(notification.readAt) : "Just now")
+    : "Not yet";
+
   return (
     <DetailDialog
       eyebrow={categoryLabel(notification.category)}
       title={notification.title}
-      subtitle={fmtDateTime(notification.createdAt)}
       icon={Icon}
-      width="medium"
-      badge={<CategoryPill category={notification.category} />}
+      width="compact"
       onClose={onClose}
       footer={
         <>
@@ -91,44 +90,68 @@ export default function NotificationInspector({
             onClick={() => run("dismiss", onDismiss)}
             disabled={Boolean(busy)}
             className={DANGER_BTN}
-            title="Clears it for good. What it told you about isn’t affected."
+            title="Permanently removes this notification. What it told you about isn’t affected."
+            aria-label={`Delete notification: ${notification.title}`}
           >
             {busy === "dismiss" ? <Spinner className="w-4 h-4" /> : <HiTrash className="w-4 h-4" />}
-            Clear
+            Delete
           </button>
           {target && (
-            <button type="button" onClick={onOpenTarget} className={PRIMARY_BTN}>
+            <button
+              type="button"
+              onClick={onOpenTarget}
+              className={PRIMARY_BTN}
+              aria-label={`Open: ${target.label}`}
+            >
               <HiExternalLink className="w-4 h-4" /> {target.label}
             </button>
           )}
         </>
       }
     >
-      <DetailSection title="What happened" icon={Icon} collapsible={false}>
-        <DetailText>{notification.message}</DetailText>
-        <div className="mt-4">
-          <DetailGrid
-            cols={3}
-            items={[
-              {
-                label: "Who did this",
-                value: actorLabel(notification.actorName),
-                // HR-only (onboarding tier): "The system" is a scheduled job,
-                // not a person, and reads as a missing name until told.
-                help: { surface: "notification.inbox", field: "actor_name", label: "who did this" },
-              },
-              { label: "When", value: fmtDateTime(notification.createdAt) },
-              {
-                label: "You read it",
-                help: { surface: "notification.inbox", field: "read_at", label: "when you read it" },
-                value: notification.isRead
-                  ? (notification.readAt ? fmtDateTime(notification.readAt) : "Yes")
-                  : "Not yet",
-              },
-            ]}
-          />
+      <div className="space-y-4">
+        {/* Full notification description without redundant card headers */}
+        <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-4 sm:p-5">
+          <p className="text-[14px] sm:text-[15px] leading-relaxed text-slate-800 break-words whitespace-pre-wrap font-normal">
+            {notification.message}
+          </p>
         </div>
-      </DetailSection>
+
+        {/* Clean, flat 3-column metadata summary card (non-input style) */}
+        <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 sm:p-5">
+          <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/60 text-xs">
+            {/* Column 1: WHO DID THIS */}
+            <div className="min-w-0 sm:pr-4">
+              <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Who did this
+              </dt>
+              <dd className="text-xs sm:text-sm font-semibold text-slate-700 truncate" title={actorLabel(notification.actorName)}>
+                {actorLabel(notification.actorName)}
+              </dd>
+            </div>
+
+            {/* Column 2: WHEN */}
+            <div className="min-w-0 pt-3 sm:pt-0 sm:px-4">
+              <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                When
+              </dt>
+              <dd className="text-xs sm:text-sm font-semibold text-slate-700">
+                {fmtDateTime(notification.createdAt)}
+              </dd>
+            </div>
+
+            {/* Column 3: YOU READ IT */}
+            <div className="min-w-0 pt-3 sm:pt-0 sm:pl-4">
+              <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                You read it
+              </dt>
+              <dd className={`text-xs sm:text-sm font-semibold ${notification.isRead ? "text-slate-700" : "text-purple-600 font-bold"}`}>
+                {readAtDisplay}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
     </DetailDialog>
   );
 }
