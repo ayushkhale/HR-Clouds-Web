@@ -16,7 +16,7 @@ cp -r "/c/Freelance Projects/HR Clouds/NativeRef/50-starter/src/." ./src/
 |---|---|---|
 | `theme/tokens.js` | **complete** | Colour, type, space, radius, shadow, layer. The exact web values |
 | `theme/motion.js` | **complete** | Durations, easings, the house spring |
-| `theme/icons.js` | **stub** | The one file that imports an icon package. Fill in from [20-design/07-iconography.md](../20-design/07-iconography.md) |
+| `theme/icons.js` | **complete** | The one file that imports an icon package. ~55 semantic names, Heroicons v1→v2 name resolution, `tabIcons` |
 | `lib/format.js` | **complete** | `formatDayCount` · `formatMoney` · `displayValue` · spoken variants. **Intl-free** |
 | `lib/dates.js` | **complete** | The full web port. **Intl-free** for everything a user sees |
 | `lib/normalize.js` | **complete** | `isUuid` · `personName` · `unwrap` · `normalizePaginated` |
@@ -33,11 +33,12 @@ cp -r "/c/Freelance Projects/HR Clouds/NativeRef/50-starter/src/." ./src/
 | `api/*.api.js` | **complete** | Six domains, employee endpoints only |
 | `state/session.js` | **complete** | The role gate + Keychain |
 | `state/AuthContext.jsx` | **complete** | Session lifecycle |
-| `hooks/*` | **complete** | `usePagedList` · `useResource` · `useTodayAttendance` · `useDirectory` |
+| `hooks/*` | **complete** | `usePagedList` · `useResource` · `useTodayAttendance` + `useLiveWorked` · `useDirectory` · `useAppActive` · `useFormFocus` · `useReducedMotion` |
 | `fieldHelp/fieldHelp.employee.json` | **complete** | **36 hints, 24 surfaces, generated from the web config** |
 | `fieldHelp/fieldHelpMeta.js` | **complete** | `getFieldHelp()` + the dev validator |
-| `ui/*` | **reference** | Representative implementations. Finish the set from [20-design/02-component-catalog.md](../20-design/02-component-catalog.md) |
-| `navigation/*` | **reference** | Tab data + root navigator shape |
+| `ui/*` | **complete** | All 29 components + the barrel — the full catalog in [20-design/02-component-catalog.md](../20-design/02-component-catalog.md) |
+| `navigation/*` | **complete** | `RootNavigator` (auth switch, role-gate landing, splash) · `AppTabs` · `tabs.employee.js` · `screens.js` (placeholder registry) · `routes.js` (`useRouteTarget`) · `linking.js` |
+| `App.jsx` | **complete** | The provider root, in the one order that works |
 
 ---
 
@@ -120,9 +121,7 @@ Install order and native wiring: [00-plan/04-environment-setup.md](../00-plan/04
 
 The starter kit stops where the product starts:
 
-- Every screen in `features/`
-- The rest of `ui/` (the catalog lists them all)
-- `theme/icons.js`'s actual imports
+- Every screen in `features/` — one build spec each in [40-screens/](../40-screens/00-index.md). `navigation/screens.js` renders a Placeholder until you uncomment its line, so **the app runs on day one**
 - Validators for the leave, claim, declaration and bank forms
-- `navigation/linking.js`'s final deep-link config
+- Associated domains / App Links registration (phase 6, with push)
 - Push, biometrics and crash reporting (phases 6 and 8)

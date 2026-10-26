@@ -14,6 +14,8 @@
 //   config         → shift/policy selectors that are already mounted
 //   lock           → lock page, recompute consumers
 //   device         → sidebar inbox badge, HR device approval queue
+//   document_verification → sidebar Verification Queue badge and its tiles
+//   bank_account   → sidebar Bank Verification badge
 //
 // The bus is app-wide despite living in `attendance/`: the inbox counts a
 // manager or HR sees span leave, claims, loans, salary proposals, tax
@@ -46,12 +48,21 @@ export const ATTENDANCE_EVENTS = Object.freeze({
   // each one (Device Trust, 15 Oct 2026, #9–#13). Also emitted when a device is
   // shut off or blocked, because the punch path caches the policy per person.
   DEVICE: "device",
+  // An employee document verified or rejected, and a bank account verified.
+  // Neither is counted in the Inbox total — each has its own sidebar badge —
+  // but both empty a queue, and a badge that outlives the queue it counts is
+  // the bug this bus exists to prevent (§7).
+  DOCUMENT_VERIFICATION: "document_verification",
+  DOCUMENT_REQUEST: "document_request",
+  BANK_ACCOUNT: "bank_account",
 });
 
 /**
- * Kinds that change an inbox count, for the sidebar badge and the inbox cards.
- * A queue whose decisions are not emitted here goes stale until a reload, so a
- * new approval queue belongs in this list on the day it is added.
+ * Kinds that change a badge count — the sidebar badges and the inbox cards
+ * alike. badgeCountsStore.js is the only subscriber: one debounced re-read of
+ * `GET /inbox/badges` refreshes every number at once. A queue whose decisions
+ * are not emitted here goes stale until a reload, so a new approval queue
+ * belongs in this list on the day it is added.
  */
 export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.REGULARIZATION,
@@ -66,6 +77,9 @@ export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.LETTER_PROPOSAL,
   ATTENDANCE_EVENTS.TASK,
   ATTENDANCE_EVENTS.DEVICE,
+  ATTENDANCE_EVENTS.DOCUMENT_VERIFICATION,
+  ATTENDANCE_EVENTS.DOCUMENT_REQUEST,
+  ATTENDANCE_EVENTS.BANK_ACCOUNT,
 ];
 
 const listeners = new Set();

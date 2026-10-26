@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import {
   HiCheckCircle, HiExclamationCircle, HiX, HiPlus, HiAdjustments, HiGift, HiCash, HiTrash,
   HiCalendar, HiTrendingUp, HiDocumentText,
@@ -15,6 +16,7 @@ import { formatDate } from "../../../../shared/utils/formatUtils";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
 import { humanize } from "../../../../shared/attendance/enums";
 import { interestMethodLabel } from "../../../hr/payroll/runMeta";
+import { codeFromName, componentCodeProblem } from "../../../hr/payroll/variablePayMeta";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
@@ -35,7 +37,7 @@ function Toast({ toast, onClose }) {
    HR's Salary Adjustments rows open a record; the manager's didn't, so the same
    job felt like a different product. Built from the list row: the manager
    endpoints return every field shown here, and there is no per-proposal read. */
-function AdjustmentDetail({ adj, memberName, onCancel, onClose }) {
+function AdjustmentDetail({ adj, memberName, onCancel, cancelling, onClose }) {
   const pending = adj.status === "pending";
   return (
     <DetailDialog
@@ -46,8 +48,18 @@ function AdjustmentDetail({ adj, memberName, onCancel, onClose }) {
       badge={adj.status ? <DetailPill tone="onDark">{prettify(adj.status)}</DetailPill> : undefined}
       onClose={onClose}
       footer={pending ? (
-        <button type="button" onClick={() => { onCancel(adj.id); onClose(); }} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100">
-          <HiTrash className="w-4 h-4" /> Cancel proposal
+        <button
+          type="button"
+          disabled={cancelling}
+          onClick={async () => { const ok = await onCancel(adj.id); if (ok) onClose(); }}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        >
+          {cancelling ? (
+            <span className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin shrink-0" />
+          ) : (
+            <HiTrash className="w-4 h-4" />
+          )}
+          <span>{cancelling ? "Cancelling..." : "Cancel proposal"}</span>
         </button>
       ) : null}
     >
@@ -188,6 +200,28 @@ function LoanDetailModal({ loanId, memberName, onClose, showToast }) {
   );
 }
 
+// Pure client-side EMI estimate, mirrors loan_schedule.utils (flat / reducing_balance)
+function estimateSchedule(principal, annualRate, tenure, method) {
+  const P = parseFloat(principal) || 0;
+  const n = parseInt(tenure) || 0;
+  const r = parseFloat(annualRate) || 0;
+  if (P <= 0 || n <= 0) return null;
+  if (r === 0) {
+    const emi = P / n;
+    return { emi, totalInterest: 0, totalPayable: P };
+  }
+  if (method === "flat") {
+    const totalInterest = (P * r * n) / 1200;
+    const totalPayable = P + totalInterest;
+    return { emi: totalPayable / n, totalInterest, totalPayable };
+  }
+  const i = r / 1200;
+  const pow = Math.pow(1 + i, n);
+  const emi = (P * i * pow) / (pow - 1);
+  const totalPayable = emi * n;
+  return { emi, totalInterest: totalPayable - P, totalPayable };
+}
+
 const now = new Date();
 const TABS = [
   { key: "adjustments", label: "Adjustments", icon: HiAdjustments },
@@ -211,9 +245,41 @@ export default function ManagerAdjustmentsPage() {
   const [adjDetail, setAdjDetail] = useState(null);
   const [bonusDetail, setBonusDetail] = useState(null);
 
-  const [adjForm, setAdjForm] = useState({ user_id: "", adjustment_type: "earning", category: "incentive", component_name: "", amount: "", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
+  const [submittingAdj, setSubmittingAdj] = useState(false);
+  const [submittingBonus, setSubmittingBonus] = useState(false);
+  const [submittingLoan, setSubmittingLoan] = useState(false);
+  const [cancellingAdjId, setCancellingAdjId] = useState(null);
+
+  const [adjForm, setAdjForm] = useState({
+    user_id: "",
+    adjustment_type: "earning",
+    category: "incentive",
+    component_name: "",
+    component_code: "",
+    codeEdited: false,
+    amount: "",
+    reason: "",
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  });
   const [bonusForm, setBonusForm] = useState({ name: "", bonus_type: "flat", value: "", user_ids: [], reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
-  const [loanForm, setLoanForm] = useState({ user_id: "", loan_type: "salary_advance", principal_amount: "", tenure_months: "3", interest_rate: "0", interest_method: "reducing_balance", reason: "", month: now.getMonth() + 1, year: now.getFullYear() });
+  const [loanForm, setLoanForm] = useState({
+    user_id: "",
+    loan_type: "salary_advance",
+    principal_amount: "",
+    tenure_months: "3",
+    interest_rate: "0",
+    interest_method: "reducing_balance",
+    disbursed_on: now.toISOString().slice(0, 10),
+    reason: "",
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  });
+
+  const loanEst = useMemo(
+    () => estimateSchedule(loanForm.principal_amount, loanForm.interest_rate, loanForm.tenure_months, loanForm.interest_method),
+    [loanForm.principal_amount, loanForm.interest_rate, loanForm.tenure_months, loanForm.interest_method]
+  );
 
   // Stable identity: LoanDetailModal's fetch effect lists showToast in its deps,
   // so an unstable function would re-fire the fetch on every parent re-render.
@@ -230,15 +296,15 @@ export default function ManagerAdjustmentsPage() {
         payrollAPI.getTeamBonusRules().catch(() => ({ data: [] })),
         payrollAPI.getTeamLoans().catch(() => ({ data: [] })),
       ]);
-      setAdjustments(adjRes.data?.records || adjRes.data || []);
-      setBonuses(bonusRes.data?.records || bonusRes.data || []);
-      setLoans(loanRes.data?.records || loanRes.data || []);
+      setAdjustments(sortNewestFirst(adjRes.data?.records || adjRes.data || []));
+      setBonuses(sortNewestFirst(bonusRes.data?.records || bonusRes.data || []));
+      setLoans(sortNewestFirst(loanRes.data?.records || loanRes.data || []));
     } catch (err) {
       showToast(err.message || "Failed to load data", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -260,36 +326,62 @@ export default function ManagerAdjustmentsPage() {
 
   const submitAdj = async (e) => {
     e.preventDefault();
+    if (submittingAdj) return;
     const uid = typeof adjForm.user_id === "string" ? adjForm.user_id.trim() : "";
     if (!uid) return showToast("Choose a team member", "error");
     const amount = parseFloat(adjForm.amount);
     if (!Number.isFinite(amount) || amount <= 0) return showToast("Enter a valid adjustment amount", "error");
     if (!adjForm.reason.trim()) return showToast("A reason is required", "error");
+
+    const compName = adjForm.component_name.trim() || (adjForm.adjustment_type === "earning" ? "Spot Award" : "Deduction");
+    const compCode = (adjForm.component_code.trim() || codeFromName(compName) || (adjForm.adjustment_type === "earning" ? "SPOT_AWARD" : "DEDUCTION")).toUpperCase();
+
+    const codeProblem = componentCodeProblem(compCode);
+    if (codeProblem) return showToast(codeProblem, "error");
+
+    setSubmittingAdj(true);
     try {
       await payrollAPI.proposeTeamAdjustment(uid, {
         period_month: period(adjForm),
         adjustment_type: adjForm.adjustment_type,
         category: adjForm.category,
-        component_name: adjForm.component_name || (adjForm.adjustment_type === "earning" ? "Spot Award" : "Deduction"),
+        component_code: compCode,
+        component_name: compName,
         amount,
         reason: adjForm.reason.trim(),
       });
       showToast("Adjustment proposed to HR");
       emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id: uid, action: "propose" });
       setModal(null);
+      setAdjForm({
+        user_id: "",
+        adjustment_type: "earning",
+        category: "incentive",
+        component_name: "",
+        component_code: "",
+        codeEdited: false,
+        amount: "",
+        reason: "",
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+      });
       loadData();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to propose adjustment"), "error");
+    } finally {
+      setSubmittingAdj(false);
     }
   };
 
   const submitBonus = async (e) => {
     e.preventDefault();
+    if (submittingBonus) return;
     if (!bonusForm.name.trim()) return showToast("Enter a rule name", "error");
     if (bonusForm.user_ids.length === 0) return showToast("Select at least one report", "error");
     const val = parseFloat(bonusForm.value);
     if (!Number.isFinite(val) || val <= 0) return showToast("Enter a valid bonus value", "error");
     if (!bonusForm.reason.trim()) return showToast("A reason is required", "error");
+    setSubmittingBonus(true);
     try {
       await payrollAPI.proposeTeamBonusRule({
         name: bonusForm.name.trim(),
@@ -306,11 +398,14 @@ export default function ManagerAdjustmentsPage() {
       loadData();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to propose bonus"), "error");
+    } finally {
+      setSubmittingBonus(false);
     }
   };
 
   const submitLoan = async (e) => {
     e.preventDefault();
+    if (submittingLoan) return;
     const uid = typeof loanForm.user_id === "string" ? loanForm.user_id.trim() : "";
     if (!uid) return showToast("Choose a team member", "error");
     const principal = parseFloat(loanForm.principal_amount);
@@ -318,6 +413,7 @@ export default function ManagerAdjustmentsPage() {
     const tenure = parseInt(loanForm.tenure_months);
     if (!Number.isFinite(tenure) || tenure <= 0) return showToast("Enter a valid tenure in months", "error");
     if (!loanForm.reason.trim()) return showToast("A reason is required", "error");
+    setSubmittingLoan(true);
     try {
       await payrollAPI.recommendTeamLoan(uid, {
         loan_type: loanForm.loan_type,
@@ -327,26 +423,47 @@ export default function ManagerAdjustmentsPage() {
         interest_rate: parseFloat(loanForm.interest_rate) || 0,
         interest_method: loanForm.interest_method,
         start_period_month: period(loanForm),
+        disbursed_on: loanForm.disbursed_on || null,
         reason: loanForm.reason.trim(),
       });
       showToast("Loan recommendation sent to HR");
       emitAttendanceChanged(ATTENDANCE_EVENTS.LOAN, { id: uid, action: "recommend" });
       setModal(null);
+      setLoanForm({
+        user_id: "",
+        loan_type: "salary_advance",
+        principal_amount: "",
+        tenure_months: "3",
+        interest_rate: "0",
+        interest_method: "reducing_balance",
+        disbursed_on: now.toISOString().slice(0, 10),
+        reason: "",
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+      });
       loadData();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to recommend loan"), "error");
+    } finally {
+      setSubmittingLoan(false);
     }
   };
 
   const cancelAdj = async (id) => {
-    if (!(await window.confirm("Cancel this proposal?"))) return;
+    if (cancellingAdjId) return false;
+    if (!(await window.confirm("Cancel this proposal?"))) return false;
+    setCancellingAdjId(id);
     try {
       await payrollAPI.cancelTeamAdjustment(id);
       showToast("Proposal cancelled");
       emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id, action: "cancel" });
       loadData();
+      return true;
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to cancel proposal"), "error");
+      return false;
+    } finally {
+      setCancellingAdjId(null);
     }
   };
 
@@ -405,7 +522,20 @@ export default function ManagerAdjustmentsPage() {
                           {hasCancellable && (
                             <td className="px-6 py-4 text-right">
                               {a.status === "pending" && (
-                                <button onClick={() => cancelAdj(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Cancel proposal"><HiTrash className="w-4 h-4" /> Cancel</button>
+                                <button
+                                  type="button"
+                                  disabled={cancellingAdjId === a.id}
+                                  onClick={() => cancelAdj(a.id)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition"
+                                  title="Cancel proposal"
+                                >
+                                  {cancellingAdjId === a.id ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin shrink-0" />
+                                  ) : (
+                                    <HiTrash className="w-4 h-4" />
+                                  )}
+                                  <span>{cancellingAdjId === a.id ? "Cancelling..." : "Cancel"}</span>
+                                </button>
                               )}
                             </td>
                           )}
@@ -491,7 +621,20 @@ export default function ManagerAdjustmentsPage() {
                     <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Type</label>
                     <FieldHelp surface="payroll.adjustment_proposal" field="adjustment_type" label="the adjustment type" className="mb-2" />
                   </div>
-                  <select value={adjForm.adjustment_type} onChange={(e) => setAdjForm({ ...adjForm, adjustment_type: e.target.value, category: e.target.value === "earning" ? "incentive" : "ad_hoc_deduction" })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
+                  <select
+                    value={adjForm.adjustment_type}
+                    onChange={(e) => {
+                      const type = e.target.value;
+                      setAdjForm((prev) => ({
+                        ...prev,
+                        adjustment_type: type,
+                        category: type === "earning" ? "incentive" : "ad_hoc_deduction",
+                        component_name: prev.codeEdited ? prev.component_name : "",
+                        component_code: prev.codeEdited ? prev.component_code : "",
+                      }));
+                    }}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none"
+                  >
                     <option value="earning">Earning (+)</option>
                     <option value="deduction">Deduction (-)</option>
                   </select>
@@ -518,19 +661,63 @@ export default function ManagerAdjustmentsPage() {
               </div>
               <div>
                 <div className="flex items-center">
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Label</label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Payslip Label</label>
                   <FieldHelp surface="payroll.adjustment_proposal" field="component_name" label="the payslip label" className="mb-2" />
                 </div>
-                <input type="text" value={adjForm.component_name} onChange={(e) => setAdjForm({ ...adjForm, component_name: e.target.value })} placeholder="e.g. Spot Award" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                <input
+                  type="text"
+                  value={adjForm.component_name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setAdjForm((prev) => ({
+                      ...prev,
+                      component_name: name,
+                      component_code: prev.codeEdited ? prev.component_code : codeFromName(name),
+                    }));
+                  }}
+                  placeholder={adjForm.adjustment_type === "earning" ? "e.g. Spot Award" : "e.g. Equipment Deduction"}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none"
+                />
               </div>
               <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Component Code <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  value={adjForm.component_code}
+                  maxLength={50}
+                  onChange={(e) => {
+                    const code = e.target.value.toUpperCase().replace(/[\s-]+/g, "_");
+                    setAdjForm((prev) => ({
+                      ...prev,
+                      component_code: code,
+                      codeEdited: code !== "",
+                    }));
+                  }}
+                  placeholder={adjForm.adjustment_type === "earning" ? "SPOT_AWARD" : "DEDUCTION"}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:bg-white focus:border-purple-400 outline-none"
+                />
+              </div>
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
                 <input type="text" required value={adjForm.reason} onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
               </div>
               <p className="sm:col-span-2 text-xs text-slate-400 italic">Sent to HR for final approval before it reaches payroll.</p>
               <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Propose to HR</button>
+                <button type="button" disabled={submittingAdj} onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingAdj}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-purple-200 flex items-center justify-center gap-2"
+                >
+                  {submittingAdj ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Proposing to HR...</span>
+                    </>
+                  ) : (
+                    "Propose to HR"
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -588,8 +775,21 @@ export default function ManagerAdjustmentsPage() {
                 <textarea required value={bonusForm.reason} onChange={(e) => setBonusForm({ ...bonusForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
               </div>
               <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Propose to HR</button>
+                <button type="button" disabled={submittingBonus} onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingBonus}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-purple-200 flex items-center justify-center gap-2"
+                >
+                  {submittingBonus ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Proposing to HR...</span>
+                    </>
+                  ) : (
+                    "Propose to HR"
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -625,13 +825,27 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required min="1" value={loanForm.principal_amount} onChange={(e) => setLoanForm({ ...loanForm, principal_amount: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="grid sm:col-span-2 grid-cols-3 gap-4">
+              <div className="sm:col-span-2 grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <div className="flex items-center">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Tenure</label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Tenure (mo) <span className="text-rose-500">*</span></label>
                     <FieldHelp surface="payroll.loan_recommendation" field="tenure_months" label="the tenure" className="mb-2" />
                   </div>
                   <input type="number" required min="1" value={loanForm.tenure_months} onChange={(e) => setLoanForm({ ...loanForm, tenure_months: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Interest % p.a.</label>
+                  <input type="number" min="0" max="100" step="0.01" value={loanForm.interest_rate} onChange={(e) => setLoanForm({ ...loanForm, interest_rate: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                </div>
+                <div>
+                  <div className="flex items-center">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Method</label>
+                    <FieldHelp surface="payroll.loan_recommendation" field="interest_method" label="the interest method" className="mb-2" />
+                  </div>
+                  <select value={loanForm.interest_method} onChange={(e) => setLoanForm({ ...loanForm, interest_method: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none">
+                    <option value="reducing_balance">Reducing</option>
+                    <option value="flat">Flat</option>
+                  </select>
                 </div>
                 <div>
                   <div className="flex items-center">
@@ -647,14 +861,49 @@ export default function ManagerAdjustmentsPage() {
                   <input type="number" required value={loanForm.year} onChange={(e) => setLoanForm({ ...loanForm, year: parseInt(e.target.value) })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
                 </div>
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
-                <textarea required value={loanForm.reason} onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })} rows={2} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none resize-none" />
+              <div className="sm:col-span-2 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Money paid out on</label>
+                  <input type="date" value={loanForm.disbursed_on} onChange={(e) => setLoanForm({ ...loanForm, disbursed_on: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-2">Reason <span className="text-rose-500">*</span></label>
+                  <input type="text" required value={loanForm.reason} onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })} placeholder="e.g. Medical emergency" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
+                </div>
               </div>
+              {loanEst && (
+                <div className="sm:col-span-2 bg-purple-50 rounded-xl p-4 grid grid-cols-3 gap-3 text-center border border-purple-100">
+                  <div>
+                    <p className="text-[10px] font-bold text-purple-600 uppercase">Est. monthly</p>
+                    <p className="text-base font-black text-purple-700 mt-0.5">{money(loanEst.emi)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-purple-600 uppercase">Total Interest</p>
+                    <p className="text-base font-black text-purple-700 mt-0.5">{money(loanEst.totalInterest)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-purple-600 uppercase">Total Payable</p>
+                    <p className="text-base font-black text-purple-700 mt-0.5">{money(loanEst.totalPayable)}</p>
+                  </div>
+                </div>
+              )}
               <p className="sm:col-span-2 text-xs text-slate-400 italic">HR reviews and, if approved, generates the instalment schedule.</p>
               <div className="sm:col-span-2 flex gap-3 pt-4 mt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition shadow-md shadow-purple-200">Send to HR</button>
+                <button type="button" disabled={submittingLoan} onClick={() => setModal(null)} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingLoan}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-purple-200 flex items-center justify-center gap-2"
+                >
+                  {submittingLoan ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Sending to HR...</span>
+                    </>
+                  ) : (
+                    "Send to HR"
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -662,7 +911,13 @@ export default function ManagerAdjustmentsPage() {
       )}
 
       {adjDetail && (
-        <AdjustmentDetail adj={adjDetail} memberName={teamName(adjDetail.user_id, adjDetail)} onCancel={cancelAdj} onClose={() => setAdjDetail(null)} />
+        <AdjustmentDetail
+          adj={adjDetail}
+          memberName={teamName(adjDetail.user_id, adjDetail)}
+          onCancel={cancelAdj}
+          cancelling={cancellingAdjId === adjDetail.id}
+          onClose={() => setAdjDetail(null)}
+        />
       )}
       {bonusDetail && (
         <BonusProposalDetail bonus={bonusDetail} nameOf={(id) => teamName(id)} onClose={() => setBonusDetail(null)} />

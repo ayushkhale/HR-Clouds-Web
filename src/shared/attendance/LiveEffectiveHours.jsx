@@ -6,6 +6,17 @@
 //  • In progress with break data → live worked time, frozen during a break.
 //  • In progress without break data (list endpoints) → live elapsed time,
 //    explicitly labelled so it's never mistaken for effective hours.
+//
+// PASS `record`, NOT THE SEVEN FIELDS. Threading them by hand is what broke
+// this (2026-10-22): three of the four call sites left out `breakMinutes` and
+// two also left out `activeBreak`, so an open day on the HR and manager
+// employee profiles counted break time as worked — the server's authoritative
+// `break_duration_minutes` was never read, and a break open right now didn't
+// freeze the clock. The figure was wrong in the one direction nobody notices,
+// upwards, and the tooltip still promised "breaks deducted". `record` reads
+// all of them off one object so a call site cannot silently omit one. The
+// individual props stay for the rare caller holding loose values, and override
+// `record` when given.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from "react";
@@ -16,7 +27,17 @@ import { fmtMinutes, workedLabel } from "./dates.js";
 // missed clock-out awaiting auto clock-out / regularization, not a live day.
 const MAX_OPEN_MS = 24 * 60 * 60 * 1000;
 
-export default function LiveEffectiveHours({ effectiveHours, formatted, clockInTime, clockOutTime, breaks, activeBreak, breakMinutes, className = "text-slate-800" }) {
+const pick = (own, fromRecord) => (own === undefined ? fromRecord : own);
+
+export default function LiveEffectiveHours({ record, effectiveHours: effectiveHoursProp, formatted: formattedProp, clockInTime: clockInTimeProp, clockOutTime: clockOutTimeProp, breaks: breaksProp, activeBreak: activeBreakProp, breakMinutes: breakMinutesProp, className = "text-slate-800" }) {
+  const effectiveHours = pick(effectiveHoursProp, record?.effective_hours);
+  const formatted = pick(formattedProp, record?.worked_duration_formatted);
+  const clockInTime = pick(clockInTimeProp, record?.clock_in_time);
+  const clockOutTime = pick(clockOutTimeProp, record?.clock_out_time);
+  const breaks = pick(breaksProp, record?.breaks);
+  const activeBreak = pick(activeBreakProp, record?.active_break);
+  const breakMinutes = pick(breakMinutesProp, record?.break_duration_minutes);
+
   const clockInMs = clockInTime ? new Date(clockInTime).getTime() : NaN;
   const isStale = !clockOutTime && Number.isFinite(clockInMs) && Date.now() - clockInMs > MAX_OPEN_MS;
   const isActive = !!clockInTime && !clockOutTime && !isStale;

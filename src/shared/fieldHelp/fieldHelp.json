@@ -106,6 +106,13 @@
             "enabled": true,
             "question": "When I request an attendance correction, what does the ‘Worked from’ option mean, and what is the difference between office, remote, field and hybrid work?"
           }
+        },
+        "regularization_window_days": {
+          "hint": "How far back your attendance policy lets a correction reach. Dates outside it can’t be picked — ask HR to fix an older day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why can’t I pick an older date for an attendance correction, and who can fix a day outside that window?"
+          }
         }
       }
     },
@@ -2296,14 +2303,14 @@
           }
         },
         "oldest_queued_age_seconds": {
-          "hint": "How long the letter at the front of the queue has been waiting. A long wait here, not a big number, is what means something is stuck.",
+          "hint": "How long the letter at the front of the queue has been waiting. Displays 0m when the queue is clear.",
           "askMaya": {
             "enabled": true,
             "question": "How can I tell whether letter production is stuck?"
           }
         },
         "failure_rate": {
-          "hint": "The share of letters that finished but didn’t come out. It reads N/A when nothing finished — that is no news, not a clean result.",
+          "hint": "The percentage of letters that finished but didn’t come out. Displays 0% when there are no failures.",
           "askMaya": {
             "enabled": true,
             "question": "What does the letter failure rate show, and what should I do if it is high?"
@@ -2326,14 +2333,14 @@
           }
         },
         "oldest_queued_age_seconds": {
-          "hint": "How long the payslip at the front of the queue has been waiting. A long wait here, not a big number, is what means something is stuck.",
+          "hint": "How long the payslip at the front of the queue has been waiting. Displays 0m when the queue is clear.",
           "askMaya": {
             "enabled": true,
             "question": "How can I tell whether payslip production is stuck?"
           }
         },
         "failure_rate": {
-          "hint": "The share of payslips that finished but didn’t come out. It reads N/A when nothing finished — that is no news, not a clean result.",
+          "hint": "The percentage of payslips that finished but didn’t come out. Displays 0% when there are no failures.",
           "askMaya": {
             "enabled": true,
             "question": "What does the payslip failure rate show, and what should I do if it is high?"
@@ -2790,6 +2797,136 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens if I clock in outside a site’s allowed distance?"
+          }
+        }
+      }
+    },
+    "attendance.my_schedule": {
+      "kind": "data",
+      "description": "My Schedule & Rules (MySchedulePage), all three workspaces under SELF_SERVICE_PAGES.schedule. REBUILT AS FOUR TABS 22 Oct 2026 (user decision): the four stacked bands are now tabs in ?tab=, keyed tab.week / tab.shift / tab.rules / tab.team, with one ⓘ beside the tab strip for whichever is open. Per screen state: Next 7 days = page, tab.week, leave_days and items_due on the headline tiles (4; the deadline panel heading is the same concept as the items_due tile, so it carries no ⓘ); Working week = page, tab.shift, weekly_offs, matched_by (4); How days are counted = page, tab.rules, policy, full_day_min_hours on the grading ladder (4); Who’s in = page, tab.team, working_count (3). grace_minutes, max_break_duration_minutes, regularization_window_days, overtime_enabled and auto_clock_out_enabled are PARKED, not wired: each rule card prints its own rule in plain words beside the figure, and six card hints put that tab five over the cap. Written to the person about their own schedule, so none of these is reused on a screen about somebody else; the team tab is neutral because a manager and HR both read it.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "The hours you’re expected to work and the rules your days are counted by. HR sets both; this is where you check how a day of yours is judged.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Where do my shift and my attendance rules come from, and what should I do if they look wrong?"
+          }
+        },
+        "tab.week": {
+          "hint": "Your next seven days, the figures they add up to, and anything falling due inside them. Days off and holidays are shown as they come.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does my schedule take into account when it works out my next seven days?"
+          }
+        },
+        "tab.shift": {
+          "hint": "The hours you’re expected to work, the cycle they move on, and your regular days off. HR sets all three — ask them if something looks wrong.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who decides my shift and my days off, and what should I do if they’re wrong?"
+          }
+        },
+        "tab.rules": {
+          "hint": "The rules your clock-ins are measured against: how long you may arrive after your start time, what makes a full day, and how far back a fix can be asked for.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Where do the rules my attendance is measured against come from?"
+          }
+        },
+        "tab.team": {
+          "hint": "How much of your team is expected in each day of the week, and who is already away. Only the people who report to you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does team cover tell me, and who is counted in it?"
+          }
+        },
+        "leave_days": {
+          "hint": "Only the days actually taken off your balance. A weekend or holiday inside a leave stretch isn’t counted here, because it was never deducted.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is my leave count lower than the number of days I booked?"
+          }
+        },
+        "items_due": {
+          "hint": "Task deadlines, document dates and days off about to expire, grouped by the day they land on. Only the next seven days.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What kinds of things show up as falling due on my schedule?"
+          }
+        },
+        "weekly_offs": {
+          "hint": "Your regular days off. Clocking in on one still records your work, but the day is counted separately instead of as a normal working day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens if I work on one of my weekly days off?"
+          }
+        },
+        "matched_by": {
+          "hint": "Which rule gives you these days off, and who else it covers. HR can set different days off for a department, a workplace, a shift or one person.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why might my weekly days off be different from a colleague’s in another team?"
+          }
+        },
+        "policy": {
+          "hint": "The rule set your clock-ins are measured against. Everyone on the same shift shares it, and the rules in force on a past day stay with that day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is an attendance policy and who decides which one applies to me?"
+          }
+        },
+        "full_day_min_hours": {
+          "hint": "Time worked, with breaks taken off, needed for the day to count. Below the half-day figure the day isn’t counted as attendance at all.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How are my hours worked turned into a full day, a half day or an absent day?"
+          }
+        },
+        "grace_minutes": {
+          "hint": "Extra time after your shift starts in which clocking in still counts as on time. Arrive after it and the day records a late arrival.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does a grace period work, and what happens to my attendance if I clock in after it?"
+          }
+        },
+        "max_break_duration_minutes": {
+          "hint": "The most break time and the most breaks you can take in a day. Break time is taken off your hours worked, so going over can cost you the day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens if I take more break time than my attendance policy allows?"
+          }
+        },
+        "regularization_window_days": {
+          "hint": "How far back you can ask for a missed or wrong punch to be fixed. Past that, only HR can change the day.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How far back can I ask for an attendance correction, and what do I do once that window has closed?"
+          }
+        },
+        "overtime_enabled": {
+          "hint": "Whether extra time past a full day is recorded as overtime, and how much extra it takes before any of it counts.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is my overtime worked out, and why might extra hours I worked not show up as overtime?"
+          }
+        },
+        "auto_clock_out_enabled": {
+          "hint": "If you never clock out, your day is closed for you at this point. Your real hours are lost, so clock out even when you leave late.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to my attendance if I forget to clock out?"
+          }
+        },
+        "working_count": {
+          "hint": "How many of your team are expected in each day. Someone on a half day counts as both in and away, so the figures can total more than your team.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is team cover worked out when someone takes a half day?"
           }
         }
       }
@@ -3403,6 +3540,22 @@
             "question": "What do an employee’s reporting line and work location decide for them?"
           }
         },
+        "department_id": {
+          "tier": "onboarding",
+          "hint": "Which part of the organisation this person belongs to. It drives department headcount and reports, not who approves their leave — that is the reporting person.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does an employee’s department decide for them?"
+          }
+        },
+        "head_of_department_id": {
+          "tier": "onboarding",
+          "hint": "Who runs the department this person sits in. It is set on the department itself, not on this record, so change it under Departments.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is a head of department different from a reporting person?"
+          }
+        },
         "reporting_person": {
           "tier": "onboarding",
           "hint": "Who approves this person’s leave and attendance and can see their records. Changing it moves those requests to somebody else.",
@@ -3693,6 +3846,95 @@
           "askMaya": {
             "enabled": true,
             "question": "What happens to an employee's leave balance and their future leave when their leave policy is given an end date?"
+          }
+        }
+      }
+    },
+    "organization.setup_checklist": {
+      "kind": "data",
+      "description": "The operational readiness checklist — Setup › Organisation setup (OrgSetupChecklistPage) and the SetupChecklistCard nudge on the HR dashboard. Contract: md_organization/7_org_setup_checklist_api.md. Four page-level entries for concepts the screen invents or computes (the page itself, the readiness figure, 'ready to run', what makes a step a must-do), plus one tab.<category_key> per area of the strip, which is the onboarding tier's tab help — the ⓘ beside the strip follows the open tab. Keys match the server's category_key, so an area the server stops sending simply stops being asked for. Nothing is wired per task row: a step's own sentence already says what it is for, and 22 info icons down a list is the noise the cap exists to prevent. HR only: the endpoint is HR_ONLY.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "What your organisation needs in place before attendance, leave and payroll work. A step counts as done once one of that thing exists.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does an HR admin have to set up before attendance, leave and payroll will work in HR Clouds, and what order should those steps be done in?"
+          }
+        },
+        "readiness_percentage": {
+          "tier": "onboarding",
+          "hint": "The share of setup steps that are done. It can fall again: delete the last of something and the step that needed it goes back to outstanding.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How is the organisation setup percentage worked out, and why can it go down after I have already completed a step?"
+          }
+        },
+        "is_operational": {
+          "tier": "onboarding",
+          "hint": "Yes once every must-do step is done — the point at which attendance and payroll can run. Optional steps left over don’t hold it back.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does it mean for an organisation to be ready to run, and which setup steps decide it?"
+          }
+        },
+        "is_core": {
+          "tier": "onboarding",
+          "hint": "A step attendance or payroll can’t work without. Skip one and hours don’t add up or people are left out of a pay run, with no error shown.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Which organisation setup steps are essential rather than optional, and what goes wrong if an essential one is skipped?"
+          }
+        },
+        "tab.organization": {
+          "tier": "onboarding",
+          "hint": "The company’s own record, where people work, how they’re grouped and who approves for whom. Requests have nobody to go to until this is set.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why does HR Clouds need offices, departments and reporting lines before leave and attendance requests will work?"
+          }
+        },
+        "tab.attendance": {
+          "tier": "onboarding",
+          "hint": "Working days, the shifts people are on, and the rules applied to a day. Until these exist, clock-ins can’t be turned into hours worked.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What has to be set up in HR Clouds before clock-ins can be turned into hours worked?"
+          }
+        },
+        "tab.leave": {
+          "tier": "onboarding",
+          "hint": "The kinds of leave people can take, how much they get, and who has been given them. Nobody can request leave until a type reaches them.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What has to be in place before an employee can request leave in HR Clouds?"
+          }
+        },
+        "tab.payroll": {
+          "tier": "onboarding",
+          "hint": "What a salary is made of, PF, ESI and tax, and the accounts money is paid into. Anyone without a salary structure is skipped by a pay run.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does an organisation need in place before it can run its first payroll in HR Clouds?"
+          }
+        },
+        "tab.document": {
+          "tier": "onboarding",
+          "hint": "What you collect from your people and what you issue to them. A letter can’t be raised until a template for it exists.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do document types and letter templates work in HR Clouds, and what do I need before I can issue a letter?"
+          }
+        },
+        "tab.task": {
+          "tier": "onboarding",
+          "hint": "Rules for work you hand out and reminders for work running late. Nothing else in setup waits on this one.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are task rules and overdue reminders in HR Clouds, and when would an organisation need them?"
           }
         }
       }
@@ -5544,25 +5786,25 @@
     },
     "attendance.my_devices": {
       "kind": "data",
-      "description": "My Devices (MyDevicesPage), mounted in all three workspaces under each one’s own self-service prefix. List state: page, effective_mode, status, last_used_at (4). Inspector state: device_bound, last_ip (2). Written to the person about their own device, so these entries are never reused on an HR screen about somebody else.",
+      "description": "My Devices (MyDevicesPage), mounted in all three workspaces under each one’s own self-service prefix. REBUILT AS TWO SCREENS 22 Oct 2026 (user decision): the on-page tab strip is gone and the sidebar’s two entries are the navigation, so there is no single `page` key any more — each screen keys its own <h1> help. This device: this_device (h1), effective_mode (the mode pill beside it), device_bound (spec list) — 3. All my devices: all_devices (h1), effective_mode, status (column) — 3. Inspector: device_bound, last_ip, last_used_at (3); last_used_at lives here rather than on the table header, because spotting a device you don’t recognise is done with the record open. Written to the person about their own device, so these entries are never reused on an HR screen about somebody else.",
       "workspaces": [
         "employee",
         "manager",
         "hr"
       ],
       "fields": {
-        "tab.this": {
+        "this_device": {
           "hint": "The device you’re on now, as long as you registered it in this browser. Registered it somewhere else? It’s under All my devices.",
           "askMaya": {
             "enabled": true,
             "question": "Why can’t the page always tell which of my devices I’m using right now?"
           }
         },
-        "page": {
-          "hint": "Clocking in can be limited to devices you have registered. Register one here, and shut off anything you no longer use.",
+        "all_devices": {
+          "hint": "Every device you have registered, including ones you’ve shut off. Shut-off devices stay as a record and can’t be used to clock in.",
           "askMaya": {
             "enabled": true,
-            "question": "Why does my organisation ask me to register the device I clock in from?"
+            "question": "Why do devices I’ve shut off stay on my list instead of disappearing?"
           }
         },
         "effective_mode": {
@@ -5622,7 +5864,7 @@
     },
     "attendance.device_checks": {
       "kind": "form",
-      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage): the coverage tiles, the People tab (the employee directory joined to the device inventory), the Settings tab over GET/PUT device-trust/policy, and the Activity tab. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained.",
+      "description": "HR — Setup › Organisation › Registered Devices (RegisteredDevicesPage). REBUILT 22 Oct 2026 (user decision): readiness was three cards above the tab bar, then one strip inside the People tab, and is now its own STATUS tab drawn as a RING — coverage_percentage on the heading and in the middle of the ring, and one legend row per slice keyed enrolled_users / pending_users / uncovered_users, each row the way to the people it counted. The three slices are mutually exclusive and sum to active_members: pending is carved OUT of the uncovered remainder, because a device waiting on approval cannot be used yet — so uncovered_users labels \"Nothing registered yet\", not everybody who is short. Page help is keyed page beside the <h1>; tab help is one ⓘ beside the tab strip keyed tab.<open tab> (people, settings, activity, status). People tab keys devices, last_used_at and coverage_state — the Can clock in column carries it alone, since the state filter became a <select> whose options spell themselves out (once per concept). Settings tab covers the policy payload keys, Activity covers events. Onboarding tier: every field here decides whether somebody else can clock in, so all of them are explained and the 4-per-screen cap does not apply.",
       "workspaces": [
         "hr"
       ],
@@ -5643,9 +5885,25 @@
             "question": "Which device settings should I decide first when I’m setting this up?"
           }
         },
+        "tab.activity": {
+          "tier": "onboarding",
+          "hint": "Every device decision and every refused punch, newest first. Where to look when somebody says they couldn’t clock in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I find out why somebody’s punch was refused?"
+          }
+        },
+        "tab.status": {
+          "tier": "onboarding",
+          "hint": "How close the organisation is to everybody being able to clock in from a registered device, and whether it is safe to make one compulsory yet.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to people without a registered device once I make one compulsory?"
+          }
+        },
         "devices": {
           "tier": "onboarding",
-          "hint": "What this person has registered, and how many of those can actually be used right now.",
+          "hint": "What this person has registered, and how many of those can be used right now — a dot each for ready, waiting, blocked and shut off.",
           "askMaya": {
             "enabled": true,
             "question": "What should I do when somebody has a device waiting and no working one?"
@@ -5653,7 +5911,7 @@
         },
         "coverage_state": {
           "tier": "onboarding",
-          "hint": "Whether this person can clock in today. “Waiting for you” means a device of theirs needs your decision before they can.",
+          "hint": "Whether this person can clock in today. “Waiting for you” needs your decision; “Needs a new one” means their only device was shut off for good.",
           "askMaya": {
             "enabled": true,
             "question": "What stops an employee clocking in once device checks are compulsory?"
@@ -5693,10 +5951,26 @@
         },
         "coverage_percentage": {
           "tier": "onboarding",
-          "hint": "The share of your people who have a device ready. Make checks compulsory before this is high and the rest can’t clock in at all.",
+          "hint": "How many of your people can already clock in from a registered device. Reach the mark on the bar before you make it compulsory.",
           "askMaya": {
             "enabled": true,
             "question": "How high should device coverage be before I make a registered device compulsory?"
+          }
+        },
+        "uncovered_users": {
+          "tier": "onboarding",
+          "hint": "People who haven’t registered anything that works yet. Make a registered device compulsory and these are exactly the people who could not clock in.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should I do about people who still have no registered device?"
+          }
+        },
+        "pending_users": {
+          "tier": "onboarding",
+          "hint": "People waiting on a decision from you. Their device is registered but can’t be used to clock in until you approve it.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What am I checking when I approve or reject somebody’s device?"
           }
         },
         "enforcement_mode": {
@@ -5790,10 +6064,10 @@
       "fields": {
         "last_ip": {
           "tier": "onboarding",
-          "hint": "Roughly where on the network this device’s last punch came from. A hint for spotting something odd, not proof of who used it.",
+          "hint": "The browser, and roughly where on the network this device last punched from. Useful for spotting something odd, never proof of who used it.",
           "askMaya": {
             "enabled": true,
-            "question": "What does the network address on a device tell me, and what does it not tell me?"
+            "question": "What can the network address on a device record tell me about where someone clocked in from?"
           }
         },
         "page": {
@@ -5819,13 +6093,282 @@
             "enabled": true,
             "question": "Why does it matter whether an employee’s device has a screen lock shared with their other devices?"
           }
-        },
-        "last_ip": {
-          "tier": "onboarding",
-          "hint": "Roughly where on the network this device last punched from. Useful for spotting something odd, not proof of who used it.",
+        }
+      }
+    },
+    "attendance.locate_employee": {
+      "kind": "data",
+      "description": "Asking one person's phone where it is, and the history of who asked before (LiveLocationPanel + LocateDialog on the employee profile's Reporting & Location tab, 2026-10-23). Shared by HR and the manager through the viewer prop, so the voice is neutral - 'the person', never 'your report'. The reason box is the only typed field; the rest of the dialog is read-back.",
+      "workspaces": [
+        "hr",
+        "manager"
+      ],
+      "fields": {
+        "column": {
+          "hint": "Asks the person’s phone where it is right now. They are told who asked and why, and the answer is one position at that moment — not a trail.",
           "askMaya": {
             "enabled": true,
-            "question": "What can the network address on a device record tell me about where someone clocked in from?"
+            "question": "What happens when I ask a colleague where they are?"
+          }
+        },
+        "panel": {
+          "hint": "Ask this person’s phone where it is right now. They see a notice with your reason, and the request is recorded against your name.",
+          "askMaya": {
+            "enabled": true,
+            "question": "When is it fair to ask someone for their live location?"
+          }
+        },
+        "reason": {
+          "hint": "The person being located reads this, and it stays on the record. Say what you need to confirm rather than just “checking”.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What makes a good reason for asking where someone is?"
+          }
+        },
+        "accuracy_meters": {
+          "hint": "How wide an area the position could really be in. A large number means the phone was indoors or on a weak signal, not that the person moved.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is a phone’s location sometimes only accurate to a few hundred metres?"
+          }
+        }
+      }
+    },
+    "attendance.location_policy": {
+      "kind": "form",
+      "description": "The organisation-wide Live Location Checks policy (HR > Setup > Organisation, 2026-10-23). Every setting here lands on somebody else, so the whole screen is onboarding tier: an HR admin setting this up in their first month decides how closely colleagues can be checked. Keys are the PUT payload keys.",
+      "workspaces": [
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "tier": "onboarding",
+          "hint": "Decide whether anyone here may ask a colleague’s phone where it is, who may ask, and how often. It starts switched off.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What should I think about before turning on location checks?"
+          }
+        },
+        "enabled": {
+          "tier": "onboarding",
+          "hint": "Off means nobody can ask anybody, whatever else is set here. Turning it on applies immediately to everyone you allow below.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What changes for employees the moment location checks are switched on?"
+          }
+        },
+        "allowed_requester_roles": {
+          "tier": "onboarding",
+          "hint": "HR admins can ask anyone; managers only their own direct reports. Pick at least one, or nobody can ask at all.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Should managers be able to ask where their team is, or only HR?"
+          }
+        },
+        "consent_mode": {
+          "tier": "onboarding",
+          "hint": "Whether people must read and accept the notice before anyone can be given their location, or are simply told each time it happens.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between telling someone and asking them to accept first?"
+          }
+        },
+        "notify_employee": {
+          "tier": "onboarding",
+          "hint": "Whether the person’s phone announces each request. Turning it off means they are located without being told at the time.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What are the risks of locating people without telling them?"
+          }
+        },
+        "require_reason": {
+          "tier": "onboarding",
+          "hint": "Whether whoever asks must type why. The person being located reads that reason either way — this decides if it can be left blank.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why should a reason be compulsory for a location request?"
+          }
+        },
+        "require_clocked_in": {
+          "tier": "onboarding",
+          "hint": "Whether people can only be asked during their shift. With this off, somebody can be asked on a day off or late at night.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why is it safer to allow location requests only while someone is clocked in?"
+          }
+        },
+        "request_ttl_seconds": {
+          "tier": "onboarding",
+          "hint": "How long we wait for the phone to answer before giving up. Too short and a phone on a weak signal never gets the chance.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens to a location request that nobody’s phone answers?"
+          }
+        },
+        "cooldown_seconds": {
+          "tier": "onboarding",
+          "hint": "How long the same person must wait before asking the same colleague again. This is what stops somebody being checked over and over.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do cooldowns protect people from being checked too often?"
+          }
+        },
+        "max_requests_per_employee_per_day": {
+          "tier": "onboarding",
+          "hint": "The most times one colleague can be asked in a day, counting everybody who asks. After that, further requests are refused.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens once someone has been asked the maximum number of times today?"
+          }
+        },
+        "log_retention_days": {
+          "tier": "onboarding",
+          "hint": "How long the positions themselves are kept before being deleted. Who asked, when and why is kept either way.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How long should we keep the locations people’s phones send back?"
+          }
+        }
+      }
+    },
+    "attendance.my_location_checks": {
+      "kind": "data",
+      "description": "My Location Checks (shared self-service page, mounted in all three workspaces, 2026-10-23). Written to the person being located about their own data. The anti-spoof verdict and the position itself are withheld from this endpoint on purpose, so nothing here may hint at them.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Everyone who has asked where you are, and the reason each of them gave. Nobody can ask without it appearing here.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Who is allowed to ask for my location, and when?"
+          }
+        },
+        "consent": {
+          "hint": "Accepting records that you have read how this works. Until you do, your organisation may refuse every request for your location.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What am I agreeing to when I accept the location notice?"
+          }
+        },
+        "fix_returned": {
+          "hint": "Whether your device sent a position back. It won’t have if you let the request pass, had no signal, or weren’t clocked in at the time.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What happens if I don’t answer a location request?"
+          }
+        }
+      }
+    },
+    "notification.inbox": {
+      "kind": "data",
+      "description": "The Notifications page, mounted in all three workspaces. The feed is scoped to whoever is reading it, so every hint is written to the person about their own notifications.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "page": {
+          "hint": "A record of what has happened to your requests, your pay and your work. Opening one takes you to the thing it is about.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What kinds of things show up in my notifications?"
+          }
+        },
+        "category": {
+          "hint": "Which part of HR Clouds a notification came from. Filtering here never hides anything permanently.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What do the notification groups like Pay and Tasks cover?"
+          }
+        },
+        "mark_all_read": {
+          "hint": "Clears the count on everything that has already arrived. Nothing is deleted, and anything landing while you press it stays unread.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between marking a notification read and clearing it?"
+          }
+        },
+        "actor_name": {
+          "tier": "onboarding",
+          "hint": "Who caused this. “The system” means a scheduled job did it — an expiry, a reminder or a payroll run — not a person.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do some notifications say they came from the system instead of a person?"
+          }
+        },
+        "read_at": {
+          "tier": "onboarding",
+          "hint": "When you opened it. It is yours alone — nobody is told whether you have read a notification.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Can anyone see whether I have read a notification?"
+          }
+        }
+      }
+    },
+    "notification.browser_alerts": {
+      "kind": "form",
+      "description": "Turning Web Push on for one browser: the card on the Notifications page, the nudge in the bell panel and the post-login prompt all read the same state.",
+      "workspaces": [
+        "employee",
+        "manager",
+        "hr"
+      ],
+      "fields": {
+        "push_enabled": {
+          "hint": "Lets this browser pop up a short alert when something happens, even with the tab closed. It covers this browser only and switches off when you sign out.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What does turning on desktop alerts actually send to me?"
+          }
+        }
+      }
+    },
+    "organization.registration": {
+      "kind": "form",
+      "description": "Organisation registration & onboarding — RegisterOrgPage",
+      "workspaces": [
+        "guest"
+      ],
+      "fields": {
+        "page": {
+          "hint": "Creating your workspace: pick a plan, then tell us about your company. You can change the plan later.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How do I choose the right plan and register my organisation in HR Clouds?"
+          }
+        },
+        "billing_cycle": {
+          "hint": "Paying for a year at once costs less than twelve monthly payments. You can switch later.",
+          "askMaya": {
+            "enabled": true,
+            "question": "What is the difference between monthly and yearly billing cycles for HR Clouds plans?"
+          }
+        },
+        "size": {
+          "hint": "Used to set up your workspace. Your plan decides how many people you can add; the list only shows sizes it covers.",
+          "askMaya": {
+            "enabled": true,
+            "question": "How does my organisation size relate to my chosen plan's employee seat limits?"
+          }
+        },
+        "gst_number": {
+          "hint": "Your company's GST registration number. It goes on the invoices we send you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Where is the GST number used and is it required for organisation registration?"
+          }
+        },
+        "company_pan_number": {
+          "hint": "Your company's PAN, not your own. It goes on the invoices we send you.",
+          "askMaya": {
+            "enabled": true,
+            "question": "Why do you need the company PAN number during organisation registration?"
           }
         }
       }

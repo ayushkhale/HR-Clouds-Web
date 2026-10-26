@@ -60,7 +60,29 @@ const JOBS = [
     settingKey: "payroll_calendar_reminders_enabled",
     run: () => payrollAPI.runCalendarReminders(),
     confirm: "Send any reminder emails that are due right now?\n\nOnly people with something outstanding are emailed, and nobody is emailed twice for the same thing.",
-    done: (d) => (d?.sent != null ? `${d.sent} reminder${d.sent === 1 ? "" : "s"} sent` : "Reminders sent"),
+    done: (d) => {
+      const payload = d?.data ?? d;
+      const sent = payload?.sent;
+      let count = 0;
+      if (typeof sent === "object" && sent !== null) {
+        count = Object.values(sent).reduce((acc, v) => acc + (Number(v) || 0), 0);
+      } else if (Number.isFinite(Number(sent))) {
+        count = Number(sent);
+      } else if (Number.isFinite(Number(payload?.count))) {
+        count = Number(payload.count);
+      }
+
+      const failed = Number(payload?.failed) || 0;
+
+      if (count > 0) {
+        const failSuffix = failed > 0 ? ` (${failed} failed)` : "";
+        return `${count} reminder${count === 1 ? "" : "s"} sent${failSuffix}`;
+      }
+      if (failed > 0) {
+        return `Failed to send reminders (${failed} failed)`;
+      }
+      return "Nothing was due — no reminders sent";
+    },
   },
   {
     key: "autoDraft",

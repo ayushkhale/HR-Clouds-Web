@@ -22,6 +22,21 @@ const ATTENDANCE_ERROR_MESSAGES = {
   NOT_HR: "Only HR administrators can perform this action.",
   HIERARCHY_VIOLATION: "This employee is outside your reporting line, so you can't view or action their attendance.",
   EMPLOYEE_NOT_IN_TEAM: "This employee isn't in your team, so you can't view their attendance.",
+  // The schedule agenda's own denial (2026-10-22). Uniform by design — a
+  // non-existent person and someone else's report are indistinguishable, so
+  // this must never be worded as though the person exists.
+  CANNOT_ACCESS_OUTSIDE_HIERARCHY: "That person doesn't report to you, so their schedule isn't yours to see.",
+
+  // §12 Forward schedule (2026-10-22). The three SCHEDULE_* refusals are bugs
+  // in our own code rather than anything the reader did: the windows we offer
+  // are fixed at 7/30/90 days inside the server's 92-day cap, and we send no
+  // `include`. They are mapped anyway so that if one ever does surface it
+  // reads as our words and not as "Range must not exceed 92 days (requested
+  // 150)", which names a limit nobody chose and no one can act on.
+  SCHEDULE_RANGE_TOO_LARGE: "That's too long a stretch to show at once. Pick a shorter one.",
+  SCHEDULE_RANGE_INVALID: "Those dates don't make a period we can show. Pick a start before the end.",
+  SCHEDULE_INCLUDE_INVALID: "We asked for something your organisation doesn't keep. Try again, and tell us if it keeps happening.",
+  TEAM_TOO_LARGE: "You have too many people reporting to you to show cover for all of them at once.",
 
   // §3.1 Punch / clock
   ALREADY_CLOCKED_IN: "You're already clocked in for today. Your status has been refreshed.",
@@ -116,6 +131,33 @@ const ATTENDANCE_ERROR_MESSAGES = {
   IF_MATCH_REQUIRED: "These settings couldn't be saved. Refresh the page and try again.",
   IF_MATCH_INVALID: "These settings couldn't be saved. Refresh the page and try again.",
   PRECONDITION_FAILED: "Someone else changed these settings while you were editing. We've loaded the latest version — check your changes and save again.",
+  // The location-policy PUT answers this spelling instead of PRECONDITION_FAILED.
+  SETTINGS_PRECONDITION_FAILED: "Someone else changed these settings while you were editing. We've loaded the latest version — check your changes and save again.",
+
+  // ── Live location checks (frontend guide §2.3, 2026-10-23) ────────────────
+  // Every one of these is a refusal of "ask this person where they are", and
+  // each says what the ASKER should do next — there is nothing the subject can
+  // do about most of them. None of them is an error in the rose sense: a
+  // person who is off shift or has no app installed is a normal Tuesday.
+  REASON_REQUIRED: "Say why you need this person's location before asking for it.",
+  LOCATION_TRACKING_DISABLED: "Your organisation has location checks switched off, so nobody can be asked where they are.",
+  LOCATE_ROLE_NOT_ALLOWED: "Your organisation doesn't let your role ask people for their location.",
+  CANNOT_LOCATE_SELF: "You can't ask for your own location.",
+  EMPLOYEE_CONSENT_PENDING: "This person hasn't accepted the location notice yet. Ask them to open My Location Requests and accept it, then try again.",
+  EMPLOYEE_NOT_CLOCKED_IN: "This person isn't clocked in right now, so they can only be asked for their location once their shift has started.",
+  // 422, not 404 — the earlier draft of the guide got this wrong, so if you see
+  // a 404 handler for it somewhere, that handler is the bug.
+  // Said "They'll need to sign in to the mobile app first" until 2026-10-24,
+  // which was wrong and sent HR chasing people for an app they didn't need: a
+  // browser can answer a location check as soon as it is registered for
+  // alerts. Keep both routes in this sentence — most web employees hit this
+  // because nobody told them to switch desktop alerts on.
+  NO_ACTIVE_DEVICE: "This person has no device set up to answer yet. They'll need to turn on alerts on their Notifications page, or sign in to the mobile app, before they can be asked.",
+  LOCATE_COOLDOWN: "You asked this person very recently. Give it a moment before asking again.",
+  LOCATE_DAILY_CAP_REACHED: "This person has been asked as many times today as your organisation allows.",
+  LOCATE_RATE_LIMITED: "Your organisation has made a lot of location requests in the last hour. Try again shortly.",
+  LOCATION_REQUEST_NOT_FOUND: "That location request is no longer available.",
+  LOCATION_REQUEST_EXPIRED: "That location request closed before an answer arrived.",
 };
 
 /**
@@ -152,7 +194,13 @@ const SESSION_EXPIRED = "Your session has expired. Please sign in again.";
 const SERVER_ERROR = "The server ran into a problem. Please try again shortly.";
 const RATE_LIMITED = "Too many requests. Please wait a moment and try again.";
 
-/** The typed backend code, if any (`code`; `errorCode` kept for older envelopes). */
+/**
+ * The typed backend code, if any. BOTH spellings are live: the attendance
+ * module answers `code`, while the newer schedule endpoints answer `errorCode`
+ * — the integration guide of 2026-10-22 calls that out explicitly ("note the
+ * field is `errorCode`, not `code`"). Neither branch is legacy; don't tidy
+ * either away.
+ */
 export function attendanceErrorCode(err) {
   return err?.data?.code || err?.data?.errorCode || null;
 }
@@ -261,8 +309,40 @@ export const isDeviceLimitReached = (err) => attendanceErrorCode(err) === "DEVIC
  */
 export const isStalePolicyEdit = (err) => {
   const code = attendanceErrorCode(err);
-  return code === "PRECONDITION_FAILED" || code === "IF_MATCH_REQUIRED" || code === "IF_MATCH_INVALID"
+  return code === "PRECONDITION_FAILED" || code === "SETTINGS_PRECONDITION_FAILED"
+    || code === "IF_MATCH_REQUIRED" || code === "IF_MATCH_INVALID"
     || err?.status === 412 || err?.status === 428;
 };
+
+/**
+ * "This organisation cannot do location checks at all" — as opposed to "not
+ * this person, not right now". The three below are settled facts about the
+ * server and the org policy, so the caller stops offering the control for the
+ * session rather than letting people press a button that can only refuse.
+ *
+ * This matters most for a MANAGER, who has no policy endpoint to read and so
+ * learns the feature is off only by being told (`locatePlanes.js`).
+ */
+export const isLocationChecksUnavailable = (err) => {
+  const code = attendanceErrorCode(err);
+  return code === "FEATURE_DISABLED" || code === "LOCATION_TRACKING_DISABLED"
+    || code === "LOCATE_ROLE_NOT_ALLOWED";
+};
+
+/** Asked again too soon. `err.data.retry_after_seconds` is how long to wait. */
+export const isLocateCooldown = (err) => attendanceErrorCode(err) === "LOCATE_COOLDOWN";
+
+/**
+ * The subject has not accepted the location notice. The body carries
+ * `acknowledgement_required: true`; the asker's copy tells them who to nudge.
+ */
+export const isLocationConsentPending = (err) => attendanceErrorCode(err) === "EMPLOYEE_CONSENT_PENDING";
+
+/** Seconds to wait after a 429, from the body or the `Retry-After` header. */
+export function retryAfterSeconds(err) {
+  const raw = err?.data?.retry_after_seconds ?? err?.data?.details?.retry_after_seconds ?? err?.retryAfter;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.ceil(n) : null;
+}
 
 export { ATTENDANCE_ERROR_MESSAGES };

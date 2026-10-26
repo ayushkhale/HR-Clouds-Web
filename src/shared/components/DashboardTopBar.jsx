@@ -2,10 +2,19 @@
 // DashboardTopBar.jsx — the bar across the top of every signed-in screen.
 //
 // Left to right (2026-10-01): the organisation — its logo, name and address,
-// where page search used to sit — then search, Documentation, the inbox bell
-// and the person's own avatar. The role line ("HR Admin") was removed at the
-// user's request: the sidebar already says which workspace this is.
+// where page search used to sit — then search, Documentation, the approvals
+// tray, the notification bell and the person's own avatar. The role line
+// ("HR Admin") was removed at the user's request: the sidebar already says
+// which workspace this is.
 // Clicking the organisation opens Company Profile in the current workspace.
+//
+// ─── THE TRAY AND THE BELL ARE TWO DIFFERENT THINGS (2026-10-24) ───────────
+// The bell used to open the approvals Inbox, because a notification feed did
+// not exist. It does now, and they are not the same object: the tray is what
+// WAITS ON YOUR DECISION, the bell is a record of WHAT ALREADY HAPPENED. So
+// approvals moved to HiInboxIn, keeping their dot, and HiBell became the
+// notification centre. Roles without an approvals queue (employees) have no
+// tray and still have a bell. Don't merge them back.
 //
 // • Identity comes from useOrgIdentity (one shared read of
 //   /organizations/details); the login's org list is the fallback, and there
@@ -21,8 +30,9 @@ import { roleTitle } from "../config/dictionary";
 import { useNavigate } from "react-router-dom";
 import { tokenHelper } from "../api";
 import { useSidebar } from "../contexts/SidebarContext";
-import { HiSearch, HiBell, HiDocumentText, HiMenuAlt2, HiChevronDown, HiOfficeBuilding } from "react-icons/hi";
+import { HiSearch, HiInboxIn, HiDocumentText, HiMenuAlt2, HiChevronDown, HiOfficeBuilding } from "react-icons/hi";
 import GenderAvatar from "./GenderAvatar";
+import NotificationBell from "../notifications/NotificationBell";
 import { useEmbeddedPage } from "../contexts/EmbeddedPageContext";
 import { refreshOrgLogo, useOrgIdentity } from "../organization/useOrgIdentity";
 import { useOrgPaths } from "../attendance/paths";
@@ -338,8 +348,10 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
           >
             <HiDocumentText className="w-5 h-5" />
           </button>
-          {/* The bell opens the inbox and only shows a dot when something is
-              actually waiting. Roles without an inbox get no bell. */}
+          {/* The approvals tray: things waiting on this person's decision. It
+              wears the same red circle + white number as the bell and the
+              sidebar counts (user decision, 2026-10-26), capped at 99+ for
+              layout. Roles without a queue get no tray at all. */}
           {inbox && (
             <button
               onClick={() => navigate(inbox.path)}
@@ -347,10 +359,19 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
               title={pending > 0 ? `Inbox — ${pending} waiting for you` : "Inbox — nothing waiting"}
               aria-label={pending > 0 ? `Inbox, ${pending} waiting` : "Inbox"}
             >
-              <HiBell className="w-5 h-5" />
-              {pending > 0 && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+              <HiInboxIn className="w-5 h-5" />
+              {pending > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-[18px] text-center ring-2 ring-white tabular-nums"
+                  aria-hidden="true"
+                >
+                  {pending > 99 ? "99+" : pending}
+                </span>
+              )}
             </button>
           )}
+          {/* Hides itself when the engine is off, so there is nothing to guard. */}
+          <NotificationBell />
         </div>
 
         {/* The person's own avatar opens My Profile */}

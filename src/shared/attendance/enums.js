@@ -150,6 +150,8 @@ export const ANOMALY_TYPE_LABELS = {
   missed_clock_out: "Missing clock-out",
   auto_clock_out: "Auto clocked out",
   multiple_sessions: "Multiple sessions",
+  missing_photo: "Punched without photo",
+  no_photo: "Punched without photo",
 };
 export const anomalyTypeLabel = (type) => ANOMALY_TYPE_LABELS[normalizeStatusKey(type)] || humanize(type) || "Anomaly";
 

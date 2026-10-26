@@ -1,148 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { HiChevronLeft, HiChevronRight, HiClock, HiExclamationCircle, HiCheckCircle, HiCalendar, HiCollection, HiPause, HiViewList } from "react-icons/hi";
+import React, { useState } from "react";
+import { HiChevronLeft, HiChevronRight, HiClock } from "react-icons/hi";
 import { memberAttendanceApi } from "../../../../shared/attendance/memberAttendance";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import LiveEffectiveHours from "../../../../shared/attendance/LiveEffectiveHours";
-import { unwrap } from "../../../../shared/attendance/normalize";
-import { anomalyStatusKey, anomalyLabel, humanize, statusMeta } from "../../../../shared/attendance/enums";
-import { fmtClockTime, fmtDate, fmtMinutes, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
+import { fmtDate, fmtTime, isFutureMonth, monthLabel, shiftMonth, ymdOnly } from "../../../../shared/attendance/dates";
 import { dayChip, isSynthesizedDay, isWorkingDay } from "../../../../shared/attendance/dayStatus";
-import { DayStatusNote, EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
-import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable } from "../../../../shared/components/DetailDialog";
-
-const minutesOrZero = (v) => (Number(v) > 0 ? fmtMinutes(v) : "0m");
-
-/* ─── Daily log drilldown ─────────────────────────────────────── */
-function DailyLogModal({ userId, date, employeeRole, viewer = "hr", onClose }) {
-  const [state, setState] = useState({ log: null, loading: true, error: null });
-
-  const load = useCallback(() => {
-    if (!userId || !date) return;
-    setState({ log: null, loading: true, error: null });
-    memberAttendanceApi(employeeRole, viewer)
-      .dailyLog(userId, date)
-      .then((res) => setState({ log: unwrap(res) || null, loading: false, error: null }))
-      .catch((error) => setState({ log: null, loading: false, error }));
-  }, [userId, date, employeeRole, viewer]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const { log, loading, error } = state;
-  const sessions = Array.isArray(log?.sessions) ? log.sessions : [];
-  const breaks = Array.isArray(log?.breaks) ? log.breaks : [];
-  const anomalies = Array.isArray(log?.anomalies) ? log.anomalies : [];
-
-  return (
-    <DetailDialog
-      eyebrow="Daily log"
-      icon={HiCalendar}
-      title={fmtDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-      subtitle={log?.shift?.name ? `Shift · ${log.shift.name}` : undefined}
-      badge={log && <DetailPill tone="onDark">{statusMeta("record", log.status).label}</DetailPill>}
-      onClose={onClose}
-    >
-      {loading ? (
-        <LoadingRows rows={5} />
-      ) : error ? (
-        <div className="bg-white rounded-2xl border border-purple-100"><ErrorState error={error} onRetry={load} fallback="Couldn't load the daily log." /></div>
-      ) : !log ? (
-        <div className="bg-white rounded-2xl border border-purple-100"><EmptyState title="No data" message="Nothing was recorded for this day." /></div>
-      ) : (
-        <>
-          <DetailStats
-            items={[
-              { label: "Clock in", value: fmtTime(log.clock_in_time), icon: HiClock },
-              { label: "Clock out", value: fmtTime(log.clock_out_time), icon: HiClock },
-              { label: "Effective hours", value: <LiveEffectiveHours effectiveHours={log.effective_hours} formatted={log.worked_duration_formatted} clockInTime={log.clock_in_time} clockOutTime={log.clock_out_time} breaks={log.breaks} className="text-purple-800" />, icon: HiCheckCircle },
-              { label: "Break time", value: minutesOrZero(log.break_duration_minutes), icon: HiPause },
-            ]}
-          />
-
-          {/* Why this status — only when derived or not yet settled (2026-10-04). */}
-          <DayStatusNote record={log} className="mt-1" />
-
-          <DetailSection title="Day breakdown" icon={HiViewList}>
-            <DetailGrid
-              cols={5}
-              items={[
-                { label: "Late by", value: minutesOrZero(log.late_minutes) },
-                { label: "Overtime", value: minutesOrZero(log.overtime_minutes) },
-                ["Left early by", minutesOrZero(log.early_exit_minutes)],
-                ["Work mode", log.work_mode ? humanize(log.work_mode) : null],
-                ["Corrected", log.is_regularized ? "Yes" : "No"],
-              ]}
-            />
-          </DetailSection>
-
-          {log.shift && (
-            <DetailSection title="Applied shift" icon={HiClock}>
-              <DetailGrid
-                items={[
-                  ["Shift", log.shift.name],
-                  ["Starts", fmtClockTime(log.shift.start_time)],
-                  ["Ends", fmtClockTime(log.shift.end_time)],
-                  ["Type", humanize(log.shift.type || log.shift.shift_type)],
-                ]}
-              />
-            </DetailSection>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            <DetailSection title={`Sessions (${sessions.length})`} icon={HiCollection}>
-              <DetailTable
-                rows={sessions}
-                empty="No work sessions recorded."
-                columns={[
-                  { header: "#", render: (_, i) => i + 1 },
-                  { header: "Started", render: (s) => fmtTime(s.opened_at || s.start_time) },
-                  { header: "Ended", render: (s) => (s.closed_at || s.end_time ? fmtTime(s.closed_at || s.end_time) : <span className="font-bold text-purple-600">Active</span>) },
-                  { header: "Status", render: (s) => <DetailPill tone={s.status === "open" ? "solid" : "soft"}>{humanize(s.status) || "N/A"}</DetailPill> },
-                ]}
-              />
-            </DetailSection>
-
-            <DetailSection title={`Breaks (${breaks.length})`} icon={HiPause}>
-              <DetailTable
-                rows={breaks}
-                empty="No breaks taken."
-                columns={[
-                  { header: "#", render: (_, i) => i + 1 },
-                  { header: "Started", render: (b) => fmtTime(b.start_time) },
-                  { header: "Ended", render: (b) => (b.end_time ? fmtTime(b.end_time) : <span className="font-bold text-purple-600">Ongoing</span>) },
-                  { header: "Duration", align: "right", render: (b) => minutesOrZero(b.duration_minutes) },
-                ]}
-              />
-            </DetailSection>
-          </div>
-
-          <DetailSection title={`Flags (${anomalies.length})`} icon={HiExclamationCircle}>
-            {anomalies.length === 0 ? (
-              <p className="flex items-center gap-2 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
-                <HiCheckCircle className="w-4 h-4" /> No flags for this day.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {anomalies.map((a, i) => (
-                  <div key={a.id || i} className="bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-bold text-purple-900">{anomalyLabel(a)}</p>
-                      <div className="flex gap-1.5 shrink-0">
-                        {a.severity && <DetailPill tone="outline">{humanize(a.severity)}</DetailPill>}
-                        <DetailPill tone={anomalyStatusKey(a) === "resolved" ? "muted" : "solid"}>{humanize(anomalyStatusKey(a))}</DetailPill>
-                      </div>
-                    </div>
-                    {a.description && <p className="text-xs text-slate-600 mt-1">{a.description}</p>}
-                    {a.resolution_notes && <p className="text-[11px] text-purple-600 mt-1">Resolution: {a.resolution_notes}</p>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </DetailSection>
-        </>
-      )}
-    </DetailDialog>
-  );
-}
+import { EmptyState, ErrorState, LoadingRows, Pagination, StatusBadge } from "../../../../shared/attendance/ui";
+import DailyLogDialog from "../../../../shared/attendance/DailyLogDialog";
 
 /* ─── Main tab ────────────────────────────────────────────────── */
 export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
@@ -249,7 +113,7 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
                             ? na
                             : record.effective_hours === null && !record.clock_in_time
                               ? <span className="text-slate-400">0m</span>
-                              : <LiveEffectiveHours effectiveHours={record.effective_hours} formatted={record.worked_duration_formatted} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} />}
+                              : <LiveEffectiveHours record={record} />}
                         </td>
                       </tr>
                     );
@@ -264,7 +128,7 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
         )}
       </div>
 
-      {selectedDate && <DailyLogModal userId={userId} date={selectedDate} employeeRole={employeeRole} viewer={viewer} onClose={() => setSelectedDate(null)} />}
+      {selectedDate && <DailyLogDialog userId={userId} date={selectedDate} employeeRole={employeeRole} viewer={viewer} onClose={() => setSelectedDate(null)} />}
     </div>
   );
 }

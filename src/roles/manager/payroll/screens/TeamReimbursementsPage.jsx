@@ -16,6 +16,7 @@ import { payrollErrorMessage, payrollErrorCode } from "../../../../shared/utils/
 import { formatMoney, formatDate } from "../../../../shared/utils/formatUtils";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import { useTeamNames, resolvePerson } from "../../../../shared/attendance/useTeamNames";
+import { listFrom } from "../../../../shared/attendance/normalize";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
 import useToast from "../../../hr/payroll/useToast";
 import PayrollToast from "../../../hr/payroll/PayrollToast";
@@ -35,7 +36,8 @@ function ClaimsTab({ showToast }) {
   const { user } = useAuth();
   const viewerId = user?.id;
   const names = useTeamNames();
-  const [filters, setFilters] = useState({ status: "submitted", payout_period_month: "" });
+  const [filters, setFilters] = useState({ status: "submitted", category_id: "", payout_period_month: "" });
+  const [categories, setCategories] = useState([]);
   // A claim is paid in the payroll after approval, never further out, so the
   // filter stops at next month instead of listing empty future months.
   const months = useMemo(() => periodOptions({ back: 18, ahead: 1 }), []);
@@ -59,6 +61,14 @@ function ClaimsTab({ showToast }) {
     return payrollAPI.getTeamReimbursementClaims(params);
   }, [filters]);
   const list = usePagedList(fetchPage, { limit: PAGE_SIZE, keys: ["claims", "rows", "records"], filterKey });
+
+  useEffect(() => {
+    let cancelled = false;
+    payrollAPI.getReimbursementCategories()
+      .then((res) => { if (!cancelled) setCategories(listFrom(res, ["categories", "rows", "records"])); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const nameOf = useCallback((claim) => resolvePerson(claim, names).name, [names]);
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
@@ -127,6 +137,10 @@ function ClaimsTab({ showToast }) {
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <select aria-label="Status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={selectCls}>
           {CLAIM_STATUS_FILTERS.manager.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <select aria-label="Category" value={filters.category_id || ""} onChange={(e) => setFilter("category_id", e.target.value)} className={selectCls}>
+          <option value="">Any category</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}{c.is_active === false ? " (inactive)" : ""}</option>)}
         </select>
         <select aria-label="Pay month" value={filters.payout_period_month} onChange={(e) => setFilter("payout_period_month", e.target.value)} className={selectCls}>
           <option value="">Any pay month</option>

@@ -6,6 +6,7 @@ import { payrollAPI } from "../../../../shared/api";
 import {
   HiPlus, HiSearch, HiRefresh, HiChevronLeft, HiChevronRight, HiExclamationCircle,
   HiReceiptRefund, HiX, HiCheck, HiTag, HiPencil, HiBan, HiRefresh as HiReactivate,
+  HiCalendar,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import ReasonDialog from "../../../../shared/components/ReasonDialog";
@@ -19,6 +20,7 @@ import { formatMoney, formatPeriod, formatDate } from "../../../../shared/utils/
 import { listFrom } from "../../../../shared/attendance/normalize";
 import { usePagedList } from "../../../../shared/attendance/usePagedList";
 import { useAuth } from "../../../../shared/contexts/AuthContext";
+import { useBadgeCounts } from "../../../../shared/hooks/useBadgeCounts";
 import useEmployeeDirectory from "../useEmployeeDirectory";
 import useToast from "../useToast";
 import PayrollToast from "../PayrollToast";
@@ -27,7 +29,7 @@ import { plural } from "../runMeta";
 import {
   claimStatusMeta, claimStage, claimActions, normalizeClaimDetail, limitViolations,
   parseMoney, claimLimitText, periodLimitText, receiptRuleText, LIMIT_PERIOD_LABEL,
-  CLAIM_STATUS_FILTERS, CATEGORY_STATUS_FILTERS,
+  CLAIM_PENDING_HR, CLAIM_STATUS_FILTERS, CATEGORY_STATUS_FILTERS,
 } from "../../../../shared/utils/reimbursementMeta";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
@@ -531,13 +533,33 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
   const [rejectError, setRejectError] = useState("");
   const [viewAttachment, setViewAttachment] = useState(null);
 
-  const filterKey = JSON.stringify(filters);
+  // `pending_hr` shipped with the badge endpoint, so the badge answering is
+  // the one honest signal that the filter exists here. It matters: a server
+  // without it STRIPS the unknown parameter rather than refusing it, and the
+  // queue would quietly widen to every claim ever filed.
+  const { supported: supportsPendingHr, loading: badgeLoading } = useBadgeCounts();
+
+  // Until that first read answers, "does this server have `pending_hr`?" has
+  // no answer, and asking on the wrong assumption means either a list that is
+  // briefly too narrow or one that is briefly far too wide. The queue waits
+  // the one read out instead, behind the skeleton it would be showing anyway.
+  const awaitingSupport = filters.status === CLAIM_PENDING_HR && badgeLoading;
+  const filterKey = JSON.stringify({ ...filters, supportsPendingHr });
   const fetchPage = useCallback(({ page, limit }) => {
     const params = { page, limit };
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+    if (params.status === CLAIM_PENDING_HR) {
+      // Never both: the server refuses the pair outright (D-10).
+      delete params.status;
+      // An older server can only express the half of this queue it has always
+      // shown — the claims a manager passed up. That is today's behaviour, not
+      // a regression, and it corrects itself the moment the server is updated.
+      if (supportsPendingHr) params.pending_hr = true;
+      else params.status = "under_review";
+    }
     return payrollAPI.getReimbursementClaims(params);
-  }, [filters]);
-  const list = usePagedList(fetchPage, { limit: PAGE_SIZE, keys: ["claims", "rows", "records"], filterKey });
+  }, [filters, supportsPendingHr]);
+  const list = usePagedList(fetchPage, { limit: PAGE_SIZE, keys: ["claims", "rows", "records"], filterKey, enabled: !awaitingSupport });
 
   useEffect(() => {
     let cancelled = false;
@@ -617,20 +639,19 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
 
   return (
     <>
-      {/* Search and actions on one line, filters wrapping underneath. Seven
-          controls in a single non-wrapping row ran off the card on a 14" screen. */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5 space-y-3">
-        <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-0">
-          <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by employee, claim number or title" aria-label="Filter this page" className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none" />
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {hasFilters && <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">Clear</button>}
-          <button type="button" onClick={() => list.reload()} aria-label="Refresh" title="Refresh" className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"><HiRefresh className="w-4 h-4" /></button>
-        </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Single-line toolbar: search, filters, and actions in one streamlined horizontal row */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 mb-5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative min-w-[200px] flex-1 max-w-xs">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search employee, claim # or title"
+              aria-label="Filter this page"
+              className="w-full h-10 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-purple-400 outline-none transition"
+            />
+          </div>
           <select aria-label="Status" value={filters.status} onChange={(e) => setFilter("status", e.target.value)} className={selectCls}>
             {CLAIM_STATUS_FILTERS.hr.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
@@ -642,13 +663,61 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
             <option value="">Any pay month</option>
             {months.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
-          <PersonSelect className="w-64" people={directory.options} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} clearLabel="Any employee" aria-label="Employee" />
-          <input type="date" aria-label="Submitted from" value={filters.created_from} onChange={(e) => setFilter("created_from", e.target.value)} className={selectCls} />
-          <input type="date" aria-label="Submitted to" value={filters.created_to} onChange={(e) => setFilter("created_to", e.target.value)} className={selectCls} />
+          <PersonSelect className="w-52" people={directory.options} value={filters.user_id} onChange={(id) => setFilter("user_id", id)} clearLabel="Any employee" aria-label="Employee" />
+          <div className="inline-flex items-center gap-1.5 h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400 transition shrink-0">
+            <HiCalendar className="w-4 h-4 text-purple-600 shrink-0" />
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Submitted:</span>
+            <input
+              type="date"
+              aria-label="Submitted from"
+              title="Submitted from"
+              value={filters.created_from}
+              max={filters.created_to || undefined}
+              onChange={(e) => setFilter("created_from", e.target.value)}
+              className="w-[110px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
+            />
+            <span className="text-slate-300 select-none">→</span>
+            <input
+              type="date"
+              aria-label="Submitted to"
+              title="Submitted to"
+              value={filters.created_to}
+              min={filters.created_from || undefined}
+              onChange={(e) => setFilter("created_to", e.target.value)}
+              className="w-[110px] bg-transparent text-xs text-slate-700 outline-none cursor-pointer"
+            />
+            {(filters.created_from || filters.created_to) && (
+              <button
+                type="button"
+                onClick={() => setFilters((f) => ({ ...f, created_from: "", created_to: "" }))}
+                className="text-slate-400 hover:text-purple-600 p-0.5 rounded transition"
+                title="Clear date range"
+                aria-label="Clear date range"
+              >
+                <HiX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            {hasFilters && (
+              <button type="button" onClick={clearFilters} className="h-10 px-3 text-xs font-bold text-purple-700 hover:bg-purple-50 rounded-xl transition">
+                Clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => list.reload()}
+              aria-label="Refresh"
+              title="Refresh"
+              className="h-10 px-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"
+            >
+              <HiRefresh className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {list.loading ? <Skeleton type="table" rows={6} /> : list.error ? (
+      {list.loading || awaitingSupport ? <Skeleton type="table" rows={6} /> : list.error ? (
         <div className="py-12 px-6 text-center bg-white rounded-2xl border border-rose-200">
           <HiExclamationCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
           <p className="text-sm font-semibold text-rose-700">{payrollErrorMessage(list.error, "Couldn't load claims.")}</p>
@@ -781,23 +850,34 @@ function ClaimsTab({ showToast, directory, nameOf, seedStatus }) {
 
 const TABS = [["claims", "Claims"], ["categories", "Categories"]];
 
-/** embedded: HR Inbox view — the claims queue only, opened on submitted claims, without touching the host URL. */
-export default function PayrollReimbursementsPage({ embedded = false } = {}) {
+/** embedded: HR Inbox view — the claims queue only, opened on everything waiting on HR, without touching the host URL. */
+export default function PayrollReimbursementsPage({ embedded = false, initialStatus } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [embeddedTab, setEmbeddedTab] = useState("claims");
   const { toast, showToast, hideToast } = useToast();
   const people = useEmployeeDirectory();
   const directory = people.directory;
   const nameOf = useCallback((id) => people.nameOf(id), [people]);
 
-  const rawTab = embedded ? "claims" : searchParams.get("tab");
+  const rawTab = embedded ? embeddedTab : searchParams.get("tab");
   const tab = TABS.some(([v]) => v === rawTab) ? rawTab : "claims";
-  const seedStatus = useRef(embedded ? "submitted" : searchParams.get("status") || "").current;
+  // The Inbox card counts everything waiting on HR, so the queue it opens has
+  // to list exactly that — the card and its panel are one number (§3).
+  const seedStatus = useRef(initialStatus || (embedded ? CLAIM_PENDING_HR : searchParams.get("status") || "")).current;
 
   useEffect(() => {
-    if (rawTab && !TABS.some(([v]) => v === rawTab)) setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", "claims"); return n; }, { replace: true });
-  }, [rawTab, setSearchParams]);
+    if (!embedded && rawTab && !TABS.some(([v]) => v === rawTab)) {
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", "claims"); return n; }, { replace: true });
+    }
+  }, [embedded, rawTab, setSearchParams]);
 
-  const setTab = (value) => setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", value); return n; }, { replace: true });
+  const setTab = (value) => {
+    if (embedded) {
+      setEmbeddedTab(value);
+    } else {
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", value); return n; }, { replace: true });
+    }
+  };
 
   return (
     <>

@@ -5,8 +5,9 @@
 // copies from diverging again.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { HiCheckCircle, HiExclamationCircle, HiX, HiChevronLeft, HiChevronRight, HiRefresh, HiInformationCircle } from "react-icons/hi";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { HiCheckCircle, HiExclamationCircle, HiX, HiChevronLeft, HiChevronRight, HiRefresh, HiInformationCircle, HiArrowRight } from "react-icons/hi";
 import FeatureNotAvailable from "../components/FeatureNotAvailable";
 import { statusMeta, TONE_CLASSES, TONE_DOT } from "./enums.js";
 import { dayContextLabel, isProvisionalDay, statusReasonNote } from "./dayStatus.js";
@@ -214,10 +215,14 @@ export function useToast(duration = 4000) {
   }, []);
 
   const showToast = useCallback(
-    (message, type = "success") => {
+    (message, type = "success", options = {}) => {
       clearTimeout(timer.current);
-      setToast({ message, type, id: Date.now() });
-      timer.current = setTimeout(() => setToast(null), type === "error" ? duration + 2000 : duration);
+      const toastData = typeof message === "object" && message !== null
+        ? { id: Date.now(), ...message }
+        : { id: Date.now(), message, type, ...options };
+      setToast(toastData);
+      const effectiveDuration = toastData.duration || (toastData.type === "error" ? duration + 3000 : duration);
+      timer.current = setTimeout(() => setToast(null), effectiveDuration);
     },
     [duration]
   );
@@ -228,21 +233,97 @@ export function useToast(duration = 4000) {
 
 export function Toast({ toast, onClose }) {
   if (!toast) return null;
-  const ok = toast.type === "success";
-  const info = toast.type === "info";
+  const isError = toast.type === "error";
+  const isWarning = toast.type === "warning";
+  const isInfo = toast.type === "info";
+
+  const Icon = isError
+    ? HiExclamationCircle
+    : isWarning
+    ? HiExclamationCircle
+    : isInfo
+    ? HiInformationCircle
+    : HiCheckCircle;
+
+  const cardStyle = isError
+    ? "bg-white border-2 border-rose-200 text-slate-800 shadow-2xl shadow-rose-950/10 ring-1 ring-rose-500/10"
+    : isWarning
+    ? "bg-white border-2 border-amber-200 text-slate-800 shadow-2xl shadow-amber-950/10 ring-1 ring-amber-500/10"
+    : isInfo
+    ? "bg-white border-2 border-indigo-200 text-slate-800 shadow-2xl shadow-indigo-950/10 ring-1 ring-indigo-500/10"
+    : "bg-white border-2 border-purple-200 text-slate-800 shadow-2xl shadow-purple-950/10 ring-1 ring-purple-500/10";
+
+  const iconStyle = isError
+    ? "bg-rose-50 text-rose-600 border border-rose-200"
+    : isWarning
+    ? "bg-amber-50 text-amber-600 border border-amber-200"
+    : isInfo
+    ? "bg-indigo-50 text-indigo-600 border border-indigo-200"
+    : "bg-purple-50 text-purple-600 border border-purple-200";
+
   return (
     <div
-      role={ok || info ? "status" : "alert"}
-      aria-live="polite"
-      className={`fixed top-5 right-5 left-5 sm:left-auto z-[120] sm:max-w-sm flex items-start gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold border ${
-        ok ? "bg-violet-50 text-violet-700 border-violet-200" : info ? "bg-indigo-50 text-indigo-800 border-indigo-200" : "bg-rose-50 text-rose-700 border-rose-200"
-      }`}
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
+      className={`fixed top-5 right-5 sm:top-6 sm:right-6 z-[99999] w-[calc(100%-2.5rem)] sm:w-auto sm:max-w-md bg-white rounded-2xl p-4 transition-all duration-300 ${cardStyle}`}
     >
-      {ok ? <HiCheckCircle className="w-5 h-5 text-violet-500 shrink-0" /> : info ? <HiInformationCircle className="w-5 h-5 text-indigo-500 shrink-0" /> : <HiExclamationCircle className="w-5 h-5 text-rose-500 shrink-0" />}
-      <span className="flex-1 leading-snug">{toast.message}</span>
-      <button type="button" onClick={onClose} aria-label="Dismiss" className="shrink-0">
-        <HiX className="w-4 h-4 text-slate-400" />
-      </button>
+      <div className="flex items-start gap-3.5">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconStyle}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0 pr-1">
+          {toast.title ? (
+            <h4 className="text-xs sm:text-sm font-bold leading-snug mb-0.5 text-slate-900">
+              {toast.title}
+            </h4>
+          ) : (
+            isError && (
+              <h4 className="text-xs sm:text-sm font-bold leading-snug mb-0.5 text-slate-900">
+                Action Required
+              </h4>
+            )
+          )}
+          <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
+            {toast.message}
+          </p>
+
+          {toast.action && (
+            <div className="mt-2.5">
+              {toast.action.to ? (
+                <Link
+                  to={toast.action.to}
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-600/20 transition-all cursor-pointer"
+                >
+                  <span>{toast.action.label}</span>
+                  <HiArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.action.onClick?.();
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-600/20 transition-all cursor-pointer"
+                >
+                  <span>{toast.action.label}</span>
+                  <HiArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Dismiss"
+          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+        >
+          <HiX className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }

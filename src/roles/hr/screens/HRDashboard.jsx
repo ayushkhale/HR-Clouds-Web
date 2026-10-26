@@ -24,6 +24,7 @@ import { greetingFor } from "../../../shared/utils/greeting";
 import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
 import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
 import ProfileSetupCard from "../../../shared/organization/ProfileSetupCard";
+import SetupChecklistCard from "../../../shared/organization/SetupChecklistCard";
 
 const LIVE_REFRESH_MS = 60_000;
 const MODE_COLORS = { office: "#7C3AED", remote: "#818CF8", field: "#D946EF", hybrid: "#C4B5FD" };
@@ -242,6 +243,14 @@ function HRDashboard() {
           subtitle="Monitor live attendance, rules, shift management and holidays."
           image="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312"
         />
+
+        {/* ABOVE the profile card, deliberately: an HR can't finish their own
+            record until the organisation has an office and a department to
+            pick from (ProfileSetupCard says so in its own copy), and this is
+            the card those two steps come from. Both render nothing once their
+            setup is done — which is every login after the first few — so they
+            cost the usual dashboard nothing. */}
+        <SetupChecklistCard />
 
         {/* Directly under the greeting, and above the day's numbers: this is the
             first screen after registering an organisation, and the card is how

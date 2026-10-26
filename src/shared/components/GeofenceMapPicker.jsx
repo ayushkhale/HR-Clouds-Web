@@ -74,8 +74,10 @@ export default function GeofenceMapPicker({ latitude, longitude, radius = 250, o
       const lng = Number.isFinite(longitude) ? longitude : FALLBACK.lng;
 
       const map = window.L.map(hostRef.current).setView([lat, lng], 15);
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap",
+      window.L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+        maxZoom: 20,
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        attribution: "&copy; Google Maps",
       }).addTo(map);
 
       const marker = window.L.marker([lat, lng], { draggable: true }).addTo(map);

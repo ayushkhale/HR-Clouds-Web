@@ -16,15 +16,15 @@ import { isSynthesizedDay } from "./dayStatus.js";
 import { anomalyLabel, humanize } from "./enums.js";
 import {
   browserTimeZone, clockMinutes, fmtClockMinutes, fmtClockTime, fmtDate, fmtDateTime,
-  fmtHours, fmtMinutes, formatInZone, workedLabel, ymdOnly, zoneMinutesFrom,
+  fmtHours, fmtMinutes, formatInZone, onClockLabel, workedLabel, ymdOnly, zoneMinutesFrom,
 } from "./dates.js";
 import { listFrom } from "./normalize.js";
+import { fullDayMinutes, halfDayMinutes, policyOf, shiftOf } from "./policyRules.js";
+import ShiftPolicyPanel from "./ShiftPolicyPanel.jsx";
 import { InlineAlert, StatusBadge } from "./ui.jsx";
 import GenderAvatar from "../components/GenderAvatar.jsx";
 
 export const recordOf = (item) => item?.record || item?.attendance_record || null;
-const shiftOf = (record) => record?.shift_snapshot || record?.shift || null;
-const policyOf = (record) => record?.policy_snapshot || record?.policy || null;
 const hasNum = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
 const LONG_DATE = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
 
@@ -37,6 +37,13 @@ function shiftWindow(shift) {
   return { start, end, length: end - start };
 }
 
+/**
+ * The GROSS span between two punches, breaks included — never worked time
+ * (§ dates.js `workedLabel`). It is the only figure comparable between the
+ * recorded punches and the requested ones, because a correction request names
+ * clock-in and clock-out and says nothing about breaks. Label anything built
+ * from this "on the clock", not "worked" (2026-10-22).
+ */
 function spanMinutes(fromIso, toIso) {
   const a = new Date(fromIso).getTime();
   const b = new Date(toIso).getTime();
@@ -192,60 +199,19 @@ function DayTimeline({ rows }) {
   );
 }
 
-// ── Shift & policy ──────────────────────────────────────────────────────────
+// ── Shift & policy ──────────────────────────────────────────────
 
+// The shell is this dialog's; the content is shared with the day inspector so
+// the two can't drift apart again (ShiftPolicyPanel's header explains why).
+// `viewer="other"` — a decision dialog is always somebody reading another
+// person's day.
 function ShiftPolicySection({ record }) {
-  const shift = shiftOf(record);
-  const policy = policyOf(record);
-  if (!shift && !policy) return null;
-  const win = shiftWindow(shift);
-  const hasBuffer = hasNum(shift?.buffer_minutes_before) || hasNum(shift?.buffer_minutes_after);
-
+  // The section header has to go when the panel has nothing — an empty grey box
+  // under a title is worse than no title (§5).
+  if (!shiftOf(record) && !policyOf(record)) return null;
   return (
-    <DetailSection title="Shift & policy applied">
-      {shift && (
-        <div className={policy ? "pb-3 mb-3 border-b border-slate-200/70" : ""}>
-          <p className="text-xs font-bold text-slate-700">
-            {shift.name || "Shift"}
-            {shift.type && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">{humanize(shift.type)}</span>}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            {fmtClockTime(shift.start_time)} – {fmtClockTime(shift.end_time)}
-            {win && win.end >= 1440 && " (next day)"}
-            {win && ` · ${fmtMinutes(win.length)}`}
-            {shift.timezone && ` · ${shift.timezone}`}
-          </p>
-          {hasBuffer && (
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Buffer {fmtMinutes(shift.buffer_minutes_before)} before · {fmtMinutes(shift.buffer_minutes_after)} after
-            </p>
-          )}
-        </div>
-      )}
-      {!shift && (
-        <div className="pb-3 mb-3 border-b border-slate-200/70">
-          <p className="text-xs font-bold text-slate-700">No shift assigned</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">This day was worked without a shift, so only the policy rules below applied.</p>
-        </div>
-      )}
-      {policy && (
-        <>
-          <StatGrid>
-            <Stat label="Grace period">{fmtMinutes(policy.grace_minutes, "N/A")}</Stat>
-            <Stat label="Late threshold">{fmtMinutes(policy.late_threshold_minutes, "N/A")}</Stat>
-            <Stat label="Full day needs">{fmtHours(policy.full_day_min_hours, "N/A")}</Stat>
-            <Stat label="Half day needs">{fmtHours(policy.half_day_min_hours, "N/A")}</Stat>
-            <Stat label="Overtime">
-              {policy.overtime_enabled === false ? "Disabled" : hasNum(policy.overtime_min_minutes) ? `Min ${fmtMinutes(policy.overtime_min_minutes)}` : "Enabled"}
-            </Stat>
-            <Stat label="Break limit">
-              {hasNum(policy.max_break_duration_minutes) ? fmtMinutes(policy.max_break_duration_minutes) : "No limit"}
-              {hasNum(policy.max_breaks_per_day) && <span className="font-medium text-slate-400"> · {policy.max_breaks_per_day}/day</span>}
-            </Stat>
-          </StatGrid>
-          {policy.name && <p className="text-[10px] text-slate-400 mt-3">{policy.name}</p>}
-        </>
-      )}
+    <DetailSection title="Shift & rules applied">
+      <ShiftPolicyPanel source={record} viewer="other" emptyNote="The rules this day was judged by weren’t recorded with it." />
     </DetailSection>
   );
 }
@@ -283,8 +249,8 @@ function RecordedDaySection({ record, title = "Recorded attendance", showPunches
   const arrival = win ? offset(inAt, win.start, "early", "late") : null;
   const departure = win ? offset(outAt, win.end, "before shift end", "after shift end") : null;
   const effectiveMin = hasNum(record.effective_hours) ? Math.round(Number(record.effective_hours) * 60) : null;
-  const fullDayMin = hasNum(policy?.full_day_min_hours) ? Math.round(Number(policy.full_day_min_hours) * 60) : null;
-  const halfDayMin = hasNum(policy?.half_day_min_hours) ? Math.round(Number(policy.half_day_min_hours) * 60) : null;
+  const fullDayMin = fullDayMinutes(policy);
+  const halfDayMin = halfDayMinutes(policy);
   const effectiveHint =
     effectiveMin === null || fullDayMin === null ? null
       : effectiveMin >= fullDayMin ? { text: `Meets full day (${fmtMinutes(fullDayMin)})`, tone: "emerald" }
@@ -304,7 +270,11 @@ function RecordedDaySection({ record, title = "Recorded attendance", showPunches
             </Stat>
           </>
         )}
-        <Stat label="Total time">{fmtHours(record.total_hours, "N/A")}</Stat>
+        {/* The gross span, the breaks, then the net: the three read together
+            so the arithmetic is visible. This is the ONE place `total_hours`
+            belongs — through `onClockLabel`, so the gross/net choice is named
+            rather than retyped (2026-10-22). */}
+        <Stat label="Total time" hint="breaks included">{onClockLabel(record)}</Stat>
         <Stat label="Breaks">{fmtMinutes(record.break_duration_minutes, "N/A")}</Stat>
         <Stat label="Effective hours" hint={effectiveHint?.text} hintTone={effectiveHint?.tone}>{workedLabel(record, "N/A")}</Stat>
         <Stat label="Work mode">{record.work_mode ? humanize(record.work_mode) : "N/A"}</Stat>
@@ -376,7 +346,7 @@ export function RegularizationDetails({ item, person }) {
   const hasTimeline = timelineRows.some((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start);
 
   const effectiveMin = hasNum(record?.effective_hours) ? Math.round(Number(record.effective_hours) * 60) : null;
-  const fullDayMin = hasNum(policy?.full_day_min_hours) ? Math.round(Number(policy.full_day_min_hours) * 60) : null;
+  const fullDayMin = fullDayMinutes(policy);
   const meetsFullDay = effectiveMin !== null && fullDayMin !== null ? effectiveMin >= fullDayMin : null;
   const lateEarly = [
     Number(record?.late_minutes) > 0 ? `${fmtMinutes(record.late_minutes)} late` : null,
@@ -419,11 +389,18 @@ export function RegularizationDetails({ item, person }) {
           {punches.map((p) => <CompareCard key={p.label} {...p} />)}
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-2 mt-4 pt-4 border-t border-slate-100 text-xs">
+          {/* Both figures are clock-out minus clock-in, breaks included. It
+              read "Time worked", which means the NET figure everywhere else,
+              so this panel appeared to contradict the "Effective hours" below
+              it by exactly the break time (2026-10-22). The span is the right
+              number here — a correction request names only the two punches —
+              so the label moves to match it. */}
           <span className="text-slate-500">
-            Time worked <strong className="text-slate-700">{recSpan !== null ? fmtMinutes(recSpan) : "Not recorded"}</strong>
+            Time on the clock <strong className="text-slate-700">{recSpan !== null ? fmtMinutes(recSpan) : "Not recorded"}</strong>
             <span className="mx-1 text-slate-300">→</span>
             <strong className="text-slate-900">{reqSpan !== null ? fmtMinutes(reqSpan) : "N/A"}</strong>
             {spanDelta && <span className="ml-1.5 font-bold text-violet-700">{spanDelta}</span>}
+            <span className="ml-1.5 text-slate-400">(breaks not taken off)</span>
           </span>
           <span className="text-slate-500">
             Work mode <strong className="text-slate-900">{item.work_mode ? humanize(item.work_mode) : record?.work_mode ? humanize(record.work_mode) : "N/A"}</strong>

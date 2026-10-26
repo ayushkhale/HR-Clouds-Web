@@ -17,3 +17,5 @@ export { documentsAPI } from "./documents.api.js";
 export { billingAPI } from "./billing.api.js";
 export { settingsAPI } from "./settings.api.js";
 export { tasksAPI, ifMatch } from "./tasks.api.js";
+export { notificationsAPI } from "./notifications.api.js";
+export { inboxAPI } from "./inbox.api.js";

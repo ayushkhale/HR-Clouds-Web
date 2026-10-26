@@ -77,10 +77,22 @@ export const itemStatusMeta = (status) =>
 
 export const LIMIT_PERIOD_LABEL = { month: "per month", financial_year: "per financial year" };
 
+/**
+ * "Everything waiting on HR" — NOT a status, which is the whole point of it.
+ * Two different claims wait on HR: one a manager has already passed up
+ * (`under_review`), and one on a single-level chain that comes straight here
+ * (`submitted` with `total_levels = 1`). The second was invisible in the Inbox
+ * until the server grew `pending_hr=true` (API #133), which is the only way to
+ * ask for both — and it is REFUSED alongside `status` (400 VALIDATION_ERROR),
+ * so it travels as a pseudo-status that the screen swaps for the real filter.
+ */
+export const CLAIM_PENDING_HR = "pending_hr";
+
 // Status filter options per screen (the value is sent as `status`).
 export const CLAIM_STATUS_FILTERS = {
   hr: [
     ["", "All statuses"],
+    [CLAIM_PENDING_HR, "Waiting for your decision"],
     ["submitted", "Submitted"],
     ["under_review", "Waiting for HR (after manager)"],
     ["approved", "Approved"],

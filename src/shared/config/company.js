@@ -33,6 +33,14 @@ export const COMPANY = {
   /** Where privacy requests go. Falls back to supportEmail when unset. */
   privacyEmail: "",
 
+  /**
+   * Where account and data deletion requests go. This is the developer's own
+   * address rather than general support: an employee who has left their
+   * employer has nobody left to ask, and the app stores require a reachable
+   * contact on the public deletion page.
+   */
+  deletionEmail: "hrvistasoftsolution@gmail.com",
+
   /** DPDP Act 2023 requires a named grievance officer for personal data. */
   grievanceOfficer: { name: "", email: "" },
 
@@ -55,6 +63,9 @@ export const COMPANY = {
 
 /** The address for privacy matters, falling back to general support. */
 export const privacyContact = () => COMPANY.privacyEmail || COMPANY.supportEmail;
+
+/** Where an account deletion request goes, falling back to privacy then support. */
+export const deletionContact = () => COMPANY.deletionEmail || privacyContact();
 
 /** The grievance officer's address, falling back to privacy then support. */
 export const grievanceContact = () =>

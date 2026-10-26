@@ -37,11 +37,12 @@ export const TASK_ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 
-export const TASK_ACCEPT_ATTR = ".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx";
+export const TASK_ACCEPT_ATTR = ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xlsx";
 
 const EXT_TO_TYPE = {
   pdf: "application/pdf",
@@ -49,6 +50,7 @@ const EXT_TO_TYPE = {
   jpeg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
+  doc: "application/msword",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };
@@ -104,12 +106,19 @@ export function taskUploadErrorMessage(err) {
  * @param {object} opts
  * @param {File}   opts.file
  * @param {string} [opts.taskId]   present → Mode B (confirmed now); absent → Mode A (token held)
- * @param {"briefing"|"submission"} [opts.context]
+ * @param {"briefing"|"submission"|"comment"} [opts.context]
+ * @param {boolean} [opts.deferConfirm]
+ *   Mode B with the confirm step held back: upload is scoped to the task via
+ *   `task_id` (storage key and token claims both carry it), but #269 is NOT
+ *   called here — the host confirms later. The task discussion composer uses
+ *   this so a file picked and then removed before "Post" writes no row into
+ *   `task_attachments`; otherwise the removed file still reaches the
+ *   assignee, because #269 is what makes an attachment visible on the task.
  * @returns {Promise<{ attachment: object|null, token: string, file_name: string, file_size_bytes: number, content_type: string }>}
- *   `attachment` is the saved row in Mode B and null in Mode A, where `token`
- *   is what the create call needs.
+ *   `attachment` is the saved row in Mode B and null in Mode A or deferred
+ *   Mode B, where `token` is what the create / confirm call needs.
  */
-export async function uploadTaskFile({ file, taskId, context = "briefing" }) {
+export async function uploadTaskFile({ file, taskId, context = "briefing", deferConfirm = false }) {
   const content_type = taskContentType(file);
   const file_name = trimFileName(file.name);
 
@@ -143,6 +152,11 @@ export async function uploadTaskFile({ file, taskId, context = "briefing" }) {
 
   // Mode A stops here on purpose — see the header.
   if (!taskId) return { attachment: null, ...meta };
+
+  // Deferred Mode B — hold the token, let the host confirm when it actually
+  // commits the message. See the JSDoc for why the discussion composer wants
+  // this instead of a confirm-on-pick.
+  if (deferConfirm) return { attachment: null, ...meta };
 
   try {
     const res = await tasksAPI.confirmTaskAttachment(token);

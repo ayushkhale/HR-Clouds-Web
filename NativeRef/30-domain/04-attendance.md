@@ -57,9 +57,12 @@ actions.
 - `done` figures are the **server's**, not yours. Clock-out returns the
   authoritative calculation; show that.
 - The live timer only runs in `working`. Clear the interval on leaving it.
-- The ring's target is `policy.full_day_threshold_minutes` from
-  `/attendance/shift`. **No threshold → no ring**, just the figure. Don't invent
-  an 8-hour default.
+- The ring's target is `policy.full_day_min_hours` from `/attendance/shift`,
+  in **decimal hours** — go through `fullDayMinutes()` in
+  `shared/attendance/policyRules.js` rather than multiplying by 60 yourself.
+  **No threshold → no ring**, just the figure. Don't invent an 8-hour default.
+  (Before 2026-10-21 this said `full_day_threshold_minutes`, which the backend
+  has never sent — that is why the web ring stayed empty.)
 
 ### The overnight carry-over (T2)
 

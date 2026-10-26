@@ -59,7 +59,15 @@ const itemDate = (i) => ymdOnly(i.date || i.record_date || recordOf(i)?.date || 
  */
 const rowDate = (i) => itemDate(i) || ymdOnly(i.created_at) || "";
 const otMinutes = (i) => i.overtime_minutes ?? i.minutes ?? i.requested_minutes ?? (i.hours != null ? Math.round(Number(i.hours) * 60) : null);
-const creditDays = (i) => i.days_earned ?? i.credit_days ?? i.days ?? null;
+const creditDays = (i) => {
+  const direct = i.days_earned ?? i.credit_days ?? i.days ?? i.comp_off_days ?? i.credited_days ?? i.earned_days ?? i.credit;
+  if (direct != null && direct !== "") return Number(direct);
+  if (i.worked_hours != null) {
+    const hrs = parseFloat(i.worked_hours);
+    if (!isNaN(hrs) && hrs > 0 && hrs < 5) return 0.5;
+  }
+  return 1;
+};
 const expiry = (i) => ymdOnly(i.expiry_date || i.expires_on || i.valid_until);
 const shiftOf = (i) => recordOf(i)?.shift_snapshot || recordOf(i)?.shift || null;
 
@@ -275,7 +283,8 @@ export default function AttendanceApprovalQueue({ type, onCountChange, scope = "
       const res = await cfg.fetch();
       // Oldest first: a queue is worked from the top, and the oldest item is
       // the one that has been waiting on someone the longest.
-      const items = listFrom(res, cfg.listKeys).sort((a, b) => rowDate(a).localeCompare(rowDate(b)));
+      const items = listFrom(res, cfg.listKeys).sort((a, b) => rowDate(a).localeCompare(rowDate(b)) || String(a.id || "").localeCompare(String(b.id || "")));
+
       setState({ items, loading: false, error: null });
       onCountChange?.(type, items.length);
       prevLoadRef.current += 1;

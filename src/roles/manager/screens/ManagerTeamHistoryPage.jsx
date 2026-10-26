@@ -8,7 +8,10 @@ import { humanize } from "../../../shared/attendance/enums";
 import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, parseYMDLocal, todayYMD, workedLabel, ymdOnly } from "../../../shared/attendance/dates";
 import { EmptyState, ErrorState, FieldError, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
 import { attendedDay, dayChip, isSynthesizedDay, isWorkingDay, metric } from "../../../shared/attendance/dayStatus";
+import LiveEffectiveHours from "../../../shared/attendance/LiveEffectiveHours";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
+import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
+import { punchesState } from "../../../shared/attendance/punchMeta";
 
 // Contract §2 C15 / §8.1: GET /manager/team/history ignores every query
 // parameter and returns all records ever for the whole team, unbounded — so it
@@ -97,6 +100,10 @@ function ManagerTeamHistoryPage() {
   const [draft, setDraft] = useState({ userId: "", from: addDaysYMD(today, -29), to: today });
   const [applied, setApplied] = useState(null); // { userId, from, to } once a member is chosen
   const [formError, setFormError] = useState("");
+  // The clock-in/out punch (coords + photo) a reader asked to enlarge; the
+  // viewer is a sibling of the table, not nested in a row (§3). Per-member
+  // history reads are never truncated, so the thumb always has its data.
+  const [viewPunch, setViewPunch] = useState(null);
 
   const list = useWholeRangeHistory(applied);
 
@@ -205,9 +212,32 @@ function ManagerTeamHistoryPage() {
                               <td className="px-5 py-3">
                                 <StatusBadge status={chip.key === "late" ? "present" : chip.key} label={chip.label} />
                               </td>
-                              <td className="px-5 py-3 text-xs">{r.clock_in_time ? fmtTime(r.clock_in_time) : na}</td>
-                              <td className="px-5 py-3 text-xs">{r.clock_out_time ? fmtTime(r.clock_out_time) : na}</td>
-                              <td className="px-5 py-3 text-xs font-semibold">{metric(r.effective_hours) === null && !r.worked_duration_formatted ? zero : workedLabel(r)}</td>
+                              <td className="px-5 py-3 text-xs">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {r.clock_in_time ? fmtTime(r.clock_in_time) : na}
+                                  <PunchInlineGlance punch={punchesState(r).in} onViewPhoto={setViewPunch} />
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 text-xs">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {r.clock_out_time ? fmtTime(r.clock_out_time) : na}
+                                  <PunchInlineGlance punch={punchesState(r).out} onViewPhoto={setViewPunch} />
+                                </span>
+                              </td>
+                              {/* A day still open carries no `effective_hours`
+                                  yet, so the static label read "0m" for a
+                                  team member who was working at that moment
+                                  (2026-10-22). These dense rows don't carry
+                                  break data, so the live component says
+                                  "elapsed" rather than implying breaks were
+                                  taken off — honest, where "0m" was simply
+                                  wrong. HR's live directory already reads
+                                  this way (§2). */}
+                              <td className="px-5 py-3 text-xs font-semibold">
+                                {r.clock_in_time && !r.clock_out_time
+                                  ? <LiveEffectiveHours record={r} />
+                                  : metric(r.effective_hours) === null && !r.worked_duration_formatted ? zero : workedLabel(r)}
+                              </td>
                               <td className="px-5 py-3 text-xs">
                                 {/* Somebody who wasn't there is neither late nor
                                     on time — an absent day sends a real 0, so
@@ -237,6 +267,7 @@ function ManagerTeamHistoryPage() {
           )}
         </div>
       </main>
+      {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
     </>
   );
 }

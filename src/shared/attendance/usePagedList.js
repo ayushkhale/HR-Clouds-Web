@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizePaginated } from "./normalize.js";
+import { sortNewestFirst } from "../utils/sortUtils.js";
 
 /**
  * @param {(args: {page: number, limit: number}) => Promise<any>} fetchPage
@@ -51,7 +52,8 @@ export function usePagedList(fetchPage, { limit = 20, keys = [], filterKey = "",
           return;
         }
       }
-      setState({ items: n.items, total: n.total, totalPages: n.totalPages, loading: false, error: null, key: filterKey });
+      const sortedItems = sortNewestFirst(n.items);
+      setState({ items: sortedItems, total: n.total, totalPages: n.totalPages, loading: false, error: null, key: filterKey });
     } catch (error) {
       if (id !== requestId.current) return;
       setState((s) => ({ ...s, loading: false, error, key: filterKey }));

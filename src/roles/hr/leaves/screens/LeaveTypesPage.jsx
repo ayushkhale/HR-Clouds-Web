@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../../shared/api";
 import {
@@ -71,8 +71,9 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
     code: editType?.code || "",
     description: editType?.description || "",
     is_paid: editType?.is_paid ?? true,
-    requires_document_threshold: editType?.requires_document_threshold ?? "",
+    requires_document_threshold: editType?.requires_document_threshold != null && editType.requires_document_threshold > 0 ? editType.requires_document_threshold : "",
     sandwich_rule_applies: editType?.sandwich_rule_applies ?? false,
+    is_active: editType?.is_active ?? true,
     allowed_genders: toArray(editType?.allowed_genders),
     allowed_marital_statuses: toArray(editType?.allowed_marital_statuses),
   });
@@ -96,16 +97,24 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
     setError("");
     const payload = {
       name: form.name.trim(),
-      code: form.code.trim().toUpperCase(),
       is_paid: form.is_paid,
       sandwich_rule_applies: form.sandwich_rule_applies,
       // Empty selection means "open to everyone" — send null, not [].
       allowed_genders: form.allowed_genders.length ? form.allowed_genders : null,
       allowed_marital_statuses: form.allowed_marital_statuses.length ? form.allowed_marital_statuses : null,
+      requires_document_threshold: form.requires_document_threshold !== "" && form.requires_document_threshold != null ? (parseInt(form.requires_document_threshold, 10) || 0) : 0,
     };
-    if (form.description.trim()) payload.description = form.description.trim();
-    if (form.requires_document_threshold !== "") {
-      payload.requires_document_threshold = parseInt(form.requires_document_threshold) || 0;
+    // System types (like CO) reject code mutation with SYSTEM_LEAVE_TYPE_CODE_IMMUTABLE
+    if (!systemType) {
+      payload.code = form.code.trim().toUpperCase();
+    }
+    if (form.description.trim()) {
+      payload.description = form.description.trim();
+    } else if (isEdit) {
+      payload.description = null;
+    }
+    if (isEdit && !systemType) {
+      payload.is_active = form.is_active;
     }
     try {
       if (isEdit) {
@@ -197,28 +206,45 @@ function LeaveTypeModal({ editType, onClose, onSaved }) {
 
                 <div>
                   <label className={labelClass}>Document Required After (days)</label>
-                  <input type="number" min={0} value={form.requires_document_threshold} onChange={e => set("requires_document_threshold", e.target.value)} placeholder="e.g. 3  (leave blank to disable)" className={inputClass} />
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.requires_document_threshold}
+                    onChange={e => set("requires_document_threshold", e.target.value)}
+                    onWheel={e => e.target.blur()}
+                    placeholder="e.g. 3  (leave blank to disable)"
+                    className={inputClass}
+                  />
                   <p className="text-[10px] text-slate-400 mt-1">Employee must upload proof after this many days of leave.</p>
                 </div>
               </div>
 
               {/* Right: rules & eligibility */}
               <div className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 ${isEdit && !systemType ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-4`}>
                   <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-700"><HelpLabel text="Paid Leave" help={help("is_paid", { label: "paid leave" })} /></p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Employee gets salary during this leave</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Employee gets salary</p>
                     </div>
                     <Toggle checked={form.is_paid} onChange={v => set("is_paid", v)} />
                   </div>
                   <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700"><HelpLabel text="Count Weekends In Between" help={help("sandwich_rule_applies", { label: "counting weekends in between" })} /></p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Weekends between leave days also count as leave</p>
+                      <p className="text-sm font-semibold text-slate-700"><HelpLabel text="Weekends" help={help("sandwich_rule_applies", { label: "counting weekends in between" })} /></p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Count weekends as leave</p>
                     </div>
                     <Toggle checked={form.sandwich_rule_applies} onChange={v => set("sandwich_rule_applies", v)} />
                   </div>
+                  {isEdit && !systemType && (
+                    <div className="flex items-center justify-between gap-3 bg-purple-50/60 border border-purple-100 rounded-xl px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">Active</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Available to apply</p>
+                      </div>
+                      <Toggle checked={form.is_active} onChange={v => set("is_active", v)} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="border border-slate-100 rounded-xl p-4 space-y-4">
@@ -374,7 +400,7 @@ function DeleteModal({ leaveType, onClose, onDeleted }) {
                 </p>
               </div>
               <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
-                OK, I'll Resolve First
+                OK, I&apos;ll Resolve First
               </button>
             </>
           )}
@@ -405,6 +431,12 @@ export default function LeaveTypesPage() {
 
   function showToast(message, type = "success") {
     setToast({ message, type });
+    if (typeof window !== "undefined" && window.__showNotificationToast) {
+      window.__showNotificationToast({
+        message,
+        tone: type === "error" ? "rose" : "purple",
+      });
+    }
     setTimeout(() => setToast(null), 4000);
   }
 
@@ -412,9 +444,20 @@ export default function LeaveTypesPage() {
     setLoading(true);
     try {
       const res = await leaveAPI.getLeaveTypes({ include_inactive: true });
-      setTypes(res.data || []);
-    } catch {
-      showToast("Failed to load leave types.", "error");
+      const list = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.records)
+        ? res.data.records
+        : Array.isArray(res?.data?.types)
+        ? res.data.types
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : [];
+      setTypes(list);
+    } catch (err) {
+      showToast(leaveErrorMessage(err, "Failed to load leave types."), "error");
     } finally {
       setLoading(false);
     }
@@ -554,6 +597,23 @@ export default function LeaveTypesPage() {
                                 {t.is_active && !isSystemLeaveType(t.code) && (
                                   <button onClick={() => setDeleteTarget(t)} className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition" title="Deactivate">
                                     <HiTrash className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {!t.is_active && !isSystemLeaveType(t.code) && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await leaveAPI.updateLeaveType(t.id, { is_active: true });
+                                        showToast(`"${t.name}" reactivated.`);
+                                        loadTypes();
+                                      } catch (err) {
+                                        showToast(leaveErrorMessage(err, "Failed to reactivate."), "error");
+                                      }
+                                    }}
+                                    className="text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-lg border border-purple-200 transition"
+                                    title="Reactivate leave type"
+                                  >
+                                    Reactivate
                                   </button>
                                 )}
                               </div>

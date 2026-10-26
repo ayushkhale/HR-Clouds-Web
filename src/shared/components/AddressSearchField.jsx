@@ -10,8 +10,8 @@
 // request before it, so a fast typist makes one call rather than ten, and a
 // slow reply can never overwrite the suggestions for what they typed last.
 //
-// It never blocks: geocoding is a shortcut on top of the map. If Nominatim is
-// unreachable the list stays empty and the pin is still draggable, which is why
+// It never blocks: geocoding is a shortcut on top of the map. If Google and
+// Nominatim are both unreachable the list stays empty and the pin is still draggable, which is why
 // a failure is silent rather than an error banner.
 // ─────────────────────────────────────────────────────────────────────────────
 

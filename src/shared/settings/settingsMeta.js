@@ -197,6 +197,14 @@ const SURFACE_ROUTES = {
   locations: { path: "/attendance/locations", label: "Office Locations" },
   field_locations: { path: "/attendance/field-locations", label: "Client Sites" },
   attendance_lock_periods: { path: "/attendance/lock-periods", label: "Lock Attendance" },
+  /* Live location checks (2026-10-23). `hrOnly` for the same reason
+     /departments is: `GET`/`PUT /attendance/hr/location-policy` is the only
+     pair that exists and a manager has no read of it, so the card is ABSENT
+     for them rather than a link into a 403 (§2). Keyed both ways — by the
+     table the policy lives in, and by the registry key the plan names it with
+     — because a lookup that misses is inert. */
+  attendance_location_policies: { path: "/attendance/live-location", label: "Live Location Checks", hrOnly: true },
+  "attendance.location_checks": { path: "/attendance/live-location", label: "Live Location Checks", hrOnly: true },
 
   // Leave
   leave_types: { path: "/leaves/types", label: "Leave Types" },
@@ -230,6 +238,53 @@ const SURFACE_ROUTES = {
 export function surfaceRouteFor(surface) {
   if (!surface) return null;
   return SURFACE_ROUTES[surface.owner_table] || SURFACE_ROUTES[surface.key] || null;
+}
+
+/* ─── Surfaces the catalogue doesn't know about yet ────────────────────────
+   A policy table that is org-configurable but deliberately OUTSIDE the
+   settings catalogue still has to be findable from Settings, or it is a rule
+   nobody can discover — which is the scavenger hunt this hub exists to end.
+
+   Live location checks is the current case, and the backend's reasons are
+   recorded rather than guessed (implementation plan §B.4): there is no
+   `attendance.catalog.js`, and creating one would pull every attendance
+   setting under the T-S2 drift test at once, so it follows the
+   `attendance_device_policies` precedent — a dedicated HR endpoint pair with
+   `updated_at` as the If-Match token.
+
+   THIS CHANGES NOTHING ABOUT THE STRUCTURE. A local surface is the same shape
+   the catalogue sends, merged into the same list, matched by the same
+   `surfaceRouteFor`, drawn by the same `SurfaceHubCard` under the same
+   "Managed on their own screens" heading, and indexed by the same search. The
+   only thing that differs is where the row came from.
+
+   IT YIELDS TO THE CATALOGUE. If attendance is later brought into the catalog
+   — which §B.4 says is the plan — the server starts sending this surface and
+   the local copy drops out on its own, so nobody gets two cards and nobody
+   has to remember to delete this. That is why the merge dedupes rather than
+   simply concatenating. */
+const LOCAL_SURFACES = [
+  {
+    key: "attendance.location_checks",
+    owner_table: "attendance_location_policies",
+    module_key: "attendance",
+    label: "Live Location Checks",
+  },
+];
+
+/**
+ * The catalogue's surfaces plus the ones it doesn't carry yet, in that order.
+ * A local surface whose key or table the server already sends is dropped.
+ */
+export function withLocalSurfaces(surfaces) {
+  const live = surfaces || [];
+  const known = new Set();
+  for (const surface of live) {
+    if (surface?.key) known.add(surface.key);
+    if (surface?.owner_table) known.add(surface.owner_table);
+  }
+  const extra = LOCAL_SURFACES.filter((s) => !known.has(s.key) && !known.has(s.owner_table));
+  return extra.length === 0 ? live : [...live, ...extra];
 }
 
 /* ─── Printing a value ─────────────────────────────────────────────────────
@@ -650,6 +705,7 @@ export const SURFACE_BLURB = {
   "/attendance/locations": "The offices a check-in can be matched against.",
   "/attendance/field-locations": "Client sites people are allowed to check in from.",
   "/attendance/lock-periods": "Months closed to further attendance changes, so a finished payroll can’t shift.",
+  "/attendance/live-location": "Whether anyone may ask a colleague’s phone where it is, who may ask, and how often.",
   "/leaves/types": "The kinds of leave people can ask for, and whether each one is paid.",
   "/leaves/policies": "How much leave a group of people gets, when it is given, and what is kept for next year.",
   "/leaves/assignments": "Which leave policy applies to whom.",
@@ -872,7 +928,7 @@ export function segmentedOptions(entry) {
 
    Hits are folded by ROUTE, because what the reader gets is a screen to open:
    four registry entries backed by one table are one answer, not four. */
-export function searchSurfaces(surfaces, query) {
+export function searchSurfaces(surfaces, query, workspace) {
   const q = String(query || "").trim().toLowerCase();
   if (q.length < 2) return [];
   const byRoute = new Map();
@@ -880,6 +936,13 @@ export function searchSurfaces(surfaces, query) {
     const route = surfaceRouteFor(surface);
     // No screen to open means no result: a dead hit is worse than no hit (§2).
     if (!route) continue;
+    /* And an HR-only screen is no result for a manager, for the same reason
+       its card is hidden from their tab — the route gate would bounce them.
+       The card list has filtered this since the hub shipped; the search never
+       did, so searching "departments" as a manager offered a link into the HR
+       workspace. Fixed here rather than at the call site so both lists answer
+       the same question. */
+    if (route.hrOnly && workspace && workspace !== "hr") continue;
     const label = String(surface.label || "").toLowerCase();
     const screen = String(route.label || "").toLowerCase();
     const blurb = String(SURFACE_BLURB[route.path] || "").toLowerCase();

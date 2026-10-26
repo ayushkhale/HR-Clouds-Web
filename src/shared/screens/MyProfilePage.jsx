@@ -231,9 +231,8 @@ function MyProfilePage() {
         fetchProfile({ silent: true });
     }
 
-    function handleLogout() {
-        tokenHelper.clear();
-        logout();
+    async function handleLogout() {
+        await logout();
         navigate("/");
     }
 

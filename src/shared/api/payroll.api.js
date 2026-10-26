@@ -269,6 +269,12 @@ export const payrollAPI = {
   deactivateReimbursementCategory: (id) => request(`/payroll/hr/reimbursements/categories/${id}`, { method: "DELETE" }),
 
   // HR — Claims queue (#133–#136)
+  // `pending_hr: true` is "everything waiting on an HR decision" — `under_review`
+  // plus `submitted` on a single-level chain — and it is the SAME predicate the
+  // Inbox badge counts, so the badge and `pagination.total` agree by contract.
+  // It is REFUSED alongside `status` (400 VALIDATION_ERROR), and a server from
+  // before it STRIPS it silently rather than failing, which would widen the
+  // queue to every claim ever filed. Gate it on the badge endpoint answering.
   getReimbursementClaims: (params) => request(`/payroll/hr/reimbursements/claims${buildQuery(params)}`),
   getReimbursementClaim: (id) => request(`/payroll/hr/reimbursements/claims/${id}`),
   approveReimbursementClaim: (id, payload) => request(`/payroll/hr/reimbursements/claims/${id}/approve`, { method: "POST", body: JSON.stringify(payload) }),

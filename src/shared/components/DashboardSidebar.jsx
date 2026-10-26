@@ -4,14 +4,12 @@ import { DICTIONARY } from "../config/dictionary";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSidebar } from "../contexts/SidebarContext";
-import { billingAPI, documentsAPI, payrollAPI, tokenHelper } from "../api";
+import { billingAPI } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
-import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
 import { useDeviceTrustContext } from "../attendance/deviceTrust";
 import { deviceTrustVisible } from "../attendance/deviceTrustMeta";
 import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE, TASK_PATHS } from "../attendance/paths";
-import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
-import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
+import { useBadgeCounts } from "../hooks/useBadgeCounts";
 import {
   HiTemplate,
   HiChatAlt2,
@@ -60,6 +58,7 @@ import {
   HiShare,
   HiLibrary,
   HiDeviceMobile,
+  HiOutlineCalendar,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -67,11 +66,16 @@ function DashboardSidebar({ role = "guest" }) {
   const location = useLocation();
   const { logout, user, orgId, organizations } = useAuth();
   const { isMobileSidebarOpen, closeSidebar, setNav } = useSidebar();
-  const [inboxCount, setInboxCount] = useState(() => {
-    if (role === "manager") return inboxTotal(peekManagerInboxCounts());
-    if (role === "hr") return inboxTotal(peekHrInboxCounts());
-    return 0;
-  });
+  // One read behind all three badges below (#278), polled once for the whole
+  // app and refreshed by every decision. The HR sidebar used to fire thirteen
+  // count requests of its own on mount, which is why it could only afford to
+  // do it once a minute and drifted from the page it linked to.
+  const { counts: queueCounts, sidebar: badges, isUnavailable } = useBadgeCounts({ enabled: role !== "guest" });
+  const inboxCount = badges.inboxTotal;
+  // `null` is "couldn't read it", and an unavailable queue is hidden outright
+  // rather than shown as a confident 0 (§2).
+  const unverifiedBankCount = isUnavailable("bank_verification") ? null : badges.unverifiedBanks;
+  const pendingDocsCount = isUnavailable("document_verification") ? null : badges.documentVerificationQueue;
 
   // Device Trust (15 Oct 2026): "My Registered Devices" only exists where the
   // feature is on, or where this person already has a device to shut off — an
@@ -87,8 +91,6 @@ function DashboardSidebar({ role = "guest" }) {
 
   const [paymentsDue, setPaymentsDue] = useState(false);
   const [paymentsDismissed, setPaymentsDismissed] = useState(false);
-  const [unverifiedBankCount, setUnverifiedBankCount] = useState(0);
-  const [pendingDocsCount, setPendingDocsCount] = useState(0);
 
   useEffect(() => {
     if (location.pathname === "/dashboard/hr/billing/payments") {
@@ -96,25 +98,11 @@ function DashboardSidebar({ role = "guest" }) {
     }
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (role !== "manager") return undefined;
-    let alive = true;
-    // Shared with the dashboard's "Needs your attention" list (one round of requests).
-    fetchManagerInboxCounts().then((counts) => alive && setInboxCount(inboxTotal(counts))).catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [role]);
-
-  // Counted once per session window, not per navigation: nine queues cost ten
-  // requests, and firing them on every page change flooded every HR screen.
-  // Decisions refresh the badge through the attendance events below.
+  // Not a count, and nothing else reads it: how close the subscription is to
+  // its due date, which puts a dot on Billing.
   useEffect(() => {
     if (role !== "hr") return undefined;
     let alive = true;
-    fetchHrInboxCounts().then((counts) => alive && setInboxCount(inboxTotal(counts))).catch(() => {});
-
-    // Check billing due date
     billingAPI.getSubscription().then((res) => {
       if (!alive) return;
       const sub = res?.data?.subscription;
@@ -123,43 +111,13 @@ function DashboardSidebar({ role = "guest" }) {
       const isDue = (days !== null && days <= 7) || sub.status === "in_grace" || sub.status === "past_due";
       setPaymentsDue(Boolean(isDue));
     }).catch(() => {});
-
-    // Check document verification queue
-    documentsAPI.getVerificationQueue({ limit: 1 }).then((res) => {
-      if (!alive) return;
-      const count = res?.data?.total ?? res?.total ?? 0;
-      setPendingDocsCount(count);
-    }).catch(() => {});
-
-    // Check unverified bank accounts
-    payrollAPI.getBankAccounts({ page: 1, limit: 100 }).then((res) => {
-      if (!alive) return;
-      const list = res?.data?.items || res?.data?.accounts || res?.data?.bank_accounts || res?.items || [];
-      const unv = list.filter((a) => !a.is_verified).length;
-      setUnverifiedBankCount(unv);
-    }).catch(() => {});
-
     return () => {
       alive = false;
     };
   }, [role]);
 
-  // Approvals, rejections and resolutions anywhere in the app refresh the badge.
-  useAttendanceChanged(INBOX_EVENT_KINDS, () => {
-    if (role === "manager") fetchManagerInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
-    else if (role === "hr") {
-      fetchHrInboxCounts(true).then((counts) => setInboxCount(inboxTotal(counts))).catch(() => {});
-      documentsAPI.getVerificationQueue({ limit: 1 }).then((res) => setPendingDocsCount(res?.data?.total ?? res?.total ?? 0)).catch(() => {});
-      payrollAPI.getBankAccounts({ page: 1, limit: 100 }).then((res) => {
-        const list = res?.data?.items || res?.data?.accounts || res?.data?.bank_accounts || res?.items || [];
-        setUnverifiedBankCount(list.filter((a) => !a.is_verified).length);
-      }).catch(() => {});
-    }
-  });
-
-  function handleLogout() {
-    tokenHelper.clear();
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate("/");
   }
 
@@ -189,6 +147,27 @@ function DashboardSidebar({ role = "guest" }) {
   const REGULARIZATION = DICTIONARY.TERMS.REGULARIZATION;
   const ENCASHMENT = DICTIONARY.TERMS.ENCASHMENT;
   const inboxBadge = { badge: inboxCount > 0 ? inboxCount : null };
+  /**
+   * The number waiting in one queue, on the link that opens it — the same
+   * figure its Inbox card and its own page header show, from the same read
+   * (#278). Three badges used to carry this and the other nine queues were
+   * silent, so a claim could sit for a day with nothing on the menu to say so
+   * unless you opened the Inbox.
+   *
+   * Nothing is ever a 0: a quiet queue wears no badge, and one this role or
+   * this organisation does not have is absent from the snapshot and wears
+   * nothing either (§2 — absent, not broken).
+   */
+  const queueBadge = (key) => {
+    if (isUnavailable(key)) return {};
+    const n = Number(queueCounts[key]);
+    return n > 0 ? { badge: n } : {};
+  };
+
+  // Notifications has no sidebar entry (user decision, 2026-10-26): the bell in
+  // the top bar is the only way in, and its panel's "See all notifications"
+  // link reaches the full page. A menu tab beside it was a second door to the
+  // same place.
 
   // Self-service pages mount in every workspace under that workspace's prefix,
   // and every one of them starts with "My": that word is what tells an HR user
@@ -203,10 +182,13 @@ function DashboardSidebar({ role = "guest" }) {
     const tasks = TASK_PATHS[workspace];
     return {
       // Where a person registers the device they clock in from — its own
-      // "My Registered Devices" dropdown (not inside My Time), opening onto the
-      // page's two tabs: This device / All my devices (user decision, 16 Oct
-      // 2026). The page still defaults to This device, so a locked-out person
-      // lands on the one that matters even if they click the group, not a tab.
+      // "My Registered Devices" dropdown (not inside My Time), holding the two
+      // entries This device / All my devices (user decision, 16 Oct 2026).
+      // THESE TWO ENTRIES ARE THE NAVIGATION: the page dropped its own tab
+      // strip on 22 Oct 2026 and reads `?tab=` straight from these links, so a
+      // screen is reached once, from here, and not twice. It still defaults to
+      // This device, so a locked-out person lands on the one that matters even
+      // if they click the group rather than an entry.
       devices: `${base}/devices`,
       // Work somebody has been GIVEN, which every role is — including HR, whose
       // own page sits here beside their leave and payslips rather than in the
@@ -221,8 +203,8 @@ function DashboardSidebar({ role = "guest" }) {
       // has a tab per status, and duplicating them here would leave the sidebar
       // highlighting "Waiting for review" while the open tab said "All".
       tasks: [
-        link("My Tasks", tasks.mine, HiClipboardCheck),
-        link("Overdue Tasks", tasks.overdue, HiExclamationCircle),
+        link("My Tasks", tasks.mine, HiClipboardCheck, queueBadge("myTasks")),
+        link("Overdue Tasks", tasks.overdue, HiExclamationCircle, queueBadge("myTasksOverdue")),
       ],
       time: [
         link("My Attendance", base, HiClock),
@@ -230,7 +212,18 @@ function DashboardSidebar({ role = "guest" }) {
         // sites. Read-only; the assign controls are HR/manager-only, so an
         // employee reaches it here too (16 Oct 2026). One entry covers all three
         // workspaces because the employee menu reuses this same `time` array.
+        // The hours they're expected to work and the rules their attendance is
+        // graded by. Sits directly under My Attendance because it is the answer
+        // to every "why was I marked late / absent" that page raises
+        // (21 Oct 2026). Read-only; the policy and shift editors are HR-only,
+        // so one entry serves all three workspaces.
+        link("My Schedule & Rules", `${base}/my-schedule`, HiOutlineCalendar),
         link("My Work Locations", `${base}/my-locations`, HiLocationMarker),
+        // Who has asked where this person is, and the notice they accept once
+        // (23 Oct 2026). Beside My Work Locations because it answers the same
+        // question in the present tense. One entry for all three workspaces:
+        // an HR admin can be located by another HR admin, so everybody needs it.
+        link("My Location Checks", `${base}/location-checks`, HiShieldCheck),
         link("My Leaves", pay.leaves, HiCalendar),
         link(`My ${REGULARIZATION}s`, `${base}/regularizations`, HiClipboardList),
         link("My Overtime", `${base}/overtime`, HiLightningBolt),
@@ -248,7 +241,7 @@ function DashboardSidebar({ role = "guest" }) {
         link("My Document Home", docs.all, HiCollection),
         link("My Personal Documents", docs.documents, HiFolderOpen),
         link("My Company Documents", docs.company, HiOfficeBuilding),
-        link("My Document Requests", docs.requests, HiClipboardList),
+        link("My Document Requests", docs.requests, HiClipboardList, queueBadge("myDocumentRequests")),
       ],
     };
   };
@@ -372,6 +365,10 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiCog,
           defaultCollapsed: true,
           items: [
+            // The index of this whole section: which of the 22 steps below are
+            // done and which aren't. First, and not inside a group, because it
+            // is what you read before you decide which group to open.
+            link("Organisation setup", `${H}/setup`, HiClipboardCheck),
             // Departments first: they exist before anyone is invited into one.
             group("Organisation", HiOfficeBuilding, [
               link("Departments", `${H}/departments`, HiOfficeBuilding, { nested: true }),
@@ -384,6 +381,11 @@ function DashboardSidebar({ role = "guest" }) {
               // organisation's people and their devices, not about hours
               // (user decision, 16 Oct 2026 — it was "Device Checks" under Time).
               ...(showDeviceAdmin ? [link("Registered Devices", `${H}/attendance/registered-devices`, HiDeviceMobile)] : []),
+              // Whether anyone may ask a colleague's phone where it is, and on
+              // what terms (23 Oct 2026). Here rather than under Time for the
+              // same reason as Registered Devices — it is a decision about
+              // people and their phones, not about hours.
+              link("Live Location Checks", `${H}/attendance/live-location`, HiShieldCheck),
             ]),
             // Which days are working days, then the hours on them and who works
             // them, then the rules applied to those hours, then what working an
@@ -439,12 +441,12 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiClock,
           items: [
             link("Live Attendance", `${H}/attendance/directory`, HiClock),
-            link("Leave Requests", `${H}/leaves/requests`, HiInboxIn),
-            link(`${REGULARIZATION}s`, `${H}/attendance/regularizations`, HiClipboardList),
-            link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift),
+            link("Leave Requests", `${H}/leaves/requests`, HiInboxIn, queueBadge("leaves")),
+            link(`${REGULARIZATION}s`, `${H}/attendance/regularizations`, HiClipboardList, queueBadge("regularizations")),
+            link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift, queueBadge("compOffs")),
             // A queue only where the policy says HR approves each device; the
             // page is also the whole-organisation device inventory.
-            ...(showDeviceAdmin ? [link("Employee Devices", `${H}/attendance/trusted-devices`, HiDeviceMobile)] : []),
+            ...(showDeviceAdmin ? [link("Employee Devices", `${H}/attendance/trusted-devices`, HiDeviceMobile, queueBadge("devices"))] : []),
           ],
         },
         tasksSection("hr"),
@@ -464,8 +466,8 @@ function DashboardSidebar({ role = "guest" }) {
             step(2, "This month"),
             link("Salary Adjustments", `${H}/payroll/adjustments`, HiAdjustments),
             link("Bonus Rules", `${H}/payroll/bonus-rules`, HiGift),
-            link("Claims", `${H}/payroll/reimbursements`, HiReceiptRefund),
-            link("Loans & Advances", `${H}/payroll/loans`, HiCash),
+            link("Claims", `${H}/payroll/reimbursements`, HiReceiptRefund, queueBadge("claims")),
+            link("Loans & Advances", `${H}/payroll/loans`, HiCash, queueBadge("loans")),
             link(`${ENCASHMENT}s`, `${H}/payroll/encashments`, HiCash),
             link("Pay Differences", `${H}/payroll/arrears`, HiSwitchHorizontal),
             link("Exits & Final Pay", `${H}/payroll/exits`, HiLogout),
@@ -485,7 +487,7 @@ function DashboardSidebar({ role = "guest" }) {
           title: "DOCUMENTS WE COLLECT",
           icon: HiFolderOpen,
           items: [
-            link("Document Requests", `${H}/documents/requests`, HiClipboardList),
+            link("Document Requests", `${H}/documents/requests`, HiClipboardList, queueBadge("documentRequests")),
             link("Verification Queue", `${H}/documents/verification`, HiBadgeCheck, {
               badge: pendingDocsCount > 0 ? pendingDocsCount : null,
               dot: pendingDocsCount > 0,
@@ -502,7 +504,7 @@ function DashboardSidebar({ role = "guest" }) {
           icon: HiPaperAirplane,
           items: [
             link("Issued Letters", `${H}/documents/letters`, HiPaperAirplane),
-            link("Letter Proposals", `${H}/documents/letter-proposals`, HiMail),
+            link("Letter Proposals", `${H}/documents/letter-proposals`, HiMail, queueBadge("letterProposals")),
             link("Organisation Documents", `${H}/documents/organisation`, HiOfficeBuilding),
           ],
         },
@@ -510,7 +512,7 @@ function DashboardSidebar({ role = "guest" }) {
           title: "TAX",
           icon: HiScale,
           items: [
-            link("Tax Declarations", `${H}/payroll/tax-declarations`, HiDocumentText),
+            link("Tax Declarations", `${H}/payroll/tax-declarations`, HiDocumentText, queueBadge("declarations")),
             link("Year-End & Form 16", `${H}/payroll/year-end`, HiDocumentReport),
           ],
         },
@@ -578,11 +580,11 @@ function DashboardSidebar({ role = "guest" }) {
           items: [
             link("Live Attendance", `${M}/team/today`, HiClock),
             link("Attendance History", `${M}/team/history`, HiCalendar),
-            link("Leave Requests", `${M}/requests/leaves`, HiInboxIn),
-            link(`${REGULARIZATION}s`, `${M}/requests/regularizations`, HiClipboardList),
-            link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
-            link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
-            link(COMP_OFF, `${M}/requests/comp-offs`, HiGift),
+            link("Leave Requests", `${M}/requests/leaves`, HiInboxIn, queueBadge("leaves")),
+            link(`${REGULARIZATION}s`, `${M}/requests/regularizations`, HiClipboardList, queueBadge("regularizations")),
+            link("Overtime", `${M}/requests/overtime`, HiLightningBolt, queueBadge("overtime")),
+            link("Flags", `${M}/team/anomalies`, HiExclamationCircle, queueBadge("anomalies")),
+            link(COMP_OFF, `${M}/requests/comp-offs`, HiGift, queueBadge("compOffs")),
           ],
         },
         tasksSection("manager"),
@@ -594,7 +596,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Employee Salaries", `${M}/payroll/team-salary`, HiCurrencyRupee),
             step(2, "This month"),
             link("Salary Adjustments", `${M}/payroll/adjustments`, HiAdjustments),
-            link("Claims & Benefits", `${M}/payroll/reimbursements`, HiReceiptRefund),
+            link("Claims & Benefits", `${M}/payroll/reimbursements`, HiReceiptRefund, queueBadge("claims")),
             link(`${ENCASHMENT}s`, `${M}/payroll/encashments`, HiCash),
             step(3, "Close and pay"),
             link("Payslips", `${M}/payroll/team-payslips`, HiDocumentText),
@@ -604,7 +606,7 @@ function DashboardSidebar({ role = "guest" }) {
           title: "DOCUMENTS WE COLLECT",
           icon: HiFolderOpen,
           items: [
-            link("Document Requests", `${M}/documents/requests`, HiClipboardList),
+            link("Document Requests", `${M}/documents/requests`, HiClipboardList, queueBadge("documentRequests")),
             link("Employee Documents", `${M}/documents`, HiFolderOpen),
             link("Document Compliance", `${M}/documents/compliance`, HiClipboardCheck),
           ],
@@ -617,7 +619,7 @@ function DashboardSidebar({ role = "guest" }) {
           forceDropdown: true,
           items: [
             link("Document Proposals", `${M}/documents/proposals`, HiPaperAirplane),
-            link("Letter Proposals", `${M}/documents/letter-proposals`, HiMail),
+            link("Letter Proposals", `${M}/documents/letter-proposals`, HiMail, queueBadge("letterProposals")),
           ],
         },
         {
@@ -637,7 +639,9 @@ function DashboardSidebar({ role = "guest" }) {
       {
         title: "MAIN",
         flat: true,
-        items: [link("Dashboard", "/dashboard/employee", HiViewGrid)],
+        items: [
+          link("Dashboard", "/dashboard/employee", HiViewGrid),
+        ],
       },
       { title: "MY TIME", icon: HiClock, items: me.time },
       { title: "MY TASKS", icon: HiClipboardCheck, items: me.tasks },
@@ -750,6 +754,12 @@ function DashboardSidebar({ role = "guest" }) {
 
   // ── Rendering ────────────────────────────────────────────────────────────
   const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-purple-200";
+  // Every count in this menu is the same pill, wherever it is drawn: a link, a
+  // section of one, or a section header. `normal-case tracking-normal` is for
+  // the header, which is uppercase and letter-spaced and would otherwise push
+  // the digits apart inside the circle.
+  const BADGE = "text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums normal-case tracking-normal";
+  const BADGE_TONE = "bg-rose-500 text-white";
 
   // The utility dock at the bottom. It gets the same active treatment as the
   // nav above it — a gear that stays grey while you are standing on the page
@@ -788,7 +798,7 @@ function DashboardSidebar({ role = "guest" }) {
           <span className="truncate">{item.label}</span>
         </span>
         {item.badge ? (
-          <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+          <span className={`${item.badgeClass || BADGE_TONE} ${BADGE}`}>
             {item.badge}
           </span>
         ) : item.dot ? (
@@ -797,6 +807,22 @@ function DashboardSidebar({ role = "guest" }) {
       </Link>
     );
   };
+
+  /**
+   * What a whole section is waiting on, for its header. Most of the menu is
+   * collapsed most of the time — it is the longest in the product — so without
+   * this, a claim waiting inside a shut PAYROLL section is invisible until you
+   * open it. Summed from the badges already on the links, so the header can
+   * never claim something its children don't show.
+   *
+   * Drawn as the same pill as every other count in this menu — one shape for
+   * one meaning. A quieter style for the header was tried and rejected: two
+   * ways of writing "3 waiting" in one sidebar reads as two different things.
+   */
+  const sectionCount = (section) => section.items.reduce((sum, item) => {
+    const children = item.group ? item.items : [item];
+    return sum + children.reduce((n, child) => n + (Number(child.badge) || 0), 0);
+  }, 0);
 
   const renderItem = (section, item) => {
     if (item.step) {
@@ -928,7 +954,15 @@ function DashboardSidebar({ role = "guest" }) {
                       }`}
                   >
                     <Icon className={`w-4 h-4 ${isActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                    {item.label}
+                    <span className="truncate">{item.label}</span>
+                    {/* A section of one is drawn as its own link, so it has to
+                        carry the badge itself — without this, a queue would go
+                        silent the day its section lost its second entry. */}
+                    {item.badge ? (
+                      <span className={`${item.badgeClass || BADGE_TONE} ${BADGE} ml-auto`}>
+                        {item.badge}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               }
@@ -937,6 +971,7 @@ function DashboardSidebar({ role = "guest" }) {
               const isOpen = isSectionOpen(section);
               const key = sectionKey(section);
               const panelId = `nav-${key.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+              const waiting = sectionCount(section);
 
               return (
                 <div key={section.title} className="space-y-1">
@@ -948,14 +983,22 @@ function DashboardSidebar({ role = "guest" }) {
                     onClick={() => setOpen(key, !isOpen)}
                     aria-expanded={isOpen}
                     aria-controls={isOpen ? panelId : undefined}
+                    title={waiting > 0 ? `${waiting} item${waiting === 1 ? "" : "s"} waiting in ${section.title.toLowerCase()}` : undefined}
                     className={`w-full flex items-center justify-between px-4 py-2 rounded-lg text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors ${FOCUS}`}
                   >
                     <span>{section.title}</span>
-                    {isOpen ? (
-                      <HiChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                    ) : (
-                      <HiChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                    )}
+                    <span className="flex items-center gap-2">
+                      {waiting > 0 && (
+                        <span aria-label={`${waiting} waiting`} className={`${BADGE_TONE} ${BADGE}`}>
+                          {waiting}
+                        </span>
+                      )}
+                      {isOpen ? (
+                        <HiChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <HiChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </span>
                   </button>
 
                   {/* Sub-items list */}

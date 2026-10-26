@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCash, HiCalendar, HiGift, HiTrendingDown, HiTrendingUp, HiSwitchHorizontal, HiCalculator, HiClipboardCheck, HiDocumentText } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
@@ -113,14 +114,14 @@ export default function MyLoansAndAdvancesPage() {
         setEncashments([]);
         setEncashError(payrollErrorMessage(encashRes.err, "Couldn't load your leave payouts"));
       } else {
-        setEncashments(asList(encashRes.res?.data));
+        setEncashments(sortNewestFirst(asList(encashRes.res?.data)));
         setEncashError("");
       }
-      setLoans(asList(loanRes.data));
+      setLoans(sortNewestFirst(asList(loanRes.data)));
       const b = bonusRes.data || {};
-      setBonuses({ earned: b.earned || asList(b), upcoming: b.upcoming || [] });
+      setBonuses({ earned: sortNewestFirst(b.earned || asList(b)), upcoming: sortNewestFirst(b.upcoming || []) });
       const a = adjRes.data || {};
-      setAdjustments({ earned: a.earned || asList(a), upcoming: a.upcoming || [] });
+      setAdjustments({ earned: sortNewestFirst(a.earned || asList(a)), upcoming: sortNewestFirst(a.upcoming || []) });
     } catch (err) {
       showToast(err.message || "Failed to load data", "error");
     } finally {

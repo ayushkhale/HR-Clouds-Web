@@ -33,6 +33,20 @@ export const SELF_SERVICE_PAGES = {
   // `/my-locations`, not `/locations`, so it never collides with the HR/manager
   // admin Office Locations page at `${prefix}/attendance/locations`.
   locations: "/my-locations",
+  // Shift & Policy Visibility (2026-10-21): the hours this person is expected
+  // to work and the rules their attendance is graded by, read-only. Same
+  // reasoning again — every role punches and every role is graded, so HR reads
+  // its own schedule under `/hr/my-attendance`, not under `/employee`.
+  // `/my-schedule`, not `/schedule`, to stay clear of the HR/manager admin
+  // Shift Roster at `${prefix}/attendance/roster`.
+  schedule: "/my-schedule",
+  // Live Location Checks (2026-10-23): the notice this person accepts before
+  // anyone may ask their phone where it is, and the list of who has asked.
+  // Mounted in all three workspaces for the usual reason — an HR admin can be
+  // located by another HR admin, so they need the page too. `/location-checks`
+  // rather than `/locations`, which is already the read-only site list above,
+  // and the word "tracking" stays out of every path and file name (§1).
+  locationChecks: "/location-checks",
 };
 
 /**
@@ -215,6 +229,35 @@ export const TASK_PATHS = {
     all: "/dashboard/hr/tasks/all",
   },
 };
+
+/**
+ * The same self-service Tasks page, under the caller's OWN workspace.
+ *
+ * Direct links or notification clicks might carry `/dashboard/employee/tasks/:id`
+ * or another role's prefix. Like `selfServiceDocumentEquivalent`, this translates
+ * rather than widens: `/dashboard/employee/tasks/abc` becomes
+ * `/dashboard/hr/my-tasks/abc` for an HR user, and `/dashboard/manager/my-tasks/abc`
+ * for a manager.
+ */
+export function selfServiceTaskEquivalent(pathname = "", workspace) {
+  const target = TASK_PATHS[workspace];
+  if (!target) return null;
+
+  const candidates = [];
+  Object.entries(TASK_PATHS).forEach(([space, pages]) => {
+    if (space === workspace) return;
+    Object.entries(pages).forEach(([page, base]) => {
+      if (base && (pathname === base || pathname.startsWith(`${base}/`))) {
+        candidates.push({ page, base });
+      }
+    });
+  });
+  if (candidates.length === 0) return null;
+
+  const { page, base } = candidates.sort((a, b) => b.base.length - a.base.length)[0];
+  const mine = target[page];
+  return mine ? `${mine}${pathname.slice(base.length)}` : null;
+}
 
 /**
  * The whole-organisation pages every role can read: the Org Chart and the

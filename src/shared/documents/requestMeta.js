@@ -583,6 +583,6 @@ export function jobResultSummary(job, result) {
     .map(([key, noun]) => [Number(result?.raw?.[key]) || 0, noun])
     .filter(([n]) => n > 0)
     .map(([n, noun]) => `${n.toLocaleString("en-IN")} ${noun}`);
-  if (!parts.length) return "Nothing needed doing.";
+  if (!parts.length) return "All up to date — no actions needed.";
   return `${parts.join(" · ")}.`;
 }

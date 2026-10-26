@@ -209,14 +209,31 @@ const logs = Array.isArray(payload) ? payload
 {
   "assignment": { "id": "…", "effective_from": "2026-04-01", "effective_to": null },
   "shift": { "name": "General", "start_time": "09:00", "end_time": "18:00",
-             "type": "fixed", "policy": { "full_day_threshold_minutes": 480, … } },
+             "type": "fixed", "policy_id": "…" },
+  "policy": { "name": "Corporate Standard", "grace_minutes": 15,
+              "half_day_min_hours": 4.00, "full_day_min_hours": 8.00,
+              "max_breaks_per_day": 3, "max_break_duration_minutes": 60,
+              "regularization_allowed": true, "regularization_window_days": 7, … },
   "rotation": null,
   "weekly_offs": [0, 6]
 }
 ```
 
-`shift: null` is valid → "No shift assigned". `policy.full_day_threshold_minutes`
-drives the progress ring's target.
+`shift: null` is valid → "No shift assigned" — and the org's DEFAULT policy
+still applies, so `policy` can be present without a shift.
+
+`policy` is a SIBLING of `shift`, not nested inside it, and arrived with the
+2026-10-21 enrichment — treat it as optional and hide anything that needs it
+when it is absent. Thresholds are **decimal hours**
+(`full_day_min_hours: 8.00`), often as strings off numeric columns.
+
+CORRECTION (2026-10-21): this block previously documented
+`shift.policy.full_day_threshold_minutes`, in minutes and nested. No such key
+exists in the backend schema (`md_attendance/5_hr_attendance_api.md` §1) and the
+web punch card believed it, so its progress ring read `undefined` and never drew
+an arc. Read thresholds through `fullDayMinutes()` /`halfDayMinutes()` in
+`shared/attendance/policyRules.js`, which does the × 60 once and accepts both
+spellings.
 
 ### `GET /attendance/my-field-assignments` — **observed**
 

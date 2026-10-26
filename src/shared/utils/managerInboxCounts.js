@@ -1,6 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// managerInboxCounts.js — How many items wait on a manager in each queue, for
-// the sidebar Inbox badge and the dashboard's "Needs your attention" list.
+// managerInboxCounts.js — How many items wait on a manager in each queue.
+//
+// THE FALLBACK, not the way: badgeCountsStore.js reads all six numbers in one
+// request (#278) and this fan-out only runs on a server that has no badge
+// endpoint. See the header of hrInboxCounts.js.
 //
 // Same rules as hrInboxCounts: one module-level cache keyed by the session
 // token, so the sidebar and the dashboard share one round of requests, and a

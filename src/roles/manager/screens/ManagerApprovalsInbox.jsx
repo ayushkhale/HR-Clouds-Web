@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import InboxCard from "../../../shared/components/InboxCard";
-import { attendanceAPI, leaveAPI, tasksAPI } from "../../../shared/api";
+import { leaveAPI } from "../../../shared/api";
+import { useBadgeCounts } from "../../../shared/hooks/useBadgeCounts";
+import { sortNewestFirst } from "../../../shared/utils/sortUtils";
 import { EmbeddedPageContext } from "../../../shared/contexts/EmbeddedPageContext";
 import TaskReviewScreen from "../../../shared/tasks/TaskReviewScreen";
 import { DICTIONARY } from "../../../shared/config/dictionary";
@@ -9,8 +11,7 @@ import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import AttendanceApprovalQueue from "../../../shared/attendance/AttendanceApprovalQueue";
 import ReasonDialog from "../../../shared/components/ReasonDialog";
 import LeaveRequestCard, { leaveApplicantName } from "../components/LeaveRequestCard";
-import { listFrom, normalizePaginated } from "../../../shared/attendance/normalize";
-import { ATTENDANCE_EVENTS, INBOX_EVENT_KINDS, emitAttendanceChanged, useAttendanceChanged } from "../../../shared/attendance/events";
+import { ATTENDANCE_EVENTS, emitAttendanceChanged, useAttendanceChanged } from "../../../shared/attendance/events";
 import {
   HiCheckCircle, HiXCircle, HiClock, HiCalendar, HiExclamationCircle, HiGift, HiDocumentText,
   HiRefresh, HiClipboardList,
@@ -44,9 +45,14 @@ const GROUP = {
 const ATTENDANCE_TABS = Object.fromEntries(GROUP.items.filter((i) => i.queue).map((i) => [i.key, i.queue]));
 
 function ManagerApprovalsInbox() {
+  // The same one read the sidebar badge uses, scoped to this manager's direct
+  // reports by the server (#278). The six cards used to cost six requests of
+  // their own, which is why they disagreed with the sidebar after a decision.
+  const { counts: badgeCounts, isUnavailable, loading, loadedAt, refreshing, rateLimited, refresh: refreshCounts } = useBadgeCounts();
   const [selectedKey, setSelectedKey] = useState("regularizations");
-  const [counts, setCounts] = useState({});
-  const [loading, setLoading] = useState(true);
+  // A panel's own count of what it just listed, with the moment it was taken.
+  // It is only newer than the snapshot until the next read lands — see `counts`.
+  const [live, setLive] = useState({ at: 0, values: {} });
   const [leaves, setLeaves] = useState([]);
   const [leavesLoading, setLeavesLoading] = useState(true);
   const [actionModal, setActionModal] = useState({ isOpen: false, action: "", id: null, title: "", isCancellation: false });
@@ -58,61 +64,59 @@ function ManagerApprovalsInbox() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // A queue that fails to load shows N/A rather than a confident zero.
-  const fetchAttendanceCounts = useCallback(async () => {
-    setLoading(true);
-    const [reg, ot, co, an] = await Promise.allSettled([
-      attendanceAPI.getManagerPendingRegularizations(),
-      attendanceAPI.getManagerPendingOvertime(),
-      attendanceAPI.getManagerCompOffs(),
-      attendanceAPI.getManagerAnomalies(),
-    ]);
-    const size = (r) => (r.status === "fulfilled" ? listFrom(r.value, ["requests", "anomalies", "comp_offs", "overtime"]).length : null);
-    setCounts((c) => ({ ...c, regularizations: size(reg), overtime: size(ot), compOffs: size(co), anomalies: size(an) }));
-    setLoading(false);
-  }, []);
-
+  // The leave panel below shows the requests themselves, so this read is for
+  // the rows, not for the count — the card reads the badge like every other.
   const fetchLeaves = useCallback(async () => {
     setLeavesLoading(true);
     try {
       const res = await leaveAPI.getTeamPendingRequests();
       const rows = res.success ? (res.data || []) : [];
-      setLeaves(rows);
-      setCounts((c) => ({ ...c, leaves: rows.length }));
+      setLeaves(sortNewestFirst(rows));
+      setLive((c) => ({ at: Date.now(), values: { ...c.values, leaves: rows.length } }));
     } catch {
       setLeaves([]);
-      setCounts((c) => ({ ...c, leaves: null }));
+      // The card's number comes from the badge snapshot, not from this read.
+      // A failed list drops our correction and lets the server's count stand
+      // rather than blanking a figure that was never in doubt.
+      setLive((c) => {
+        if (!("leaves" in c.values)) return c;
+        const values = { ...c.values };
+        delete values.leaves;
+        return { at: Date.now(), values };
+      });
     } finally {
       setLeavesLoading(false);
     }
   }, []);
 
-  // Deliverables waiting on this manager. `team-tasks` is hierarchy-scoped
-  // server-side, so this is exactly the set they may approve (#257).
-  const fetchTaskCount = useCallback(async () => {
-    try {
-      const res = await tasksAPI.getTeamTasks({ status: "in_review", limit: 1 });
-      setCounts((c) => ({ ...c, tasks: normalizePaginated(res, ["tasks"]).total }));
-    } catch {
-      // A queue that won't load shows N/A, never a confident zero.
-      setCounts((c) => ({ ...c, tasks: null }));
-    }
-  }, []);
-
   const refresh = useCallback(() => {
-    fetchAttendanceCounts();
+    refreshCounts();
     fetchLeaves();
-    fetchTaskCount();
-  }, [fetchAttendanceCounts, fetchLeaves, fetchTaskCount]);
+  }, [refreshCounts, fetchLeaves]);
 
-  useEffect(() => { refresh(); }, [refresh]);
-  useAttendanceChanged(INBOX_EVENT_KINDS, refresh);
+
+  useEffect(() => { fetchLeaves(); }, [fetchLeaves]);
+  // The counts refresh themselves on the same events; only the leave rows on
+  // screen have to be re-read here.
+  useAttendanceChanged([ATTENDANCE_EVENTS.LEAVE], fetchLeaves);
 
   // The open attendance queue reports its own length after every reload.
   const onQueueCount = useCallback((type, n) => {
     const key = Object.keys(ATTENDANCE_TABS).find((k) => ATTENDANCE_TABS[k] === type);
-    if (key) setCounts((c) => (c[key] === n ? c : { ...c, [key]: n }));
+    if (key) setLive((c) => ({ at: Date.now(), values: { ...c.values, [key]: n } }));
   }, []);
+
+  // What the server counted, with any correction a panel on this page made
+  // AFTER that read — the open queue's own length is newer than the snapshot
+  // for the moment between a decision and the re-read it triggers. Once the
+  // re-read lands the correction is the stale one, so it is dropped whole; a
+  // panel that has since closed, or whose own reload failed, can never pin an
+  // old number to a card the way an override that never expired would.
+  const counts = useMemo(
+    () => (live.at > loadedAt ? { ...badgeCounts, ...live.values } : badgeCounts),
+    [badgeCounts, live, loadedAt],
+  );
+  const items = useMemo(() => GROUP.items.filter((i) => !isUnavailable(i.key)), [isUnavailable]);
 
   const closeLeaveModal = () => {
     if (submitting) return;
@@ -173,8 +177,8 @@ function ManagerApprovalsInbox() {
     );
   };
 
-  const selected = GROUP.items.find((i) => i.key === selectedKey);
-  const waiting = GROUP.items.reduce((sum, i) => sum + (counts[i.key] || 0), 0);
+  const selected = items.find((i) => i.key === selectedKey);
+  const waiting = items.reduce((sum, i) => sum + (counts[i.key] || 0), 0);
   const busy = loading || leavesLoading;
 
   // Open on the first queue that has work in it. Starting on an empty queue
@@ -188,9 +192,15 @@ function ManagerApprovalsInbox() {
     if (picked.current || busy) return;
     picked.current = true;
     if ((counts[selectedKey] || 0) > 0) return;
-    const first = GROUP.items.find((i) => (counts[i.key] || 0) > 0);
+    const first = items.find((i) => (counts[i.key] || 0) > 0);
     if (first) setSelectedKey(first.key);
-  }, [counts, busy, selectedKey]);
+  }, [counts, busy, selectedKey, items]);
+
+  // A queue this manager turns out not to have must not stay open below cards
+  // it has just disappeared from.
+  useEffect(() => {
+    if (items.length > 0 && !items.some((i) => i.key === selectedKey)) setSelectedKey(items[0].key);
+  }, [items, selectedKey]);
 
   return (
     <>
@@ -203,15 +213,15 @@ function ManagerApprovalsInbox() {
               {busy && !waiting ? "Checking every approval queue…" : `${waiting} item${waiting === 1 ? "" : "s"} waiting across your team.`}
             </p>
           </div>
-          <button type="button" onClick={refresh} disabled={busy} className="inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
-            <HiRefresh className={`w-4 h-4 ${busy ? "animate-spin" : ""}`} /> Refresh
+          <button type="button" onClick={refresh} disabled={busy || refreshing || rateLimited} title={rateLimited ? "Checked too often just now — this updates itself in a moment." : undefined} className="inline-flex items-center justify-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:border-purple-200 hover:text-purple-700 px-4 py-2.5 rounded-xl transition disabled:opacity-60">
+            <HiRefresh className={`w-4 h-4 ${busy || refreshing ? "animate-spin" : ""}`} /> Refresh
           </button>
         </div>
 
         <section className="space-y-4">
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{GROUP.title}</h2>
           <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${GROUP.cols}`}>
-            {GROUP.items.map((item) => (
+            {items.map((item) => (
               <InboxCard key={item.key} item={item} count={counts[item.key]} loading={busy} selected={item.key === selectedKey} onSelect={pick} />
             ))}
           </div>

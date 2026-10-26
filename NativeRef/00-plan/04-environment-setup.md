@@ -182,6 +182,7 @@ Android 13+: image picker needs `READ_MEDIA_IMAGES`, not
 
 ```bash
 npm i react-native-svg
+npm i react-native-linear-gradient   # the purple hero (PageHeader)
 npm i react-native-gifted-charts
 npm i @gorhom/bottom-sheet            # RecordSheet / FormSheet
 npm i @react-native-community/datetimepicker   # TimeField / DateField

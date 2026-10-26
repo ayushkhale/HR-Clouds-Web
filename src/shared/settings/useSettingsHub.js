@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { settingsAPI } from "../api";
 import { settingsErrorMessage } from "../utils/settingsErrors";
+import { withLocalSurfaces } from "./settingsMeta";
 
 export default function useSettingsHub() {
   const [state, setState] = useState({
@@ -124,7 +125,14 @@ export default function useSettingsHub() {
     // Kept flat as well as bucketed: the hub's search reads across every
     // module at once, and re-flattening the buckets on each keystroke would be
     // the same work done twice.
-    const surfaces = catalog.surfaces || [];
+    /* The catalogue's policy surfaces, plus any org-configurable policy that
+       deliberately sits outside the catalogue (`withLocalSurfaces` in
+       settingsMeta says which and why). Merged HERE, once, rather than at
+       each consumer, so the tab list, the cards and the search all see the
+       same set — a surface only half-merged would be findable by search and
+       missing from its own tab. A local surface the server starts sending is
+       dropped by the merge, so this needs no cleanup later. */
+    const surfaces = withLocalSurfaces(catalog.surfaces);
     const surfacesByModule = {};
     for (const surface of surfaces) {
       (surfacesByModule[surface.module_key] ||= []).push(surface);

@@ -174,7 +174,9 @@ function AuthLayout() {
 
   // Persistent login: an already signed-in user skips the sign-in / sign-up forms.
   if (!isLoading && isAuthenticated && (isLogin || isRegister)) {
-    return <Navigate to={safeRedirect(searchParams.get("redirect")) || getDashboardPath()} replace />;
+    const redirect = safeRedirect(searchParams.get("redirect"));
+    const isProfileOrGeneric = !redirect || redirect === "/dashboard/profile" || redirect === "/dashboard";
+    return <Navigate to={isProfileOrGeneric ? getDashboardPath() : redirect} replace />;
   }
 
   return (

@@ -42,12 +42,9 @@ function LoginPage() {
       const authData = login(res);
       const targetRole = authData?.role || authData?.user?.role;
 
-      // Route to redirect URL or role-based dashboard
-      if (redirectUrl) {
-        navigate(redirectUrl);
-      } else {
-        navigate(getDashboardPath(targetRole));
-      }
+      // Route to redirect URL or role-based dashboard (default to dashboard, never profile)
+      const isProfileOrGeneric = !redirectUrl || redirectUrl === "/dashboard/profile" || redirectUrl === "/dashboard";
+      navigate(isProfileOrGeneric ? getDashboardPath(targetRole) : redirectUrl);
     } catch (err) {
       setError(err.message || "Invalid credentials. Please try again.");
     } finally {
@@ -71,11 +68,8 @@ function LoginPage() {
           console.log("Google Signup/Login Success:", res);
           const authData = login(res);
           const targetRole = authData?.role || authData?.user?.role;
-          if (redirectUrl) {
-            navigate(redirectUrl);
-          } else {
-            navigate(getDashboardPath(targetRole));
-          }
+          const isProfileOrGeneric = !redirectUrl || redirectUrl === "/dashboard/profile" || redirectUrl === "/dashboard";
+          navigate(isProfileOrGeneric ? getDashboardPath(targetRole) : redirectUrl);
         }}
         onMultiOrg={(selToken, orgs) => {
           startOrgSelection(selToken, orgs);

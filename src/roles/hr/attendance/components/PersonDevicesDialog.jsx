@@ -33,7 +33,8 @@ import { fmtDateTime } from "../../../../shared/attendance/dates";
 import { listFrom } from "../../../../shared/attendance/normalize";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import {
-  DEVICE_REASON_MAX, DEVICE_REASON_MIN, deviceStatusNote, platformLabel, summariseDevices,
+  DEVICE_REASON_MAX, DEVICE_REASON_MIN, deviceStatusNote, lastSeenFrom,
+  platformLabel, summariseDevices,
 } from "../../../../shared/attendance/deviceTrustMeta";
 import {
   DEVICE_DECISIONS, deviceDecisionFailure, deviceDecisionsFor, runDeviceDecision,
@@ -219,9 +220,13 @@ export default function PersonDevicesDialog({ person, onClose, onChanged, showTo
                         { label: "Approved", value: device.approved_at ? fmtDateTime(device.approved_at) : "Not needed" },
                         { label: "Last used", value: device.last_used_at ? fmtDateTime(device.last_used_at) : "Not yet used" },
                         {
+                          // Browser and address in one cell: a seventh cell
+                          // would have left an orphan on the third row, and
+                          // "which browser" and "which address" answer the same
+                          // question — is this the laptop I think it is?
                           label: "Last seen from",
-                          value: device.last_ip || "N/A",
-                          help: firstCard ? help("last_ip", { label: "the last network address" }) : undefined,
+                          value: lastSeenFrom(device),
+                          help: firstCard ? help("last_ip", { label: "where it was last seen" }) : undefined,
                         },
                       ]}
                     />

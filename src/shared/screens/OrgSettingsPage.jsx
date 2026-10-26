@@ -250,8 +250,8 @@ export default function OrgSettingsPage() {
     [searching, entries, groupsByKey, query],
   );
   const surfaceResults = useMemo(
-    () => (searching ? searchSurfaces(surfaces, query) : []),
-    [searching, surfaces, query],
+    () => (searching ? searchSurfaces(surfaces, query, workspace) : []),
+    [searching, surfaces, query, workspace],
   );
 
   const visibleGroups = useMemo(

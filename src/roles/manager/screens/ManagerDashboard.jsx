@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
@@ -19,10 +19,15 @@ import { chartPageCount, chartPageRows, defaultChartPage, emptyTrendDay, fillMon
 import MonthStepper from "../../../shared/attendance/MonthStepper";
 import { DayTick } from "../../../shared/attendance/SundayLabel";
 import { ErrorState, InlineAlert, StatusBadge } from "../../../shared/attendance/ui";
+import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
+import { punchesState, punchesTruncated } from "../../../shared/attendance/punchMeta";
+import DailyLogDialog from "../../../shared/attendance/DailyLogDialog";
 import GenderAvatar from "../../../shared/components/GenderAvatar";
 import { fetchAllOrgEmployees } from "../../../shared/utils/orgEmployees";
 import { greetingFor } from "../../../shared/utils/greeting";
 import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import LocateDialogHost, { LocateCell } from "../../../shared/attendance/LocateQuickAction";
+import { LOCATE_COLUMN_LABEL, LOCATE_SURFACE, useLocateColumn } from "../../../shared/attendance/locateColumn";
 import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
 
 // HR's department summary endpoint is HR-only, so the manager's version is
@@ -52,7 +57,7 @@ const LIVE_REFRESH_MS = 60_000;
 // One read of /manager/team/today. The dashboard shares it between the
 // overview stats and the directory, so the endpoint is called once, not twice.
 function useTeamToday({ enabled = true } = {}) {
-  const [state, setState] = useState({ records: [], loading: enabled, error: null, at: null });
+  const [state, setState] = useState({ records: [], loading: enabled, error: null, at: null, truncated: false });
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -70,9 +75,12 @@ function useTeamToday({ enabled = true } = {}) {
         return dept ? { ...r, department_name: dept } : r;
       });
       records.sort((a, b) => personName(a).localeCompare(personName(b)));
-      setState({ records, loading: false, error: null, at: new Date() });
+      // This endpoint drops each row's per-punch coords/photo (`punches`) from a
+      // large team to keep the list fast (contract §6 — the only read that does).
+      // The flag is a sibling of the bare array, read here so the table can say so.
+      setState({ records, loading: false, error: null, at: new Date(), truncated: punchesTruncated(res) });
     } catch (error) {
-      setState({ records: [], loading: false, error, at: null });
+      setState({ records: [], loading: false, error, at: null, truncated: false });
     }
   }, []);
 
@@ -93,11 +101,24 @@ function useTeamToday({ enabled = true } = {}) {
 // `team` is a useTeamToday() result owned by the caller; without it the table
 // loads its own.
 export function TeamDirectoryTable({ title = "Attendance Directory", headingLevel = "h2", description, team }) {
-  const navigate = useNavigate();
   const Heading = headingLevel;
   const own = useTeamToday({ enabled: !team });
   const state = team || own;
   const { load } = state;
+  // The clock-in/out punch (coords + photo) a reader asked to enlarge, lifted
+  // out of the row so the viewer is a sibling of the table, not nested (§3).
+  const [viewPunch, setViewPunch] = useState(null);
+  // The team member whose day a reader opened. Selecting a row opens today's
+  // full breakdown in place (the same DailyLogDialog the member's profile tab
+  // uses) instead of sending the manager off to the profile screen.
+  const [openDayId, setOpenDayId] = useState(null);
+
+  // "Ask where they are", one press from the live team list — the same control
+  // HR has on its own Live Attendance, in the same place, worded the same (§2).
+  // This list is always today, so the column only disappears when the feature
+  // is off for the organisation or a refusal has said this role may not ask.
+  const locate = useLocateColumn({ viewer: "manager" });
+  const showLocate = locate.show && state.records.some(locate.canAsk);
 
   // Contract §8.2: the server computes this endpoint's "today" in UTC, so while
   // the local date is ahead of the UTC date (e.g. 00:00–05:30 IST) it still
@@ -106,6 +127,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
   const utcRollover = new Date(Math.ceil(Date.now() / 86_400_000) * 86_400_000);
 
   return (
+    <>
     <div className="flex flex-col h-full">
       <div className="flex items-end justify-between gap-4 mb-4">
         <div>
@@ -126,6 +148,13 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
           Until {fmtTime(utcRollover)} this list may still show yesterday's attendance. It updates to today automatically after that.
         </InlineAlert>
       )}
+      {/* On a large team the server leaves out each punch's photo and location
+          here; the clock-in/out times stay. Say where to find them (§6). */}
+      {state.truncated && (
+        <InlineAlert tone="sky" className="mb-3">
+          Punch photos and locations aren’t shown on this list for a team this size. Open a person to see where each punch landed.
+        </InlineAlert>
+      )}
       {state.loading && state.records.length === 0 ? <Skeleton type="table" rows={5} /> : (
         <div className="bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden flex-1">
           {state.error ? (
@@ -142,11 +171,16 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">In</th>
                     <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">Out</th>
                     <th className="px-5 py-3.5 text-right text-[11px] uppercase tracking-wide">Lateness</th>
+                    {showLocate && (
+                      <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">
+                        <HelpLabel text={LOCATE_COLUMN_LABEL} help={{ surface: LOCATE_SURFACE, field: "column", label: "the Location column" }} />
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {state.records.length === 0 ? (
-                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium">No one reports to you yet, or no attendance has been recorded today.</td></tr>
+                    <tr><td colSpan={showLocate ? 8 : 7} className="px-6 py-12 text-center text-slate-400 font-medium">No one reports to you yet, or no attendance has been recorded today.</td></tr>
                   ) : state.records.map((mem) => {
                     const name = personName(mem);
                     const code = employeeCode(mem);
@@ -154,14 +188,15 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                     const dept = departmentName(mem);
                     const shift = mem.shift || mem.shift_snapshot;
                     const id = mem.user_id || mem.id;
-                    const open = () => id && navigate(`/dashboard/manager/team/member/${id}?tab=attendance`);
+                    const open = () => id && setOpenDayId(id);
                     return (
                       <tr
                         key={id || name}
                         onClick={open}
                         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), open())}
                         tabIndex={id ? 0 : -1}
-                        role={id ? "link" : undefined}
+                        role={id ? "button" : undefined}
+                        aria-haspopup={id ? "dialog" : undefined}
                         aria-label={id ? `Open ${name}'s attendance` : undefined}
                         className={`transition-colors outline-none ${id ? "hover:bg-purple-50/30 focus:bg-purple-50/40 cursor-pointer" : ""}`}
                       >
@@ -188,16 +223,23 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
                             Muted slate-400 is the house colour for a value
                             that isn't there. */}
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">
-                          {mem.clock_in_time ? fmtTime(mem.clock_in_time) : <span className="font-medium text-slate-400">N/A</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {mem.clock_in_time ? fmtTime(mem.clock_in_time) : <span className="font-medium text-slate-400">N/A</span>}
+                            <PunchInlineGlance punch={punchesState(mem).in} truncated={state.truncated} onViewPhoto={setViewPunch} />
+                          </span>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-semibold text-slate-700">
-                          {mem.clock_out_time ? fmtTime(mem.clock_out_time) : <span className="font-medium text-slate-400">N/A</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {mem.clock_out_time ? fmtTime(mem.clock_out_time) : <span className="font-medium text-slate-400">N/A</span>}
+                            <PunchInlineGlance punch={punchesState(mem).out} truncated={state.truncated} onViewPhoto={setViewPunch} />
+                          </span>
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           {!mem.clock_in_time ? <span className="text-slate-400 text-sm font-medium">N/A</span>
                             : late > 0 ? <span className="text-rose-600 font-bold text-xs">{fmtMinutes(late)} late</span>
                               : <span className="text-violet-600 font-bold text-xs">On time</span>}
                         </td>
+                        {showLocate && <LocateCell column={locate} row={mem} name={name} />}
                       </tr>
                     );
                   })}
@@ -208,6 +250,17 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
         </div>
       )}
     </div>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    <LocateDialogHost column={locate} />
+    {openDayId && (
+      <DailyLogDialog
+        userId={openDayId}
+        date={todayYMD()}
+        viewer="manager"
+        onClose={() => setOpenDayId(null)}
+      />
+    )}
+    </>
   );
 }
 

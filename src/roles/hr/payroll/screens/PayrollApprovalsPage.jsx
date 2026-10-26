@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI } from "../../../../shared/api";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../../shared/attendance/events";
 import { HiCheckCircle, HiExclamationCircle, HiX, HiCheck, HiClipboardList } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
@@ -26,6 +27,8 @@ export default function PayrollApprovalsPage() {
   
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [actingId, setActingId] = useState(null);
+  const [submittingReject, setSubmittingReject] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -36,7 +39,7 @@ export default function PayrollApprovalsPage() {
     setLoading(true);
     try {
       const res = await payrollAPI.getProposals({ status: 'proposed' });
-      setProposals(res.data?.records || res.data || []);
+      setProposals(sortNewestFirst(res.data?.records || res.data || []));
     } catch (err) {
       showToast(err.message || "Failed to load proposals", "error");
     } finally {
@@ -47,6 +50,8 @@ export default function PayrollApprovalsPage() {
   useEffect(() => { loadProposals(); }, [loadProposals]);
 
   const handleApprove = async (id) => {
+    if (actingId) return;
+    setActingId(id);
     try {
       await payrollAPI.approveProposal(id);
       emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id, action: "approve" });
@@ -54,12 +59,16 @@ export default function PayrollApprovalsPage() {
       loadProposals();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to approve proposal"), "error");
+    } finally {
+      setActingId(null);
     }
   };
 
   const handleReject = async (e) => {
     e.preventDefault();
+    if (submittingReject) return;
     if (!rejectionReason.trim()) return showToast("Reason is required", "error");
+    setSubmittingReject(true);
     try {
       await payrollAPI.rejectProposal(rejectingId, { rejection_reason: rejectionReason });
       emitAttendanceChanged(ATTENDANCE_EVENTS.SALARY_PROPOSAL, { id: rejectingId, action: "reject" });
@@ -69,6 +78,8 @@ export default function PayrollApprovalsPage() {
       loadProposals();
     } catch (err) {
       showToast(payrollErrorMessage(err, "Failed to reject"), "error");
+    } finally {
+      setSubmittingReject(false);
     }
   };
 
@@ -108,10 +119,25 @@ export default function PayrollApprovalsPage() {
                       <td className="px-6 py-4 text-slate-500">{prop.proposer?.name || prop.proposed_by}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => handleApprove(prop.id)} className="px-3 py-1.5 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition flex items-center gap-1">
-                            <HiCheck className="w-3.5 h-3.5" /> Approve
+                          <button
+                            type="button"
+                            disabled={actingId === prop.id}
+                            onClick={() => handleApprove(prop.id)}
+                            className="px-3 py-1.5 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition flex items-center gap-1.5"
+                          >
+                            {actingId === prop.id ? (
+                              <span className="w-3.5 h-3.5 border-2 border-violet-600/30 border-t-violet-600 rounded-full animate-spin inline-block" />
+                            ) : (
+                              <HiCheck className="w-3.5 h-3.5" />
+                            )}
+                            <span>{actingId === prop.id ? "Approving..." : "Approve"}</span>
                           </button>
-                          <button onClick={() => setRejectingId(prop.id)} className="px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={actingId === prop.id}
+                            onClick={() => setRejectingId(prop.id)}
+                            className="px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition flex items-center gap-1"
+                          >
                             <HiX className="w-3.5 h-3.5" /> Reject
                           </button>
                         </div>
@@ -140,8 +166,21 @@ export default function PayrollApprovalsPage() {
                 <textarea required value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} rows={3} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-rose-400 outline-none resize-none" placeholder="Provide a reason for the manager..." />
               </div>
               <div className="flex gap-3 pt-4 mt-6 border-t border-slate-100">
-                <button type="button" onClick={() => { setRejectingId(null); setRejectionReason(""); }} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md shadow-rose-200">Reject</button>
+                <button type="button" disabled={submittingReject} onClick={() => { setRejectingId(null); setRejectionReason(""); }} className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={submittingReject}
+                  className="flex-1 px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md shadow-rose-200 flex items-center justify-center gap-2"
+                >
+                  {submittingReject ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>Rejecting...</span>
+                    </>
+                  ) : (
+                    "Reject"
+                  )}
+                </button>
               </div>
             </form>
           </div>

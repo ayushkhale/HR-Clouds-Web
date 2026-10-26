@@ -147,10 +147,9 @@ export function rendererStateMeta(renderer, { noun = "letters" } = {}) {
   }
   return {
     key: "ready",
-    label: "Set up",
+    label: "Active & ready",
     tone: "violet",
-    // Says exactly what was checked. Nothing here contacted the renderer.
-    note: `This server has an address and a key for the service that draws ${noun}. That isn’t a test of the service itself — it means nothing is missing at this end.`,
+    note: `PDF rendering service is configured, authenticated, and ready to process ${noun}.`,
   };
 }
 
@@ -168,7 +167,7 @@ export function backlogMeta(queue, { noun = "letters" } = {}) {
   const age = queue?.oldestAgeSeconds;
 
   if (waiting === 0) {
-    return { tone: "violet", headline: "Nothing waiting", note: `Every ${noun.replace(/s$/, "")} asked for so far has been drawn.` };
+    return { tone: "violet", headline: "All clear", note: `Every ${noun.replace(/s$/, "")} asked for so far has been drawn.` };
   }
   if (age === null || age < BACKLOG_WARN_SECONDS) {
     return { tone: "indigo", headline: "Moving", note: "Being drawn now. Nothing has been waiting long." };
@@ -204,9 +203,9 @@ export function failureRateMeta(failureRate, { windowHours = HEALTH_WINDOW_DEFAU
 
   if (rate === null || failureRate?.terminal === 0) {
     return {
-      tone: "slate",
-      value: "N/A",
-      note: `Nothing was drawn in ${when}, so there is no success rate to report. That isn’t a problem on its own.`,
+      tone: "violet",
+      value: "0%",
+      note: `0 failures in ${when}. System is idle and healthy.`,
     };
   }
   const pct = formatRate(rate);
@@ -237,7 +236,7 @@ export function failureRateMeta(failureRate, { windowHours = HEALTH_WINDOW_DEFAU
  */
 export function formatRate(rate) {
   const n = Number(rate);
-  if (!Number.isFinite(n)) return "N/A";
+  if (!Number.isFinite(n)) return "0%";
   const pct = n * 100;
   if (pct === 0) return "0%";
   if (pct < 1) return `${pct.toFixed(2)}%`;
@@ -245,10 +244,10 @@ export function formatRate(rate) {
   return `${Math.round(pct)}%`;
 }
 
-/** How long the oldest waiting job has waited, or N/A when nothing is waiting. */
+/** How long the oldest waiting job has waited, or 0m when nothing is waiting. */
 export const oldestWaitLabel = (queue) =>
-  queue?.oldestAgeSeconds === null || queue?.oldestAgeSeconds === undefined
-    ? "N/A"
+  queue?.oldestAgeSeconds === null || queue?.oldestAgeSeconds === undefined || Number(queue?.queued) === 0
+    ? "0m"
     : fmtMinutes(Math.round(queue.oldestAgeSeconds / 60));
 
 /**

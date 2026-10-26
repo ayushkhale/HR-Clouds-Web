@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { authAPI, tokenHelper } from "../../shared/api";
+import { authAPI } from "../../shared/api";
 
 /**
  * GoogleButton — renders the official Google Sign-In button
@@ -56,7 +56,7 @@ function GoogleButton({ onSuccess, onError, onMultiOrg }) {
           onError={() => {
             onError?.("Google sign-in was cancelled or failed.");
           }}
-          useOneTap
+          useOneTap={false}
           theme="outline"
           size="large"
           shape="rectangular"

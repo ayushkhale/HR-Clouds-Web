@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import { leaveAPI } from "../../../shared/api";
+import { sortNewestFirst } from "../../../shared/utils/sortUtils";
 import { leaveErrorMessage } from "../../../shared/utils/leaveErrors";
 import { formatDayCount } from "../../../shared/utils/formatUtils";
 import { ATTENDANCE_EVENTS, emitAttendanceChanged } from "../../../shared/attendance/events";
@@ -207,12 +208,12 @@ export default function ManagerLeavePage() {
     try {
       if (activeTab === "pending") {
         const res = await leaveAPI.getTeamPendingRequests();
-        setRequests(res.data || []);
+        setRequests(sortNewestFirst(res.data || []));
       } else {
         const params = { page: historyPage, limit: HISTORY_LIMIT };
         if (historyStatus) params.status = historyStatus;
         const res = await leaveAPI.getTeamRequests(params);
-        setHistoryRequests(res.data || []);
+        setHistoryRequests(sortNewestFirst(res.data || []));
       }
     } catch (err) {
       showToast(leaveErrorMessage(err, "Failed to load leave requests."), "error");

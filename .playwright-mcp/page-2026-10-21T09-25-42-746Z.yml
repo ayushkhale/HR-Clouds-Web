@@ -1,0 +1,253 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - navigation [ref=e6]:
+        - link "HR Clouds — home" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "HR Clouds" [ref=e8]
+        - generic [ref=e9]:
+          - link "Home" [ref=e10] [cursor=pointer]:
+            - /url: /
+          - link "About" [ref=e11] [cursor=pointer]:
+            - /url: /about
+          - link "Services" [ref=e12] [cursor=pointer]:
+            - /url: /services
+          - link "Pricing" [ref=e13] [cursor=pointer]:
+            - /url: /pricing
+        - generic [ref=e14]:
+          - link "Sign In" [ref=e15] [cursor=pointer]:
+            - /url: /auth/login
+          - link "Get Started" [ref=e16] [cursor=pointer]:
+            - /url: /auth/register
+    - main [ref=e17]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - heading "We Help Simplify and Automate your HR & Payroll" [level=1] [ref=e21]:
+            - generic [ref=e22]:
+              - generic [ref=e23]: We
+              - generic [ref=e25]: Help
+              - generic [ref=e27]: Simplify
+              - generic [ref=e29]: and
+              - generic [ref=e31]: Automate
+              - generic [ref=e33]: your
+            - generic [ref=e35]: HR & Payroll
+          - generic [ref=e36]:
+            - list [ref=e37]:
+              - listitem [ref=e38]
+              - listitem [ref=e39]
+              - listitem [ref=e40]
+              - listitem [ref=e41]
+              - listitem [ref=e42]
+            - paragraph [ref=e43]: 100+ Corporates trust us in 2026
+        - figure [ref=e45]:
+          - generic [ref=e47]:
+            - paragraph [ref=e48]: 24/7
+            - paragraph [ref=e49]: Support
+      - img "The HR Clouds dashboard shown on a tablet" [ref=e55]
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - heading "Transform your HR" [level=2] [ref=e59]
+          - heading "with powerful insights & automation." [level=2] [ref=e60]
+        - generic [ref=e61]:
+          - list [ref=e62]:
+            - listitem [ref=e63]:
+              - paragraph [ref=e64]: 400+
+              - paragraph [ref=e65]: employees managed
+            - listitem [ref=e66]:
+              - paragraph [ref=e67]: 60+
+              - paragraph [ref=e68]: businesses onboarded
+            - listitem [ref=e69]:
+              - paragraph [ref=e70]: 95%
+              - paragraph [ref=e71]: customer satisfaction
+          - generic [ref=e72]:
+            - paragraph [ref=e73]: Explore More
+            - link "Explore HR tools" [ref=e74] [cursor=pointer]:
+              - /url: /services
+      - generic [ref=e77]:
+        - heading "Listen to what our satisfied clients have to say" [level=2] [ref=e78]
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - figure [ref=e84]:
+              - blockquote [ref=e85]:
+                - paragraph [ref=e89]: growth
+                - paragraph [ref=e90]: HR Clouds reduced our monthly payroll processing time from 4 days to under 2 hours with 100% statutory compliance.
+                - generic [ref=e91]:
+                  - img "Aarav Sharma" [ref=e92]
+                  - generic [ref=e93]:
+                    - text: Aarav Sharma
+                    - paragraph [ref=e94]: HR Director, Mindworks India
+            - figure [ref=e95]:
+              - blockquote [ref=e96]:
+                - paragraph [ref=e100]: enterprise
+                - paragraph [ref=e101]: As a fast-growing startup, HR Clouds gave us seamless tools to scale our team and manage employee records effortlessly.
+                - generic [ref=e102]:
+                  - img "Priya Patel" [ref=e103]
+                  - generic [ref=e104]:
+                    - text: Priya Patel
+                    - paragraph [ref=e105]: COO, TechVeda Solutions
+            - figure [ref=e106]:
+              - blockquote [ref=e107]:
+                - paragraph [ref=e111]: starter
+                - paragraph [ref=e112]: Biometric integration and real-time attendance tracking saved us over 150 administrative hours every month.
+                - generic [ref=e113]:
+                  - img "Rajesh Verma" [ref=e114]
+                  - generic [ref=e115]:
+                    - text: Rajesh Verma
+                    - paragraph [ref=e116]: Head of Operations, MP Logistics
+            - figure [ref=e117]:
+              - blockquote [ref=e118]:
+                - paragraph [ref=e122]: growth
+                - paragraph [ref=e123]: Automated tax slab calculations and automated PDF payslip delivery eliminated our payroll errors entirely.
+                - generic [ref=e124]:
+                  - img "Aditya Iyer" [ref=e125]
+                  - generic [ref=e126]:
+                    - text: Aditya Iyer
+                    - paragraph [ref=e127]: Chief People Officer, Innovate Labs
+            - figure [ref=e128]:
+              - blockquote [ref=e129]:
+                - paragraph [ref=e133]: enterprise
+                - paragraph [ref=e134]: Managing multi-locational field teams and statutory filings across MP and Maharashtra is now 100% hassle-free.
+                - generic [ref=e135]:
+                  - img "Vikramaditya Joshi" [ref=e136]
+                  - generic [ref=e137]:
+                    - text: Vikramaditya Joshi
+                    - paragraph [ref=e138]: VP Finance, Central Infra Group
+          - generic [aria-hidden] [ref=e139]:
+            - figure [ref=e140]:
+              - blockquote [ref=e141]:
+                - paragraph [ref=e145]: growth
+                - paragraph [ref=e146]: HR Clouds reduced our monthly payroll processing time from 4 days to under 2 hours with 100% statutory compliance.
+                - generic [ref=e149]:
+                  - text: Aarav Sharma
+                  - paragraph [ref=e150]: HR Director, Mindworks India
+            - figure [ref=e151]:
+              - blockquote [ref=e152]:
+                - paragraph [ref=e156]: enterprise
+                - paragraph [ref=e157]: As a fast-growing startup, HR Clouds gave us seamless tools to scale our team and manage employee records effortlessly.
+                - generic [ref=e160]:
+                  - text: Priya Patel
+                  - paragraph [ref=e161]: COO, TechVeda Solutions
+            - figure [ref=e162]:
+              - blockquote [ref=e163]:
+                - paragraph [ref=e167]: starter
+                - paragraph [ref=e168]: Biometric integration and real-time attendance tracking saved us over 150 administrative hours every month.
+                - generic [ref=e171]:
+                  - text: Rajesh Verma
+                  - paragraph [ref=e172]: Head of Operations, MP Logistics
+            - figure [ref=e173]:
+              - blockquote [ref=e174]:
+                - paragraph [ref=e178]: growth
+                - paragraph [ref=e179]: Automated tax slab calculations and automated PDF payslip delivery eliminated our payroll errors entirely.
+                - generic [ref=e182]:
+                  - text: Aditya Iyer
+                  - paragraph [ref=e183]: Chief People Officer, Innovate Labs
+            - figure [ref=e184]:
+              - blockquote [ref=e185]:
+                - paragraph [ref=e189]: enterprise
+                - paragraph [ref=e190]: Managing multi-locational field teams and statutory filings across MP and Maharashtra is now 100% hassle-free.
+                - generic [ref=e193]:
+                  - text: Vikramaditya Joshi
+                  - paragraph [ref=e194]: VP Finance, Central Infra Group
+    - contentinfo [ref=e195]:
+      - generic [ref=e196]:
+        - generic [ref=e197]:
+          - generic [ref=e198]:
+            - link [ref=e199] [cursor=pointer]:
+              - /url: /
+              - img "HR Clouds" [ref=e200]
+            - paragraph [ref=e201]: Empowering organizations across India with automated payroll, ESI/PF statutory compliance engines, biometric attendance, and intelligent HR analytics.
+          - generic [ref=e202]:
+            - heading "Company" [level=4] [ref=e203]
+            - list [ref=e204]:
+              - listitem [ref=e205]:
+                - link "› About Us" [ref=e206] [cursor=pointer]:
+                  - /url: /about
+                  - generic [ref=e207]: ›
+                  - text: About Us
+              - listitem [ref=e208]:
+                - link "› Services & Modules" [ref=e209] [cursor=pointer]:
+                  - /url: /services
+                  - generic [ref=e210]: ›
+                  - text: Services & Modules
+              - listitem [ref=e211]:
+                - link "› Pricing Plans" [ref=e212] [cursor=pointer]:
+                  - /url: /pricing
+                  - generic [ref=e213]: ›
+                  - text: Pricing Plans
+          - generic [ref=e214]:
+            - heading "HR Modules" [level=4] [ref=e215]
+            - list [ref=e216]:
+              - listitem [ref=e217]:
+                - link "› Payroll Automation" [ref=e218] [cursor=pointer]:
+                  - /url: /services#payroll
+                  - generic [ref=e219]: ›
+                  - text: Payroll Automation
+              - listitem [ref=e220]:
+                - link "› Leave & Attendance" [ref=e221] [cursor=pointer]:
+                  - /url: /services#attendance
+                  - generic [ref=e222]: ›
+                  - text: Leave & Attendance
+              - listitem [ref=e223]:
+                - link "› Employee Onboarding" [ref=e224] [cursor=pointer]:
+                  - /url: /services#onboarding
+                  - generic [ref=e225]: ›
+                  - text: Employee Onboarding
+              - listitem [ref=e226]:
+                - link "› Performance & OKRs" [ref=e227] [cursor=pointer]:
+                  - /url: /services#okr
+                  - generic [ref=e228]: ›
+                  - text: Performance & OKRs
+          - generic [ref=e229]:
+            - heading "Stay Updated" [level=4] [ref=e230]
+            - paragraph [ref=e231]: Subscribe to get latest HR compliance updates and feature announcements.
+            - generic [ref=e233]:
+              - textbox "Enter your email" [ref=e234]
+              - button "Subscribe" [ref=e235] [cursor=pointer]
+        - generic [ref=e239]:
+          - paragraph [ref=e240]: © 2026 HR Vista Soft Solutions LLP. All rights reserved.
+          - generic [ref=e241]:
+            - link "Privacy" [ref=e242] [cursor=pointer]:
+              - /url: /legal/privacy
+            - link "Terms" [ref=e243] [cursor=pointer]:
+              - /url: /legal/terms
+            - link "Cookies" [ref=e244] [cursor=pointer]:
+              - /url: /legal/cookies
+  - generic:
+    - dialog [aria-hidden]:
+      - generic:
+        - generic:
+          - generic:
+            - paragraph: Maya
+            - generic: HR Assistant · Online
+        - generic:
+          - button
+          - button
+          - button
+      - generic:
+        - generic:
+          - generic:
+            - text: Hi there! I'm Maya, your HR assistant. Ask me anything about HR Clouds — policies, payroll, leave, and more.
+            - paragraph: Maya · 02:55 PM
+        - generic:
+          - paragraph: Suggested Questions
+          - generic:
+            - button:
+              - generic: What does HR Clouds do?
+            - button:
+              - generic: Which plan fits a team of 20?
+            - button:
+              - generic: How does payroll compliance work?
+      - generic:
+        - generic:
+          - textbox:
+            - /placeholder: Type your question…
+          - button
+          - button [disabled]
+        - generic:
+          - radiogroup:
+            - radio [checked]: English
+            - radio: हिन्दी
+            - radio: Hinglish
+    - button "Open the Maya assistant" [ref=e245] [cursor=pointer]:
+      - img "Maya" [ref=e247]
+      - generic [ref=e248]: Ask Maya

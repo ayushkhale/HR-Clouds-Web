@@ -2,7 +2,7 @@ import React, { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/contexts/AuthContext";
 import { canAccessWorkspace, dashboardPathForRole, workspaceForRole } from "../shared/auth/permissions";
-import { selfServiceDocumentEquivalent } from "../shared/attendance/paths";
+import { selfServiceDocumentEquivalent, selfServiceTaskEquivalent } from "../shared/attendance/paths";
 import Skeleton from "../shared/components/Skeleton";
 
 // Landing Layout & Pages
@@ -23,6 +23,7 @@ import TermsOfService from "../landing/pages/legal/TermsOfService";
 // which took the whole router (and so the whole app) down in `npm run dev`.
 import CookiePolicy from "../landing/pages/legal/BrowserStoragePolicy";
 import StatutoryGuidelines from "../landing/pages/legal/StatutoryGuidelines";
+import EmployeeAccountDeletion from "../landing/pages/legal/EmployeeAccountDeletion";
 
 // Auth Layout & Pages
 import AuthLayout from "../auth/AuthLayout";
@@ -74,12 +75,19 @@ const DashboardLayout = lazy(() => import("../shared/layouts/DashboardLayout"));
 const NotFoundPage = lazy(() => import("../shared/screens/NotFoundPage"));
 const MyDevicesPage = lazy(() => import("../shared/screens/MyDevicesPage"));
 const MyWorkLocationsPage = lazy(() => import("../shared/screens/MyWorkLocationsPage"));
+const MySchedulePage = lazy(() => import("../shared/screens/MySchedulePage"));
+const MyLocationChecksPage = lazy(() => import("../shared/screens/MyLocationChecksPage"));
+// Everyone's own notification archive. One component, mounted under each
+// workspace's own prefix — the feed is scoped to the caller, so there is no
+// role version of it and no `viewer` prop (§2).
+const NotificationsPage = lazy(() => import("../shared/screens/NotificationsPage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
 const GuestDashboard = lazy(() => import("../roles/guest/screens/GuestDashboard"));
 const HRDashboard = lazy(() => import("../roles/hr/screens/HRDashboard"));
 const HRInboxPage = lazy(() => import("../roles/hr/screens/HRInboxPage"));
+const OrgSetupChecklistPage = lazy(() => import("../roles/hr/screens/OrgSetupChecklistPage"));
 const EmployeesPage = lazy(() => import("../roles/hr/screens/EmployeesPage"));
 const InvitesPage = lazy(() => import("../roles/hr/screens/InvitesPage"));
 const EmployeeProfilePage = lazy(() => import("../roles/hr/screens/EmployeeProfilePage"));
@@ -118,6 +126,7 @@ const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/
 const AttendanceLockPeriodsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLockPeriodsPage"));
 // Device Trust (15 Oct 2026): the policy/rollout screen and the inventory.
 const RegisteredDevicesPage = lazy(() => import("../roles/hr/attendance/screens/RegisteredDevicesPage"));
+const LiveLocationChecksPage = lazy(() => import("../roles/hr/attendance/screens/LiveLocationChecksPage"));
 const EmployeeDevicesPage = lazy(() => import("../roles/hr/attendance/screens/EmployeeDevicesPage"));
 const AttendanceReportsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceReportsPage"));
 const BiometricDevicesPage = lazy(() => import("../roles/hr/screens/BiometricDevicesPage"));
@@ -284,8 +293,10 @@ function ProtectedRoute({ children, workspace }) {
     // own prefix, carrying the id, instead of dropping them on a dashboard with
     // no idea what they were asked to read. The gate itself is untouched: this
     // workspace is still never rendered for them.
-    const mine = selfServiceDocumentEquivalent(location.pathname, workspaceForRole(role));
-    if (mine && mine !== location.pathname) return <Navigate to={mine} replace />;
+    const docEquiv = selfServiceDocumentEquivalent(location.pathname, workspaceForRole(role));
+    if (docEquiv && docEquiv !== location.pathname) return <Navigate to={docEquiv} replace />;
+    const taskEquiv = selfServiceTaskEquivalent(location.pathname, workspaceForRole(role));
+    if (taskEquiv && taskEquiv !== location.pathname) return <Navigate to={taskEquiv} replace />;
     return <Navigate to={dashboardPathForRole(role)} replace />;
   }
 
@@ -317,6 +328,9 @@ function AppRoutes() {
         <Route path="legal/terms" element={<TermsOfService />} />
         <Route path="legal/cookies" element={<CookiePolicy />} />
         <Route path="legal/statutory" element={<StatutoryGuidelines />} />
+        {/* Published for the app stores, which require a signed-out page
+            explaining how an account gets deleted. Keep it reachable. */}
+        <Route path="legal/account-deletion" element={<EmployeeAccountDeletion />} />
       </Route>
 
       {/* ─── AUTHENTICATION ROUTES ─── */}
@@ -347,7 +361,12 @@ function AppRoutes() {
          between these routes keeps its scroll position and expanded sections. */}
       <Route element={<ProtectedRoute workspace="hr"><DashboardLayout role="hr" /></ProtectedRoute>}>
         <Route path="/dashboard/hr" element={<HRDashboard />} />
+        <Route path="/dashboard/hr/notifications" element={<NotificationsPage />} />
         <Route path="/dashboard/hr/inbox" element={<HRInboxPage />} />
+        {/* The operational readiness checklist. HR-only and mounted under the
+            HR prefix only: the endpoint behind it is HR_ONLY, so a manager
+            mount would be a screen that 403s (§2). */}
+        <Route path="/dashboard/hr/setup" element={<OrgSetupChecklistPage />} />
         <Route path="/dashboard/hr/employees" element={<EmployeesPage />} />
         <Route path="/dashboard/hr/employees/:userId" element={<EmployeeProfilePage />} />
         <Route path="/dashboard/hr/departments" element={<DepartmentsPage />} />
@@ -386,6 +405,7 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/device-checks" element={<RegisteredDevicesPage />} />
         <Route path="/dashboard/hr/attendance/trusted-devices" element={<EmployeeDevicesPage />} />
         <Route path="/dashboard/hr/attendance/devices" element={<BiometricDevicesPage />} />
+        <Route path="/dashboard/hr/attendance/live-location" element={<LiveLocationChecksPage />} />
         <Route path="/dashboard/hr/reports" element={<AttendanceReportsPage />} />
         {/* HR self-service attendance (all org roles may punch & request) */}
         <Route path="/dashboard/hr/my-attendance" element={<EmployeeAttendancePage />} />
@@ -395,6 +415,8 @@ function AppRoutes() {
         <Route path="/dashboard/hr/my-attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/hr/my-attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/hr/my-attendance/my-locations" element={<MyWorkLocationsPage />} />
+        <Route path="/dashboard/hr/my-attendance/my-schedule" element={<MySchedulePage />} />
+        <Route path="/dashboard/hr/my-attendance/location-checks" element={<MyLocationChecksPage />} />
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
@@ -483,13 +505,17 @@ function AppRoutes() {
         {/* Same page, the server's is_overdue filter pinned on — mounted under
             each workspace's own prefix, never by widening one gate (§2). */}
         <Route path="/dashboard/hr/my-tasks/overdue" element={<MyTasksPage view="overdue" />} />
+        <Route path="/dashboard/hr/my-tasks/:taskId" element={<MyTasksPage />} />
+        <Route path="/dashboard/hr/my-tasks/overdue/:taskId" element={<MyTasksPage view="overdue" />} />
         <Route path="/dashboard/hr/tasks/assigned" element={<AssignedTasksPage />} />
+        <Route path="/dashboard/hr/tasks/assigned/:taskId" element={<AssignedTasksPage />} />
         <Route path="/dashboard/hr/tasks/all" element={<AllTasksPage />} />
       </Route>
 
       {/* ─── MANAGER WORKSPACE ─── */}
       <Route element={<ProtectedRoute workspace="manager"><DashboardLayout role="manager" /></ProtectedRoute>}>
         <Route path="/dashboard/manager" element={<ManagerDashboard />} />
+        <Route path="/dashboard/manager/notifications" element={<NotificationsPage />} />
         <Route path="/dashboard/manager/attendance" element={<EmployeeAttendancePage />} />
         <Route path="/dashboard/manager/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
         <Route path="/dashboard/manager/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
@@ -501,6 +527,8 @@ function AppRoutes() {
         <Route path="/dashboard/manager/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/manager/attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/manager/attendance/my-locations" element={<MyWorkLocationsPage />} />
+        <Route path="/dashboard/manager/attendance/my-schedule" element={<MySchedulePage />} />
+        <Route path="/dashboard/manager/attendance/location-checks" element={<MyLocationChecksPage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
         <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
         <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
@@ -551,13 +579,17 @@ function AppRoutes() {
             the endpoints rather than by a different page (§2). */}
         <Route path="/dashboard/manager/my-tasks" element={<MyTasksPage />} />
         <Route path="/dashboard/manager/my-tasks/overdue" element={<MyTasksPage view="overdue" />} />
+        <Route path="/dashboard/manager/my-tasks/:taskId" element={<MyTasksPage />} />
+        <Route path="/dashboard/manager/my-tasks/overdue/:taskId" element={<MyTasksPage view="overdue" />} />
         <Route path="/dashboard/manager/tasks/assigned" element={<AssignedTasksPage />} />
+        <Route path="/dashboard/manager/tasks/assigned/:taskId" element={<AssignedTasksPage />} />
         <Route path="/dashboard/manager/tasks/all" element={<AllTasksPage />} />
       </Route>
 
       {/* ─── EMPLOYEE WORKSPACE ─── */}
       <Route element={<ProtectedRoute workspace="employee"><DashboardLayout role="employee" /></ProtectedRoute>}>
         <Route path="/dashboard/employee" element={<EmployeeDashboard />} />
+        <Route path="/dashboard/employee/notifications" element={<NotificationsPage />} />
         <Route path="/dashboard/employee/org-chart" element={<OrgChartPage />} />
         <Route path="/dashboard/employee/company" element={<CompanyProfilePage />} />
         <Route path="/dashboard/employee/attendance" element={<EmployeeAttendancePage />} />
@@ -567,6 +599,8 @@ function AppRoutes() {
         <Route path="/dashboard/employee/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
         <Route path="/dashboard/employee/attendance/devices" element={<MyDevicesPage />} />
         <Route path="/dashboard/employee/attendance/my-locations" element={<MyWorkLocationsPage />} />
+        <Route path="/dashboard/employee/attendance/my-schedule" element={<MySchedulePage />} />
+        <Route path="/dashboard/employee/attendance/location-checks" element={<MyLocationChecksPage />} />
         <Route path="/dashboard/employee/leaves" element={<LeaveDashboard />} />
 
         {/* Employee payroll */}
@@ -586,6 +620,8 @@ function AppRoutes() {
             review pages are absent here rather than mounted and empty (§2). */}
         <Route path="/dashboard/employee/tasks" element={<MyTasksPage />} />
         <Route path="/dashboard/employee/tasks/overdue" element={<MyTasksPage view="overdue" />} />
+        <Route path="/dashboard/employee/tasks/:taskId" element={<MyTasksPage />} />
+        <Route path="/dashboard/employee/tasks/overdue/:taskId" element={<MyTasksPage view="overdue" />} />
       </Route>
 
       {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}

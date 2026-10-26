@@ -41,6 +41,15 @@ export const ATTENDANCE_EVENTS = Object.freeze({
   LETTER_PROPOSAL: "letter_proposal",
   // A delegated task handed in and waiting on its reviewer (Task Phase 3, #259).
   TASK: "task",
+
+  // ── Added for this app: the two things waiting on an EMPLOYEE ─────────────
+  // The web sidebar badge counts approvals a manager or HR owes somebody else.
+  // An employee has no approval queue, but they do have two things waiting on
+  // THEM, and the More tab badge counts those. Emitted the moment an
+  // acknowledgement, or an upload against a request, succeeds — so the badge
+  // clears without a reload (CLAUDE.md §7).
+  ACKNOWLEDGEMENT: "acknowledgement",
+  DOCUMENT_REQUEST: "document_request",
 });
 
 /**
@@ -60,6 +69,8 @@ export const INBOX_EVENT_KINDS = [
   ATTENDANCE_EVENTS.TAX_DECLARATION,
   ATTENDANCE_EVENTS.LETTER_PROPOSAL,
   ATTENDANCE_EVENTS.TASK,
+  ATTENDANCE_EVENTS.ACKNOWLEDGEMENT,
+  ATTENDANCE_EVENTS.DOCUMENT_REQUEST,
 ];
 
 const listeners = new Set();

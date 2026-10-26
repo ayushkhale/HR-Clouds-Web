@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { attendanceAPI } from "../../../shared/api";
 import { DICTIONARY } from "../../../shared/config/dictionary";
 import { HiSearch, HiChevronLeft, HiChevronRight, HiUsers, HiBriefcase, HiShieldCheck, HiRefresh } from "react-icons/hi";
@@ -18,11 +17,17 @@ import { addDaysYMD, fmtDate, fmtMinutes, fmtTime, todayYMD } from "../../../sha
 import { RECORD_STATUS_FILTERS, normalizeStatusKey } from "../../../shared/attendance/enums";
 import { ATTENDANCE_EVENTS, useAttendanceChanged } from "../../../shared/attendance/events";
 import { EmptyState, ErrorState, FilterTabs, LoadingRows, Pagination, StatusBadge } from "../../../shared/attendance/ui";
+import { PunchInlineGlance, PunchPhotoViewer } from "../../../shared/attendance/PunchDetails";
+import { punchesState } from "../../../shared/attendance/punchMeta";
+import DailyLogDialog from "../../../shared/attendance/DailyLogDialog";
+import { HelpLabel } from "../../../shared/fieldHelp/FieldHelp";
+import LocateDialogHost, { LocateCell } from "../../../shared/attendance/LocateQuickAction";
+import { LOCATE_COLUMN_LABEL, LOCATE_SURFACE, useLocateColumn } from "../../../shared/attendance/locateColumn";
 
 const TABS = [
-  { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance },
-  { value: "managers", label: "Managers", icon: HiBriefcase, fetch: attendanceAPI.getAllManagersAttendance },
-  { value: "hr", label: "HR", icon: HiShieldCheck, fetch: attendanceAPI.getAllHRsAttendance },
+  { value: "employees", label: "Employees", icon: HiUsers, fetch: attendanceAPI.getAllEmployeesAttendance, role: "employee" },
+  { value: "managers", label: "Managers", icon: HiBriefcase, fetch: attendanceAPI.getAllManagersAttendance, role: "manager" },
+  { value: "hr", label: "HR", icon: HiShieldCheck, fetch: attendanceAPI.getAllHRsAttendance, role: "hr" },
 ];
 const AUTO_REFRESH_MS = 120_000;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -31,12 +36,18 @@ const SEARCH_DEBOUNCE_MS = 350;
 // keeps the section heading "Attendance Directory".
 function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, headingLevel = "h2" }) {
   const Heading = headingLevel;
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("employees");
   const [date, setDate] = useState(todayYMD());
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  // The clock-in/out punch (coords + photo) a reader asked to see, lifted out of
+  // the row so the viewer is a sibling of the table, not nested in a <tr> (§3).
+  const [viewPunch, setViewPunch] = useState(null);
+  // The person whose day a reader opened. Selecting a row opens the day's full
+  // breakdown in place (the same DailyLogDialog the profile tab uses), rather
+  // than ejecting to the profile screen for one day's figures.
+  const [openDay, setOpenDay] = useState(null);
   const today = todayYMD();
   const tab = TABS.find((t) => t.value === activeTab) || TABS[0];
 
@@ -65,7 +76,7 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
   useAttendanceChanged([ATTENDANCE_EVENTS.LOCK, ATTENDANCE_EVENTS.REGULARIZATION], reloadList);
 
   const filtered = !!(search || status);
-  const openProfile = (userId) => userId && navigate(`/dashboard/hr/employees/${userId}?tab=attendance`);
+  const openDayFor = (userId) => userId && setOpenDay({ userId, role: tab.role });
 
   // Until the backend creates the missing profile rows, resolve "Unknown" names
   // from the organisation list, whose name falls back to the login email.
@@ -88,7 +99,16 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
     return name === PLACEHOLDER_NAME ? orgNames?.get(record.user_id) || name : name;
   };
 
+  // "Ask where they are", one press from the live list — the quickest place HR
+  // reaches for when someone is marked present and unreachable. The column is
+  // only drawn when the organisation has the feature on, the date is today and
+  // at least one person on this page can actually be asked (§5), so on a past
+  // date or a page of nobody-clocked-in it disappears rather than greying out.
+  const locate = useLocateColumn({ viewer: "hr", date });
+  const showLocate = locate.show && list.items.some(locate.canAsk);
+
   return (
+    <>
     <div className="space-y-6">
       <div>
         <Heading className={`${headingLevel === "h1" ? "text-2xl text-slate-900" : "text-xl text-slate-800"} font-bold tracking-tight`}>{title}</Heading>
@@ -140,6 +160,11 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Clock In</th>
                     <th className="px-6 py-3.5 text-[11px] uppercase tracking-wide">Clock Out</th>
                     <th className="px-6 py-3.5 text-right text-[11px] uppercase tracking-wide">Hours</th>
+                    {showLocate && (
+                      <th className="px-5 py-3.5 text-[11px] uppercase tracking-wide">
+                        <HelpLabel text={LOCATE_COLUMN_LABEL} help={{ surface: LOCATE_SURFACE, field: "column", label: "the Location column" }} />
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -151,13 +176,19 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                     // synthesises these rows for past dates too (2026-10-03 fix), so
                     // the whole staff list shows on a holiday — not just the absent.
                     const noPunchOwed = ["holiday", "weekly_off", "on_leave"].includes(normalizeStatusKey(record.status));
+                    // The HR list rows carry only the first-in / last-out punch
+                    // (`punches`); the full leg-by-leg log lives behind the profile.
+                    // HR reads are never truncated (contract §6 — only the two
+                    // team endpoints set the flag), so truncated is always false.
+                    const punches = punchesState(record);
                     return (
                       <tr
                         key={record.user_id || record.id || idx}
-                        onClick={() => openProfile(record.user_id)}
-                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openProfile(record.user_id))}
+                        onClick={() => openDayFor(record.user_id)}
+                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openDayFor(record.user_id))}
                         tabIndex={0}
-                        role="link"
+                        role="button"
+                        aria-haspopup="dialog"
                         aria-label={`Open ${name}'s attendance`}
                         className="hover:bg-slate-50/50 focus:bg-purple-50/40 outline-none transition-colors cursor-pointer"
                       >
@@ -169,15 +200,22 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
                         </td>
                         <td className="px-6 py-3.5">{record.active_break ? <StatusBadge status="late" label="On Break" /> : <StatusBadge status={record.status || "not_marked"} />}</td>
                         <td className="px-6 py-3.5">
-                          {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">{noPunchOwed ? "N/A" : "Not clocked in"}</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {record.clock_in_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_in_time)}</span> : <span className="text-xs text-slate-400 italic">{noPunchOwed ? "N/A" : "Not clocked in"}</span>}
+                            <PunchInlineGlance punch={punches.in} onViewPhoto={setViewPunch} />
+                          </span>
                           {Number(record.late_minutes) > 0 && <p className="text-[10px] text-fuchsia-600 font-bold mt-0.5">{fmtMinutes(record.late_minutes)} late</p>}
                         </td>
                         <td className="px-6 py-3.5">
-                          {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}
+                          <span className="inline-flex items-center gap-2">
+                            {record.clock_out_time ? <span className="font-semibold text-slate-700 text-sm">{fmtTime(record.clock_out_time)}</span> : <span className="text-xs text-slate-400 italic">{record.clock_in_time ? "Working" : "N/A"}</span>}
+                            <PunchInlineGlance punch={punches.out} onViewPhoto={setViewPunch} />
+                          </span>
                         </td>
                         <td className="px-6 py-3.5 text-right text-sm">
-                          <LiveEffectiveHours effectiveHours={record.effective_hours} formatted={record.worked_duration_formatted} clockInTime={record.clock_in_time} clockOutTime={record.clock_out_time} breaks={record.breaks} activeBreak={record.active_break} breakMinutes={record.break_duration_minutes} />
+                          <LiveEffectiveHours record={record} />
                         </td>
+                        {showLocate && <LocateCell column={locate} row={record} name={name} />}
                       </tr>
                     );
                   })}
@@ -191,6 +229,18 @@ function AttendanceDirectory({ title = DICTIONARY.HEADERS.ATTENDANCE_DIRECTORY, 
         )}
       </div>
     </div>
+    {viewPunch && <PunchPhotoViewer punch={viewPunch} onClose={() => setViewPunch(null)} />}
+    <LocateDialogHost column={locate} />
+    {openDay && (
+      <DailyLogDialog
+        userId={openDay.userId}
+        date={date}
+        employeeRole={openDay.role}
+        viewer="hr"
+        onClose={() => setOpenDay(null)}
+      />
+    )}
+    </>
   );
 }
 

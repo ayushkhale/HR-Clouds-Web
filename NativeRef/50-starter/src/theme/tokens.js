@@ -219,6 +219,23 @@ export const radius = {
 export const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 export const MIN_TAP = 44;
 
+/**
+ * Icon sizes. The web app draws every `react-icons/hi` glyph at one of three
+ * sizes; these are those three plus the two a phone needs. Pass `iconSize.md`
+ * to a glyph from theme/icons.js — never a literal in a screen, or the set
+ * drifts a pixel at a time.
+ *
+ * `info` is the ⓘ and is deliberately the SMALLEST: field help sits beside a
+ * label and must not out-weigh it (see ui/FieldHelp.jsx).
+ */
+export const iconSize = {
+  info: 14, // the ⓘ, inline notes
+  sm: 16, // inside a chip, a pill, a dense row
+  md: 20, // the default — rows, buttons, section headers (web's 20×20)
+  lg: 24, // tab bar, empty states
+  xl: 32, // the punch button, a hero tile
+};
+
 /* ─── Elevation ───────────────────────────────────────────────────────────────
    The web app's shadows are extremely soft (shadow-xs / shadow-2xs). Resist
    making them heavier on native. Android needs a backgroundColor on the SAME

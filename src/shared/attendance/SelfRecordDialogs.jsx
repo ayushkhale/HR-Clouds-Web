@@ -34,6 +34,8 @@ import {
   fmtDate, fmtDateTime, fmtHours, fmtMinutes, fmtTime, toLocalYMD, workedLabel, ymdOnly,
 } from "./dates";
 import { StatusBadge } from "./ui";
+import ShiftPolicyPanel from "./ShiftPolicyPanel.jsx";
+import { useMyShift } from "./useMyShift.js";
 
 const LONG_DATE = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
 
@@ -221,6 +223,8 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
   const date = ymdOnly(item?.date || item?.record_date || recordOf(item)?.date);
   const record = recordOf(item);
   const status = String(item?.status || "pending").toLowerCase();
+  // Session-cached; the dialog adds no read of its own.
+  const { wrapper, policy } = useMyShift();
 
   return (
     <DetailDialog
@@ -235,7 +239,11 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
         items={[
           { label: "Extra time", value: minutes != null ? fmtMinutes(minutes) : null, hint: "beyond your shift", icon: HiLightningBolt },
           { label: "Day", value: fmtDate(date), icon: HiCalendar },
-          { label: "Time on the clock", value: record ? workedLabel(record) : null, icon: HiClock },
+          // Net worked time — the figure the overtime was measured against.
+          // It was labelled "Time on the clock", which is the GROSS span on
+          // every other screen, so the same words named two different numbers
+          // (2026-10-22). The label moves to match the value.
+          { label: "Time worked", value: record ? workedLabel(record) : null, hint: "breaks taken out", icon: HiClock },
         ]}
       />
 
@@ -259,6 +267,19 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
         </DetailSection>
       )}
 
+      {/* The thresholds this was measured against — how much extra counts at
+          all, and whether it needs approving. Without them "28m" tells the
+          person nothing about why it is pending or why 12m on another day
+          wasn't recorded (2026-10-21). Sourced from the DAY, so an older
+          overtime shows the rules that applied then, not today's; `policy`
+          from `/attendance/shift` is only the fallback for a record with no
+          snapshot. Folded — the figures above are what they opened this for. */}
+      {(record?.policy_snapshot || record?.shift_snapshot || policy) && (
+        <DetailSection title="Shift & rules that applied" icon={HiClock} defaultOpen={false}>
+          <ShiftPolicyPanel source={record?.policy_snapshot || record?.shift_snapshot ? record : wrapper} viewer="self" />
+        </DetailSection>
+      )}
+
       <ReviewSection item={item} pending={status === "pending"} />
     </DetailDialog>
   );
@@ -278,7 +299,20 @@ export function OvertimeDetailDialog({ item, minutes, onClose }) {
  */
 export function CompOffDetailDialog({ item, term, workedOn, credit, expiresOn, expiringSoon, onClose }) {
   const status = String(item?.status || "earned").toLowerCase();
-  const creditLabel = credit != null ? `+${credit} day${Number(credit) === 1 ? "" : "s"}` : null;
+  const rawCredit = credit
+    ?? item?.days_earned
+    ?? item?.credit_days
+    ?? item?.days
+    ?? item?.comp_off_days
+    ?? item?.credited_days
+    ?? item?.earned_days
+    ?? item?.credit
+    ?? (item?.worked_hours != null && parseFloat(item.worked_hours) > 0 && parseFloat(item.worked_hours) < 5 ? 0.5 : 1);
+
+  const numCredit = Number(rawCredit);
+  const creditLabel = !Number.isNaN(numCredit) && numCredit > 0
+    ? `+${numCredit === 0.5 ? "1/2" : numCredit} day${numCredit === 1 ? "" : "s"}`
+    : "+1 day";
 
   return (
     <DetailDialog

@@ -1,6 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// hrInboxCounts.js — How many items wait on HR in each approval queue, for the
-// HR Inbox page and its sidebar badge.
+// hrInboxCounts.js — How many items wait on HR in each approval queue.
+//
+// ─── THIS IS THE FALLBACK, NOT THE WAY ─────────────────────────────────────
+// `GET /inbox/badges` (#278) answers all of this in ONE request, and
+// badgeCountsStore.js is what every screen reads. The fan-out below — thirteen
+// requests for thirteen numbers — only runs on a server that has no badge
+// endpoint yet, so that an un-deployed backend leaves the badges working
+// rather than blank. Nothing new should be added here: a queue added to the
+// Inbox belongs in the badge endpoint and in the store's category list.
+//
+// It is also why the counts could only be read once a minute, and why the
+// sidebar and the page it links to drifted apart after a decision.
 //
 // One module-level cache keyed by the session token, so the sidebar and the
 // page share a single round of requests and another login starts from zero.
@@ -37,12 +47,11 @@ export const HR_INBOX_QUEUES = [
   { key: "salaryApprovals", load: () => payrollAPI.getProposals({ status: "proposed" }).then(total(["proposals", "records"])) },
   {
     key: "claims",
-    // Claims wait on HR both straight after submission and after a manager's review.
-    load: () =>
-      Promise.all([
-        payrollAPI.getReimbursementClaims({ status: "submitted" }),
-        payrollAPI.getReimbursementClaims({ status: "under_review" }),
-      ]).then((results) => results.reduce((sum, res) => sum + total(["claims", "records"])(res), 0)),
+    // Only the claims a manager passed up. The ones that come straight to HR
+    // on a single-approval chain need `pending_hr=true`, which a server
+    // without the badge endpoint does not have — and would strip in silence,
+    // returning every claim ever filed. Narrow and right beats wide and wrong.
+    load: () => payrollAPI.getReimbursementClaims({ status: "under_review", limit: 1 }).then(total(["claims", "records"])),
   },
   { key: "loans", load: () => payrollAPI.getLoans({ status: "pending" }).then(total(["loans", "records"])) },
   {
@@ -115,4 +124,5 @@ export function fetchHrInboxCounts(force = false) {
   return promise;
 }
 
-export const inboxTotal = (counts) => Object.values(counts || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+// `inboxTotal` moved to badgeCountsStore.js as `sumCounts`: the total has to be
+// the same arithmetic whichever way the counts were read.

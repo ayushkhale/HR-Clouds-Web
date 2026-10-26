@@ -20,6 +20,7 @@ import { downloadRenderedPdf, previewRenderedPdf } from "../../../../shared/pdf/
 import PdfPreviewDialog from "../../../../shared/pdf/PdfPreviewDialog";
 import { isPayrollPdfRetryable, payrollErrorMessage, payrollPdfViewMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
+import { sortNewestFirst } from "../../../../shared/utils/sortUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { statementMonths, statementTotals } from "../../../../shared/utils/annualStatementMeta";
 import DetailDialog, { DetailGrid, DetailSection, DetailTable } from "../../../../shared/components/DetailDialog";
@@ -397,9 +398,8 @@ export default function MyPayslipsPage() {
     try {
       const res = await payrollAPI.getMyPayslips();
       const list = res.data?.records || res.data || [];
-      // The server already hides withdrawn / replaced payslips; this is the
-      // second line in case an older row still says it is visible (BACKEND-007).
-      setPayslips((Array.isArray(list) ? list : []).filter((p) => p?.visible_to_employee !== false && p?.status !== "revoked" && p?.status !== "superseded"));
+      const rawList = (Array.isArray(list) ? list : []).filter((p) => p?.visible_to_employee !== false && p?.status !== "revoked" && p?.status !== "superseded");
+      setPayslips(sortNewestFirst(rawList));
     } catch (err) {
       showToast(payrollErrorMessage(err, "Couldn't load your payslips"), "error");
     } finally {
