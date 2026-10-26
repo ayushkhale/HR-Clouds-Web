@@ -72,6 +72,8 @@ import SelectOrgPage from "../auth/pages/SelectOrgPage";
 ──────────────────────────────────────────────────────────────────────── */
 const DashboardLayout = lazy(() => import("../shared/layouts/DashboardLayout"));
 const NotFoundPage = lazy(() => import("../shared/screens/NotFoundPage"));
+const MyDevicesPage = lazy(() => import("../shared/screens/MyDevicesPage"));
+const MyWorkLocationsPage = lazy(() => import("../shared/screens/MyWorkLocationsPage"));
 const RegisterOrgPage = lazy(() => import("../auth/pages/RegisterOrgPage"));
 const InvitationAcceptPage = lazy(() => import("../auth/pages/InvitationAcceptPage"));
 const DashboardPage = lazy(() => import("../roles/DashboardPage"));
@@ -110,9 +112,13 @@ const AttendanceLocationsPage = lazy(() => import("../roles/hr/attendance/screen
 const FieldLocationsPage = lazy(() => import("../roles/hr/attendance/screens/FieldLocationsPage"));
 const PayrollPdfTemplatesPage = lazy(() => import("../roles/hr/payroll/screens/PayrollPdfTemplatesPage"));
 const ManagerFieldLocationsPage = lazy(() => import("../roles/manager/screens/FieldLocationsPage"));
+const ManagerOfficeLocationsPage = lazy(() => import("../roles/manager/screens/OfficeLocationsPage"));
 const AttendanceCompOffsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffsPage"));
 const AttendanceCompOffPoliciesPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceCompOffPoliciesPage"));
 const AttendanceLockPeriodsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceLockPeriodsPage"));
+// Device Trust (15 Oct 2026): the policy/rollout screen and the inventory.
+const RegisteredDevicesPage = lazy(() => import("../roles/hr/attendance/screens/RegisteredDevicesPage"));
+const EmployeeDevicesPage = lazy(() => import("../roles/hr/attendance/screens/EmployeeDevicesPage"));
 const AttendanceReportsPage = lazy(() => import("../roles/hr/attendance/screens/AttendanceReportsPage"));
 const BiometricDevicesPage = lazy(() => import("../roles/hr/screens/BiometricDevicesPage"));
 const LeaveTypesPage = lazy(() => import("../roles/hr/leaves/screens/LeaveTypesPage"));
@@ -373,6 +379,12 @@ function AppRoutes() {
         <Route path="/dashboard/hr/attendance/comp-offs" element={<AttendanceCompOffsPage />} />
         <Route path="/dashboard/hr/attendance/comp-off-policies" element={<AttendanceCompOffPoliciesPage />} />
         <Route path="/dashboard/hr/attendance/lock-periods" element={<AttendanceLockPeriodsPage />} />
+        <Route path="/dashboard/hr/attendance/registered-devices" element={<RegisteredDevicesPage />} />
+        {/* The page used to be called Device Checks and sat under Setup > Time.
+            The old path still lands on it: bookmarks and links in the audit
+            notes outlive a rename. */}
+        <Route path="/dashboard/hr/attendance/device-checks" element={<RegisteredDevicesPage />} />
+        <Route path="/dashboard/hr/attendance/trusted-devices" element={<EmployeeDevicesPage />} />
         <Route path="/dashboard/hr/attendance/devices" element={<BiometricDevicesPage />} />
         <Route path="/dashboard/hr/reports" element={<AttendanceReportsPage />} />
         {/* HR self-service attendance (all org roles may punch & request) */}
@@ -381,6 +393,8 @@ function AppRoutes() {
         <Route path="/dashboard/hr/my-attendance/anomalies" element={<AttendanceAnomaliesPage />} />
         <Route path="/dashboard/hr/my-attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/hr/my-attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/hr/my-attendance/devices" element={<MyDevicesPage />} />
+        <Route path="/dashboard/hr/my-attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/hr/leaves/requests" element={<HRLeaveRequestsPage />} />
         <Route path="/dashboard/hr/leaves/types" element={<LeaveTypesPage />} />
         <Route path="/dashboard/hr/leaves/policies" element={<LeavePoliciesPage />} />
@@ -466,6 +480,9 @@ function AppRoutes() {
             their own My Tasks page here rather than being sent to the employee
             workspace, which the route gate refuses by design (§2). */}
         <Route path="/dashboard/hr/my-tasks" element={<MyTasksPage />} />
+        {/* Same page, the server's is_overdue filter pinned on — mounted under
+            each workspace's own prefix, never by widening one gate (§2). */}
+        <Route path="/dashboard/hr/my-tasks/overdue" element={<MyTasksPage view="overdue" />} />
         <Route path="/dashboard/hr/tasks/assigned" element={<AssignedTasksPage />} />
         <Route path="/dashboard/hr/tasks/all" element={<AllTasksPage />} />
       </Route>
@@ -477,8 +494,13 @@ function AppRoutes() {
         <Route path="/dashboard/manager/attendance/regularizations" element={<AttendanceRegularizationsPage />} />
         <Route path="/dashboard/manager/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
         <Route path="/dashboard/manager/attendance/field-locations" element={<ManagerFieldLocationsPage />} />
+        {/* Same path shape as HR's, under the manager's own prefix — a role that
+            lacks a page gets it mounted here, never by widening HR's gate (§2). */}
+        <Route path="/dashboard/manager/attendance/locations" element={<ManagerOfficeLocationsPage />} />
         <Route path="/dashboard/manager/attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/manager/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/manager/attendance/devices" element={<MyDevicesPage />} />
+        <Route path="/dashboard/manager/attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/manager/requests/inbox" element={<ManagerApprovalsInbox />} />
         <Route path="/dashboard/manager/requests/regularizations" element={<ManagerRegularizationsPage />} />
         <Route path="/dashboard/manager/requests/overtime" element={<ManagerOvertimePage />} />
@@ -528,6 +550,7 @@ function AppRoutes() {
         {/* Manager tasks — the same three screens HR gets, hierarchy-scoped by
             the endpoints rather than by a different page (§2). */}
         <Route path="/dashboard/manager/my-tasks" element={<MyTasksPage />} />
+        <Route path="/dashboard/manager/my-tasks/overdue" element={<MyTasksPage view="overdue" />} />
         <Route path="/dashboard/manager/tasks/assigned" element={<AssignedTasksPage />} />
         <Route path="/dashboard/manager/tasks/all" element={<AllTasksPage />} />
       </Route>
@@ -542,6 +565,8 @@ function AppRoutes() {
         <Route path="/dashboard/employee/attendance/anomalies" element={<AttendanceAnomaliesPage />} />
         <Route path="/dashboard/employee/attendance/overtime" element={<EmployeeOvertimePage />} />
         <Route path="/dashboard/employee/attendance/comp-offs" element={<EmployeeCompOffsPage />} />
+        <Route path="/dashboard/employee/attendance/devices" element={<MyDevicesPage />} />
+        <Route path="/dashboard/employee/attendance/my-locations" element={<MyWorkLocationsPage />} />
         <Route path="/dashboard/employee/leaves" element={<LeaveDashboard />} />
 
         {/* Employee payroll */}
@@ -560,6 +585,7 @@ function AppRoutes() {
         {/* An employee is given work but never reviews anyone's, so the two
             review pages are absent here rather than mounted and empty (§2). */}
         <Route path="/dashboard/employee/tasks" element={<MyTasksPage />} />
+        <Route path="/dashboard/employee/tasks/overdue" element={<MyTasksPage view="overdue" />} />
       </Route>
 
       {/* ─── SHARED DASHBOARD PAGES (sidebar role comes from the signed-in user) ─── */}

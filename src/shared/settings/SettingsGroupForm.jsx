@@ -72,6 +72,48 @@
 //     of the field below it than its own label — the rows read as attached.
 //     The grid is `gap-y-5 gap-x-6` now, and the card's own padding, header,
 //     footer and banners all sit on one 20px edge instead of three.
+// ─── 14 OCT 2026: THE SENTENCE BECAME AN ⓘ ─────────────────────────
+// Everything above about the caption is HISTORY. The sentence is still
+// written and still comes from the registry, word for word — it just isn't
+// printed under the control any more. It is the hint behind the ⓘ that was
+// already sitting beside the field's name (user decision: "remove all the
+// single liner text that explain what the field is. instead of this, give 'i
+// button' on nearly each field … 90 to 95%").
+//
+// WHY THAT IS NOT A LOSS. A page of 138 settings printed 138 one-liners: the
+// first visit they explain the field, every visit after they are furniture
+// standing between the reader and the switch they came to flip. Behind an ⓘ
+// the same sentence is one hover away for whoever still needs it, it carries
+// an "Ask Maya about this" that a printed line never could, and it costs the
+// card nothing when it isn't wanted. The hints are in fieldHelp.json on the
+// `settings` tier — settingsBlurbs.js has the move and the rules.
+//
+// WHAT RODE ALONG WITH IT, because the room it freed is what pays for them:
+//   · THE ALLOWED RANGE is the ⓘ's `extra` line now, not half a caption. It
+//     is read off the live catalogue, so it is the one fact about a field
+//     that a checked-in config file cannot hold.
+//   · THREE FIELDS TO A LINE at `xl` again, because an OPEN card is the full
+//     width of the page (OrgSettingsPage's wall lays an open card across its
+//     whole course), and `fieldSpan` counts three cells again with it.
+//   · BIGGER, BOLDER HEADINGS (settingsText.js's own switch), which only fit
+//     because the prose left.
+//   · NO "On"/"Off" WORD beside a switch (SettingInput).
+// Put the captions back and all four have to go back with them.
+//
+// ─── 15 OCT 2026: NOTHING COUNTS SETTINGS, AND ONE ⓘ PER FIELD ─────
+// Four changes, all from one reading of the page:
+//   · NO COUNTS. Not on a shelf heading ("Earned days off 5"), not on the
+//     group's meta line ("4 moved off the default"), not under the card's
+//     title ("11 settings") — and not on a tab either (OrgSettingsPage).
+//     Every one of them stood next to the things it was counting.
+//   · A SHELF HEADING IS A HEADING. 15px sentence case, not an 11px uppercase
+//     label that read as a caption on the field above it.
+//   · ONE ⓘ PER FIELD. The risk concept shares the field's own popover
+//     through FieldHelp's `also`, instead of standing beside it as a second
+//     identical circle.
+//   · SWITCHES LAST IN A SHELF (`orderFields` in settingsMeta), so a run of
+//     boxes isn't broken up by a 22px switch row.
+//
 // All the text shades come from settingsText.js, which exists so this last
 // change can be taken back in one edit if it is not wanted.
 //
@@ -110,7 +152,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  HiCheck, HiChevronDown, HiChevronRight, HiExclamationCircle, HiLockClosed, HiRefresh,
+  HiChevronDown, HiChevronRight, HiExclamationCircle, HiLockClosed, HiRefresh,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import ReasonDialog from "../components/ReasonDialog";
@@ -126,8 +168,10 @@ import {
   displaySettingValue, effectTimingLabel, fieldShelves, fieldSpan, groupBlurb, groupIcon,
   isEditable, isSwitchControl, rangeHint, riskMeta,
 } from "./settingsMeta";
-import { settingBlurb, settingLabel, settingWarnings } from "./settingsBlurbs";
-import { BLURB, CAPTION, FIELD_LABEL, META, TEXT } from "./settingsText";
+import { settingLabel, settingWarnings } from "./settingsBlurbs";
+import {
+  BLURB, CAPTION, CARD_TITLE, CARD_TITLE_MUTED, FIELD_LABEL, META, SHELF_HEADING, TEXT,
+} from "./settingsText";
 import SettingInput from "./SettingInput";
 import { groupCardId } from "./settingsDock";
 
@@ -135,7 +179,6 @@ const CARD = "bg-white rounded-2xl border shadow-xs overflow-hidden transition-a
 const LINK = "inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 shrink-0";
 /* The card's own Save was PRIMARY; the page's one Save lives in the dock now
    (see the footer comment). SECONDARY is still the reload button's. */
-const PRIMARY = "px-4 py-2 rounded-xl text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2";
 const SECONDARY = "px-4 py-2 rounded-xl text-sm font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 transition disabled:opacity-50 inline-flex items-center gap-2";
 
 function Pill({ tone = "slate", children }) {
@@ -170,7 +213,7 @@ const sameValue = (a, b) => {
 
 export default function SettingsGroupForm({
   group, entries, editTo, onSaved, onReload, showToast, surface, onDirtyChange, flash = false,
-  open: openProp, onToggle, standalone = false,
+  open: openProp, onToggle,
 }) {
   const rows = useMemo(() => entries || [], [entries]);
   // Memoised: it feeds the patch diff, and a fresh {} each render would make
@@ -182,10 +225,7 @@ export default function SettingsGroupForm({
   // to be able to open a card it is reporting on), and falls back to the
   // card's own state so this component still works on its own.
   const [localOpen, setLocalOpen] = useState(false);
-  // On its own page there is no shutter to be behind: the page IS the group,
-  // its title is the page's title, and a card that could be collapsed to
-  // nothing would leave the reader on an empty screen.
-  const open = standalone ? true : (openProp ?? localOpen);
+  const open = openProp ?? localOpen;
   const toggle = () => (onToggle ? onToggle(group.key) : setLocalOpen((v) => !v));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -392,7 +432,7 @@ export default function SettingsGroupForm({
      under it. */
   if (reason) {
     return (
-      <section id={groupCardId(group.key)} className={`${CARD} border-slate-100`}>
+      <section id={groupCardId(group.key)} className={`${CARD} h-full border-slate-100`}>
         <div className="flex items-start gap-3 px-5 py-4">
           <span className="shrink-0 w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 inline-flex items-center justify-center">
             {group.unavailableReason === "READ_FAILED"
@@ -400,7 +440,7 @@ export default function SettingsGroupForm({
               : <HiLockClosed className="w-4 h-4" />}
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="text-[15px] font-semibold text-slate-500 truncate">{group.label}</h3>
+            <h3 className={`${CARD_TITLE_MUTED} truncate`}>{group.label}</h3>
             {/* The ⓘ explaining why groups go missing lives here, on a group
                 that has gone missing — not on a legend above the page. */}
             <p className={`text-xs font-bold ${TEXT.body} mt-0.5 flex items-center`}>
@@ -423,17 +463,13 @@ export default function SettingsGroupForm({
   const timing = timings.length === 1 ? timings[0] : null;
   const timingNote = effectTimingLabel(timing);
   const bodyId = `${groupCardId(group.key)}-body`;
-  const changedCount = (group.nonDefaultKeys || []).length;
-  // Only the FIRST risky row carries the "what does risk mean" ⓘ — the pill
-  // repeats down the card, the concept doesn't (§10: once per concept).
-  const firstRiskKey = rows.find((e) => riskMeta(e.risk))?.key || null;
   const shelves = fieldShelves(rows);
 
   return (
     <>
       <section
         id={groupCardId(group.key)}
-        className={`${CARD} scroll-mt-24 ${
+        className={`${CARD} h-full scroll-mt-24 ${
           dirty
             ? "border-fuchsia-300 ring-2 ring-fuchsia-50"
             : flash
@@ -441,51 +477,18 @@ export default function SettingsGroupForm({
               : "border-slate-100"
         }`}
       >
-        {/* The shutter header, and only in the list. On its own page the
-            breadcrumb and the page title already name the group, so a second
-            name with a chevron that cannot close anything would be two
-            headings and a dead control. */}
-        {!standalone && (
-          <Header
-            group={group}
-            rows={rows}
-            dirtyCount={dirtyKeys.length}
-            open={open}
-            onToggle={toggle}
-            bodyId={bodyId}
-            onReset={canWrite && resettableKeys.length > 0 ? resetToDefaults : null}
-            resetCount={resettableKeys.length}
-            busy={saving}
-          />
-        )}
-
-        {/* Standalone keeps the two things the shutter header carried that
-            the page title cannot: whether this group still sits on the
-            shipped defaults, and the one way to put it back. */}
-        {standalone && (
-          <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-slate-100">
-            {dirtyKeys.length > 0
-              ? <Pill tone="amber">{dirtyKeys.length} unsaved</Pill>
-              : (group.nonDefaultKeys || []).length > 0
-                ? <Pill tone="purple">Customised</Pill>
-                : null}
-            <span className={META}>
-              {rows.length} setting{rows.length === 1 ? "" : "s"}
-              {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
-            </span>
-            {canWrite && resettableKeys.length > 0 && (
-              <button
-                type="button"
-                onClick={resetToDefaults}
-                disabled={saving}
-                aria-label={`Put ${group.label} back to the default`}
-                className={`ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition`}
-              >
-                <HiRefresh className="w-3.5 h-3.5" /> Put back to default
-              </button>
-            )}
-          </div>
-        )}
+        <Header
+          group={group}
+          surface={surface}
+          dirtyCount={dirtyKeys.length}
+          canWrite={canWrite}
+          open={open}
+          onToggle={toggle}
+          bodyId={bodyId}
+          onReset={canWrite && resettableKeys.length > 0 ? resetToDefaults : null}
+          resetCount={resettableKeys.length}
+          busy={saving}
+        />
 
         {conflict && (
           <div className={`mx-5 mt-4 ${open ? "" : "mb-4"} flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 px-4 py-3 text-xs text-slate-700`}>
@@ -507,25 +510,23 @@ export default function SettingsGroupForm({
         {/* Behind the shutter. Not unmounted — `edits` is this component's
             state and has to survive the card being closed. */}
         <div id={bodyId} className={open ? "" : "hidden"}>
-          {/* The two facts about the group as a whole, on one muted line, each
-              carrying the ⓘ for its own concept. They used to be a tile strip
-              at the top of the page, which explained them a long way from
-              anything they described. */}
-          {(timingNote || changedCount > 0) && (
+          {/* WHEN A CHANGE BITES — the one fact about the group as a whole
+              that is worth a line, with the ⓘ for the concept.
+
+              "4 moved off the default" USED TO SIT BESIDE IT and was removed
+              on 15 Oct 2026 with the other counts of settings. It was never
+              about the number anyway: the fact a reader wants is THAT this
+              card has been customised, and the header's own "Customised"
+              pill says it without arithmetic, in the one place that is
+              readable while the card is folded. Its ⓘ moved to the header
+              with it (see `Header`), so the concept is still explained. */}
+          {timingNote && (
             <p className={`px-5 pt-3.5 flex flex-wrap items-center gap-x-3 gap-y-1 ${META}`}>
-              {timingNote && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full shrink-0 ${TIMING_DOT[timing] || "bg-slate-300"}`} />
-                  {timingNote}
-                  {surface && <FieldHelp surface={surface} field="effect_timing" label="when a change takes effect" size="sm" className="mb-0" />}
-                </span>
-              )}
-              {changedCount > 0 && (
-                <span className={`inline-flex items-center gap-1 font-semibold ${TEXT.body}`}>
-                  {changedCount} moved off the default
-                  {surface && <FieldHelp surface={surface} field="non_default_keys" label="what “changed” means" size="sm" className="mb-0" />}
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full shrink-0 ${TIMING_DOT[timing] || "bg-slate-300"}`} />
+                {timingNote}
+                {surface && <FieldHelp surface={surface} field="effect_timing" label="when a change takes effect" size="sm" className="mb-0" />}
+              </span>
             </p>
           )}
 
@@ -533,19 +534,30 @@ export default function SettingsGroupForm({
               see `fieldShelves`, which reads them off the keys. A card too
               small to be worth shelving comes back as a single unlabelled
               shelf, which renders as the plain grid it always was.
-              Inside a shelf: one field per line on a phone, two from `sm`,
-              three from `xl`, and `fieldSpan` gives the two kinds that can't
-              live in one cell the room they need. */}
+              Inside a shelf: one field per line on a phone, two from
+              `sm` and three from `xl`, with `fieldSpan` giving the kinds
+              that can't live in one cell the room they need.
+
+              THREE IS SAFE AGAIN BECAUSE AN OPEN CARD IS FULL WIDTH. While
+              a card was half the page a third column came to about 190px,
+              narrower than the selects that have to sit in it, so this grid
+              was cut to two. The wall now lays an open card across its whole
+              course (see OrgSettingsPage), so a column is ~320px — and with
+              the sentences gone from under the controls, a field is a label
+              and a box, which is what makes three readable rather than
+              merely possible. */}
           <div className="px-5 py-4 space-y-4">
             {shelves.map((shelf, shelfIndex) => (
             <section key={shelf.key} className={shelf.label && shelfIndex > 0 ? "pt-3 border-t border-slate-100" : ""}>
+            {/* NO COUNT BESIDE IT (user, 15 Oct 2026: "remove this type of
+                texts: 'Unused leave and notice 11' or 'Earned days off 5' …
+                we dont need to show number of settings here. we can keep the
+                text 'Earned days off' but this should look like heading").
+                The number answered a question nobody asks — the fields are
+                right underneath it — and it was the reason the heading had
+                to stay small enough to carry a tail. */}
             {shelf.label && (
-              <h4 className={`text-[11px] font-bold uppercase tracking-wider ${TEXT.label} mb-3`}>
-                {shelf.label}
-                <span className={`ml-2 font-semibold normal-case tracking-normal ${TEXT.meta}`}>
-                  {shelf.rows.length}
-                </span>
-              </h4>
+              <h4 className={`${SHELF_HEADING} mb-3`}>{shelf.label}</h4>
             )}
             <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5 items-start">
             {shelf.rows.map((entry) => {
@@ -554,9 +566,12 @@ export default function SettingsGroupForm({
               const edited = entry.key in patch;
               const editable = canWrite && isEditable(entry);
               const asSwitch = editable && isSwitchControl(entry);
-              const hint = rangeHint(entry);
+              // The one fact about this field that fieldHelp.json can't
+              // hold: it is read off the live catalogue. It goes INSIDE the
+              // ⓘ rather than under the control, which is where the rest of
+              // the explaining went (see the 14 Oct note in the header).
+              const range = rangeHint(entry);
               const id = `set-${group.key}-${entry.key}`;
-              const blurb = settingBlurb(entry);
               // Ours, not the catalogue's registry title — see SETTING_LABEL.
               const name = settingLabel(entry);
 
@@ -568,7 +583,26 @@ export default function SettingsGroupForm({
                   {asSwitch
                     ? <span id={`${id}-label`} className={FIELD_LABEL}>{name}</span>
                     : <label htmlFor={editable ? id : undefined} className={FIELD_LABEL}>{name}</label>}
-                  {surface && <FieldHelp surface={surface} field={entry.key} label={name} size="sm" className="mb-0" />}
+                  {/* ONE ⓘ PER FIELD, NEVER TWO (user, 15 Oct 2026: "Second
+                      approver for pay field have 2 'i buttons'. remove one").
+                      A high-risk field used to get a second one beside its own
+                      for the "what does the mark mean" concept, so exactly the
+                      fields a reader is most careful about were the ones with a
+                      pair of identical blue circles in the label. The risk
+                      sentence is a line INSIDE this popover now (`also`), which
+                      is where someone asking about the field is already
+                      looking. */}
+                  {surface && (
+                    <FieldHelp
+                      surface={surface}
+                      field={entry.key}
+                      label={name}
+                      extra={range ? `Allowed: ${range}.` : ""}
+                      also={risk ? "risk" : ""}
+                      size="sm"
+                      className="mb-0"
+                    />
+                  )}
                   {edited && <Pill tone="amber">Unsaved</Pill>}
                   {!edited && changed && <Pill tone="purple">Changed</Pill>}
                   {/* RISK IS A MARK, NOT WORDS (see settingsMeta's RISK_META).
@@ -586,28 +620,7 @@ export default function SettingsGroupForm({
                       <span className="sr-only">{risk.label}.</span>
                     </span>
                   )}
-                  {risk && surface && entry.key === firstRiskKey && (
-                    <FieldHelp surface={surface} field="risk" label="settings that need care" size="sm" className="mb-0" />
-                  )}
                 </div>
-              );
-
-              /* WHAT THIS SETTING DOES, in one plain line, and nothing else
-                 (user instruction, 2026-10-10: "put simple explanation what
-                 setting entity do … 'allow manager view team documents' this
-                 type goes for all"). The line comes from settingsBlurbs.js,
-                 which is written against the registry; the catalogue's own
-                 `description` is the fallback, not the first choice, because
-                 it is written in the registry's vocabulary and the earlier
-                 build printing it is what made the card read like a spec.
-                 The allowed range joins it — it is a fact about the same
-                 field, and it was the only thing some fields had to say.
-                 SET TIGHT TO THE LABEL (`mt-0.5` / `mt-1`): at `mt-1.5` the
-                 line floated between its own field and the one below. */
-              const captionLine = (blurb || hint) && (
-                <p className={`${CAPTION} ${asSwitch ? "mt-0.5" : "mt-1"}`}>
-                  {[blurb, hint].filter(Boolean).join(" · ")}
-                </p>
               );
 
               const control = editable ? (
@@ -633,22 +646,20 @@ export default function SettingsGroupForm({
                   }`}
                 >
                   {asSwitch ? (
-                    // Label and switch on one line, explanation under both:
-                    // the switch is the one control small enough to sit beside
-                    // what it is called, and it stays inside its own cell so
-                    // it can't drift away from its label (see `fieldSpan`).
+                    // Label and switch on one line: the switch is the one
+                    // control small enough to sit beside what it is called,
+                    // and it stays inside its own cell so it can't drift away
+                    // from its label (see `fieldSpan`).
                     <>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">{labelRow}</div>
                         {control}
                       </div>
-                      {captionLine}
                     </>
                   ) : (
                     <>
                       {labelRow}
                       <div className="mt-1.5 w-full min-w-0">{control}</div>
-                      {captionLine}
                     </>
                   )}
                 </div>
@@ -683,24 +694,7 @@ export default function SettingsGroupForm({
                   Open {editTo.label} <HiChevronRight className="w-3.5 h-3.5" />
                 </Link>
               ) : <span className={META}>Changes here are saved to this area only.</span>}
-              {/* STANDALONE GETS ITS SAVE BACK. The footer's Save was removed
-                  because the list page also had a sticky dock, and one dirty
-                  card then showed two identical purple Save buttons doing the
-                  same write. On a group's own page there IS no dock, so this
-                  is the only one — and a page you can edit but not save is
-                  worse than the duplication ever was. */}
-              {standalone && canWrite && dirty ? (
-                <span className="flex items-center gap-2 shrink-0">
-                  <button type="button" onClick={discard} disabled={saving} className={SECONDARY}>
-                    Discard
-                  </button>
-                  <button type="button" onClick={save} disabled={saving} className={PRIMARY}>
-                    {saving
-                      ? <><span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</>
-                      : <><HiCheck className="w-4 h-4" /> Save changes</>}
-                  </button>
-                </span>
-              ) : canWrite && dirty && (
+              {canWrite && dirty && (
                 <span className={`text-xs font-bold shrink-0 ${TEXT.value}`}>
                   {saving
                     ? "Saving…"
@@ -766,64 +760,78 @@ export default function SettingsGroupForm({
  * one anyway (§10). It is the last thing in the row, which puts it in the same
  * corner of every card — the point of moving it here.
  *
+ * THE "CUSTOMISED" ⓘ IS A SIBLING FOR THE SAME REASON. It explains the pill a
+ * few pixels to its left, and it can only live out here, outside the toggle.
+ * It arrived on 15 Oct 2026 from the card's body, where it had been attached
+ * to the "4 moved off the default" line that the counts pass removed — the
+ * concept is `non_default_keys` on the HR onboarding tier, so it is thinned
+ * by switching the tier, never by quietly dropping its only host (§10).
+ *
+ * NO "11 settings" ON THE META LINE either (user, 15 Oct 2026, twice: no
+ * "(10)" on a tab and no count on a shelf heading — a count of settings is
+ * the same noise wherever it is printed). What is left of that line is the
+ * one thing nothing else says: when the group was last changed.
+ *
  * Closed, the blurb is clamped to one line so that every closed card is
  * exactly the same height and the two columns stack without gaps.
  */
 function Header({
-  group, rows, dirtyCount = 0, open, onToggle, bodyId,
-  onReset, resetCount = 0, busy = false,
+  group, dirtyCount = 0, canWrite = false, open, onToggle, bodyId,
+  onReset, resetCount = 0, busy = false, surface,
 }) {
   const changed = (group.nonDefaultKeys || []).length;
   const Icon = groupIcon(group);
   const blurb = groupBlurb(group);
   return (
-    <header className={`flex gap-1 pr-2 ${open ? "items-start border-b border-slate-100" : "items-center"}`}>
+    <header className={`flex items-start gap-1 pr-2 ${open ? "border-b border-slate-100" : ""}`}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={bodyId}
-        className={`flex-1 min-w-0 flex gap-3 px-4 text-left rounded-2xl hover:bg-slate-50/70 transition-colors ${open ? "items-start py-4" : "items-center py-3"}`}
+        className="flex-1 min-w-0 flex items-start gap-3 px-5 py-4 text-left rounded-2xl hover:bg-slate-50/70 transition-colors"
       >
-        <span className="shrink-0 w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
-          <Icon className="w-4 h-4" />
+        <span className="shrink-0 w-9 h-9 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 inline-flex items-center justify-center">
+          <Icon className="w-[18px] h-[18px]" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold text-slate-900 truncate">{group.label}</span>
-            {/* One pill, and only when it SAYS something. "Default" was on
-                twelve of the fifteen payroll cards — a badge on everything is
-                a badge on nothing, and it was the single biggest source of
-                noise in a closed list. Unsaved beats customised; nothing at
-                all is the resting state. */}
+            <span className={`${CARD_TITLE} truncate`}>{group.label}</span>
+            {/* One pill, the most urgent fact first: unsaved beats customised,
+                customised beats "still as it ships". Three pills in a row
+                would be a legend, not a status. */}
             {dirtyCount > 0
               ? <Pill tone="amber">{dirtyCount} unsaved</Pill>
               : changed > 0
                 ? <Pill tone="purple">Customised</Pill>
-                : null}
+                : canWrite ? <Pill tone="slate">Default</Pill> : null}
           </span>
-          {/* Closed, a card is ONE LINE: its name. The sentence explaining it
-              and the date it last moved are both reference — worth reading
-              about the one group you are opening, worth nothing repeated
-              fifteen times down a list you are scanning for a name. */}
-          {open && blurb && <span className={`block ${BLURB} mt-1`}>{blurb}</span>}
-          {open && (
+          {blurb && (
+            <span className={`block ${BLURB} mt-1 ${open ? "" : "line-clamp-1"}`}>
+              {blurb}
+            </span>
+          )}
+          {group.updatedAt && (
             <span className={`block ${META} mt-1.5`}>
-              {rows.length} setting{rows.length === 1 ? "" : "s"}
-              {group.updatedAt && <> · last changed {fmtDateTime(group.updatedAt)}</>}
+              Last changed {fmtDateTime(group.updatedAt)}
             </span>
           )}
         </span>
-        {/* The size of the group, quietly, so a closed row still says how
-            much is behind it without spending a line on it. */}
-        {!open && (
-          <span className={`shrink-0 ${META} tabular-nums`}>{rows.length}</span>
-        )}
         <HiChevronDown
           aria-hidden="true"
-          className={`shrink-0 w-4 h-4 text-slate-400 transition-transform ${open ? "mt-1 rotate-180" : ""}`}
+          className={`shrink-0 w-4 h-4 mt-1 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
+
+      {changed > 0 && surface && (
+        <FieldHelp
+          surface={surface}
+          field="non_default_keys"
+          label="what “customised” means"
+          size="sm"
+          className="mb-0 mt-4 shrink-0"
+        />
+      )}
 
       {onReset && (
         <button
@@ -832,7 +840,7 @@ function Header({
           disabled={busy}
           title={`Put ${resetCount === 1 ? "this setting" : `these ${resetCount} settings`} back to the value we ship`}
           aria-label={`Put ${group.label} back to the default`}
-          className={`shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition ${open ? "mt-4" : "my-auto"}`}
+          className={`mt-4 shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold ${TEXT.body} border border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition`}
         >
           <HiRefresh className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Put back to default</span>

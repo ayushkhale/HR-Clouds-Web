@@ -6,6 +6,7 @@ import { AuthContextProvider } from "./shared/contexts/AuthContext";
 import { EmployeeDirectoryProvider } from "./shared/contexts/EmployeeDirectoryContext";
 import { SidebarProvider } from "./shared/contexts/SidebarContext";
 import { GlobalAlertProvider } from "./shared/components/GlobalAlertProvider";
+import ErrorBoundary from "./shared/components/ErrorBoundary";
 import AppRoutes from "./routes/AppRoutes";
 import { ENV } from "./config/env";
 
@@ -26,9 +27,14 @@ function App() {
           <EmployeeDirectoryProvider>
             <ModalContextProvider>
               <Router>
-                <SidebarProvider>
-                  <AppRoutes />
-                </SidebarProvider>
+                {/* A render crash in a lazy page, or a stale chunk after a
+                    deploy, used to blank the whole app. The boundary turns both
+                    into a recoverable screen and resets itself on navigation. */}
+                <ErrorBoundary>
+                  <SidebarProvider>
+                    <AppRoutes />
+                  </SidebarProvider>
+                </ErrorBoundary>
                 {/* Inside the router so it can close itself on navigation.
                     No fallback: nothing should occupy the corner until she loads. */}
                 <Suspense fallback={null}>

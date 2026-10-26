@@ -24,6 +24,14 @@
 // • EVERY DECISION EMITS `TASK` ON THE EVENT BUS (§7). Handing work in adds an
 //   item to a reviewer's inbox, and the sidebar badge has no query cache to
 //   invalidate, so it only clears or grows if the emit happens.
+//
+// • `view="overdue"` IS THE SAME PAGE, not a second one (14 Oct 2026). It pins
+//   the server's `is_overdue` filter on and changes the heading, the blurb and
+//   the empty state; everything else — tabs, search, columns, dialogs — is
+//   identical, because it is the same list of the same work. It drops the Done
+//   and Cancelled status tabs: the server defines overdue as past the deadline
+//   AND not finished, so those two tabs could only ever return nothing, and
+//   §5's "drop a column no row can fill" applies to a tab just as much.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useState } from "react";
@@ -40,24 +48,53 @@ import TaskTable from "../tasks/TaskTable";
 import TaskDetailDialog, { TaskFooterNote } from "../tasks/TaskDetailDialog";
 import SubmitTaskDialog from "../tasks/SubmitTaskDialog";
 import TaskFilterBar from "../tasks/TaskFilterBar";
-import { TASK_STATUS_FILTERS, canChangeOwnStatus, canSubmitTask, nextOwnStatus } from "../tasks/taskMeta";
+import { TASK_STATUS_FILTERS, TERMINAL_TASK_STATUSES, canChangeOwnStatus, canSubmitTask, nextOwnStatus } from "../tasks/taskMeta";
 
 const PAGE_HELP = { surface: "tasks.my_tasks", field: "page" };
+const OVERDUE_HELP = { surface: "tasks.my_tasks", field: "is_overdue" };
+
+// Everything the two views say differently, in one place, so a wording change
+// can't land on one of them and miss the other.
+const VIEWS = {
+  all: {
+    title: "My Tasks",
+    help: PAGE_HELP,
+    blurb: "Work your manager or HR has given you, with the nearest deadline first. Open one to read the brief and hand it in.",
+    emptyTitle: "Nothing on your plate",
+    emptyMessage: "Tasks appear here when your manager or HR gives you one. Nothing to do for now.",
+    tabs: TASK_STATUS_FILTERS,
+    params: {},
+  },
+  overdue: {
+    title: "Overdue Tasks",
+    help: OVERDUE_HELP,
+    blurb: "Work that is past its deadline and still not handed in. Hand one in and it leaves this list.",
+    emptyTitle: "Nothing overdue",
+    emptyMessage: "Everything you’ve been given is either still inside its deadline or already handed in.",
+    tabs: TASK_STATUS_FILTERS.filter((tab) => !TERMINAL_TASK_STATUSES.includes(tab.value)),
+    params: { is_overdue: true },
+  },
+};
 const COLUMN_HELP = {
   status: { surface: "tasks.my_tasks", field: "status" },
   deadline: { surface: "tasks.my_tasks", field: "due_date" },
 };
 
-export default function MyTasksPage() {
+/** @param {{ view?: "all"|"overdue" }} props */
+export default function MyTasksPage({ view = "all" }) {
+  const copy = VIEWS[view] || VIEWS.all;
   const [filters, setFilters] = useState({ status: "", priority: "", category: "", search: "" });
   const [selected, setSelected] = useState(null);
   const [submitting, setSubmitting] = useState(null);
   const [busy, setBusy] = useState(false);
   const { toast, showToast, clearToast } = useToast();
 
-  const filterKey = JSON.stringify(filters);
+  // `view` is in the key as well as the filters: the two views are separate
+  // routes so the component remounts between them, but a shared key would
+  // quietly serve one view's page 2 to the other if that ever changed.
+  const filterKey = JSON.stringify({ view, ...filters });
   const list = usePagedList(
-    ({ page, limit }) => tasksAPI.getMyTasks({ page, limit, ...filters }),
+    ({ page, limit }) => tasksAPI.getMyTasks({ page, limit, ...filters, ...copy.params }),
     { limit: 20, keys: ["tasks"], filterKey }
   );
 
@@ -97,7 +134,7 @@ export default function MyTasksPage() {
   if (isTaskFeatureDisabled(list.error)) {
     return (
       <>
-        <DashboardTopBar title="My Tasks" />
+        <DashboardTopBar title={copy.title} />
         <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto flex-1">
           <FeatureNotAvailable
             title="Tasks aren’t switched on"
@@ -110,16 +147,14 @@ export default function MyTasksPage() {
 
   return (
     <>
-      <DashboardTopBar title="My Tasks" />
+      <DashboardTopBar title={copy.title} />
       <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto flex-1 space-y-6">
         <div>
+          {/* Sidebar label = this h1 = the top bar title, in every workspace (§2). */}
           <h1 className="text-2xl font-bold text-slate-900">
-            <HelpLabel text="My Tasks" help={PAGE_HELP} />
+            <HelpLabel text={copy.title} help={copy.help} />
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Work your manager or HR has given you, with the nearest deadline first. Open one to read the brief and hand
-            it in.
-          </p>
+          <p className="text-sm text-slate-500 mt-1">{copy.blurb}</p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -128,7 +163,7 @@ export default function MyTasksPage() {
               header has the measurements). Same arrangement on all three task
               lists, so the review pages and this one match (§2). */}
           <div className="px-4 sm:px-6 py-4 border-b border-slate-100 space-y-3">
-            <FilterTabs className="w-full" options={TASK_STATUS_FILTERS} value={filters.status} onChange={(status) => setFilters((f) => ({ ...f, status }))} />
+            <FilterTabs className="w-full" options={copy.tabs} value={filters.status} onChange={(status) => setFilters((f) => ({ ...f, status }))} />
             <TaskFilterBar filters={filters} onChange={setFilters} />
           </div>
 
@@ -139,8 +174,8 @@ export default function MyTasksPage() {
           ) : list.items.length === 0 ? (
             <EmptyState
               icon={HiClipboardCheck}
-              title="Nothing on your plate"
-              message="Tasks appear here when your manager or HR gives you one. Nothing to do for now."
+              title={copy.emptyTitle}
+              message={copy.emptyMessage}
             />
           ) : (
             <>

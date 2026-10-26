@@ -1,8 +1,23 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AttendanceLocationsPage (HR) — the office locations an organisation clocks in
+// at, and the map dialog that creates and edits one.
+//
+// The LIST is not in this file. Reading the locations lives in
+// `shared/attendance/officePlanes.js` and drawing them in
+// `shared/attendance/OfficeLocationsView.jsx`, because the manager workspace
+// shows the same list (§2) and two copies of a card would drift. What stays
+// here is everything only HR can do: Add Location, the Leaflet map dialog and
+// the active/inactive switch. `POST` and `PUT /organizations/locations` are
+// super-admin/admin/hr only (public/ref docs/md_organization/3_org_structure_api.md),
+// so the manager page mounts the same view with those props left off.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useRef } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
-import { attendanceAPI } from "../../../../shared/api";
-import { HiSparkles, HiPlus, HiPencil, HiLocationMarker, HiX, HiSearch } from "react-icons/hi";
+import { HiPlus, HiX, HiSearch } from "react-icons/hi";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
+import { useOfficeLocations } from "../../../../shared/attendance/officePlanes";
+import OfficeLocationsView from "../../../../shared/attendance/OfficeLocationsView";
 
 // Best-effort default timezone for new locations. The backend defaults to UTC
 // when omitted, which silently breaks attendance geofence/clock calculations,
@@ -13,16 +28,13 @@ const BROWSER_TZ = (() => {
 })();
 
 function AttendanceLocationsPage() {
-  const [locations, setLocations] = useState([]);
+  const list = useOfficeLocations("hr");
   const [showModal, setShowModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
   const [form, setForm] = useState({ name: "", address: "", latitude: "", longitude: "", geofence_radius_meters: 100, city: "", state: "", country: "", pincode: "", timezone: BROWSER_TZ });
   const [saveError, setSaveError] = useState("");
-  const [listLoading, setListLoading] = useState(true);
-  const [listError, setListError] = useState("");
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -30,23 +42,6 @@ function AttendanceLocationsPage() {
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const circleRef = useRef(null);
-
-  useEffect(() => { fetchLocations(); }, []);
-
-  // `silent` refreshes in place (no skeleton) once cards are already on screen.
-  const fetchLocations = async ({ silent = false } = {}) => {
-    if (!silent) setListLoading(true);
-    setListError("");
-    try {
-      const res = await attendanceAPI.getLocations();
-      setLocations(Array.isArray(res?.data) ? res.data : []);
-    } catch (err) {
-      console.error(err);
-      setListError(err?.data?.message || err?.message || "Could not load office locations.");
-    } finally {
-      setListLoading(false);
-    }
-  };
 
   const openModal = (loc = null) => {
     setSaveError("");
@@ -249,12 +244,14 @@ function AttendanceLocationsPage() {
     setSaving(true);
     try {
       if (editingLocation) {
-        await attendanceAPI.updateLocation(editingLocation.id, payload);
+        await list.plane.update(editingLocation.id, payload);
       } else {
-        await attendanceAPI.createLocation(payload);
+        await list.plane.create(payload);
       }
       closeModal();
-      fetchLocations({ silent: true });
+      // Silent: the cards are already on screen, so a skeleton here would
+      // blank the list the person was just looking at.
+      list.reload({ silent: true });
     } catch (err) {
       console.error(err);
       setSaveError(err?.data?.message || err.message || "Failed to save location");
@@ -271,7 +268,7 @@ function AttendanceLocationsPage() {
   const [togglingIds, setTogglingIds] = useState(() => new Set());
   const handleToggleActive = async (loc) => {
     if (togglingIds.has(loc.id)) return;
-    setListError("");
+    list.setError("");
     const setPending = (on) => setTogglingIds((prev) => {
       const next = new Set(prev);
       if (on) next.add(loc.id);
@@ -279,25 +276,21 @@ function AttendanceLocationsPage() {
       return next;
     });
     const nextActive = !loc.is_active;
-    const patch = (fields) => setLocations((prev) => prev.map((l) => (l.id === loc.id ? { ...l, ...fields } : l)));
+    const patch = (fields) => list.patch(loc.id, fields);
     setPending(true);
     patch({ is_active: nextActive });
     try {
-      const res = await attendanceAPI.updateLocation(loc.id, { is_active: nextActive });
+      const res = await list.plane.update(loc.id, { is_active: nextActive });
       const updated = res?.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : null;
       if (updated && updated.id === loc.id) patch(updated);
     } catch (err) {
       console.error(err);
       patch({ is_active: loc.is_active });
-      setListError(err?.data?.message || err?.message || "Could not update the location status.");
+      list.setError(err?.data?.message || err?.message || "Could not update the location status.");
     } finally {
       setPending(false);
     }
   };
-
-  const filteredLocations = locations.filter(loc =>
-    (loc.name || "").toLowerCase().includes(localSearchQuery.toLowerCase())
-  );
 
   return (
     <>
@@ -305,7 +298,10 @@ function AttendanceLocationsPage() {
         <main className="p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto overflow-y-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Office Locations</h1>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-2xl font-bold text-slate-900">Office Locations</h1>
+                <FieldHelp surface="organization.office_locations" field="page" label="office locations" />
+              </div>
               <p className="text-sm text-slate-500 mt-1">Define geographical perimeters where employees can clock in.</p>
             </div>
             <button
@@ -316,139 +312,16 @@ function AttendanceLocationsPage() {
             </button>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs p-6 sm:p-7 space-y-6">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-72">
-                <HiSearch className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={localSearchQuery}
-                  onChange={(e) => setLocalSearchQuery(e.target.value)}
-                  placeholder="Search location..."
-                  className="w-full bg-slate-50/70 border border-slate-200/80 rounded-full pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-purple-500 focus:bg-white transition-all"
-                />
-              </div>
-            </div>
-
-            {listError && !listLoading && (
-              <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold flex flex-wrap items-center gap-3">
-                <span>{listError}</span>
-                <button
-                  type="button"
-                  onClick={fetchLocations}
-                  className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
-                >
-                  Try Again
-                </button>
-              </div>
-            )}
-
-            {/* Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-              {listLoading ? (
-                [...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-white rounded-[20px] h-72 border border-slate-100 animate-pulse" />
-                ))
-              ) : filteredLocations.length === 0 ? (
-                <div className="col-span-full py-16 text-center text-slate-400 font-medium">
-                  <HiLocationMarker className="w-12 h-12 mx-auto text-slate-200 mb-3" />
-                  {listError
-                    ? "Locations unavailable."
-                    : localSearchQuery
-                      ? `No locations matching "${localSearchQuery}"`
-                      : "No locations yet — add your first office."}
-                </div>
-              ) : (
-                filteredLocations.map((loc) => (
-                  <div 
-                    key={loc.id} 
-                    className={`rounded-[20px] transition-all duration-300 group flex flex-col overflow-hidden relative ${
-                      loc.is_active
-                      ? 'bg-white border border-slate-100 hover:border-purple-200 hover:shadow-xl hover:-translate-y-1 shadow-sm'
-                      : 'bg-slate-50/50 border border-dashed border-slate-300 hover:border-slate-400 opacity-90 hover:opacity-100 hover:-translate-y-1 shadow-inner'
-                    }`}
-                  >
-                    
-                    {/* Header Area */}
-                    <div className="p-6 pb-4 border-b border-slate-50 relative">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${
-                          loc.is_active 
-                          ? 'bg-violet-50 text-violet-600 border-violet-100' 
-                          : 'bg-rose-50 text-rose-600 border-rose-100'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${loc.is_active ? 'bg-violet-500' : 'bg-rose-500'}`} />
-                          {loc.is_active ? 'Active' : 'Inactive'}
-                        </div>
-                        
-                        <button onClick={() => openModal(loc)} className="text-slate-400 hover:text-purple-600 transition-colors p-1.5 rounded-lg hover:bg-purple-50">
-                          <HiPencil className="w-4 h-4" />
-                        </button>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                          loc.is_active ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          <HiLocationMarker className="w-5 h-5" />
-                        </div>
-                        <h3 className={`text-[17px] font-bold leading-tight transition-colors line-clamp-1 ${
-                          loc.is_active ? 'text-slate-900 group-hover:text-purple-700' : 'text-slate-700'
-                        }`}>
-                          {loc.name}
-                        </h3>
-                      </div>
-                    </div>
-
-                    {/* Body Area */}
-                    <div className="p-6 pt-4 flex-1 flex flex-col gap-4">
-                      
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Address</p>
-                        <p className="text-xs font-medium text-slate-700 leading-relaxed line-clamp-2">
-                          {loc.address || "N/A"}
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 mt-auto">
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">City & State</p>
-                          <p className="text-xs font-semibold text-slate-700 truncate">
-                            {[loc.city, loc.state].filter(Boolean).join(", ") || "N/A"}
-                          </p>
-                        </div>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Radius</p>
-                          <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                            <HiSparkles className="w-3.5 h-3.5 text-purple-500" />
-                            {loc.geofence_radius_meters != null ? `${loc.geofence_radius_meters} meters` : "N/A"}
-                          </p>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* Footer Area for Status Toggle */}
-                    <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between shrink-0">
-                      <span className="text-xs font-bold text-slate-600">Location Status</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={!!loc.is_active}
-                        aria-label={`${loc.is_active ? "Deactivate" : "Activate"} ${loc.name}`}
-                        onClick={() => handleToggleActive(loc)}
-                        disabled={togglingIds.has(loc.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-wait ${loc.is_active ? "bg-purple-600" : "bg-slate-300"}`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${loc.is_active ? "translate-x-6" : "translate-x-1"}`} />
-                      </button>
-                    </div>
-
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Search, states and the cards are the shared view, so HR's and the
+              manager's lists are literally the same component. The two write
+              affordances are passed in — a role without them gets no pencil and
+              no status switch, rather than a disabled one. */}
+          <OfficeLocationsView
+            list={list}
+            onEdit={openModal}
+            onToggle={handleToggleActive}
+            togglingIds={togglingIds}
+          />
         </main>
 
       {/* Modal */}

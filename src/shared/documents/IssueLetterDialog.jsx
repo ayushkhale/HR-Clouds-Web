@@ -35,6 +35,28 @@
 //    moment, so the dialog stays open on a confirmation that shows it, with the
 //    PDF one click away.
 //
+//  · THE PREVIEW IS THE REAL LETTER, ONCE THERE IS SOMEBODY TO DRAW IT FOR.
+//    Since a letter can't be corrected after issuing, the check that matters is
+//    "is this right for THIS person", which only #271 can answer — same body as
+//    #139 minus the key, watermarked, saved nowhere, numbered never. #138's
+//    made-up details stay as the fallback for before a person is chosen, and
+//    each dialog says which of the two it is. Don't collapse them into one: the
+//    sample is reassuring and useless over a real salary figure.
+//
+//  · NEITHER BUTTON CALLS AN UNFINISHED FORM (14 Oct 2026, CLAUDE.md §11).
+//    Issue and the preview send the same overrides to endpoints that validate
+//    them identically, so both check before calling and take the person to the
+//    first box that needs them — the preview used to fire regardless and come
+//    back a 400 phrased in payload keys, which is the bug that wrote §11. Both
+//    buttons stay LIVE while the form is unfinished: a dead one cannot say
+//    which of twelve boxes across three folded steps it is waiting for.
+//
+// STEP 1 AND THE NUMBERED BLOCKS ARE SHARED with the batch form, in
+// LetterCatalogStep.jsx and LetterFormStep.jsx. The two forms are one product
+// seen twice — a manager-free, HR-only pair that must be recognisable as each
+// other — and the local copies had already drifted apart while still carrying
+// the comment that said they matched. Change the shared file, not one caller.
+//
 // The last screen also tells the truth about an idempotent replay: when the
 // server answers `reused: true` no second letter was created, and saying
 // "issued" there would have somebody believe two went out.
@@ -43,19 +65,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  HiBadgeCheck, HiCalendar, HiCheckCircle, HiChevronDown, HiDocumentText, HiDownload,
-  HiExclamationCircle, HiEye, HiInformationCircle, HiLockClosed, HiMail, HiPaperAirplane,
-  HiRefresh, HiUser, HiX,
+  HiBadgeCheck, HiCalendar, HiCheckCircle, HiDownload, HiExclamationCircle, HiEye,
+  HiInformationCircle, HiLockClosed, HiMail, HiPaperAirplane, HiRefresh, HiUser, HiX,
 } from "react-icons/hi";
 import AttachmentViewerDialog from "../components/AttachmentViewerDialog";
 import { PersonSelect } from "../components/PersonPicker";
 import { fmtDate, fmtDateTime, todayYMD } from "../attendance/dates";
 import { departmentName, employeeCode } from "../attendance/normalize";
 import {
-  documentErrorMessage, isLetterFieldRejected, isLetterOutcomeUnknown, isRenderInProgress,
+  documentErrorMessage, isFeatureNotDeployed, isLetterFieldRejected, isLetterOutcomeUnknown, isRenderInProgress,
   isRendererNotConfigured, isRetryLimitExceeded, letterErrorFieldKey, letterIssueErrorMessage,
 } from "../utils/documentErrors";
-import { FIELD, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
+import { focusFirstProblem, hasProblems } from "../utils/formGuard";
+import { FIELD, FIELD_INVALID, LABEL, PRIMARY_BTN, SECONDARY_BTN } from "./ui";
 import { triggerDownload } from "./documentUpload";
 import { humanizeCode } from "./documentMeta";
 import useDocumentSettings from "./useDocumentSettings";
@@ -64,8 +86,11 @@ import { letterIssueReminder } from "./letterFieldMatrix";
 import {
   issueDateMax, issueDateMin, issueDateNote, issueDateProblem, issuedLetterOf, keyForRetry,
   letterFactFields, letterOverridableFields, newIdempotencyKey, onlyRequiredMissing, overrideProblems,
-  overridesFromSaved, overridesPayload, refusedFields, rememberNotOverridable, wasReused,
+  overrideValueProblems, overridesFromSaved, overridesPayload, refusedFields, rememberNotOverridable,
+  wasReused,
 } from "./letterIssueMeta";
+import LetterCatalogStep from "./LetterCatalogStep";
+import Step from "./LetterFormStep";
 import LetterOverrideFields, { LetterIssueReminder } from "./LetterOverrideFields";
 import LetterFixLink from "./LetterFixLink";
 import LetterPreviewDialog from "./LetterPreviewDialog";
@@ -73,49 +98,19 @@ import LetterPreviewDialog from "./LetterPreviewDialog";
 const SETTINGS_PATH = "/dashboard/hr/documents/settings";
 const TEMPLATES_PATH = "/dashboard/hr/documents/letter-templates";
 
+// The two answers that are not a box, written once: each is the blocking
+// message, the red line under its own control AND the footer note, and three
+// copies of one sentence are three chances for them to stop matching.
+const PICK_LETTER = "Choose which letter you are issuing.";
+const PICK_PERSON = "Choose who it is for.";
+
 /**
- * A titled block of the form. Same look as the Create Attendance Policy sections.
- *
- * Passing `onToggle` makes the step fold, which exists for one reason: the letter
- * catalog is the tallest thing on this form and is answered once, in the first
- * second. Folding it on a pick puts "who it is for" and the date on screen
- * without a scroll, and `summary` keeps the answer visible so the fold never
- * hides what was chosen.
+ * Where each problem key lives on screen, for the form guard (CLAUDE.md §11).
+ * The `_`-prefixed keys are the form's own; everything else is one of the
+ * letter's own fields, which LetterOverrideFields ids as `il-<payload key>`.
  */
-function Step({ n, title, blurb, summary, open = true, onToggle, children }) {
-  const collapsible = typeof onToggle === "function";
-  return (
-    <section>
-      <div className="flex items-baseline gap-2.5 mb-3">
-        <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-[11px] font-bold flex items-center justify-center shrink-0 tabular-nums">{n}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-800 shrink-0">{title}</h3>
-            {collapsible && !open && summary && (
-              <span className="inline-flex items-center gap-1.5 min-w-0 text-xs font-bold text-purple-700">
-                <HiDocumentText className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{summary}</span>
-              </span>
-            )}
-            {collapsible && (
-              <button
-                type="button"
-                onClick={onToggle}
-                aria-expanded={open}
-                className="ml-auto inline-flex items-center gap-1 shrink-0 text-[11px] font-bold text-purple-600 hover:text-purple-700 hover:underline"
-              >
-                {open ? "Hide" : "Change"}
-                <HiChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-              </button>
-            )}
-          </div>
-          {blurb && open && <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{blurb}</p>}
-        </div>
-      </div>
-      {open && <div className="pl-0 sm:pl-[34px]">{children}</div>}
-    </section>
-  );
-}
+const OWN_FIELD_IDS = { _code: "il-letters", _subject: "il-person", _date: "il-date" };
+const idOfProblem = (key) => OWN_FIELD_IDS[key] || `il-${key}`;
 
 /**
  * @param {object} props
@@ -149,12 +144,15 @@ export default function IssueLetterDialog({
   const [viewing, setViewing] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
-  const [previewing, setPreviewing] = useState(false);
-  // The catalog is the tallest step and is answered once, in the first second,
-  // so it folds on a pick. Derived rather than raw: it must never read as
-  // folded while nothing is chosen, or dropping a preselected letter that turns
-  // out not to be issuable would hide the catalog with no way back to it.
-  const [pickerFolded, setPickerFolded] = useState(!!templateCode);
+  // Which preview is open, and they are not interchangeable: "sample" is #138
+  // (made-up details, no person needed) and "draft" is #271 (this person's real
+  // record, watermarked, nothing issued). See `openPreview`.
+  const [previewing, setPreviewing] = useState(null);
+  // Set when #271 turns out not to exist on this server (a release behind: an
+  // unrouted path, no JSON envelope). The real draft is then not on offer at
+  // all and the button quietly goes back to the sample render, rather than
+  // 404ing again every time somebody presses it.
+  const [draftOff, setDraftOff] = useState(false);
   // Fields the server has refused as an override for this letter. Held in state
   // rather than read out of the session memory inside the memo, so React can see
   // it change — a memo over hidden mutable state never invalidates, and the box
@@ -171,6 +169,16 @@ export default function IssueLetterDialog({
   busyRef.current = busy;
 
   /**
+   * Whether one of OUR OWN overlays is on top (a preview, the letter viewer).
+   * Escape then belongs to that overlay alone. Without this the form's listener
+   * fires as well — both are capture listeners on `document`, where
+   * stopPropagation does nothing to a sibling on the same node — so one key
+   * would dismiss the preview AND throw away the whole form behind it.
+   */
+  const overlayRef = useRef(false);
+  overlayRef.current = !!previewing || !!viewing;
+
+  /**
    * Escape closes this form and goes no further.
    *
    * Capture phase with `stopPropagation`, because this dialog can sit over the
@@ -182,6 +190,7 @@ export default function IssueLetterDialog({
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
+      if (overlayRef.current) return;
       e.stopPropagation();
       if (!busyRef.current) onCloseRef.current?.();
     };
@@ -284,21 +293,110 @@ export default function IssueLetterDialog({
   }, [fields, values, issuedOn, saved]);
 
   const chosenRow = useMemo(() => issuable.find((row) => row.code === code) || null, [issuable, code]);
-  const pickerOpen = !code || !pickerFolded;
   const person = useMemo(
     () => people.find((p) => (p.user_id ?? p.id) === subject) || null,
     [people, subject],
   );
 
   const ready = !!code && !!subject && !detail.loading && !detail.error && Object.keys(problems).length === 0;
-  // Pressing Issue with only required boxes empty is allowed — it is what turns
-  // those boxes red — so the button isn't dead while they are.
-  const onlyMissingRequired = !!code && !!subject && !detail.loading && !detail.error && onlyRequiredMissing(problems);
+
+  /**
+   * Everything standing between this form and the request, in one map the form
+   * guard can walk — including the two answers that aren't a box, under keys
+   * prefixed so they can never collide with a template field (whose own names
+   * the server requires to start with a lowercase letter).
+   */
+  const blockers = () => {
+    const out = { ...problems };
+    if (!code) out._code = PICK_LETTER;
+    if (!subject) out._subject = PICK_PERSON;
+    return out;
+  };
+
+  /**
+   * The #271 body. Deliberately built from the SAME values as `issue()` below —
+   * same overrides, same date rule — because its only job is to be the letter
+   * that Issue would produce. Two traps, both 400s:
+   *   · no `idempotency_key` here (#271 rejects unknown keys; the server keeps
+   *     its own isolated preview cache), and the issue key must not be spent on
+   *     a preview anyway;
+   *   · the key is `field_overrides`, as on the issue call — NOT #138's
+   *     `override_fields`. The two endpoints spell it differently.
+   */
+  const previewBody = () => {
+    const body = { template_code: code, subject_user_id: subject };
+    const overrides = overridesPayload(fields, values);
+    if (Object.keys(overrides).length) body.field_overrides = overrides;
+    if (issuedOn && issuedOn !== todayYMD() && !issueDateProblem(issuedOn)) body.effective_date = issuedOn;
+    return body;
+  };
+
+  /**
+   * Whether a real draft can be drawn at all. #271 needs a person and a date the
+   * server would accept; without those it can only answer 400, so the sample
+   * render (#138) is the honest fallback and its own dialog says the details are
+   * made up.
+   *
+   * The button's WORDS come from this same flag, never from `subject` alone — a
+   * button that says "See this letter" and then shows a stranger's invented
+   * salary is the one outcome this screen cannot afford.
+   */
+  const canDraft = !!subject && !issueDateProblem(issuedOn) && !draftOff;
+
+  /**
+   * Nothing is drawn from an unfinished form (CLAUDE.md §11).
+   *
+   * #271 validates the overrides exactly as #139 does — which is the whole
+   * reason previewing first is worth doing — so a real draft is blocked by
+   * everything Issue is blocked by. It used to go out regardless and come back
+   * a 400 phrased in payload keys. The sample carries only the boxes and
+   * invents the rest, so an empty required box is what it is FOR; a value the
+   * server won't take refuses either render, and blocks both.
+   */
+  const openPreview = () => {
+    const stopping = canDraft ? blockers() : overrideValueProblems(problems);
+    if (hasProblems(stopping)) {
+      setAttempted(true);
+      focusFirstProblem(stopping, idOfProblem);
+      return;
+    }
+    setPreviewing(canDraft ? "draft" : "sample");
+  };
+
+  /**
+   * The server has named a field it will not accept: remember it for the
+   * session, drop the box and keep what was typed elsewhere.
+   *
+   * Shared by Issue and the draft preview on purpose — #271 validates overrides
+   * exactly as #139 does, so a refusal found in a preview is one the issue would
+   * have hit. Learning it here is the whole point of previewing first.
+   */
+  const absorbFieldRefusal = (err) => {
+    if (!isLetterFieldRejected(err)) return;
+    const rejected = letterErrorFieldKey(err);
+    if (!rejected) return;
+    rememberNotOverridable(code, rejected);
+    setValues((prev) => {
+      const next = { ...prev };
+      delete next[rejected];
+      return next;
+    });
+    setRefused(refusedFields(code));
+  };
 
   // ── Issue ──────────────────────────────────────────────────────────────────
   const issue = async ({ confirmed = false } = {}) => {
-    setAttempted(true);
-    if (!ready || busy) return;
+    if (busy) return;
+    // The press is what checks, and what turns the form red (§11). An
+    // unfinished one never reaches #139: it reveals what is missing and takes
+    // the person to the first of it.
+    const stopping = blockers();
+    if (hasProblems(stopping)) {
+      setAttempted(true);
+      focusFirstProblem(stopping, idOfProblem);
+      return;
+    }
+    if (!ready) return;
 
     if (!confirmed) {
       const who = person?.name || "this person";
@@ -342,21 +440,9 @@ export default function IssueLetterDialog({
     } catch (err) {
       if (isRendererNotConfigured(err)) onRendererOff?.();
 
-      // The server has named a field it will not accept. Remember it for the
-      // session, drop the box, and say so — one more click issues the letter
-      // instead of the person guessing which detail was the problem.
-      if (isLetterFieldRejected(err)) {
-        const rejected = letterErrorFieldKey(err);
-        if (rejected) {
-          rememberNotOverridable(code, rejected);
-          setValues((prev) => {
-            const next = { ...prev };
-            delete next[rejected];
-            return next;
-          });
-          setRefused(refusedFields(code));
-        }
-      }
+      // One more click then issues the letter, instead of the person guessing
+      // which detail was the problem.
+      absorbFieldRefusal(err);
 
       keyRef.current = keyForRetry(keyRef.current, err, isRenderInProgress, "issue");
       const unknown = isLetterOutcomeUnknown(err);
@@ -482,82 +568,71 @@ export default function IssueLetterDialog({
               </div>
             ) : (
               <>
-                <Step
-                  n={1}
-                  title="Which letter"
+                <LetterCatalogStep
+                  id="il-letters"
+                  rows={issuable}
+                  value={code}
+                  problem={attempted && !code ? PICK_LETTER : ""}
+                  disabled={busy}
                   blurb="Only the letters your organisation has switched on can be issued."
-                  summary={letterTitle(chosenRow)}
-                  open={pickerOpen}
-                  onToggle={code ? () => setPickerFolded((f) => !f) : undefined}
+                  onPick={(next) => { setCode(next); setValues({}); setFailure(null); }}
+                />
+
+                {/* Who and when share one row, as they do on the batch form:
+                    stacked, they pushed everything below them off a 1366×768
+                    screen before a letter had even been chosen, and a form that
+                    scrolls before you start is a bug (§3). */}
+                <Step
+                  n={2}
+                  title="Who it is for, and when"
+                  blurb="Everything about them — their name, job title, dates — is taken from their record, exactly as it stands today."
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                    {issuable.map((row) => {
-                      const picked = row.code === code;
-                      return (
-                        <button
-                          key={row.code}
-                          type="button"
-                          onClick={() => { setCode(row.code); setValues({}); setFailure(null); setPickerFolded(true); }}
-                          aria-pressed={picked}
-                          disabled={busy}
-                          className={`text-left rounded-xl border px-4 py-3 transition disabled:opacity-60 ${picked ? "border-purple-300 bg-purple-50/70 ring-2 ring-purple-100" : "border-slate-200 bg-white hover:border-purple-200"}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <HiDocumentText className={`w-4 h-4 shrink-0 ${picked ? "text-purple-600" : "text-slate-400"}`} />
-                            <span className="text-sm font-bold text-slate-800 truncate">{letterTitle(row)}</span>
-                          </span>
-                          <span className="block text-[11px] text-slate-500 mt-1 leading-relaxed">
-                            {row.has_saved_fields ? "Your saved wording is filled in automatically." : "Uses the standard wording."}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </Step>
-
-                <Step n={2} title="Who it is for" blurb="Everything about them — their name, job title, dates — is taken from their record, exactly as it stands today.">
-                  <div className="max-w-md">
-                    <label htmlFor="il-person" className={LABEL}>Employee</label>
-                    <PersonSelect
-                      id="il-person"
-                      people={people}
-                      value={subject}
-                      onChange={(id) => { setSubject(id); setFailure(null); }}
-                      placeholder="Search by name or employee code"
-                      loading={peopleStatus === "loading"}
-                      error={peopleStatus === "error" ? "Couldn’t load the list of people. Refresh the page and try again." : ""}
-                      disabled={busy}
-                      aria-label="Employee the letter is for"
-                    />
-                  </div>
-                  {person && <PersonFacts person={person} />}
-                </Step>
-
-                <Step n={3} title="Date on the letter" blurb="Printed on the letter, and the year its reference number belongs to.">
-                  <div className="max-w-xs">
-                    <label htmlFor="il-date" className={LABEL}>Date of issue</label>
-                    <div className="relative">
-                      <HiCalendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        id="il-date" type="date" value={issuedOn} disabled={busy}
-                        min={issueDateMin()} max={issueDateMax()}
-                        onChange={(e) => { setIssuedOn(e.target.value); setTouched(true); }}
-                        className={`${FIELD} !pl-10`}
+                  <div className="grid lg:grid-cols-[minmax(0,1fr)_14rem] gap-x-6 gap-y-4 items-start">
+                    <div className="min-w-0">
+                      <label htmlFor="il-person" className={LABEL}>Employee</label>
+                      <PersonSelect
+                        id="il-person"
+                        invalid={attempted && !subject}
+                        people={people}
+                        value={subject}
+                        onChange={(id) => { setSubject(id); setFailure(null); }}
+                        placeholder="Search by name or employee code"
+                        loading={peopleStatus === "loading"}
+                        error={peopleStatus === "error" ? "Couldn’t load the list of people. Refresh the page and try again." : ""}
+                        disabled={busy}
+                        aria-label="Employee the letter is for"
                       />
+                      {attempted && !subject && (
+                        <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{PICK_PERSON}</p>
+                      )}
+                      {person && <PersonFacts person={person} />}
                     </div>
-                    {problems._date ? (
-                      <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{problems._date}</p>
-                    ) : (
-                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                        {issueDateNote(issuedOn) || "Today. Change it only if the letter has to carry a different date."}
-                      </p>
-                    )}
+
+                    <div className="min-w-0">
+                      <label htmlFor="il-date" className={LABEL}>Date of issue</label>
+                      <div className="relative">
+                        <HiCalendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          id="il-date" type="date" value={issuedOn} disabled={busy}
+                          min={issueDateMin()} max={issueDateMax()}
+                          onChange={(e) => { setIssuedOn(e.target.value); setTouched(true); }}
+                          className={`${FIELD} !pl-10 ${problems._date ? FIELD_INVALID : ""}`}
+                        />
+                      </div>
+                      {problems._date ? (
+                        <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{problems._date}</p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                          {issueDateNote(issuedOn) || "Today. Printed on the letter, and the year its reference number belongs to."}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </Step>
 
                 {code && (
                   <Step
-                    n={4}
+                    n={3}
                     title="What only you can say"
                     blurb="The parts of this letter that change from one copy to the next. Everything else is taken from their record or from your saved wording."
                   >
@@ -617,7 +692,7 @@ export default function IssueLetterDialog({
                 )}
 
                 {code && subject && (
-                  <Step n={5} title="How it will be filed" blurb="Set once for your whole organisation, not per letter.">
+                  <Step n={4} title="How it will be filed" blurb="Set once for your whole organisation, not per letter.">
                     <div className="rounded-2xl border border-slate-100 bg-slate-50/60 divide-y divide-slate-100">
                       <SettingLine
                         icon={HiLockClosed}
@@ -695,9 +770,9 @@ export default function IssueLetterDialog({
               <>
                 <p className="mr-auto text-[11px] text-slate-500 max-w-sm leading-relaxed">
                   {!code
-                    ? "Choose which letter you are issuing."
+                    ? PICK_LETTER
                     : !subject
-                      ? "Choose who it is for."
+                      ? PICK_PERSON
                       : Object.keys(problems).length
                         ? (onlyRequiredMissing(problems) ? "Fill in the details marked * above." : "Fix what is highlighted above.")
                         : touched
@@ -706,14 +781,27 @@ export default function IssueLetterDialog({
                 </p>
                 <button type="button" onClick={() => onCloseRef.current?.()} disabled={busy} className={SECONDARY_BTN}>Cancel</button>
                 {code && !detail.loading && !detail.error && (
-                  <button type="button" onClick={() => setPreviewing(true)} disabled={busy} className={SECONDARY_BTN}>
-                    <HiEye className="w-4 h-4" /> See the layout
+                  <button
+                    type="button"
+                    onClick={openPreview}
+                    disabled={busy}
+                    className={SECONDARY_BTN}
+                    title={canDraft
+                      ? "Draws the real letter for this person, watermarked. Nothing is issued."
+                      : "Shows the layout with made-up details. Choose who it is for, and a valid date, to see their own letter."}
+                  >
+                    <HiEye className="w-4 h-4" /> {canDraft ? "See this letter" : "See the layout"}
                   </button>
                 )}
+                {/* Live whenever the person could still finish the form: the
+                    press is what checks it and what points at what is missing
+                    (§11). Off only for what pressing cannot fix — a letter being
+                    drawn right now, a field list that wouldn't load, a refusal
+                    that says stop rather than try again. */}
                 <button
                   type="button"
                   onClick={() => issue({ confirmed: !!failure })}
-                  disabled={(!ready && !onlyMissingRequired) || busy || failure?.retryable === false}
+                  disabled={busy || detail.loading || !!detail.error || failure?.retryable === false}
                   className={PRIMARY_BTN}
                 >
                   <HiPaperAirplane className="w-4 h-4" />
@@ -736,14 +824,32 @@ export default function IssueLetterDialog({
         />
       )}
 
-      {/* #138 draws a watermarked page from MADE-UP details — never this
-          person's. The subtitle says so on the way in, because the person has
-          already been chosen two steps above and would otherwise read the
-          sample name as a mistake in their record. */}
-      {previewing && (
+      {/* Two previews, and the difference is the whole point of having both:
+          #271 draws THIS person's letter from their own record, so it is the
+          one to check before issuing; #138 draws the same template from
+          MADE-UP details and is all that is possible before a person is
+          chosen. Each dialog states which it is — a sample name read as the
+          subject's would look like a mistake in their record. */}
+      {previewing === "draft" && (
         <LetterPreviewDialog
           title={letterTitle(chosenRow)}
-          subtitle="Sample details on your letterhead — not this person’s"
+          subtitle={`How it will read for ${person?.name || "this person"}`}
+          subject={person?.name || "this person"}
+          render={() => api.previewSubjectLetter(previewBody())}
+          note="This is what Issue will produce: the same wording, details and date. Only the PREVIEW stamp is different."
+          onError={(err) => {
+            if (isRendererNotConfigured(err)) onRendererOff?.();
+            if (isFeatureNotDeployed(err)) setDraftOff(true);
+            absorbFieldRefusal(err);
+          }}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
+
+      {previewing === "sample" && (
+        <LetterPreviewDialog
+          title={letterTitle(chosenRow)}
+          subtitle={subject ? "Sample details on your letterhead — not this person’s" : "Sample details on your letterhead"}
           render={() => {
             const body = { use_saved_fields: true };
             const overrides = overridesPayload(fields, values);
@@ -752,7 +858,7 @@ export default function IssueLetterDialog({
           }}
           note="Checks the wording and layout only. What you typed above is included; the name, pay and dates are invented."
           onError={(err) => { if (isRendererNotConfigured(err)) onRendererOff?.(); }}
-          onClose={() => setPreviewing(false)}
+          onClose={() => setPreviewing(null)}
         />
       )}
     </>

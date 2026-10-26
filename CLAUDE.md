@@ -169,6 +169,11 @@ green/amber/orange/blue class.
 - **Never render a dash.** Unknown → **N/A** (`displayValue`, `formatUtils`, `dates.js`);
   unmeasured duration → **0m**; no action → empty cell. If no row in a list has an
   action, drop the Actions column.
+- **Never show a blank page while data loads — always render a skeleton** (`Skeleton`
+  or an inline `animate-pulse` placeholder shaped like the content). Every page or
+  card that fetches starts in a loading state, so design the loading, empty and error
+  states as part of the build, never a bare `null` or white screen. A crash or stale
+  chunk is caught by `ErrorBoundary` (`shared/components`), not left to blank the app.
 
 Don't rebuild these: `GenderAvatar` (never hand-roll initials or `<img>` avatars) ·
 `TimeField` (**never `<input type="time">`**) · `PersonPicker` · `FilterTabs`
@@ -348,3 +353,50 @@ qualifies" with the reason. A hand-off that doesn't mention ⓘ help is unfinish
   entry without one.
 - Briefs and history: `.agents/prompts/*-ask-maya.md` and the audit report in
   `public/ref docs/md_updates/`.
+
+---
+
+## 11. A form that calls an API validates before it calls
+
+**The button stays live. The press does the checking.** Every form in this app
+behaves the same way, so HR learns it once:
+
+1. **Nothing goes out from an unfinished form.** Build the `problems` map the
+   screen already needs — `{ [payloadKey]: "what is wrong with it" }`, empty when
+   the form may be sent — and check it at the top of the submit handler. The
+   server's own refusal names an API key, not a label (`field_overrides.custom_body
+   is required`), so checking first is the only way the person reads our words (§6).
+2. **A press on an unfinished form reveals, reddens and travels.** Flip the
+   form's `attempted` flag, turn the offending boxes red, and take the person to
+   the first one — `focusFirstProblem(problems, idFor)` from
+   `shared/utils/formGuard.js`, which scrolls it into view and focuses it, in
+   screen order rather than key order. It returns `true` when the form must not
+   be sent; return on that.
+3. **A form never opens in red.** An empty required box is a plain hint until the
+   first press and an error after it (`revealRequired` / `attempted`). Red before
+   anyone has claimed to be finished is hostile.
+4. **An invalid box is a red box** — `FIELD_INVALID` beside `FIELD`
+   (`documents/ui.jsx`), `invalid` on `PersonSelect`/`PersonMultiSelect` — not
+   merely a red line of text under a box that still looks fine.
+5. **A step that isn't a box gets a key too**, prefixed with `_` so it can never
+   collide with a payload key (`_code`, `_subject`, `_date`), an entry in the
+   form's id map, and the same red message under the control it belongs to. The
+   footer note and the blocking message are **one string**, declared once.
+
+**Disabled is for what the person cannot fix by pressing:** a request already in
+flight, a rate-limit cooldown, a paused or undeployed feature, a lookup that
+wouldn't load. Those keep the button off (§2 — never show a button that 403s).
+A missing *answer* is not one of them: a dead button cannot say which of twelve
+boxes across three folded steps it is waiting for.
+
+**This applies to every button that calls an API, not just the primary one.** A
+preview, a "see this letter", a recalculate or a dry-run sends the same payload
+and gets the same 400 — a secondary button firing an unfinished form was the
+original bug (the letter forms, 14 Oct 2026). Validate whatever that call
+actually carries: the letter preview that draws a real person's letter is blocked
+by everything Issue is blocked by, while the made-up-details sample only carries
+the typed boxes, so an empty required box is what it is *for*
+(`overrideValueProblems`).
+
+Reference implementation: `IssueLetterDialog.jsx` and
+`BulkIssueLettersDialog.jsx` — one person and many, the same shape.

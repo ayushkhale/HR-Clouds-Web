@@ -262,25 +262,25 @@ hides or hardcodes this column for managers/HR, and make sure the column renders
 
 ## Acceptance checklist
 
-- [x] Fresh org registration → dashboard shows the setup banner; `setup-status` returns
+- [ ] Fresh org registration → dashboard shows the setup banner; `setup-status` returns
       `is_complete: false` with all eight fields missing and both `can_set_*` false.
-- [x] Wizard refuses to show the department/location pickers until the org has an active one, and
+- [ ] Wizard refuses to show the department/location pickers until the org has an active one, and
       links to the create flows.
-- [x] Completing step 3 closes the wizard using the PATCH response's `setup_status` (verify in the
+- [ ] Completing step 3 closes the wizard using the PATCH response's `setup_status` (verify in the
       network tab that no second `GET setup-status` is required).
-- [x] Re-submitting an already-filled field surfaces the `FIELD_ALREADY_SET` message and the fields
+- [ ] Re-submitting an already-filled field surfaces the `FIELD_ALREADY_SET` message and the fields
       flip to read-only after a refetch (test by double-clicking submit).
-- [x] A department from another location triggers the `LOCATION_MISMATCH` copy, not a raw error.
-- [x] Future date is blocked client-side (picker max = today) and the server's 400 is also handled.
-- [~] Every `department` / `designation` render site shows `—` for `null`; no `"null"` text anywhere.
-- [x] Department grouping/filtering keys off `department_id`; a member with none appears under
+- [ ] A department from another location triggers the `LOCATION_MISMATCH` copy, not a raw error.
+- [ ] Future date is blocked client-side (picker max = today) and the server's 400 is also handled.
+- [ ] Every `department` / `designation` render site shows `—` for `null`; no `"null"` text anywhere.
+- [ ] Department grouping/filtering keys off `department_id`; a member with none appears under
       "Unassigned".
-- [x] HOD picker: choosing someone from another department offers the transfer flow.
-- [x] Deactivating a headed department shows the `DEPARTMENT_IN_USE` guidance.
-- [x] Invite form: HOD checkbox enabled for `hr` and `manager`, disabled for `employee`, requires a
+- [ ] HOD picker: choosing someone from another department offers the transfer flow.
+- [ ] Deactivating a headed department shows the `DEPARTMENT_IN_USE` guidance.
+- [ ] Invite form: HOD checkbox enabled for `hr` and `manager`, disabled for `employee`, requires a
       department, hidden for manager callers.
-- [~] Department + hierarchy caches are invalidated after an invitation is accepted.
-- [x] Manager and employee logins never see the setup banner or the job-profile form.
+- [ ] Department + hierarchy caches are invalidated after an invitation is accepted.
+- [ ] Manager and employee logins never see the setup banner or the job-profile form.
 
 ## Do not
 
@@ -297,124 +297,3 @@ hides or hardcodes this column for managers/HR, and make sure the column renders
 1. Where the setup banner should live (dashboard header vs a dedicated onboarding route).
 2. Whether `marital_status` should be a free-text input or a fixed select (backend accepts any
    string ≤ 50; a shared vocabulary would be better if leave rules depend on it).
-
----
-
-## Frontend delivery — 2026-10-02
-
-Implemented against this prompt plus `md_organization/` §11 / §4 / §1. `npm run build` passes; lint on
-the ten pre-existing files touched is unchanged at **17 problems, 17 before and 17 after** (unused
-`React` imports and unescaped apostrophes that predate this work); the four new files lint clean.
-`[~]` above marks the two items delivered differently from the ask, and both are explained below.
-
-### What was built
-
-| Task | Where |
-|---|---|
-| 1. Setup wizard | `shared/organization/profileSetupMeta.js` · `ProfileSetupDialog.jsx` · `ProfileSetupCard.jsx`, mounted on the HR dashboard and on My Profile |
-| 1. API | `organizationAPI.getMySetupStatus()` / `updateMyJobProfile()` |
-| 2. Null-safety / keying | `orgChartMeta.js`, `DepartmentTab.jsx`, `DirectoryPage.jsx`, `MyProfilePage.jsx` |
-| 3. HOD picker + errors | `shared/screens/DepartmentsPage.jsx` |
-| 3/4. Error copy | 17 codes added to `shared/utils/organizationErrors.js`, plus `organizationErrorCode()` |
-| 4. Invite form | `InviteMemberModal.jsx` (timing copy), `InvitationAcceptPage.jsx` (cache) |
-| ⓘ help | surface `organization.profile_setup`, 6 onboarding entries; `organization.invite.is_hod` reworded |
-
-### Answers to "confirm with backend if unclear"
-
-1. **Where the banner lives:** both the HR dashboard (directly under the greeting, dismissible for the
-   session) and My Profile (not dismissible). The dashboard is the landing screen after registration;
-   My Profile is where the eight blanks are actually visible, as locked "Not set" rows with no way to
-   act — which is what the original defect felt like from the inside. Dismissal is `sessionStorage`,
-   not `localStorage`: the consequences are permanent, so the reminder should come back next login
-   rather than being silenced for good.
-2. **`marital_status` is a fixed select**, not free text: `single` · `married` · `divorced` ·
-   `widowed` · `prefer_not_to_say`. Leave types can be gated on marital status, and a gate only
-   matches values it recognises — free text would let one person type "Married" and the next
-   "married", quietly leaving the second outside the rule. Widen the list rather than reopening it to
-   free text. The server still accepts any string ≤ 50, so this is a frontend narrowing only.
-
-### Two deviations from the ask
-
-- **Null `department` / `designation` read "N/A" or "No job title yet", never an em dash.** The prompt
-  asks for `—`; the house rule (CLAUDE.md §5) is that no screen renders a dash, because a dash is
-  indistinguishable from a value that failed to load. The intent — never `"null"`, never an empty chip
-  — is met.
-- **Cache invalidation after accept is one call, not two.** There is no query cache in this app:
-  `GET /organizations/departments` and `GET /organizations/hierarchy` are read per screen mount, so
-  there is nothing to invalidate for them. What *is* cached is the org-wide roster (five-minute TTL,
-  keyed by session token), so `clearOrgEmployeesCache()` is called on a successful accept. That
-  matters for an existing user accepting a second-org invitation while already signed in; a brand-new
-  user has nothing cached and it is a no-op.
-
-### One item in Task 4 that cannot be built
-
-**"Label it as pending (\"Will become head of <department> on joining\") in the invitation list"** — the
-list response (§6 of `2_org_invitation_api.md`) carries `department_id`, `department_name`,
-`designation` and `reporting_person`, but **no `make_hod` / `department_head` key**. There is nothing
-to read, so nothing is rendered; this build does not guess. Two consequences worth knowing:
-
-- Add `make_hod` (or the staged `department_head`) to the list projection and the label can be wired
-  in one place.
-- Until then, **re-inviting from the Invites screen silently drops a staged headship.** The re-invite
-  payload is rebuilt from what the row remembers, and the row doesn't remember this. Per §3 of
-  `..._hod_department_head_column_fix.md` the backend now writes `!!make_hod` on every manager/HR
-  invite, so the re-invite *clears* the flag — which is the right default for a lapsed invitation, but
-  is invisible to the HR doing it.
-
-### Not done, deliberately
-
-- **Task 5 required no change.** There was no workaround hiding or hardcoding `employment_type` for
-  manager/HR rows to remove — the field is rendered straight from the payload
-  (`employee-profile/ProfileTab.jsx`) and the roster has no employment-type column at all. The
-  knock-on is that `shared/attendance/useTargetingOptions.js`, which derives its employment-type
-  options from whatever strings the roster carries, now offers the values manager/HR rows were
-  missing. That is the fix landing, not a regression.
-- **No self-service edit for the eight fields once set.** The dialog shows them read-only under
-  "Already on file" and says corrections belong to another HR.
-- **The G-1 HR correction form** (`PATCH /organizations/employees/:id/hr-fields` for gender /
-  marital status / joining date) is still not built — it was already out of scope on 2026-10-02 and
-  remains so. It is the only route by which a *second* HR can fix a mistyped joining date, so it is
-  the natural next piece.
-
-### Review pass — bugs found in the new code and fixed
-
-A second read of the new code before hand-off. Eight real defects, all in code written for this
-change:
-
-1. **An absent `setup_status` on the PATCH response was normalised into "nothing missing, not
-   complete".** After a *successful* write the dialog closed and the card re-rendered reading "still
-   has 0 details missing" with everything disabled. An absent key means "I don't know", never "all
-   done" (§7) — it now falls back to re-reading the status.
-2. **A `409 FIELD_ALREADY_SET` wiped the whole form.** A 409 writes nothing, so every unrelated
-   answer the user had typed was lost. Only the answers that are no longer askable are dropped now.
-3. **A 409 that completed the profile reported nothing at all** — the card's own guard unmounts the
-   dialog, so the message it set was never rendered. It is reported as a toast, which outlives the
-   dialog.
-4. **`HOD_IN_OTHER_DEPARTMENT` left the Save footer unchanged**, with the explanation mid-form above
-   the fold — a refused save that looked like nothing happened. The footer now says it failed and
-   points at the note.
-5. **The card could contradict itself**: with `missing` empty but `unknown_missing` set, it showed
-   "still has 1 detail missing", a disabled button, and "Nothing left for you to fill in" at once.
-   One situation, one sentence: another HR has to finish it.
-6. **`DepartmentTab` folded a name-without-id into "No department"**, which on a pre-migration server
-   collapses every chip into one — and the strip hides itself below two. Now matches the org chart's
-   fallback. The two rules are cross-referenced in both files.
-7. **A locked `joining_date` printed as `2024-04-01`** in the read-only list, not "1 Apr 2024" (§6).
-8. **The roster was re-paged on every status update**, including the no-op re-read after a 409.
-
-Plus: a stale JSDoc paragraph on `departmentKeyOf` that contradicted its own body (the kind of thing
-that gets the code "corrected" back), a state variable shadowed by a local of the same name inside
-the submit handler, and a dead key left in the picker's state shape.
-
-One **pre-existing** bug left alone as out of scope: `DepartmentsPage` closes its modal on a 1.5s
-`setTimeout` after a successful save, so closing and reopening for a different department within that
-window closes the new modal too. It predates this change and is unrelated to the HOD work.
-
-### Needs a live server to verify
-
-Migrations `00067` and `00068` are both handed over unrun, and `00068` is **not** optional code.
-Nothing here was exercised against a database. Worth a pass with: a freshly registered org (all eight
-fields missing, both `can_set_*` false), an org mid-migration (ghost `"Human Resources"` labels still
-present), a double-clicked submit for `FIELD_ALREADY_SET`, a department at another office for
-`LOCATION_MISMATCH`, a manager who already has a department offered as a head, and switching off a
-department that has only a head in it. Check the wizard at 1366px and 390px.

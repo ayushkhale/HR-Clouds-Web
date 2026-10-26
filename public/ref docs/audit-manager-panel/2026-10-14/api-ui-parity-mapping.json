@@ -1,0 +1,299 @@
+{
+  "report": "API-to-UI parity mapping (API lane + merged browser-observation UI lane, 2026-10-14; endpoints/console NOT VERIFIED - DevTools unavailable)",
+  "audit_date": "2026-10-14",
+  "role": "manager",
+  "modules": [
+    {
+      "module": "4.1 Manager Dashboard & Team KPI Overview",
+      "route": "/dashboard/manager",
+      "endpoints": [
+        {
+          "endpoint": "GET /attendance/manager/team/summary?date=2026-10-14",
+          "http": 200,
+          "secs": 2.9,
+          "keys": "counts null; final_present 0, final_absent 4, final_pending 4; members[4] with status/status_reason/clock times/effective_hours/work_mode",
+          "ui": "OBSERVED (browser): KPI cards read Team members 4, Present 0, Absent 4, Late 0, On leave 0, Working 0. NO 'Pending 4'. No team-task section, no pending-approvals counter. Header avatar is a solid purple circle, no initials.",
+          "note": "UI reframes M-02 (no Pending 4; counts reconcile to team size). Absent-vs-Not-Marked mismatch M-26. Dashboard omits tasks/approvals M-34."
+        },
+        {
+          "endpoint": "GET /attendance/manager/team/today",
+          "http": 200,
+          "secs": 4.11,
+          "keys": "4 derived rows: status, shift_snapshot, policy_snapshot (grace_minutes 15), user profile (avatar null), id null",
+          "ui": "OBSERVED (browser): Live Attendance (/dashboard/manager/team/today) - all 'Not Marked', IN/OUT/Lateness N/A; shift 'Morning Shift - 10:00 am-06:00 pm'; no overtime/grace/IP/location/punch columns.",
+          "note": "Live view omits the overtime column that Team History renders. M-26."
+        },
+        {
+          "endpoint": "GET /attendance/manager/team/graph-data?month=10&year=2026",
+          "http": 200,
+          "secs": 2.41,
+          "keys": "daily[14]: present/absent/late/half-day/leave/weekly-off/holiday counts, avg_effective_hours, total_overtime_minutes, attendance_percentage, nested counts",
+          "ui": "NOT VERIFIED - graph/chart rendering not observed in the browser pass (dashboard KPI cards observed under team/summary).",
+          "note": "Chart rendering NOT VERIFIED."
+        },
+        {
+          "endpoint": "GET /leaves/team/requests/pending",
+          "http": 200,
+          "secs": 1.44,
+          "keys": "[] (empty)",
+          "ui": "OBSERVED (browser): Pending Approvals EMPTY.",
+          "note": "UI-confirms empty pending queue."
+        },
+        {
+          "endpoint": "GET /tasks/manager/team-tasks",
+          "http": 200,
+          "secs": 1.61,
+          "keys": "1 task: priority high, status pending, due_date, comments_count 0, attachments []",
+          "ui": "OBSERVED (browser): All Tasks shows the single task as Priority High, kind 'Rules & compliance', Deadline '15 Oct 2026'.",
+          "note": "Conflicts with /tasks/me rendering (M-01, M-25)."
+        }
+      ]
+    },
+    {
+      "module": "4.2 Team Attendance & Shift Management",
+      "route": "/dashboard/manager/attendance (+ anomalies, comp-offs, overtime, regularizations)",
+      "endpoints": [
+        {
+          "endpoint": "GET /attendance/manager/team/member/{id}/daily-log?date=2026-10-14",
+          "http": 200,
+          "secs": 2.75,
+          "keys": "status not_marked, status_context.shift populated, top-level shift null, clock in/out null, sessions [], breaks []",
+          "ui": "OBSERVED (browser): Daily Log dialog renders 09:20 am-06:20 pm, 7h 58m, break 1h 2m, LATE 0m, OVERTIME 0m, LEFT EARLY 0m, Office, Fixed shift. 'Loading' spinner while fetching.",
+          "note": "UI formats values; no raw ISO. Break duration rendered when present (M-20 note)."
+        },
+        {
+          "endpoint": "GET /attendance/manager/team/member/{id}/history",
+          "http": 200,
+          "secs": 4.17,
+          "keys": "14 records; effective_hours null vs 0 across endpoints; id null on derived rows",
+          "ui": "OBSERVED (browser): Member page history statuses: No data / Present / Weekly off / Absent / Holiday; hours N/A or 0m or formatted (e.g. 7h 58m). Team Attendance History: pagination 'Showing 1-25 of 30', OVERTIME column with '+1h 14m'-style values, one 'Corrected' row.",
+          "note": "UI distinguishes Weekly off/Holiday (M-05 reframe); overtime IS rendered here, unlike Live Attendance."
+        },
+        {
+          "endpoint": "GET /attendance/manager/team/member/{id}/summary?month=10&year=2026",
+          "http": 200,
+          "secs": 3.86,
+          "keys": "present 5, half 1, absent 4, late 2, final_leave 6, attendance 60%, punctuality 66.67, total_overtime 369, total_break 0",
+          "ui": "NOT VERIFIED - monthly summary numbers not observed in the browser pass (member history rows observed under member history).",
+          "note": "Summary rendering NOT VERIFIED."
+        },
+        {
+          "endpoint": "GET /attendance/regularizations (own)",
+          "http": 200,
+          "secs": 1.46,
+          "keys": "3 approved requests; requested_clock_in/out null; reviewer null; review_remarks mostly null",
+          "ui": "OBSERVED (browser): Regularizations queue EMPTY ('All caught up...').",
+          "note": "Row-level rendering NOT observable (queue empty); M-11 remains API-only. Team regularizations endpoint NOT VERIFIED."
+        },
+        {
+          "endpoint": "GET /attendance/overtime/mine?page=1&limit=10",
+          "http": 200,
+          "secs": 1.58,
+          "keys": "total 16; nested record + approver + policy_snapshot (grace 15, thresholds); worked_duration_formatted",
+          "ui": "OBSERVED (browser): Overtime queue EMPTY ('All caught up...'). Team History OVERTIME column renders values.",
+          "note": "Queue row-level rendering NOT observable; Team History shows overtime values."
+        },
+        {
+          "endpoint": "GET /attendance/anomalies/mine",
+          "http": 200,
+          "secs": 1.75,
+          "keys": "total 25; types: early_exit, excessive_break, insufficient_hours, late_arrival, out_of_bounds, unauthorized_absence; is_resolved boolean",
+          "ui": "OBSERVED (browser): Anomalies/Flags view HAS 1 row: 'Unauthorized absence', Severity High, DETAILS truncated (ellipsis). Columns only EMPLOYEE / DATE / FLAG / SEVERITY / DETAILS - no punch times, reviewer, worked_hours, or status pill.",
+          "note": "UI-confirms M-21 (no status field for flags). M-33."
+        },
+        {
+          "endpoint": "GET /attendance/comp-offs/mine",
+          "http": 200,
+          "secs": 1.35,
+          "keys": "1 comp-off: earned 2026-09-27, worked_type weekly_off, worked_hours '3.34', expiry 2026-12-26",
+          "ui": "OBSERVED (browser): Comp-offs queue EMPTY ('All caught up...'); screen labelled Earned Leave.",
+          "note": "Row-level rendering NOT observable (queue empty). Team comp-offs endpoint NOT VERIFIED."
+        }
+      ]
+    },
+    {
+      "module": "4.3 Team Leave Approvals & Balances",
+      "route": "/dashboard/manager/requests/leaves",
+      "endpoints": [
+        {
+          "endpoint": "GET /leaves/team/requests",
+          "http": 200,
+          "secs": 1.82,
+          "keys": "1 record, status cancelled; applicant + leave_type embedded; total_days '1.00' string; no balance/overlap/history fields",
+          "ui": "OBSERVED (browser): Team History SHOWS the cancelled request (CANCELLED pill, Emergency Leave, '9/16/2026 - 1d'). Clicking the leave card opened NO detail modal. No approver field anywhere in the leave UI.",
+          "note": "M-15 UI reframes (history shows cancelled with pill; pending is separate). total_days '1.00' renders as '1d' (M-08). M-31."
+        },
+        {
+          "endpoint": "GET /leaves/team/member/{id}/balances",
+          "http": 200,
+          "secs": 1.78,
+          "keys": "5 leave types; current_balance strings; total_accrued/used, carried_forward, lapsed_balance",
+          "ui": "OBSERVED (browser): Member Leave tab balances formatted 'Xd' / 'Xd and 1/2 d' with given/taken lines.",
+          "note": "UI formats string balances (M-08)."
+        },
+        {
+          "endpoint": "GET /leaves/team/member/{id}/requests",
+          "http": 200,
+          "secs": 4.34,
+          "keys": "Same single cancelled request as team list",
+          "ui": "OBSERVED (browser): Leave history briefly flashes 'No History Found' before data loads.",
+          "note": "M-32. Consistent with slow member-leave-requests endpoint (M-10); causation NOT VERIFIED."
+        },
+        {
+          "endpoint": "GET /leaves/assignments (manager role)",
+          "http": 403,
+          "secs": 1.1,
+          "keys": "FORBIDDEN 'Access denied'",
+          "ui": "NOT VERIFIED - HR-scoped screen not visited in the browser pass.",
+          "note": "Expected RBAC denial stands (API lane)."
+        }
+      ]
+    },
+    {
+      "module": "4.4 Team Member Directory & Profiles",
+      "route": "/dashboard/manager/team, /dashboard/manager/team/member/:userId",
+      "endpoints": [
+        {
+          "endpoint": "GET /organizations/directory",
+          "http": 200,
+          "secs": 1.24,
+          "keys": "8 people: name, role, employee_code, department, designation, work_location, gender, avatar_url (signed S3), dob, email",
+          "ui": "OBSERVED (browser): Team Directory shows 4 team-scoped members; 3 photos + 1 broken/partial avatar (pale circle, small black arc). Org Chart shows org total 8.",
+          "note": "M-24 UI reframes (UI scopes directory to team). M-27 broken avatar."
+        },
+        {
+          "endpoint": "GET /organizations/employees/{id}",
+          "http": 200,
+          "secs": 1.6,
+          "keys": "34 keys, zero nulls: profile + contact + addresses + reporting_person + department_head_details; NO skills, NO emergency_contacts",
+          "ui": "OBSERVED (browser): Profile is a full-page tab (not a drawer): Department, Designation, Role, Work location, Joined, Contact (Phone, Email); PERSONAL PROFILE: DATE OF BIRTH, GENDER, MARITAL STATUS, BLOOD GROUP, FATHER'S NAME, SPOUSE NAME; WORK & CONTACT PROFILE: DATE OF JOINING, EMPLOYMENT TYPE, WORK MODE, WORK OFFICE, PERSONAL EMAIL, EMERGENCY CONTACT, ADDRESS DETAILS. No Skills card; single EMERGENCY CONTACT field 'Not Available'. Field names only.",
+          "note": "M-28 UI-confirms M-03 (field names only). PAN/UAN on UI NOT VERIFIED. No Skills / emergency-contacts card (API has none either)."
+        },
+        {
+          "endpoint": "GET /organizations/departments",
+          "http": 200,
+          "secs": 1.17,
+          "keys": "3 departments; head_of_department embedded (avatar null); location embedded",
+          "ui": "OBSERVED (browser): Org Chart filter shows 'Sales And Markerting 2'; the typo is NOT in the directory.",
+          "note": "M-17 UI-confirmed (typo surfaces in Org Chart filter)."
+        },
+        {
+          "endpoint": "GET /organizations/locations",
+          "http": 200,
+          "secs": 1.19,
+          "keys": "2 locations: city, timezone, geofence_radius_meters 100, latitude/longitude",
+          "ui": "OBSERVED (browser): Location renders 'HEAD OFFICE' (all caps).",
+          "note": "M-17 casing."
+        },
+        {
+          "endpoint": "GET /organizations/employees (bare)",
+          "http": 400,
+          "secs": 1.0,
+          "keys": "VALIDATION_ERROR 'Purpose is required to filter employee data'",
+          "ui": "OBSERVED (browser): Directory renders (4 team members).",
+          "note": "Whether the UI passes 'purpose' is NOT VERIFIED (M-22)."
+        }
+      ]
+    },
+    {
+      "module": "4.5 Task Management & Assignment",
+      "route": "/dashboard/manager/tasks/*, /dashboard/manager/my-tasks",
+      "endpoints": [
+        {
+          "endpoint": "GET /tasks/manager/team-tasks",
+          "http": 200,
+          "secs": 1.61,
+          "keys": "1 task: title, category compliance, priority high, status pending, due_date, assigner/assignee embedded, is_overdue false, comments_count 0",
+          "ui": "OBSERVED (browser): All Tasks shows the single task as Priority High, kind 'Rules & compliance', Deadline '15 Oct 2026'.",
+          "note": "Conflicts with /tasks/me rendering (M-01, M-25)."
+        },
+        {
+          "endpoint": "GET /tasks/manager/assigned-by-me",
+          "http": 200,
+          "secs": 1.48,
+          "keys": "[] empty; pagination total 0",
+          "ui": "OBSERVED (browser): Tasks I Assigned EMPTY ('You haven't given out any tasks').",
+          "note": "UI-confirms empty."
+        },
+        {
+          "endpoint": "GET /tasks/manager/{id}",
+          "http": 200,
+          "secs": 1.68,
+          "keys": "Full task: extension/rework/reassignment counts, is_viewed false, external_links [], attachments []",
+          "ui": "OBSERVED (browser): Detail renders Deadline '15 Oct 2026', '10:30 am' (no timezone); no viewed/rework/reassignment/extension counts; Files: 'No files on this task.', REFERENCE LINKS 'Nothing linked.'. Action buttons present, NOT clicked.",
+          "note": "Detail time 10:30 am = team-tasks due (05:00Z). Counts not rendered (unused data opportunity)."
+        },
+        {
+          "endpoint": "GET /tasks/manager/{id}/comments",
+          "http": 200,
+          "secs": 1.89,
+          "keys": "2 comments; author embedded (avatar null); pagination shape total_items/has_next_page",
+          "ui": "OBSERVED (browser): Discussion shows 2 comments, NO numeric count/badge; one comment author 'AH' initials fallback, other photo.",
+          "note": "UI uses initials fallback in comments (M-07 reframe); no comment count badge rendered."
+        },
+        {
+          "endpoint": "GET /tasks/me",
+          "http": 200,
+          "secs": 1.46,
+          "keys": "Same task id: priority medium, due_date 30 min earlier",
+          "ui": "OBSERVED (browser): My Tasks shows the SAME task as Priority Medium, kind 'Joining a new person'.",
+          "note": "M-25 / M-01 UI-confirmed: priority AND kind differ across views."
+        }
+      ]
+    },
+    {
+      "module": "Payroll (outside brief modules 4.1-4.5; captured for manager-surface completeness)",
+      "route": "/dashboard/manager/payroll/*",
+      "endpoints": [
+        {
+          "endpoint": "GET /payroll/manager/team/benefit-enrollments",
+          "http": 200,
+          "secs": 1.85,
+          "keys": "count 0, rows []",
+          "ui": "OBSERVED (browser): Team benefits EMPTY ('No team benefit enrollments.').",
+          "note": "UI-confirms empty."
+        },
+        {
+          "endpoint": "GET /payroll/manager/employees/{id}/payslips",
+          "http": 200,
+          "secs": 2.13,
+          "keys": "1 payslip Sep 2026, run_status paid, gross '21911.12', net '19164.45', payable_days '17.00', lop_days '2.00'",
+          "ui": "OBSERVED (browser): Payslips render rupee symbol with commas and 2 decimals; NET < GROSS despite DEDUCTIONS of zero (unexplained). Amount values withheld (formats only).",
+          "note": "M-29. Amounts as strings (M-08) but UI formats them."
+        },
+        {
+          "endpoint": "GET /payroll/manager/reimbursements/claims",
+          "http": 200,
+          "secs": 1.51,
+          "keys": "1 claim: claim_number, status approved, total_amount '1000.00', current_level/total_levels 2/2, items[] with category TRAVEL",
+          "ui": "OBSERVED (browser): Claims (Submitted) EMPTY.",
+          "note": "UI shows EMPTY while the API capture returned 1 approved claim - whether the UI maps to the same endpoint is NOT VERIFIED (endpoints NOT VERIFIED)."
+        },
+        {
+          "endpoint": "GET /payroll/manager/encashments",
+          "http": 200,
+          "secs": 1.82,
+          "keys": "[] empty",
+          "ui": "OBSERVED (browser): Leave Payouts EMPTY ('Nothing here yet...'). 'Cash out earned leave' and 'Propose' buttons NOT clicked.",
+          "note": "UI-confirms empty."
+        },
+        {
+          "endpoint": "GET /payroll/manager/loans",
+          "http": 200,
+          "secs": 1.96,
+          "keys": "3 loans; sample: status active, amount '10000.00'",
+          "ui": "OBSERVED (browser): Loan Recommendations: 3 rows, TYPE Loan, TENURE '6 mo' / '3 mo', Active/Cancelled.",
+          "note": "UI-confirms API count of 3 loans."
+        },
+        {
+          "endpoint": "GET /payroll/manager/adjustments",
+          "http": 200,
+          "secs": 1.94,
+          "keys": "13 adjustments; samples: status approved, type earning, amounts '1075.00'/'500.00'",
+          "ui": "OBSERVED (browser): Adjustments: 13 rows, all 'Earning Bonus', Approved 9 / Cancelled 4, rupee whole rupees; 'Earning Bonus' wraps.",
+          "note": "UI-confirms API count of 13 adjustments."
+        }
+      ]
+    }
+  ]
+}

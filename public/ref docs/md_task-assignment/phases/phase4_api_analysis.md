@@ -238,8 +238,8 @@ Request ──► [1. authenticate] ──► [2. requireActiveOrg] ──► [3
 |---|---|---|
 | `400 Bad Request` | `VALIDATION_ERROR` | Empty message, message $> 2,000$ chars, invalid attachment UUID format, non-HTTPS link, or SSRF attempt (`169.254.169.254`, `localhost`, private IPs). |
 | `400 Bad Request` | `INVALID_ATTACHMENT` | Referenced `attachment_id` does not exist, belongs to another task, or belongs to another organization (`EC-T24`). |
-| `401 Unauthorized` | `AUTHENTICATION_REQUIRED` | Missing, malformed, or expired JWT bearer token. |
-| `403 Forbidden` | `FEATURE_DISABLED` | Tenant has not been granted the `tasks.access` feature flag entitlement. |
+| `401 Unauthorized` | `AUTHENTICATION_REQUIRED` / `AUTH_TOKEN_MISSING` | Missing, malformed, or expired JWT bearer token. |
+| `403 Forbidden` | `FEATURE_NOT_AVAILABLE` | Tenant has not been granted the `tasks.access` feature flag entitlement. |
 | `404 Not Found` | `TASK_NOT_FOUND` | Task does not exist in the tenant or caller is not the task assignee (uniform BOLA denial). |
 | `409 Conflict` | `TASK_TERMINATED` | Task is in `cancelled` status (`EC-T23`). |
 | `429 Too Many Requests` | `TOO_MANY_COMMENTS` | User has exceeded 30 comments on this task in the current UTC hour (`EC-T12`). Sets `Retry-After` header. |
@@ -369,8 +369,8 @@ Request ──► [1. authenticate] ──► [2. requireActiveOrg] ──► [3
 | HTTP Status | Error Code (`errorCode`) | Trigger Condition |
 |---|---|---|
 | `400 Bad Request` | `VALIDATION_ERROR` | Non-UUID `id` path parameter, invalid `page`, `limit` $> 100$, or invalid `order` direction. |
-| `401 Unauthorized` | `AUTHENTICATION_REQUIRED` | Missing or invalid JWT authentication. |
-| `403 Forbidden` | `FEATURE_DISABLED` | Organization lacks the `tasks.access` feature flag entitlement. |
+| `401 Unauthorized` | `AUTHENTICATION_REQUIRED` / `AUTH_TOKEN_MISSING` | Missing or invalid JWT authentication. |
+| `403 Forbidden` | `FEATURE_NOT_AVAILABLE` | Organization lacks the `tasks.access` feature flag entitlement. |
 | `404 Not Found` | `TASK_NOT_FOUND` | Task not found in tenant or caller is an unrelated employee with no business relationship to the task. |
 
 ---
@@ -454,7 +454,8 @@ Identical to API `#253` schema (`message`, optional `is_progress_update`, option
 |---|---|---|
 | `400 Bad Request` | `VALIDATION_ERROR` | Message invalid, attachment UUID format error, or SSRF-prohibited external URL. |
 | `400 Bad Request` | `INVALID_ATTACHMENT` | Referenced attachment ID does not belong to this task or organization (`EC-T24`). |
-| `401 Unauthorized` | `AUTHENTICATION_REQUIRED` | Missing or invalid JWT bearer token. |
+| `401 Unauthorized` | `AUTHENTICATION_REQUIRED` / `AUTH_TOKEN_MISSING` | Missing or invalid JWT bearer token. |
+| `403 Forbidden` | `FEATURE_NOT_AVAILABLE` | Organization lacks the `tasks.access` feature flag entitlement. |
 | `403 Forbidden` | `FORBIDDEN` | Caller has `employee` role (rejected by route-level role check). |
 | `403 Forbidden` | `FORBIDDEN_TASK_ACCESS` | Caller is a manager but did not assign the task and does not manage the assignee in the reporting hierarchy. |
 | `404 Not Found` | `TASK_NOT_FOUND` | Task does not exist in the tenant organization. |

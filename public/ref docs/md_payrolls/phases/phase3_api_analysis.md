@@ -244,18 +244,27 @@ This document provides an exhaustive, endpoint-by-endpoint analysis of the **38 
 * **Request Structure:**
   ```json
   {
-    "loan_type": "general",
+    "loan_type": "loan",
     "principal_amount": 60000,
-    "annual_interest_rate": 0,
-    "interest_type": "flat",
+    "interest_rate": 10,
+    "interest_method": "flat",
     "tenure_months": 6,
     "start_period_month": "2026-10",
-    "disbursement_date": "2026-09-25",
+    "disbursed_on": "2026-09-25",
     "reason": "Personal medical requirement"
   }
   ```
-* **Validation Rules:** `principal_amount > 0`, `tenure_months >= 1`, `start_period_month` format `YYYY-MM`.
-* **Backend Processing Flow:** Computes EMI schedule using pure `loan_schedule.utils`. If separate-checker is OFF, generates `loan_installments` rows and marks status `active`; otherwise marks `pending`.
+* **Request Fields:**
+  * `loan_type` (Enum, Optional, default `'loan'`): `'loan'` | `'salary_advance'`.
+  * `principal_amount` (Positive Money-like, Required): Principal amount (> 0).
+  * `interest_rate` (Number, Optional, 0–100): Annual percentage rate (e.g. `10` or `12.5`). Defaults to `payroll_settings.loan_default_interest_rate` (`0.00`).
+  * `interest_method` (Enum, Optional): `'flat'` | `'reducing_balance'`. Defaults to `payroll_settings.loan_interest_method` (`'reducing_balance'`).
+  * `tenure_months` (Integer, Required, 1–600): Number of repayment months.
+  * `start_period_month` (String, Required): Month of the first installment (`YYYY-MM`).
+  * `disbursed_on` (Date string, Optional, nullable): Disbursal date (`YYYY-MM-DD`).
+  * `reason` (String, Required): Mandatory business or personal justification.
+* **Validation Rules:** `principal_amount > 0`, `tenure_months >= 1`, `start_period_month` format `YYYY-MM`. Field names must strictly match schema (`interest_rate`, `interest_method`, `disbursed_on`).
+* **Backend Processing Flow:** Computes EMI schedule using pure `loan_schedule.utils`. If separate-checker is OFF and requester is HR, generates `loan_installments` rows and marks status `active`; otherwise marks `pending`.
 
 ---
 
@@ -367,6 +376,7 @@ This document provides an exhaustive, endpoint-by-endpoint analysis of the **38 
 * **HTTP Method:** `POST`
 * **Endpoint:** `/api/v1/payroll/manager/employees/:userId/loans/recommend`
 * **Purpose:** Manager recommends a company loan or emergency salary advance for a direct report.
+* **Request Structure:** Uses the same schema as API 75 (`principal_amount`, `interest_rate`, `interest_method`, `tenure_months`, `start_period_month`, `disbursed_on`, `reason`).
 * **State Changes:** Lands in `pending` status awaiting HR approval.
 
 ---

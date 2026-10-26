@@ -169,6 +169,17 @@ export const tasksAPI = {
   getTeamTasks: (params = {}) =>
     request(`/tasks/manager/team-tasks${query(params, TEAM_FILTERS)}`),
 
+  /**
+   * #257a GET /tasks/manager/team-tasks/summary — one person's counts in a
+   * single aggregation query, replacing two `limit: 1` reads. `subordinate_id`
+   * is optional and validated against the reporting tree
+   * (`403 CANNOT_ACCESS_OUTSIDE_HIERARCHY`). Returns
+   * `{ by_status: { pending, in_progress, in_review, reopened, completed,
+   * cancelled }, overdue }`.
+   */
+  getTeamTaskSummary: (params = {}) =>
+    request(`/tasks/manager/team-tasks/summary${query(params, ["subordinate_id"])}`),
+
   /** #258 GET /tasks/manager/:id — read-only; leaves the read receipt alone. */
   getManagerTask: (taskId) => request(`/tasks/manager/${seg(taskId)}`),
 
@@ -218,6 +229,14 @@ export const tasksAPI = {
 
   /** #266 GET /tasks/hr — the whole organisation, with department filtering. */
   getOrgTasks: (params = {}) => request(`/tasks/hr${query(params, ORG_FILTERS)}`),
+
+  /**
+   * #266a GET /tasks/hr/summary — one person's counts org-wide, the HR twin of
+   * #257a. `assignee_id` is optional and scoped to the tenant. Same shape:
+   * `{ by_status: { … }, overdue }`.
+   */
+  getOrgTaskSummary: (params = {}) =>
+    request(`/tasks/hr/summary${query(params, ["assignee_id"])}`),
 
   /** #267 GET /tasks/hr/:id — detail plus the full audit and notification log. */
   getHrTask: (taskId) => request(`/tasks/hr/${seg(taskId)}`),

@@ -33,6 +33,21 @@
 //   its <h1> via HelpLabel with the key `page`; a tab strip gets ONE ⓘ beside
 //   it — outside any tablist or scroll container — keyed `tab.<open tab>`, so
 //   it explains whichever tab is showing. Tabs with no entry show nothing.
+// • `extra` adds ONE live fact under the hint — the allowed range a settings
+//   control reads off the catalogue ("between 1 and 31"), which no file
+//   checked into the repo can know. It is not a second hint: no prose, no
+//   second sentence, nothing a reader could take for the value itself.
+//   Anything that CAN be written down stays in fieldHelp.json (§10: one
+//   source), and a field with no range passes nothing and loses nothing.
+// • `also` names ANOTHER KEY IN THE SAME SURFACE whose hint belongs in this
+//   popover too — a concept the field takes part in rather than a fact about
+//   the field. It exists so that a field is never given a SECOND ⓘ to carry
+//   one: two identical circles in one label (the settings card's high-risk
+//   rows, 15 Oct 2026) read as a bug, and the reader who wants the concept is
+//   already pointing at the field. The hint still comes from fieldHelp.json
+//   and is still gated to the workspace, so nothing about one source changes;
+//   only the first entry's Ask Maya question is offered, because a popover
+//   with two of them asks the reader to choose before they have read either.
 // • How many: at most 4 per screen state for core entries (CLAUDE.md §10);
 //   entries tagged `"tier": "onboarding"` are exempt from that cap but keep
 //   once-per-concept and every rule above. See fieldHelpMeta.js for the tier.
@@ -94,9 +109,13 @@ const TONES = {
 };
 const ICON_SIZE = { md: "w-3.5 h-3.5", sm: "w-3 h-3" };
 
-export default function FieldHelp({ surface, field, label, ariaLabel, className = "", tone = "default", size = "md", overlay = false }) {
+export default function FieldHelp({ surface, field, label, ariaLabel, className = "", tone = "default", size = "md", overlay = false, extra = "", also = "" }) {
   const workspace = useWorkspace();
   const help = getFieldHelp(surface, field, workspace);
+  // A concept this field takes part in, in the same popover — see `also`
+  // above. Null when the key has no entry for this workspace, which is the
+  // same "renders nothing" rule every other lookup here follows.
+  const alsoHelp = also ? getFieldHelp(surface, also, workspace) : null;
   const mayaLimit = useMayaQueryLimit();
 
   const [open, setOpen] = useState(false);
@@ -114,6 +133,7 @@ export default function FieldHelp({ surface, field, label, ariaLabel, className 
   const baseId = useId();
   const panelId = `${baseId}-panel`;
   const hintId = `${baseId}-hint`;
+  const alsoId = `${baseId}-also`;
   const pos = usePopoverPosition(open, anchorRef, { height: PANEL_H, minWidth: PANEL_W });
   const name = label || "this field";
 
@@ -261,7 +281,9 @@ export default function FieldHelp({ surface, field, label, ariaLabel, className 
         data-field-help=""
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-describedby={open ? hintId : undefined}
+        /* Both paragraphs, or a screen reader describes the trigger with the
+           field's own hint and stops short of the concept beside it. */
+        aria-describedby={open ? [hintId, alsoHelp?.hint ? alsoId : ""].filter(Boolean).join(" ") : undefined}
         onClick={onAnchorClick}
         onFocus={onAnchorFocus}
         onBlur={onBlurWithin}
@@ -287,6 +309,17 @@ export default function FieldHelp({ surface, field, label, ariaLabel, className 
           className="fixed max-w-[calc(100vw-16px)] rounded-xl border border-purple-100 bg-white p-3.5 shadow-xl text-left normal-case tracking-normal font-normal whitespace-normal animate-in fade-in zoom-in-95 duration-150"
         >
           <p id={hintId} className="text-[12.5px] leading-relaxed text-slate-600">{help.hint}</p>
+          {/* The shared concept, if this field takes part in one. Divided from
+              the field's own hint, because it is true of a whole class of
+              fields and not only this one. */}
+          {alsoHelp?.hint && (
+            <p id={alsoId} className="mt-2 pt-2 border-t border-purple-50 text-[12px] leading-relaxed text-slate-600">
+              {alsoHelp.hint}
+            </p>
+          )}
+          {/* The one fact the config can't hold, because it is read off the
+              live catalogue rather than written by us (see `extra` above). */}
+          {extra && <p className="mt-1.5 text-[11.5px] font-semibold text-slate-500">{extra}</p>}
           {showAsk && (
             <button
               ref={askRef}

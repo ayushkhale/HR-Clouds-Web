@@ -1,0 +1,394 @@
+{
+  "report": "HR Clouds - Manager Panel Frontend & UI/UX Audit",
+  "audit_date": "2026-10-14",
+  "role": "manager",
+  "app_url": "https://frontend.dev.hrclouds.in",
+  "api_base": "https://development.hrclouds.in/api/v1",
+  "method": "API capture via direct curl (read-only GETs) + frontend JS bundle inspection, merged with a live-browser UI observation pass (read-only; no submit/approve/reject/delete clicked; DevTools unavailable so endpoints/console NOT VERIFIED). No screenshot files in the package (captures withheld: handoff bundle failed verification, several contain PII values).",
+  "counts": {
+    "findings_total": 34,
+    "by_severity": {
+      "High": 5,
+      "Medium": 12,
+      "Low": 17
+    }
+  },
+  "findings": [
+    {
+      "id": "M-01",
+      "severity": "High",
+      "module": "4.5 Task Management",
+      "location": "GET /tasks/manager/team-tasks, GET /tasks/manager/{id} vs GET /tasks/me",
+      "title": "Same task, two priorities and two due times across endpoints",
+      "observed": "For one task id, /tasks/manager/team-tasks and /tasks/manager/{id} return priority 'high' and due_date '2026-10-15T05:00:00.000Z', while /tasks/me returns priority 'medium' and due_date '2026-10-15T04:30:00.000Z' (30 minutes earlier). One task, two priorities, two due times.",
+      "expected_fix": "Single source of truth for priority and due_date; normalize timezone conversion server-side so all task endpoints agree.",
+      "evidence": "api-capture 11-tasks-team.json, 30-task-detail.json, 13-tasks-me.json (same task id)",
+      "ui_verdict": "UI-confirmed and extended - UI shows the same task as Priority High in All Tasks/detail vs Priority Medium in My Tasks; kind also differs ('Rules & compliance' vs 'Joining a new person'). Detail renders '10:30 am', consistent with the team-tasks/detail due_date (05:00Z = 10:30 IST). See M-25."
+    },
+    {
+      "id": "M-02",
+      "severity": "High",
+      "module": "4.1 Dashboard / 4.2 Attendance",
+      "location": "GET /attendance/manager/team/summary?date=2026-10-14",
+      "title": "Team summary buckets double-count: absent 4 AND pending 4 for a 4-person team",
+      "observed": "final_absent_count=4 and final_pending_count=4 for a team of 4 members, while all 4 members are status 'not_marked' with status_reason 'pending_clock_in'. The buckets sum to 8, exceeding team size. final_present_count=0.",
+      "expected_fix": "Make status buckets mutually exclusive; members pending clock-in must not also count as absent (or document bucket precedence explicitly).",
+      "evidence": "api-capture 01-team-summary.json",
+      "ui_verdict": "UI reframes - Dashboard shows NO 'Pending 4' (drops the pending bucket; counts reconcile to team size), but the semantic mismatch persists: dashboard says Absent 4 while the directory says 'Not Marked'. See M-26."
+    },
+    {
+      "id": "M-03",
+      "severity": "High",
+      "module": "4.4 Team Directory",
+      "location": "GET /organizations/employees/{id} (Manager role)",
+      "title": "Manager endpoint returns highly sensitive PII for a reportee",
+      "observed": "The employee-detail endpoint returns field names including pan_number, uan_number, blood_group, dob, personal_email, contact phone, current_address and permanent_address for a reportee, far beyond what team management needs. Values are deliberately not reproduced in this report.",
+      "expected_fix": "Role-scoped field filtering: return only team-management fields to the Manager role; gate PAN/UAN/blood-group/addresses/DOB behind HR-only access.",
+      "evidence": "api-capture 28-org-employee.json (field names only)",
+      "ui_verdict": "UI-confirmed - Profile page exposes PII field names (DOB, blood group, father's/spouse names, personal email, emergency contact, address details). PAN/UAN presence on the UI NOT VERIFIED. See M-28."
+    },
+    {
+      "id": "M-04",
+      "severity": "Medium",
+      "module": "4.2 Attendance",
+      "location": "GET /attendance/trends?months=6",
+      "title": "Punctuality is 100% for months with zero present days",
+      "observed": "May-Aug 2026 return present_days 0 with absent_days 30-31, yet punctuality_percentage 100. The metric defaults to 100 when there are no present days (division-by-zero fallback).",
+      "expected_fix": "Return null / 'n/a' for punctuality when present_days is 0 instead of defaulting to 100.",
+      "evidence": "api-capture 04-own-trends.json"
+    },
+    {
+      "id": "M-05",
+      "severity": "Medium",
+      "module": "4.1 Dashboard / 4.2 Attendance",
+      "location": "GET /attendance/summary, GET /attendance/manager/team/graph-data",
+      "title": "'Leave' bucket folds holidays and weekly offs into leave",
+      "observed": "Own summary: on_leave_days 0 vs final_leave_days 6 (holiday_days 2 + weekly_off_days 4 = 6). Team graph 2026-10-02: on_leave_count 0 vs final_leave_count 4 with holiday_count 4, and attendance_percentage 100 with final_present_count 0. The 'final leave' bucket appears to include holidays and weekly offs, not just approved leave.",
+      "expected_fix": "Separate approved-leave counts from holiday/weekly-off counts, or label the composite bucket honestly (e.g. 'non-working days').",
+      "evidence": "api-capture 03-own-summary.json, 02-team-graph.json",
+      "ui_verdict": "UI reframes - Member history renders Weekly off and Holiday as distinct statuses (not folded into leave) at row level; the API final_leave composite remains at the summary layer."
+    },
+    {
+      "id": "M-06",
+      "severity": "Medium",
+      "module": "4.2 Attendance",
+      "location": "Multiple attendance endpoints (team summary, daily log, history, weekly calendar, team-today, member history)",
+      "title": "Null-vs-zero inconsistency for the same 'no punch yet' state",
+      "observed": "For the same not-marked state, effective_hours is null (team summary members, weekly calendar today, member history, team-today) but 0 (own daily log, own history today); late/overtime are null (member history) but 0 (own history); total_hours is null (team-today) but 0 (daily log); member daily-log top-level shift is null while status_context.shift is populated.",
+      "expected_fix": "One canonical representation (null = no record; 0 = recorded zero) applied uniformly across all attendance endpoints.",
+      "evidence": "api-capture 01, 05, 06, 07, 23, 24, 32 files",
+      "ui_verdict": "UI reframes - UI renders 'N/A' / '0m' / formatted durations, so the null-vs-zero split is not visible to users; the API inconsistency remains."
+    },
+    {
+      "id": "M-07",
+      "severity": "Medium",
+      "module": "4.1 Dashboard / 4.4 Directory",
+      "location": "Team summary, team-today, task comments, department heads vs directory",
+      "title": "Avatar URL present in one endpoint, null in others for the same person",
+      "observed": "avatar_url is null for all 4 team members in team summary and team-today, null for task-comment authors, and null for all 3 department heads - while /organizations/directory returns signed S3 avatar URLs for the same people.",
+      "expected_fix": "Use a single avatar resolver across all endpoints so the same person has the same avatar everywhere.",
+      "evidence": "api-capture 01, 14, 16, 31, 32 files",
+      "ui_verdict": "UI reframes - UI renders directory photos for 3 of 4 members; fallback is inconsistent: header avatar is a solid purple circle with no initials, one member avatar is broken/partial (M-27), task-comment author shows 'AH' initials fallback."
+    },
+    {
+      "id": "M-08",
+      "severity": "Medium",
+      "module": "Cross-cutting (all modules)",
+      "location": "Leaves, payroll, attendance, tasks endpoints",
+      "title": "Numeric values returned as strings",
+      "observed": "total_days '1.00', leave balances '2.00', gross/net pay '21911.12'/'19164.45', total_hours '9.34', worked_hours '3.34', overtime pagination page '1' / limit '10' are all JSON strings, not numbers.",
+      "expected_fix": "Return numbers as JSON numbers; keep formatted strings only in separate display fields if needed.",
+      "evidence": "api-capture 08, 09, 20, 29 files",
+      "ui_verdict": "UI-confirmed (formatting) - UI formats string numerics: total_days '1.00' renders as '1d'; balances as 'Xd' / 'Xd and 1/2 d'; payroll with rupee symbol, commas and 2 decimals (payslips) / Indian grouping, no decimals (salaries); durations as '7h 58m'. No raw string numerics observed on screen."
+    },
+    {
+      "id": "M-09",
+      "severity": "Medium",
+      "module": "Cross-cutting (all modules)",
+      "location": "Leaves, directory, attendance, tasks, task comments endpoints",
+      "title": "Pagination envelope has four different shapes",
+      "observed": "Observed shapes: {total, page, limit, total_pages} (leaves, directory); {total, page, limit, totalPages} (attendance, tasks); {page, limit, total_items, total_pages, has_next_page, has_prev_page} (task comments); own-history carries BOTH totalPages and total_pages.",
+      "expected_fix": "Standardize on one pagination envelope across the API.",
+      "evidence": "api-capture 06, 08, 11, 14, 31 files",
+      "ui_verdict": "UI note - UI renders a human pagination label ('Showing 1-25 of 30') in Team History; API envelope shapes remain an API-layer issue."
+    },
+    {
+      "id": "M-10",
+      "severity": "Medium",
+      "module": "5. Performance",
+      "location": "GET /attendance/trends and other manager endpoints",
+      "title": "Slow endpoints: trends 11.55s, several manager endpoints over 4s",
+      "observed": "GET /attendance/trends took 11.55s. Team-today 4.11s, member history 4.17s, member leave requests 4.34s. Median across 38 captured calls was about 1.9s.",
+      "expected_fix": "Cache or pre-aggregate trend data; profile the slow queries (team-today, member history, member leave requests).",
+      "evidence": "api-capture manifest.jsonl (seconds per call)",
+      "ui_verdict": "UI symptom consistent - Leave history briefly flashes 'No History Found' before data loads (M-32), consistent with the slow member-leave-requests endpoint (4.34s); causation NOT VERIFIED."
+    },
+    {
+      "id": "M-11",
+      "severity": "Medium",
+      "module": "4.2 Attendance",
+      "location": "GET /attendance/regularizations",
+      "title": "Approved regularizations carry no requested punch times",
+      "observed": "All 3 approved regularization requests have requested_clock_in and requested_clock_out null; reviewer object is null (only reviewed_by UUID); review_remarks null in 2 of 3. The approval records no corrected times.",
+      "expected_fix": "Require requested times at submission; embed reviewer name; require remarks on approval.",
+      "evidence": "api-capture 19-attendance-regularizations.json",
+      "ui_verdict": "UI not observable - Regularizations queue EMPTY ('All caught up...'); row-level requested-times/reviewer rendering NOT observable."
+    },
+    {
+      "id": "M-12",
+      "severity": "Low",
+      "module": "5. Console & Network",
+      "location": "API error responses (observed on 401)",
+      "title": "Error responses leak server stack traces",
+      "observed": "A 401 response body includes a full Node.js stack trace with server file paths (auth middleware, router internals).",
+      "expected_fix": "Strip stack traces from production error responses; log them server-side only.",
+      "evidence": "api-capture 01-team-summary.json from the first (unauthenticated) capture round"
+    },
+    {
+      "id": "M-13",
+      "severity": "Low",
+      "module": "4.4 Directory",
+      "location": "GET /organizations/directory avatar_url values",
+      "title": "Signed avatar URLs embed an AWS access key ID and expire in 300s",
+      "observed": "Directory avatar URLs contain an X-Amz-Credential access key ID and X-Amz-Expires=300. Credential material is exposed in API responses and the 5-minute TTL can break cached renders.",
+      "expected_fix": "Serve avatars via a CDN/proxy without credential material in the URL; use a longer, cache-friendly TTL.",
+      "evidence": "api-capture 14-org-directory.json (URL pattern; values not reproduced)",
+      "ui_verdict": "UI note - UI renders 3 of 4 member photos; 1 broken/partial avatar (M-27). Whether the 300s signed-URL expiry contributes is NOT VERIFIED."
+    },
+    {
+      "id": "M-14",
+      "severity": "Low",
+      "module": "4.1 Dashboard",
+      "location": "GET /attendance/manager/team/summary, GET /attendance/manager/team/graph-data",
+      "title": "Dead / legacy null headline fields",
+      "observed": "Team summary returns counts, team_size, eligible_headcount and attendance_percentage all null while final_* counts are populated. Team graph returns top-level month, year and team_summary null.",
+      "expected_fix": "Remove dead fields or populate them; do not ship null headline fields.",
+      "evidence": "api-capture 01-team-summary.json, 02-team-graph.json",
+      "ui_verdict": "UI reframes - Dashboard renders computed counts (no null headlines visible); the dead API fields are not surfaced by the UI."
+    },
+    {
+      "id": "M-15",
+      "severity": "Low",
+      "module": "4.3 Leave",
+      "location": "GET /leaves/team/requests vs GET /leaves/team/requests/pending",
+      "title": "Cancelled request included in the general team requests list",
+      "observed": "The team requests list returns 1 record with status 'cancelled'; the pending endpoint correctly returns []. Cancelled items are included in the general list, so clients must filter.",
+      "expected_fix": "Default the team list to active statuses, or document that clients must filter by status. Whether the UI filters is NOT VERIFIED (browser lane pending).",
+      "evidence": "api-capture 08-leaves-team-requests.json, 33-leaves-team-pending.json",
+      "ui_verdict": "UI reframes - Team History SHOWS the cancelled request with a CANCELLED pill; Pending Approvals is EMPTY. The UI separates history from pending, so the 'must filter' concern is handled by separate views. No approver field anywhere in the leave UI."
+    },
+    {
+      "id": "M-16",
+      "severity": "Low",
+      "module": "4.2 Attendance",
+      "location": "Overtime record policy_snapshot vs team-today policy_snapshot",
+      "title": "Policy snapshot variance for the same policy id (unconfirmed cause)",
+      "observed": "The same policy id shows full_day_min_hours 7.45 / max_break_duration 75 in current snapshots, but 7.00 / 60 in the 2026-10-06 overtime record snapshot.",
+      "expected_fix": "Verify against policy edit history: if snapshots are point-in-time, this is expected; if not, it is snapshot drift. Cause NOT VERIFIED.",
+      "evidence": "api-capture 20-attendance-overtime-mine.json, 32-team-today.json"
+    },
+    {
+      "id": "M-17",
+      "severity": "Low",
+      "module": "Cross-cutting (data quality)",
+      "location": "Departments, overtime remarks, locations",
+      "title": "Seed-data quality typos and inconsistent canonical values",
+      "observed": "Department name 'Sales And Markerting'; overtime remark 'AproovaD'; timezone 'Asia/Kolkata' vs 'Asia/Calcutta'; city 'INDORE' vs 'Indore'.",
+      "expected_fix": "Correct seed data; validate canonical timezone/casing values on write.",
+      "evidence": "api-capture 16-org-departments.json, 17-org-locations.json, 20-attendance-overtime-mine.json",
+      "ui_verdict": "UI-confirmed - Typo 'Sales And Markerting' IS visible in the Org Chart filter ('Sales And Markerting 2'); NOT in the directory. Location renders 'HEAD OFFICE' (all caps) in the UI."
+    },
+    {
+      "id": "M-18",
+      "severity": "Low",
+      "module": "4.2 Attendance",
+      "location": "History and team-today derived rows",
+      "title": "Derived rows carry null ids and null timestamps",
+      "observed": "History and team-today derived/provisional rows return id null and created_at/updated_at null.",
+      "expected_fix": "Omit id for synthetic rows or use stable synthetic keys; do not rely on id as a list key for these rows (UI usage NOT VERIFIED).",
+      "evidence": "api-capture 06-own-history.json, 24-member-history.json, 32-team-today.json",
+      "ui_verdict": "UI reframes - UI renders derived rows without leaking null ids/timestamps; no null literals observed anywhere."
+    },
+    {
+      "id": "M-19",
+      "severity": "Low",
+      "module": "4.2 Attendance",
+      "location": "GET /attendance/trends?months=6",
+      "title": "Current streak counts not-yet-clocked-in today as absent",
+      "observed": "current_streak is {type: 'absent', days: 1, since: '2026-10-14'} while the 2026-10-14 day status is pending_clock_in / not_marked.",
+      "expected_fix": "Exclude provisional / today-not-marked days from streak computation.",
+      "evidence": "api-capture 04-own-trends.json, 07-own-weekly-calendar.json",
+      "ui_verdict": "UI note - UI shows the same provisional-absent semantics: dashboard Absent 4 before clock-in while the directory says 'Not Marked' (M-26). Own-streak rendering NOT VERIFIED."
+    },
+    {
+      "id": "M-20",
+      "severity": "Low",
+      "module": "4.2 Attendance",
+      "location": "GET /attendance/manager/team/member/{id}/summary",
+      "title": "Zero break minutes across 6 present days for one member",
+      "observed": "Member monthly summary shows total_break_minutes 0 across 6 present days (5 present + 1 half day).",
+      "expected_fix": "Verify break capture for this member; if breaks are not tracked, do not present a 0 that implies no breaks were taken.",
+      "evidence": "api-capture 25-member-summary.json",
+      "ui_verdict": "UI note - UI Daily Log renders break duration when present (e.g. '1h 2m'); the specific 0-break member-summary case NOT VERIFIED in the UI."
+    },
+    {
+      "id": "M-21",
+      "severity": "Low",
+      "module": "4.2 Attendance",
+      "location": "GET /attendance/anomalies/mine",
+      "title": "Anomalies use an is_resolved boolean and no status field",
+      "observed": "Anomaly records carry type / severity / is_resolved / resolver, with no status key - unlike leave and task entities which use status strings.",
+      "expected_fix": "Align status modeling across entities, or document the boolean convention.",
+      "evidence": "api-capture 21-attendance-anomalies-mine.json",
+      "ui_verdict": "UI-confirmed - Flags view shows no status pill/column, consistent with the API's is_resolved boolean; details truncated (M-33)."
+    },
+    {
+      "id": "M-22",
+      "severity": "Low",
+      "module": "4.4 Directory",
+      "location": "GET /organizations/employees (bare call)",
+      "title": "Employee list requires a purpose query param",
+      "observed": "A bare GET returns 400 VALIDATION_ERROR 'Purpose is required to filter employee data'. The frontend getEmployees passes caller-supplied params; whether manager screens supply purpose is NOT VERIFIED.",
+      "expected_fix": "Document required params in the API contract; consider a default purpose for directory-style reads.",
+      "evidence": "api-capture 15-org-employees.json",
+      "ui_verdict": "UI note - Directory renders successfully (4 team members), implying params are supplied, but whether the UI passes 'purpose' is NOT VERIFIED."
+    },
+    {
+      "id": "M-23",
+      "severity": "Low",
+      "module": "Cross-cutting (auth contract)",
+      "location": "POST /auth/login",
+      "title": "Login requires 'identifier', not 'email' (informational)",
+      "observed": "POST /auth/login with {email, password} returns success:false 'Identifier is required.' With {identifier, password} it returns success:true, role manager. The frontend complies with this contract.",
+      "expected_fix": "None - document the contract. Included because the first capture round failed on this field name.",
+      "evidence": "Capture-round-1 login response; capture-round-2 login success",
+      "ui_verdict": "UI note - Browser pass signed in successfully under the identifier contract."
+    },
+    {
+      "id": "M-24",
+      "severity": "Low",
+      "module": "4.4 Directory",
+      "location": "GET /organizations/directory (Manager role)",
+      "title": "Directory is org-wide, not team-scoped",
+      "observed": "The directory returns all 8 org members (HR head, 2 managers, 5 employees) including DOB/email fields to a Manager caller, not just that manager's team.",
+      "expected_fix": "Scope the directory to the caller's visibility, or gate PII fields by role (ties to M-03).",
+      "evidence": "api-capture 14-org-directory.json",
+      "ui_verdict": "UI reframes - UI Team Directory shows only the 4 team members (team-scoped); org total 8 visible in Org Chart. The API endpoint still returns org-wide data to a Manager caller (M-24 stands at the API layer)."
+    },
+    {
+      "id": "M-25",
+      "severity": "High",
+      "module": "4.5 Task Management",
+      "location": "All Tasks / My Tasks / task detail views (UI)",
+      "title": "Same task shows different priority AND kind across views",
+      "observed": "The same task renders as Priority High, kind 'Rules & compliance', Deadline '15 Oct 2026' in All Tasks and in the task detail (detail shows '10:30 am', no timezone), but as Priority Medium, kind 'Joining a new person' in My Tasks. The detail time '10:30 am' is consistent with the team-tasks/detail due_date (05:00Z = 10:30 IST), not the /tasks/me value (04:30Z = 10:00 IST).",
+      "expected_fix": "Single source of truth for priority, kind and due_date across all task views; render the timezone on due times.",
+      "evidence": "browser observation, Tasks views (All Tasks / My Tasks / task detail). UI-confirms and extends M-01 (kind also differs in the UI)."
+    },
+    {
+      "id": "M-26",
+      "severity": "Medium",
+      "module": "4.1 Dashboard / 4.2 Attendance",
+      "location": "Dashboard KPI cards vs Team Directory list (UI)",
+      "title": "Dashboard says 'Absent 4' while the directory lists all 4 as 'Not Marked'",
+      "observed": "Dashboard KPI cards read Team members 4, Present 0, Absent 4, Late 0, On leave 0, Working 0 (no 'Pending 4'). The Team Directory lists all 4 members as 'Not Marked' with IN/OUT/Lateness N/A. The same not-yet-clocked-in state is labelled 'Absent' on the dashboard and 'Not Marked' in the directory.",
+      "expected_fix": "One status vocabulary across dashboard and directory: show 'Not Marked / Pending' on the dashboard before clock-in, or document that dashboard 'Absent' means not-yet-marked.",
+      "evidence": "browser observation, Dashboard + Team Directory. Reframes M-02 (dashboard drops the pending bucket) and M-19 (same provisional-absent semantics)."
+    },
+    {
+      "id": "M-27",
+      "severity": "Medium",
+      "module": "4.4 Team Directory",
+      "location": "Team Directory avatar column (UI)",
+      "title": "Broken/partial avatar for 1 of 4 team members, with no fallback",
+      "observed": "3 of 4 team members render photos; the 4th shows a pale circle with a small black arc - not initials, not a generic icon. The header avatar is a solid purple circle with no initials. The task-comment author fallback does render 'AH' initials, so fallback behaviour is inconsistent across surfaces.",
+      "expected_fix": "Robust avatar fallback: render initials (or a generic icon) whenever a photo fails to load; apply one fallback component everywhere (header, directory, comments).",
+      "evidence": "browser observation, Team Directory + header + task comments. Whether the 300s signed-URL expiry (M-13) contributes is NOT VERIFIED."
+    },
+    {
+      "id": "M-28",
+      "severity": "High",
+      "module": "4.4 Team Directory",
+      "location": "Member Profile page (UI, full-page tab)",
+      "title": "Profile page exposes sensitive PII field names (DOB, blood group, father's/spouse names, personal email)",
+      "observed": "The member profile page (a full-page tab, not a drawer) exposes field names including DATE OF BIRTH, GENDER, MARITAL STATUS, BLOOD GROUP, FATHER'S NAME, SPOUSE NAME under PERSONAL PROFILE, and PERSONAL EMAIL, EMERGENCY CONTACT, ADDRESS DETAILS under WORK & CONTACT PROFILE. Field names only - no values are reproduced in this report. PAN/UAN fields were not observed on the profile page; their UI presence is NOT VERIFIED.",
+      "expected_fix": "Role-scoped field filtering on the profile view: gate DOB, blood group, father's/spouse names, personal email and address details behind HR-only access (same fix as M-03).",
+      "evidence": "browser observation, Member Profile page (field names only). UI-confirms M-03."
+    },
+    {
+      "id": "M-29",
+      "severity": "Medium",
+      "module": "Payroll",
+      "location": "Payslips screen (UI)",
+      "title": "Payslip NET < GROSS with DEDUCTIONS of zero, unexplained",
+      "observed": "Payslips render amounts with the rupee symbol, commas and 2 decimals, but NET is less than GROSS while DEDUCTIONS shows zero, with no visible breakdown explaining the difference. Amount values are withheld from this report (formats only).",
+      "expected_fix": "Show the deduction/LOP breakdown that explains NET < GROSS, or correct the deductions figure so the arithmetic is transparent.",
+      "evidence": "browser observation, Payslips screen (formats only, amounts withheld)."
+    },
+    {
+      "id": "M-30",
+      "severity": "Medium",
+      "module": "Payroll",
+      "location": "Team Cost dialog (UI)",
+      "title": "Team Cost dialog: member cells blank, STATUS 'N/A' for all 4",
+      "observed": "In the Team Cost dialog, TEAM MEMBER cells are all blank and STATUS reads 'N/A' for all 4 members, while UNPAID DAYS shows '2d across the team'. The dialog renders no identifiable member rows.",
+      "expected_fix": "Populate member names in the dialog; resolve STATUS instead of 'N/A'; explain how the unpaid-days rollup is computed.",
+      "evidence": "browser observation, Team Cost dialog."
+    },
+    {
+      "id": "M-31",
+      "severity": "Low",
+      "module": "4.3 Leave",
+      "location": "Leave Team History card (UI)",
+      "title": "Clicking a leave card opens no detail modal",
+      "observed": "Clicking the leave card in Team History opened no detail modal or drawer; there is no in-place way to inspect the request's fields. No approver field appears anywhere in the leave UI.",
+      "expected_fix": "Wire card click to a detail drawer/modal with the request fields, or remove the click affordance.",
+      "evidence": "browser observation, Leave Team History."
+    },
+    {
+      "id": "M-32",
+      "severity": "Low",
+      "module": "4.3 Leave",
+      "location": "Member Leave tab history (UI)",
+      "title": "Leave history briefly flashes 'No History Found' before data loads",
+      "observed": "The member Leave tab history briefly flashes the empty-state text 'No History Found' before the data loads and renders. Consistent with the slow member-leave-requests endpoint (4.34s, M-10); causation NOT VERIFIED.",
+      "expected_fix": "Show a skeleton/loading state instead of the empty-state text until the fetch resolves.",
+      "evidence": "browser observation, Member Leave tab."
+    },
+    {
+      "id": "M-33",
+      "severity": "Low",
+      "module": "4.2 Attendance",
+      "location": "Anomalies / Flags screen (UI, sidebar 'Flags')",
+      "title": "Flags details truncated, with no status pill or resolution column",
+      "observed": "The Flags screen has 1 row: 'Unauthorized absence', Severity High, with DETAILS truncated (ellipsis). Columns are only EMPLOYEE / DATE / FLAG / SEVERITY / DETAILS - no punch times, reviewer, worked_hours, or status pill/column.",
+      "expected_fix": "Full-details tooltip or expandable row; add a status/resolution column.",
+      "evidence": "browser observation, Anomalies/Flags screen. UI-confirms M-21 (no status field for flags)."
+    },
+    {
+      "id": "M-34",
+      "severity": "Low",
+      "module": "4.1 Dashboard",
+      "location": "Manager Dashboard (UI)",
+      "title": "Dashboard omits team-task section and pending-approvals counter",
+      "observed": "The dashboard renders KPI counts but has no team-task section, no pending-approvals counter, and no tasks-needing-attention strip, even though the team-tasks and pending-leaves endpoints return data.",
+      "expected_fix": "Add a tasks-needing-attention strip and a pending-approvals counter from the existing endpoints.",
+      "evidence": "browser observation, Dashboard."
+    }
+  ],
+  "not_verified": [
+    "Row-level rendering of empty Requests queues (regularizations, comp-offs, overtime): queues were EMPTY at observation time, so row-level null/reviewer/worked_hours/is_resolved rendering is NOT observable.",
+    "Browser console warnings, React key/hydration warnings, unhandled promise rejections (no DevTools access in either lane; DevTools unavailable in the browser pass).",
+    "Which endpoints the Manager Requests screens (regularizations / comp-offs / overtime / inbox) and the Team Cost dialog use - endpoints NOT VERIFIED (DevTools unavailable).",
+    "Whether policy snapshot variance (M-16) is point-in-time snapshotting or drift.",
+    "Whether the UI passes the required 'purpose' param to /organizations/employees (directory renders, but param-passing itself NOT VERIFIED).",
+    "Whether PAN/UAN fields appear on the UI profile page (profile field names observed; PAN/UAN not among them - presence NOT VERIFIED).",
+    "Whether the 300s signed-URL expiry contributes to the broken avatar (M-27).",
+    "Causation between slow endpoints and the leave-history 'No History Found' flash (M-32).",
+    "Whether the UI Claims (Submitted) screen maps to the same endpoint as the API's 1 approved claim (UI shows EMPTY; endpoint mapping NOT VERIFIED).",
+    "Grace_time / punch-timeline rendering: grace_time not observed anywhere; overtime rendered in Team History and Daily Log, omitted in Live Attendance; punch timelines NOT VERIFIED.",
+    "Whether the UI shows the 'final' vs 'raw' leave/attendance buckets at summary level (history rows distinguish Weekly off/Holiday; summary bucket labels per API).",
+    "Own trends / own-streak rendering (M-04, M-19 own-streak) - not observed in the browser pass.",
+    "Whether the UI renders the team-graph chart data (graph-data endpoint rendering not observed)."
+  ]
+}

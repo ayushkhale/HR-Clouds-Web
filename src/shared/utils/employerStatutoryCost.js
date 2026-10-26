@@ -219,11 +219,24 @@ export function costFromPreview({ preview, flags = {}, config = {} } = {}) {
   // admin charges must NOT be added again — they are already inside it. The
   // with-extras totals therefore collapse onto the plain ones here; adding
   // `estimate.extras` would have overstated the live payload by ₹1,800 a year.
+  //
+  // Pick up the exact head breakdowns from statutory_breakdown when present:
+  const stat = preview?.statutory_breakdown;
+  const employerPf = stat?.pf_employer_amount !== undefined && stat?.pf_employer_amount !== null ? toAmount(stat.pf_employer_amount) : estimate.employerPf;
+  const employerEsi = stat?.esi_employer_amount !== undefined && stat?.esi_employer_amount !== null ? toAmount(stat.esi_employer_amount) : estimate.employerEsi;
+  const pfSnapshot = stat?.statutory_snapshot?.pf || {};
+  const edli = pfSnapshot.edli !== undefined && pfSnapshot.edli !== null ? toAmount(pfSnapshot.edli) : estimate.edli;
+  const adminCharges = pfSnapshot.admin_charges !== undefined && pfSnapshot.admin_charges !== null ? toAmount(pfSnapshot.admin_charges) : estimate.adminCharges;
+
   return {
     ...estimate,
     source: "server",
     core: fromServer,
     extras: 0,
+    employerPf,
+    employerEsi,
+    edli,
+    adminCharges,
     monthlyCost: gross + fromServer,
     annualCost: (gross + fromServer) * 12,
     monthlyCostWithExtras: gross + fromServer,

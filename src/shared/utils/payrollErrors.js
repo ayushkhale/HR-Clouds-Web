@@ -260,11 +260,49 @@ export function payrollErrorMessage(err, fallback = "Something went wrong. Pleas
     return "Couldn't reach the server. Check your connection and try again.";
   }
   if (serverMessage && /"[a-z0-9_.]+"/i.test(serverMessage)) return humanizeValidation(serverMessage);
+  // `download.js` invents "Download failed (403 Forbidden)" when a streamed
+  // refusal carries no JSON body. That is a status line, not a message, and on
+  // a viewer it also claims a download nobody asked for — so it falls through
+  // to the caller's own words.
+  if (/^Download failed \(/.test(serverMessage)) return fallback;
   return serverMessage || fallback;
 }
 
 /** The typed backend error code, or "" when there is none. */
 export const payrollErrorCode = (err) => err?.data?.errorCode || "";
+
+/**
+ * Refusals that answer the same way however many times you ask: the document
+ * does not exist yet, or it was never this reader's to open. Used by the inline
+ * PDF viewer to decide whether to offer "Try again" — a retry button on a
+ * financial year nobody has closed only suggests the screen is broken when it
+ * isn't, and it teaches people to distrust the button where it does work.
+ */
+const SETTLED_PDF_REFUSALS = new Set([
+  "FORM16_NOT_FINALIZED", "FEATURE_NOT_AVAILABLE", "FORBIDDEN", "PAYSLIP_NOT_ACCESSIBLE",
+  "SETTLEMENT_NOT_PREPARED", "RUN_NOT_PAID", "EXPORT_TOO_LARGE", "EXIT_CANCELLED",
+]);
+export const isPayrollPdfRetryable = (err) => !SETTLED_PDF_REFUSALS.has(payrollErrorCode(err));
+
+/**
+ * Message for a payroll PDF shown on screen rather than saved (the inline
+ * viewer). It exists because a streamed route can refuse with no JSON body at
+ * all — the generic mapper then has only a status to work from, and "Couldn't
+ * draw this page" leaves somebody staring at a document they can see listed.
+ *
+ * A bodyless 403 is the realistic one: a payslip HR has not released yet is
+ * refused to a manager exactly as a payslip that doesn't exist (#186), so the
+ * wording must not promise which of the two it was.
+ */
+export function payrollPdfViewMessage(err, fallback = "Couldn't open this document.") {
+  if (!payrollErrorCode(err)) {
+    if (err?.status === 403) {
+      return "This document can't be opened. It may not have been released yet, or it may not be one you're allowed to see.";
+    }
+    if (err?.status === 404) return "There's no document on file to open here.";
+  }
+  return payrollErrorMessage(err, fallback);
+}
 
 
 /**

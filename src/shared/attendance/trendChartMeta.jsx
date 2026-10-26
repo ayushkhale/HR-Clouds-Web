@@ -40,6 +40,11 @@ const TREND_BAR_SERIES = {
   final_present_count: "present",
   final_leave_count: "on_leave",
   final_absent_count: "absent",
+  // The employee dashboard's one-series chart: hours worked IS that person's
+  // present, so it wears the same darkest step as the team charts' Present bar
+  // rather than a fourth purple nobody else uses. Stated here rather than left
+  // to the fallback below, so it reads as a decision.
+  hours: "present",
 };
 
 /**

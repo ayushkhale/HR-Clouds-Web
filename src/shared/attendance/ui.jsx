@@ -14,7 +14,7 @@ import { attendanceErrorMessage, isFeatureDisabled } from "../utils/attendanceEr
 import { employeeCode, personName } from "./normalize.js";
 import GenderAvatar from "../components/GenderAvatar.jsx";
 
-/** kind: "record" | "regularization" | "compoff" | "overtime" | "anomaly" | "severity" */
+/** kind: "record" | "regularization" | "compoff" | "overtime" | "anomaly" | "severity" | "device" */
 export function StatusBadge({ kind = "record", status, label, className = "" }) {
   const meta = statusMeta(kind, status);
   return (

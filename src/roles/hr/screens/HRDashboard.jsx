@@ -227,7 +227,7 @@ function HRDashboard() {
     { label: "Present today", value: num(l.final_present_count), icon: HiCheckCircle, tag: DICTIONARY.STATUS.PRESENT },
     // overlay: at 390 the ⓘ pushed "Absent today" onto a second line and made
     // every tile in the row taller — the same fix the manager dashboard needed.
-    { label: "Absent today", value: num(l.final_absent_count), icon: HiExclamationCircle, tag: DICTIONARY.STATUS.ABSENT, help: { surface: "attendance.team", field: "final_absent_count", overlay: true } },
+    { label: "Absent today", value: num(l.final_absent_count), icon: HiExclamationCircle, tag: DICTIONARY.STATUS.ABSENT },
     { label: "Late arrivals", value: num(l.counts?.late), icon: HiClock, tag: DICTIONARY.STATUS.LATE },
   ];
 

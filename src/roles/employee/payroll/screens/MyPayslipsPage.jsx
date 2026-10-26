@@ -4,13 +4,21 @@
 // Payslips (#55/#56) with the PDF (#191), the financial-year statement
 // (#192/#193) and Form 16 Part B (#194). A payslip only appears once HR has
 // released it; a held one is indistinguishable from one that doesn't exist.
+//
+// Reading one does not mean keeping one (2026-10-14). Every document here can
+// be shown on screen as well as saved, exactly as on HR's Payslips & Documents
+// and the manager's team payslips — the person whose pay it is was the one
+// role that still had to put a file on disk to check a figure. The viewer does
+// not depend on the server's `Content-Disposition`; see the header of
+// `shared/pdf/renderedPdf.js`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
-import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
-import { payrollErrorMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
+import { downloadRenderedPdf, previewRenderedPdf } from "../../../../shared/pdf/renderedPdf";
+import PdfPreviewDialog from "../../../../shared/pdf/PdfPreviewDialog";
+import { isPayrollPdfRetryable, payrollErrorMessage, payrollPdfViewMessage, payslipDownloadMessage } from "../../../../shared/utils/payrollErrors";
 import { formatMoney, formatPeriod, formatDayCount } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { statementMonths, statementTotals } from "../../../../shared/utils/annualStatementMeta";
@@ -19,7 +27,7 @@ import useToast from "../../../hr/payroll/useToast";
 import PayrollToast from "../../../hr/payroll/PayrollToast";
 import { currentFY, fyOptions } from "../../../hr/payroll/fyUtils";
 import {
-  HiCurrencyRupee, HiDocumentDownload, HiDocumentReport, HiDocumentText, HiRefresh,
+  HiCurrencyRupee, HiDocumentDownload, HiDocumentReport, HiDocumentText, HiEye, HiRefresh,
 } from "react-icons/hi";
 
 const TABS = [
@@ -29,14 +37,29 @@ const TABS = [
 ];
 
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
+
+/** The on-screen copy and the saved copy are the same bytes — worth saying once. */
+const SAME_FILE_NOTE = "This is the document itself, not a redrawn version of it — the same file as Download, shown here instead of saved.";
+
+/** A shared look for the View button, beside a Download in the same footer or bar. */
+const VIEW_BTN = "px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50";
 const fyValue = (option) => (typeof option === "string" ? option : option?.value ?? String(option ?? ""));
 const slipRunId = (slip) => slip.run_id || slip.payroll_run?.id || slip.runId;
 const slipPeriod = (slip) => slip.period_month || slip.payroll_run?.period_month;
+
+// The list row carries gross, net and the statutory flag (#55); what was
+// deducted is on the detail (#56), nested under `figures`. A card used to print
+// "Deductions N/A" on every month because of it (employee audit E-15) — a line
+// that only ever says nothing is worse than no line, and the figure is one
+// click away under View details. Both shapes are read in case a row does carry
+// it: the feature follows the payload, never the spec.
+const slipDeductions = (slip) => slip.total_deductions ?? slip.figures?.total_deductions ?? null;
 
 // ── One payslip in full ─────────────────────────────────────────────────────
 function PayslipDialog({ runId, period, onClose, showToast }) {
   const [state, setState] = useState({ loading: true, data: null, error: "" });
   const [downloading, setDownloading] = useState(false);
+  const [viewing, setViewing] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -68,6 +91,7 @@ function PayslipDialog({ runId, period, onClose, showToast }) {
   const figures = d?.figures || item;
 
   return (
+    <>
     <DetailDialog
       eyebrow="Payslip"
       icon={HiDocumentText}
@@ -75,9 +99,14 @@ function PayslipDialog({ runId, period, onClose, showToast }) {
       loading={state.loading}
       onClose={onClose}
       footer={
-        <button type="button" onClick={download} disabled={downloading} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 flex items-center gap-2 disabled:opacity-50">
-          <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download PDF"}
-        </button>
+        <>
+          <button type="button" onClick={() => setViewing(true)} className={VIEW_BTN}>
+            <HiEye className="w-4 h-4" /> View payslip
+          </button>
+          <button type="button" onClick={download} disabled={downloading} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 flex items-center gap-2 disabled:opacity-50">
+            <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download PDF"}
+          </button>
+        </>
       }
     >
       {state.error ? (
@@ -126,6 +155,31 @@ function PayslipDialog({ runId, period, onClose, showToast }) {
         </>
       )}
     </DetailDialog>
+
+    {/* A sibling of the detail, never a child: z-[165] over z-[140], and its
+        own Escape must not close the payslip behind it. */}
+    {viewing && (
+      <PdfPreviewDialog
+        eyebrow="Payslip"
+        icon={HiDocumentText}
+        title={formatPeriod(period)}
+        render={() => previewRenderedPdf(payrollFiles.myPayslipPdf(runId), {
+          filename: `payslip-${period || runId}.pdf`,
+        })}
+        errorMessage={payrollPdfViewMessage}
+        fallback="Couldn’t open this payslip."
+        retryable={isPayrollPdfRetryable}
+        fallbackName={`payslip-${period || runId}.pdf`}
+        onClose={() => setViewing(false)}
+        footnote={
+          <>
+            <span className="font-bold text-slate-600">{SAME_FILE_NOTE}</span>{" "}
+            The figures were frozen when your employer approved the month’s payroll, so they don’t change after it is released.
+          </>
+        }
+      />
+    )}
+    </>
   );
 }
 
@@ -134,6 +188,9 @@ function AnnualStatementTab({ showToast }) {
   const [fy, setFy] = useState(currentFY());
   const [state, setState] = useState({ loading: true, data: null, error: "" });
   const [downloading, setDownloading] = useState(false);
+  // The year the open statement was drawn for, not a boolean: the select stays
+  // live behind the viewer, so changing it must not re-title the open PDF.
+  const [viewing, setViewing] = useState("");
 
   const load = useCallback(async () => {
     setState({ loading: true, data: null, error: "" });
@@ -179,6 +236,9 @@ function AnnualStatementTab({ showToast }) {
         </div>
         <button type="button" onClick={load} disabled={state.loading} className="h-[42px] px-4 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50">
           <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} /> Refresh
+        </button>
+        <button type="button" onClick={() => setViewing(fy)} className={`${VIEW_BTN} h-[42px] !py-0`}>
+          <HiEye className="w-4 h-4" /> View
         </button>
         <button type="button" onClick={download} disabled={downloading} className="h-[42px] px-4 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200 disabled:opacity-50">
           <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download PDF"}
@@ -229,6 +289,29 @@ function AnnualStatementTab({ showToast }) {
           </div>
         </div>
       )}
+
+      {viewing && (
+        <PdfPreviewDialog
+          eyebrow="Annual statement"
+          icon={HiDocumentReport}
+          title={`FY ${viewing}`}
+          render={() => previewRenderedPdf(payrollFiles.myAnnualStatementPdf(), {
+            params: { financial_year: viewing },
+            filename: `annual-statement-${viewing}.pdf`,
+          })}
+          errorMessage={payrollPdfViewMessage}
+          fallback="Couldn’t open this statement."
+          retryable={isPayrollPdfRetryable}
+          fallbackName={`annual-statement-${viewing}.pdf`}
+          onClose={() => setViewing("")}
+          footnote={
+            <>
+              <span className="font-bold text-slate-600">{SAME_FILE_NOTE}</span>{" "}
+              It covers the months payroll has run so far this year, so one opened mid-year is shorter than one opened after March.
+            </>
+          }
+        />
+      )}
     </div>
   );
 }
@@ -237,6 +320,8 @@ function AnnualStatementTab({ showToast }) {
 function Form16Tab({ showToast }) {
   const [fy, setFy] = useState(currentFY());
   const [downloading, setDownloading] = useState(false);
+  // The year the open certificate was drawn for — same reason as the statement.
+  const [viewing, setViewing] = useState("");
 
   const download = async () => {
     setDownloading(true);
@@ -264,6 +349,9 @@ function Form16Tab({ showToast }) {
             })}
           </select>
         </div>
+        <button type="button" onClick={() => setViewing(fy)} className={`${VIEW_BTN} h-[42px] !py-0`}>
+          <HiEye className="w-4 h-4" /> View
+        </button>
         <button type="button" onClick={download} disabled={downloading} className="h-[42px] px-4 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200 disabled:opacity-50">
           <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download Form 16"}
         </button>
@@ -271,6 +359,26 @@ function Form16Tab({ showToast }) {
       <p className="text-xs text-slate-500 mt-4 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
         Part A comes from the tax department (TRACES) and is issued separately by your employer.
       </p>
+
+      {viewing && (
+        <PdfPreviewDialog
+          eyebrow="Form 16 — Part B"
+          icon={HiDocumentText}
+          title={`FY ${viewing}`}
+          render={() => previewRenderedPdf(payrollFiles.myForm16Pdf(viewing), { filename: `form16-${viewing}.pdf` })}
+          errorMessage={payrollPdfViewMessage}
+          fallback="Couldn’t open this certificate."
+          retryable={isPayrollPdfRetryable}
+          fallbackName={`form16-${viewing}.pdf`}
+          onClose={() => setViewing("")}
+          footnote={
+            <>
+              <span className="font-bold text-slate-600">{SAME_FILE_NOTE}</span>{" "}
+              Part B only — the part built from your pay and tax here. Part A comes from the tax department and is issued separately.
+            </>
+          }
+        />
+      )}
     </div>
   );
 }
@@ -360,14 +468,24 @@ export default function MyPayslipsPage() {
                         <p className="text-xs font-bold text-slate-400 uppercase">Gross pay</p>
                         <p className="text-sm font-semibold text-slate-700 tabular-nums">{money(slip.gross_earnings ?? slip.gross_pay)}</p>
                       </div>
-                      <div className="flex justify-between">
-                        <p className="text-xs font-bold text-slate-400 uppercase">Deductions</p>
-                        <p className="text-sm font-semibold text-rose-600 tabular-nums">{money(slip.total_deductions)}</p>
-                      </div>
+                      {slipDeductions(slip) !== null && (
+                        <div className="flex justify-between">
+                          <p className="text-xs font-bold text-slate-400 uppercase">Deductions</p>
+                          <p className="text-sm font-semibold text-rose-600 tabular-nums">{money(slipDeductions(slip))}</p>
+                        </div>
+                      )}
                       <div className="flex justify-between pt-2 border-t border-slate-100">
                         <p className="text-xs font-bold text-slate-400 uppercase">Net pay</p>
                         <p className="text-sm font-black text-purple-700 tabular-nums">{money(slip.net_pay)}</p>
                       </div>
+                      {/* The run said so itself (#55 `statutory_status`) — a net
+                          pay that skipped PF, ESI and tax reads like take-home
+                          and isn't (employee audit E-05). */}
+                      {slip.statutory_status === "not_applied" && (
+                        <p className="text-[11px] font-semibold text-fuchsia-700 bg-fuchsia-50 border border-fuchsia-200 rounded-lg px-2.5 py-1.5 leading-snug">
+                          PF, ESI and tax weren’t taken off this month, so this isn’t what finally reaches the bank.
+                        </p>
+                      )}
                     </div>
 
                     <div className="p-4 border-t border-slate-50 flex items-center gap-2">

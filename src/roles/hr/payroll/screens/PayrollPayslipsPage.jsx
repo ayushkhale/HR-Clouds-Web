@@ -5,13 +5,23 @@
 // A payslip is frozen at approval: the name, department and bank shown are the
 // ones that were true when the money was paid, which is why a reissue can fix a
 // spelling but never a figure.
+//
+// Reading one does not mean keeping one (2026-10-14). Every document on this
+// page can be shown on screen as well as saved: `previewRenderedPdf()` hands
+// the same bytes to `PdfPreviewDialog` instead of to the downloads folder. HR
+// opens these to check something — a name, a figure, which version went out —
+// and the old screen made that cost a file on disk every time. Download stays,
+// unchanged and first-class, because sending one on still means having the
+// file. The viewer does not depend on the server's `Content-Disposition`; see
+// the header of `shared/pdf/renderedPdf.js` for why that matters here.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardTopBar from "../../../../shared/components/DashboardTopBar";
 import { payrollAPI, payrollFiles } from "../../../../shared/api";
-import { downloadRenderedPdf } from "../../../../shared/pdf/renderedPdf";
-import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
+import { downloadRenderedPdf, previewRenderedPdf } from "../../../../shared/pdf/renderedPdf";
+import PdfPreviewDialog from "../../../../shared/pdf/PdfPreviewDialog";
+import { isPayrollPdfRetryable, payrollErrorMessage, payrollPdfViewMessage } from "../../../../shared/utils/payrollErrors";
 import { formatDate, formatMoney, formatPeriod } from "../../../../shared/utils/formatUtils";
 import Skeleton from "../../../../shared/components/Skeleton";
 import { statementMonths, statementTotals } from "../../../../shared/utils/annualStatementMeta";
@@ -23,7 +33,7 @@ import { currentFY, fyOptions } from "../fyUtils";
 import { EMAIL_STATUS, PAYSLIP_STATUS, meta, payslipVisibility } from "../phase6Meta";
 import {
   HiCurrencyRupee, HiDocumentDownload, HiDocumentReport, HiDocumentText,
-  HiExclamationCircle, HiRefresh, HiUser, HiX,
+  HiExclamationCircle, HiEye, HiRefresh, HiUser, HiX,
 } from "react-icons/hi";
 import { PersonSelect } from "../../../../shared/components/PersonPicker";
 import { STATUS_CHIP } from "../../../../shared/utils/statusChip";
@@ -43,6 +53,12 @@ const REISSUE_MIN = 10;
 const fyValue = (option) => (typeof option === "string" ? option : option?.value ?? String(option ?? ""));
 
 const money = (v) => (v === null || v === undefined || v === "" ? "N/A" : formatMoney(v));
+
+/** The on-screen copy and the saved copy are the same bytes — worth saying once. */
+const SAME_FILE_NOTE = "This is the document itself, not a redrawn version of it — the same file as Download, shown here instead of saved.";
+
+/** A shared look for the View button, beside a Download in the same footer or bar. */
+const VIEW_BTN = "px-4 py-2.5 text-sm font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50";
 
 // ── Reissue (#173) ──────────────────────────────────────────────────────────
 function ReissueDialog({ payslip, onClose, onDone, showToast }) {
@@ -116,7 +132,12 @@ function ReissueDialog({ payslip, onClose, onDone, showToast }) {
 function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
   const [state, setState] = useState({ loading: true, data: null, error: "" });
   const [downloading, setDownloading] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const runId = row.run_id;
+  // The version pins the request to the row that was opened. Without it an old
+  // version's row would show the current payslip, which is the one mistake this
+  // screen exists to prevent.
+  const versionParams = row.version ? { version: row.version } : undefined;
 
   useEffect(() => {
     let alive = true;
@@ -130,7 +151,7 @@ function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
     setDownloading(true);
     try {
       await downloadRenderedPdf(payrollFiles.hrPayslipPdf(userId, runId), {
-        params: row.version ? { version: row.version } : undefined,
+        params: versionParams,
         filename: `payslip-${row.period_month || runId}.pdf`,
       });
       showToast("Payslip PDF downloaded.");
@@ -148,6 +169,7 @@ function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
   const status = meta(PAYSLIP_STATUS, row.status);
 
   return (
+    <>
     <DetailDialog
       eyebrow="Payslip"
       icon={HiDocumentText}
@@ -163,6 +185,9 @@ function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
               Reissue…
             </button>
           )}
+          <button type="button" onClick={() => setViewing(true)} className={VIEW_BTN}>
+            <HiEye className="w-4 h-4" /> View payslip
+          </button>
           <button type="button" onClick={download} disabled={downloading} className="px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-md shadow-purple-200 flex items-center gap-2 disabled:opacity-50">
             <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download PDF"}
           </button>
@@ -228,6 +253,33 @@ function PayslipDialog({ userId, row, onClose, onReissue, showToast }) {
         </>
       )}
     </DetailDialog>
+
+    {/* A sibling of the detail, never a child: z-[165] over z-[140], and its
+        own Escape must not close the payslip behind it. */}
+    {viewing && (
+      <PdfPreviewDialog
+        eyebrow="Payslip"
+        icon={HiDocumentText}
+        title={formatPeriod(row.period_month)}
+        subtitle={`Version ${row.version ?? 1} · ${status.label}`}
+        render={() => previewRenderedPdf(payrollFiles.hrPayslipPdf(userId, runId), {
+          params: versionParams,
+          filename: `payslip-${row.period_month || "month"}.pdf`,
+        })}
+        errorMessage={payrollPdfViewMessage}
+        fallback="Couldn't open this document."
+        retryable={isPayrollPdfRetryable}
+        fallbackName={`payslip-${row.period_month || "month"}.pdf`}
+        onClose={() => setViewing(false)}
+        footnote={
+          <>
+            <span className="font-bold text-slate-600">{SAME_FILE_NOTE}</span>{" "}
+            The figures were frozen when the run was approved, so they read the same here as on the employee’s own copy.
+          </>
+        }
+      />
+    )}
+    </>
   );
 }
 
@@ -236,6 +288,11 @@ function AnnualStatementTab({ userId, employeeName, showToast }) {
   const [fy, setFy] = useState(currentFY());
   const [state, setState] = useState({ loading: false, data: null, error: "" });
   const [downloading, setDownloading] = useState(false);
+  // The financial year this preview was opened for — not a boolean. The FY
+  // select stays in the DOM behind the overlay and is still reachable by Tab,
+  // so reading the live value here could retitle an open statement without
+  // redrawing it, which is the one thing a document viewer must never do.
+  const [viewing, setViewing] = useState("");
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -282,6 +339,9 @@ function AnnualStatementTab({ userId, employeeName, showToast }) {
         </div>
         <button type="button" onClick={load} disabled={state.loading} className="h-[42px] px-4 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition flex items-center gap-2 disabled:opacity-50">
           <HiRefresh className={`w-4 h-4 ${state.loading ? "animate-spin" : ""}`} /> Refresh
+        </button>
+        <button type="button" onClick={() => setViewing(fy)} disabled={!userId} className={`${VIEW_BTN} h-[42px] !py-0`}>
+          <HiEye className="w-4 h-4" /> View
         </button>
         <button type="button" onClick={download} disabled={downloading || !userId} className="h-[42px] px-4 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200 disabled:opacity-50">
           <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download PDF"}
@@ -335,14 +395,41 @@ function AnnualStatementTab({ userId, employeeName, showToast }) {
           </div>
         </div>
       )}
+
+      {viewing && (
+        <PdfPreviewDialog
+          eyebrow="Annual statement"
+          icon={HiDocumentReport}
+          title={`FY ${viewing}`}
+          subtitle={employeeName || "This employee"}
+          render={() => previewRenderedPdf(payrollFiles.hrAnnualStatementPdf(userId), {
+            params: { financial_year: viewing },
+            filename: `annual-statement-${viewing}.pdf`,
+          })}
+          errorMessage={payrollPdfViewMessage}
+          fallback="Couldn't open this document."
+          retryable={isPayrollPdfRetryable}
+          fallbackName={`annual-statement-${viewing}.pdf`}
+          onClose={() => setViewing("")}
+          footnote={
+            <>
+              <span className="font-bold text-slate-600">{SAME_FILE_NOTE}</span>{" "}
+              It covers the months payroll has run so far this year, so a statement opened mid-year is shorter than one opened after March.
+            </>
+          }
+        />
+      )}
     </div>
   );
 }
 
 // ── Form 16 (#185) ──────────────────────────────────────────────────────────
-function Form16Tab({ userId, showToast }) {
+function Form16Tab({ userId, employeeName, showToast }) {
   const [fy, setFy] = useState(currentFY());
   const [downloading, setDownloading] = useState(false);
+  // The year the open certificate was drawn for, not a boolean — see the same
+  // state in AnnualStatementTab for why the live select can't be read here.
+  const [viewing, setViewing] = useState("");
 
   const download = async () => {
     setDownloading(true);
@@ -372,6 +459,9 @@ function Form16Tab({ userId, showToast }) {
             })}
           </select>
         </div>
+        <button type="button" onClick={() => setViewing(fy)} disabled={!userId} className={`${VIEW_BTN} h-[42px] !py-0`}>
+          <HiEye className="w-4 h-4" /> View
+        </button>
         <button type="button" onClick={download} disabled={downloading || !userId} className="h-[42px] px-4 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition flex items-center gap-2 shadow-md shadow-purple-200 disabled:opacity-50">
           <HiDocumentDownload className="w-4 h-4" /> {downloading ? "Preparing…" : "Download Form 16"}
         </button>
@@ -379,6 +469,27 @@ function Form16Tab({ userId, showToast }) {
       <p className="text-xs text-slate-500 mt-4 bg-purple-50/70 border border-purple-100 rounded-xl px-4 py-3">
         Available once the financial year is finalised under Year-End &amp; Form 16. Until then the figures can still move, so no certificate is issued.
       </p>
+
+      {viewing && (
+        <PdfPreviewDialog
+          eyebrow="Form 16 — Part B"
+          icon={HiDocumentText}
+          title={`FY ${viewing}`}
+          subtitle={employeeName || "This employee"}
+          render={() => previewRenderedPdf(payrollFiles.hrForm16Pdf(userId, viewing), { filename: `form16-${viewing}.pdf` })}
+          errorMessage={payrollPdfViewMessage}
+          fallback="Couldn't open this document."
+          retryable={isPayrollPdfRetryable}
+          fallbackName={`form16-${viewing}.pdf`}
+          onClose={() => setViewing("")}
+          footnote={
+            <>
+              <span className="font-bold text-slate-600">{SAME_FILE_NOTE}</span>{" "}
+              Part B only — the part built from pay and tax here. Part A comes from TRACES and is uploaded separately.
+            </>
+          }
+        />
+      )}
     </div>
   );
 }
@@ -389,7 +500,11 @@ export default function PayrollPayslipsPage() {
   const [userId, setUserId] = useState("");
   const [tab, setTab] = useState("payslips");
   const [history, setHistory] = useState({ loading: false, rows: [], error: "" });
-  const [activeOnly, setActiveOnly] = useState(false);
+  // On by default: the question asked here is almost always "what does this
+  // person's payslip say", and a replaced version answers it wrongly. The old
+  // every-version list put a withdrawn v1 directly above the v2 that superseded
+  // it, which reads as two payslips for one month. Unticking shows the lot.
+  const [activeOnly, setActiveOnly] = useState(true);
   const [openSlip, setOpenSlip] = useState(null);
   const [reissueTarget, setReissueTarget] = useState(null);
   const { toast, showToast, hideToast } = useToast();
@@ -422,7 +537,7 @@ export default function PayrollPayslipsPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Payslips & Documents" help={help("page", { label: "the Payslips & Documents page" })} /></h1>
           <p className="text-sm text-slate-500 mt-1">
-            Every payslip issued to an employee, their yearly statement and their Form 16 — including replaced and withdrawn versions.
+            The payslips issued to an employee, their yearly statement and their Form 16. Replaced and withdrawn versions are kept — untick “Only current versions” to see them.
           </p>
         </div>
 
@@ -460,10 +575,15 @@ export default function PayrollPayslipsPage() {
         ) : tab === "payslips" ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
-                Only current versions
-              </label>
+              {/* Beside the label, never inside it: a click on the ⓘ must not
+                  toggle the filter. */}
+              <div className="flex items-center gap-1.5">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500" />
+                  Only current versions
+                </label>
+                <FieldHelp {...help("active_only", { size: "sm", label: "the current-versions filter" })} />
+              </div>
               <button type="button" onClick={loadHistory} disabled={history.loading} className="h-[38px] px-3 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition flex items-center gap-1.5 disabled:opacity-50">
                 <HiRefresh className={`w-3.5 h-3.5 ${history.loading ? "animate-spin" : ""}`} /> Refresh
               </button>
@@ -503,7 +623,13 @@ export default function PayrollPayslipsPage() {
                         );
                       })}
                       {history.rows.length === 0 && (
-                        <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No payslips have been issued to {employeeName} yet.</td></tr>
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                            {activeOnly
+                              ? <>No current payslip for {employeeName}. Untick “Only current versions” to see replaced and withdrawn ones.</>
+                              : <>No payslips have been issued to {employeeName} yet.</>}
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
@@ -514,7 +640,7 @@ export default function PayrollPayslipsPage() {
         ) : tab === "annual" ? (
           <AnnualStatementTab userId={userId} employeeName={employeeName} showToast={showToast} />
         ) : (
-          <Form16Tab userId={userId} showToast={showToast} />
+          <Form16Tab userId={userId} employeeName={employeeName} showToast={showToast} />
         )}
       </main>
 

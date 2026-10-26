@@ -28,10 +28,18 @@
 // • YOU CANNOT GIVE YOURSELF A TASK (D-T3), and a manager cannot give one to
 //   HR or an admin (#255). Both are filtered out of the picker rather than
 //   surfaced as a 400 after submit.
+//
+// • `assigneeId` LOCKS THE PERSON. Opened from somebody's own record (the
+//   Tasks tab on an employee profile), the question "who is this for?" is
+//   already answered, so the picker becomes a read-only name — a pre-filled
+//   but editable picker there invites giving the task to the wrong person on a
+//   screen that is about one. The lock is still CHECKED against the picker's
+//   own options, so a person this plane may not delegate to is refused in our
+//   words rather than by a 400 after the files have been uploaded.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { HiX } from "react-icons/hi";
+import { HiUser, HiX } from "react-icons/hi";
 import { PersonSelect } from "../components/PersonPicker";
 import FieldHelp from "../fieldHelp/FieldHelp";
 import { FieldError, InlineAlert, Spinner } from "../attendance/ui";
@@ -55,21 +63,37 @@ const EMPTY = {
   files: [],
 };
 
-export default function AssignTaskDialog({ plane = "manager", onClose, onCreated }) {
+/**
+ * @param {object} props
+ * @param {"manager"|"hr"} [props.plane]
+ * @param {string} [props.assigneeId]    lock the task to this person
+ * @param {string} [props.assigneeName]  their name, so the lock never shows an id (§4)
+ */
+export default function AssignTaskDialog({ plane = "manager", assigneeId = "", assigneeName = "", onClose, onCreated }) {
   const adapter = taskPlaneFor(plane);
   const { options, loading: peopleLoading, unavailable } = useTaskAssigneeOptions(plane);
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] = useState(() => (assigneeId ? { ...EMPTY, assignee_id: String(assigneeId) } : EMPTY));
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
+  // A locked person is verified against the same options the picker offers, but
+  // only once they are in hand: while the roster is loading, or where this role
+  // may not read it at all, the server is the authority (§7).
+  const locked = !!assigneeId;
+  const lockedEntry = locked ? options.find((person) => String(person.id) === String(assigneeId)) : null;
+  const lockedRefused = locked && !lockedEntry && !peopleLoading && !unavailable;
+  const lockedName = assigneeName || lockedEntry?.name || (peopleLoading ? "Loading…" : "This person");
+
   const dueIso = joinDueDate(form.due);
   const problems = {
     title: form.title.trim() ? "" : "Give the task a short title.",
     description: form.description.trim() ? "" : "Say what needs to be done.",
-    assignee_id: form.assignee_id ? "" : "Choose who this is for.",
+    assignee_id: lockedRefused
+      ? `You can’t give ${lockedName} a task. ${plane === "manager" ? "Only the people who report to you can be given one." : "They may have left the organisation."}`
+      : form.assignee_id ? "" : "Choose who this is for.",
     due: dueDateProblem(dueIso),
     links: form.links.map(linkProblem).find(Boolean) || "",
   };
@@ -114,9 +138,11 @@ export default function AssignTaskDialog({ plane = "manager", onClose, onCreated
           <div>
             <h3 className="text-lg font-bold text-slate-800">Give out a task</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              {plane === "hr"
-                ? "Anyone in the organisation can be given this."
-                : "You can give this to anyone who reports to you."}
+              {locked
+                ? `This one goes to ${lockedName}.`
+                : plane === "hr"
+                  ? "Anyone in the organisation can be given this."
+                  : "You can give this to anyone who reports to you."}
             </p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors" aria-label="Close">
@@ -144,20 +170,40 @@ export default function AssignTaskDialog({ plane = "manager", onClose, onCreated
 
             <div className="sm:col-span-2">
               <label htmlFor="task-who" className={labelClass}>Who it’s for <span className="text-rose-400">*</span></label>
-              <PersonSelect
-                id="task-who"
-                people={options}
-                value={form.assignee_id}
-                onChange={(id) => set("assignee_id", id)}
-                loading={peopleLoading}
-                disabled={saving}
-                invalid={touched && !!problems.assignee_id}
-                placeholder={plane === "hr" ? "Choose anyone in the organisation" : "Choose one of your team"}
-                emptyText={unavailable
-                  ? "The list of people isn’t available here."
-                  : plane === "manager" ? "Nobody reports to you yet." : "No people found."}
-              />
-              <FieldError message={touched ? problems.assignee_id : ""} />
+              {locked ? (
+                <>
+                  {/* Not a disabled input: there is nothing to fix here, so it
+                      reads as the answer it is rather than a dead control. */}
+                  <p
+                    id="task-who"
+                    className={`min-h-10 flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold ${lockedRefused ? "bg-rose-50 border border-rose-200 text-rose-700" : "bg-slate-50/70 border border-slate-200 text-slate-800"}`}
+                  >
+                    <HiUser className={`w-4 h-4 shrink-0 ${lockedRefused ? "text-rose-400" : "text-purple-500"}`} />
+                    <span className="truncate">{lockedName}</span>
+                  </p>
+                  {!lockedRefused && (
+                    <p className="text-[11px] text-slate-500 mt-1">Opened from their record, so this task can only go to them.</p>
+                  )}
+                  <FieldError message={lockedRefused ? problems.assignee_id : ""} />
+                </>
+              ) : (
+                <>
+                  <PersonSelect
+                    id="task-who"
+                    people={options}
+                    value={form.assignee_id}
+                    onChange={(id) => set("assignee_id", id)}
+                    loading={peopleLoading}
+                    disabled={saving}
+                    invalid={touched && !!problems.assignee_id}
+                    placeholder={plane === "hr" ? "Choose anyone in the organisation" : "Choose one of your team"}
+                    emptyText={unavailable
+                      ? "The list of people isn’t available here."
+                      : plane === "manager" ? "Nobody reports to you yet." : "No people found."}
+                  />
+                  <FieldError message={touched ? problems.assignee_id : ""} />
+                </>
+              )}
             </div>
 
             <div>

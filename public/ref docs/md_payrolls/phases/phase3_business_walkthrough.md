@@ -67,7 +67,7 @@ With budget approved, HR approves the rule and applies it to December.
 
 ### Step 1: Granting the Loan (HR Action)
 * **API Interaction:** `POST /api/v1/payroll/hr/employees/:userId/loans` (**API 75**).
-* **Payload:** `{ principal_amount: 60000, tenure_months: 6, annual_interest_rate: 0, start_period_month: '2026-10', reason: 'Medical emergency' }`.
+* **Payload:** `{ principal_amount: 60000, tenure_months: 6, interest_rate: 0, interest_method: 'flat', start_period_month: '2026-10', reason: 'Medical emergency' }`.
 * **DB Impact:** Generates the loan header and creates 6 `scheduled` rows in `loan_installments` (October 2026 to March 2027), each with `emi_amount: 10000`.
 
 ### Step 2: Payroll Deduction (Automated Engine Action)

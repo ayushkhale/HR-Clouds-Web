@@ -43,6 +43,9 @@ export function fieldPlane(viewer) {
     list: (params) => attendanceAPI.getFieldLocations(plane, params),
     get: (id) => attendanceAPI.getFieldLocation(plane, id),
     assignmentsFor: (userId) => attendanceAPI.getUserFieldAssignments(plane, userId),
+    // The flat "who is assigned where" read (2026-10-18). HR is org-wide; a
+    // manager is bounded to direct reports server-side.
+    listAssignments: (params) => attendanceAPI.getFieldAssignments(plane, params),
 
     // Writes. Any manager or HR may register a site — reuse org-wide is the
     // point — but editing and retiring are gated per row by `can_modify`.
@@ -51,6 +54,9 @@ export function fieldPlane(viewer) {
     retire: (id) => attendanceAPI.deleteFieldLocation(plane, id),
 
     assign: (payload) => attendanceAPI.assignFieldLocation(plane, payload),
+    // Move a live assignment's window without losing who first made it
+    // (2026-10-18). Remove-then-add used to be the only way; it is not any more.
+    updateAssignment: (assignmentId, payload) => attendanceAPI.updateFieldAssignment(plane, assignmentId, payload),
     unassign: (assignmentId) => attendanceAPI.unassignFieldLocation(plane, assignmentId),
 
     // HR may assign anyone in the org; a manager only their own reports, and
@@ -75,6 +81,38 @@ export function canModifyLocation(row, { viewer, userId } = {}) {
   const creator = row.created_by || row.creator?.id;
   return !!creator && !!userId && String(creator) === String(userId);
 }
+
+/**
+ * What a work mode means for SOMEBODY ELSE's clock-ins, in the voice an HR
+ * admin or a manager reads. The employee's own copy of this lives in
+ * MyWorkLocationsPage and is written to them ("you clock in from…"); a screen
+ * about a colleague must never reuse that voice (CLAUDE.md §10, workspaces).
+ *
+ * Keyed by the NORMALIZED attendance vocabulary (`normalizeWorkMode`), so a
+ * profile's `on-site` and a `null` both land on `office` — fail-secure, the
+ * same way the server resolves it.
+ */
+export const WORK_MODE_FOR_OTHERS = {
+  office: {
+    label: "Office",
+    blurb: "Their clock-ins are checked against their base office.",
+  },
+  remote: {
+    label: "Remote",
+    blurb: "Their location isn’t checked at all when they clock in.",
+  },
+  hybrid: {
+    label: "Hybrid",
+    blurb: "They say where they are each day. An office day is checked; a day at home isn’t.",
+  },
+  field: {
+    label: "Field",
+    blurb: "Their clock-ins count at any client site below, and at their base office.",
+  },
+};
+
+/** The mode copy for a profile's raw `work_mode`, never undefined. */
+export const workModeView = (mode) => WORK_MODE_FOR_OTHERS[mode] || WORK_MODE_FOR_OTHERS.office;
 
 /** Radius bounds mirror a database CHECK, so these can never fail at the write. */
 export const FIELD_RADIUS_MIN = 50;

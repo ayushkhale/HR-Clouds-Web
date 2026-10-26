@@ -7,6 +7,8 @@ import { useSidebar } from "../contexts/SidebarContext";
 import { billingAPI, documentsAPI, payrollAPI, tokenHelper } from "../api";
 import OrgSwitcher from "./OrgSwitcher";
 import { INBOX_EVENT_KINDS, useAttendanceChanged } from "../attendance/events";
+import { useDeviceTrustContext } from "../attendance/deviceTrust";
+import { deviceTrustVisible } from "../attendance/deviceTrustMeta";
 import { MY_DOCUMENT_PATHS, MY_PAY_PATHS, ORG_PATHS, SELF_SERVICE_BASE, TASK_PATHS } from "../attendance/paths";
 import { fetchHrInboxCounts, inboxTotal, peekHrInboxCounts } from "../utils/hrInboxCounts";
 import { fetchManagerInboxCounts, peekManagerInboxCounts } from "../utils/managerInboxCounts";
@@ -57,6 +59,7 @@ import {
   HiPaperAirplane,
   HiShare,
   HiLibrary,
+  HiDeviceMobile,
 } from "react-icons/hi";
 
 function DashboardSidebar({ role = "guest" }) {
@@ -69,6 +72,18 @@ function DashboardSidebar({ role = "guest" }) {
     if (role === "hr") return inboxTotal(peekHrInboxCounts());
     return 0;
   });
+
+  // Device Trust (15 Oct 2026): "My Registered Devices" only exists where the
+  // feature is on, or where this person already has a device to shut off — an
+  // organisation that never switched it on sees no trace of it (§7). Guests are
+  // outside the organisation, so nothing is read for them.
+  const { ctx: deviceCtx } = useDeviceTrustContext({ enabled: role !== "guest" });
+  const showMyDevices = deviceTrustVisible(deviceCtx);
+  // An older server has no device-trust endpoints at all — its context read
+  // 404s, and HR's two screens would have nothing to show but an error. The
+  // feature merely being OFF is different: switching it on is what Device
+  // Checks is for, so those links stay.
+  const showDeviceAdmin = deviceCtx?.absent !== true;
 
   const [paymentsDue, setPaymentsDue] = useState(false);
   const [paymentsDismissed, setPaymentsDismissed] = useState(false);
@@ -150,13 +165,19 @@ function DashboardSidebar({ role = "guest" }) {
 
   // ── Building blocks ──────────────────────────────────────────────────────
   // `nested`: also active on child routes (an employee profile, a payroll run).
-  const link = (label, path, icon, extra = {}) => ({
-    label,
-    path,
-    icon,
-    ...extra,
-    active: location.pathname === path || (!!extra.nested && location.pathname.startsWith(`${path}/`)),
-  });
+  const link = (label, path, icon, extra = {}) => {
+    // A `?tab=` link (the device sub-tabs) shares its pathname with its sibling,
+    // so matching on pathname alone would light both. Match the full path, and
+    // treat the default tab as active on the bare path so landing with no query
+    // still highlights it (mirrors the page's own default tab).
+    const { defaultTab, ...rest } = extra;
+    const q = path.indexOf("?");
+    const active = q === -1
+      ? location.pathname === path || (!!rest.nested && location.pathname.startsWith(`${path}/`))
+      : location.pathname + location.search === path
+        || (location.pathname === path.slice(0, q) && !location.search && !!defaultTab);
+    return { label, path, icon, ...rest, active };
+  };
   // A numbered step inside a workflow section. Payroll uses steps rather than
   // dropdowns on purpose: it is monthly work, and hiding it behind another
   // click would make the most-used part of the menu the slowest to reach.
@@ -181,12 +202,35 @@ function DashboardSidebar({ role = "guest" }) {
     const docs = MY_DOCUMENT_PATHS[workspace];
     const tasks = TASK_PATHS[workspace];
     return {
+      // Where a person registers the device they clock in from — its own
+      // "My Registered Devices" dropdown (not inside My Time), opening onto the
+      // page's two tabs: This device / All my devices (user decision, 16 Oct
+      // 2026). The page still defaults to This device, so a locked-out person
+      // lands on the one that matters even if they click the group, not a tab.
+      devices: `${base}/devices`,
       // Work somebody has been GIVEN, which every role is — including HR, whose
       // own page sits here beside their leave and payslips rather than in the
       // organisation-wide Tasks section below.
-      tasks: [link("My Tasks", tasks.mine, HiClipboardCheck)],
+      //
+      // TWO entries, so this behaves like every other "My …" group instead of
+      // the one flat link in the menu (user decision, 14 Oct 2026 — a single
+      // item renders as a bold link, not a dropdown). They are the two pages
+      // the API can actually give a person about their own work: the whole list,
+      // and the one cut the page's own status tabs can't make, `is_overdue`.
+      // Statuses deliberately did NOT become sidebar entries: the page already
+      // has a tab per status, and duplicating them here would leave the sidebar
+      // highlighting "Waiting for review" while the open tab said "All".
+      tasks: [
+        link("My Tasks", tasks.mine, HiClipboardCheck),
+        link("Overdue Tasks", tasks.overdue, HiExclamationCircle),
+      ],
       time: [
         link("My Attendance", base, HiClock),
+        // Where this person may clock in from — their office and any client
+        // sites. Read-only; the assign controls are HR/manager-only, so an
+        // employee reaches it here too (16 Oct 2026). One entry covers all three
+        // workspaces because the employee menu reuses this same `time` array.
+        link("My Work Locations", `${base}/my-locations`, HiLocationMarker),
         link("My Leaves", pay.leaves, HiCalendar),
         link(`My ${REGULARIZATION}s`, `${base}/regularizations`, HiClipboardList),
         link("My Overtime", `${base}/overtime`, HiLightningBolt),
@@ -219,6 +263,10 @@ function DashboardSidebar({ role = "guest" }) {
         group("My Tasks", HiClipboardCheck, me.tasks),
         group("My Pay", HiCurrencyRupee, me.pay),
         group("My Documents", HiFolderOpen, me.documents),
+        ...(showMyDevices ? [group("My Registered Devices", HiDeviceMobile, [
+          link("This device", `${me.devices}?tab=this`, HiDeviceMobile, { defaultTab: true }),
+          link("All my devices", `${me.devices}?tab=all`, HiCollection),
+        ])] : []),
       ],
     };
   };
@@ -269,10 +317,20 @@ function DashboardSidebar({ role = "guest" }) {
   // ── The three menus ──────────────────────────────────────────────────────
   // One shape for every role, so a manager promoted to HR gains menu items
   // rather than learning a new menu. Sections run in the same order in every
-  // workspace (Setup, People, Time & Leave, Payroll, the two document groups,
-  // Tax, Insights, Company, Me) and a role simply has fewer of them. Inside a section,
-  // items run in the order the work is done, not alphabetically: the first
-  // item is the thing you have to do first.
+  // workspace — Main, ME, then the work: Setup, People/Organisation,
+  // Time & Leave, Tasks, Payroll, the two document groups, Tax, Insights,
+  // Company — and a role simply has fewer of them. Inside a section, items run
+  // in the order the work is done, not alphabetically: the first item is the
+  // thing you have to do first.
+  //
+  // ME SITS SECOND, directly under Dashboard and Inbox (user decision,
+  // 14 Oct 2026). It used to be last, which put an HR admin's own payslip at
+  // the bottom of the longest menu in the product. It is the one section every
+  // role has and the one every role opens for themselves, so it goes where it
+  // can be reached without scrolling — in all three workspaces, or the
+  // promotion from manager to HR would move it (§2). It keeps
+  // `defaultCollapsed`: expanded, its four groups would push the work
+  // sections off the screen, which is the problem it was moved to solve.
   const getNavSections = () => {
     if (role === "guest") {
       return [
@@ -306,6 +364,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Inbox", `${H}/inbox`, HiInboxIn, inboxBadge),
           ],
         },
+        meSection("hr"),
         {
           // Done once, then rarely touched — so it stays collapsed, and each
           // area is its own dropdown listed in the order it has to be set up.
@@ -320,6 +379,11 @@ function DashboardSidebar({ role = "guest" }) {
               // Client sites sit beside offices: both are places a punch can be
               // checked against, and setting one up is the same kind of job.
               link("Client Sites", `${H}/attendance/field-locations`, HiLocationMarker),
+              // Who may clock in from what. It belongs with the places a punch is
+              // checked against rather than in Time, because it is about the
+              // organisation's people and their devices, not about hours
+              // (user decision, 16 Oct 2026 — it was "Device Checks" under Time).
+              ...(showDeviceAdmin ? [link("Registered Devices", `${H}/attendance/registered-devices`, HiDeviceMobile)] : []),
             ]),
             // Which days are working days, then the hours on them and who works
             // them, then the rules applied to those hours, then what working an
@@ -378,6 +442,9 @@ function DashboardSidebar({ role = "guest" }) {
             link("Leave Requests", `${H}/leaves/requests`, HiInboxIn),
             link(`${REGULARIZATION}s`, `${H}/attendance/regularizations`, HiClipboardList),
             link(COMP_OFF, `${H}/attendance/comp-offs`, HiGift),
+            // A queue only where the policy says HR approves each device; the
+            // page is also the whole-organisation device inventory.
+            ...(showDeviceAdmin ? [link("Employee Devices", `${H}/attendance/trusted-devices`, HiDeviceMobile)] : []),
           ],
         },
         tasksSection("hr"),
@@ -461,7 +528,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         companySection("hr"),
-        meSection("hr"),
       ];
     }
 
@@ -478,14 +544,32 @@ function DashboardSidebar({ role = "guest" }) {
             link("Inbox", `${M}/requests/inbox`, HiInboxIn, inboxBadge),
           ],
         },
+        meSection("manager"),
         {
-          title: "PEOPLE",
+          // Called ORGANISATION, not PEOPLE, because it holds the places as well
+          // as the people: the team, plus the two kinds of location a manager
+          // can look up. HR keeps PEOPLE (invites + employees) and files the
+          // same two location pages under SETUP → Organisation, where HR also
+          // creates them — the one place the two menus diverge, and only
+          // because HR's half of this is setup work and the manager's is
+          // reference (§2). Client Sites moved here out of TIME & LEAVE: it is
+          // a place, not a request queue.
+          title: "ORGANISATION",
           icon: HiUserGroup,
-          forceDropdown: true,
           items: [
             // Member profiles live under /team/member/, not /team/, because
             // /team/today and /team/history are separate sidebar entries.
             { ...link(DICTIONARY.NAV.EMPLOYEES, `${M}/team`, HiUserGroup), active: location.pathname === `${M}/team` || location.pathname.startsWith(`${M}/team/member/`) },
+            // Both are the SAME screens HR gets, under this workspace's own
+            // prefix. A manager registers and assigns client sites for their own
+            // reports; office locations are read-only here because POST/PUT on
+            // /organizations/locations are HR-only, so the page carries no Add
+            // button rather than one that 403s.
+            // Same order as HR's Setup › Organisation group: your own offices
+            // first, then the third-party sites. A promotion must not reshuffle
+            // the menu (§2).
+            link("Office Locations", `${M}/attendance/locations`, HiLocationMarker),
+            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
         {
@@ -499,10 +583,6 @@ function DashboardSidebar({ role = "guest" }) {
             link("Overtime", `${M}/requests/overtime`, HiLightningBolt),
             link("Flags", `${M}/team/anomalies`, HiExclamationCircle),
             link(COMP_OFF, `${M}/requests/comp-offs`, HiGift),
-            // Same label and the same screen HR gets, under this workspace's
-            // own prefix — a manager registers and assigns client sites for
-            // their own reports (CLAUDE.md §2).
-            link("Client Sites", `${M}/attendance/field-locations`, HiLocationMarker),
           ],
         },
         tasksSection("manager"),
@@ -549,7 +629,6 @@ function DashboardSidebar({ role = "guest" }) {
           ],
         },
         companySection("manager"),
-        meSection("manager"),
       ];
     }
 
@@ -564,6 +643,13 @@ function DashboardSidebar({ role = "guest" }) {
       { title: "MY TASKS", icon: HiClipboardCheck, items: me.tasks },
       { title: "MY PAY", icon: HiCurrencyRupee, items: me.pay },
       { title: "MY DOCUMENTS", icon: HiFolderOpen, items: me.documents },
+      // Same self-service entry HR and managers get from meSection: an employee
+      // punches too, so they reach their own devices here rather than being sent
+      // nowhere once it left My Time (16 Oct 2026). Gated on the feature being on.
+      ...(showMyDevices ? [{ title: "My Registered Devices", icon: HiDeviceMobile, items: [
+        link("This device", `${me.devices}?tab=this`, HiDeviceMobile, { defaultTab: true }),
+        link("All my devices", `${me.devices}?tab=all`, HiCollection),
+      ] }] : []),
       companySection("employee"),
     ];
   };
@@ -914,7 +1000,7 @@ function DashboardSidebar({ role = "guest" }) {
                   className={settingsActive ? UTILITY_LINK_ACTIVE : UTILITY_LINK}
                 >
                   <HiCog className={`w-5 h-5 ${settingsActive ? "text-[#7E22CE]" : "text-slate-400"}`} />
-                  <span>Company Settings</span>
+                  <span>Settings</span>
                 </Link>
               )}
               <Link

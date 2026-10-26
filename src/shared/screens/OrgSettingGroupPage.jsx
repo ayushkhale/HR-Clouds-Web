@@ -73,7 +73,7 @@ export default function OrgSettingGroupPage() {
             to={listPath}
             className="font-medium text-slate-500 hover:text-slate-800 transition-colors flex items-center gap-2"
           >
-            <HiCog className="w-4 h-4" /> Company Settings
+            <HiCog className="w-4 h-4" /> Settings
           </Link>
           <HiChevronRight className="w-3.5 h-3.5 text-slate-300" aria-hidden="true" />
           {group ? (
@@ -104,7 +104,7 @@ export default function OrgSettingGroupPage() {
               onClick={() => navigate(listPath)}
               className="mt-4 px-4 py-2 rounded-xl text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition"
             >
-              Back to Company Settings
+              Back to Settings
             </button>
           </div>
         ) : (

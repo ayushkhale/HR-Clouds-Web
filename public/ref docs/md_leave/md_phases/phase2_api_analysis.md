@@ -18,7 +18,7 @@ This guide is designed for Frontend Developers integrating the **Policy Assignme
 
 **Endpoint:** `POST /api/v1/leaves/users/:userId/assign-policy`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 **Feature Required:** `leave.access`
 
 ### Path Parameters
@@ -64,7 +64,7 @@ This guide is designed for Frontend Developers integrating the **Policy Assignme
 
 **Endpoint:** `PUT /api/v1/leaves/users/:userId/configs/:leaveTypeId`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 **Feature Required:** `leave.access`
 
 ### Path Parameters
@@ -126,7 +126,7 @@ Returns the newly created historical config record.
 
 **Endpoint:** `GET /api/v1/leaves/users/:userId/balances`
 **Auth Required:** Yes (Token)
-**Roles Required:** `hr`
+**Roles Required:** `hr`, `admin`, `super-admin`
 **Feature Required:** `leave.access`
 
 ### Query Parameters

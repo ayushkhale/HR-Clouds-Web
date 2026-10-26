@@ -1537,6 +1537,43 @@ Phase 7 provides four production-grade background automation crons, complemented
 
 ---
 
+## 215b. List Automated Jobs
+* **API Name / Purpose:** Retrieve a list of all configured automated background jobs with their metadata and schedules.
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/jobs`
+* **Authentication / Authorization:** Bearer Token.
+* **Required Roles:** `hr`
+* **Required Feature / Permission:** `payroll.access`
+* **Request Parameters:** None.
+* **Request JSON Payload:** None.
+* **Detailed API Function:** Returns a static array of all four Phase-7 automation crons along with their cron schedules and status, allowing the frontend to correctly display configured schedules rather than "UNKNOWN".
+* **Business/User-Facing Behavior:** HR can view when jobs are scheduled to run.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Jobs retrieved successfully",
+    "data": [
+      {
+        "id": "calendar-reminders",
+        "name": "Calendar Reminders",
+        "description": "Sends email reminders for payroll cutoffs, paydays, and tax deadlines",
+        "schedule": "0 8 * * *",
+        "status": "active"
+      }
+    ]
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `data[].id` | String | No | Job identifier | e.g. `calendar-reminders` |
+  | `data[].schedule` | String | No | Cron expression | e.g. `0 8 * * *` |
+* **Success Scenarios:** Frontend retrieves job schedules successfully.
+* **Error Handling:** Standard global error envelope.
+
+---
+
 # Manager Plane APIs — Encashments — `/api/v1/payroll/manager`
 
 *Auth stack for Manager routes: `authenticate` → `authorize(['manager', 'hr'])` → `requireFeature('payroll.access')`.*
@@ -1734,6 +1771,185 @@ Phase 7 provides four production-grade background automation crons, complemented
 * **Error Handling:** Standard 401 unauthenticated or 403 feature not available.
 * **Idempotency / Retry Behavior:** Idempotent safe read.
 
+---
+
+# HR Administration APIs — Payroll PDF Template Catalog & Visual Preview — `/api/v1/payroll/hr`
+
+> **Visual Template Preview Design (#225 / #226):** Mirrors Document Module (#135 / #138). HR Administrators can inspect layout, orientation, and live organization letterhead branding (logo, colors, statutory identifiers, signatory) on sample data before issuing real payroll runs or statements.
+
+## 225. List Payroll PDF Templates
+* **API Name / Purpose:** Retrieves a complete catalog of all registered payroll PDF templates (`payslip`, `annual_statement`, `form16_part_b`, `fnf_statement`, `payroll_report`, `bank_advice`) with their layout metadata (title, orientation, required and optional fields).
+* **HTTP Method:** `GET`
+* **Endpoint / Route:** `/api/v1/payroll/hr/pdf-templates`
+* **Authentication / Authorization:** Bearer Token.
+* **Required Roles:** `hr`
+* **Required Feature / Permission:** `payroll.access`
+* **Request Parameters:** None.
+* **Request JSON Payload:** None.
+* **Detailed API Function:**
+  1. Queries the in-memory immutable `payrollRegistry` catalog.
+  2. Projects each registered entry into an API-safe summary object containing `code`, `title`, `audience`, `layout`, `format`, `landscape`, `current_version`, `required_fields`, and `optional_fields`.
+  3. Returns standard 200 envelope.
+* **Business/User-Facing Behavior:** Allows the HR dashboard to display a template picker or preview gallery of all available document formats.
+* **Response Structure:**
+  ```json
+  {
+    "success": true,
+    "message": "Payroll PDF templates retrieved",
+    "data": [
+      {
+        "code": "payslip",
+        "title": "Salary Payslip",
+        "audience": "payroll",
+        "layout": null,
+        "format": "A4",
+        "landscape": false,
+        "current_version": 1,
+        "required_fields": [
+          "header", "employee_name", "employee_code", "identity_grid",
+          "earnings", "deductions", "net_pay", "net_pay_in_words", "notes", "footer_text"
+        ],
+        "optional_fields": [
+          "reimbursements", "employer_contributions"
+        ]
+      },
+      {
+        "code": "annual_statement",
+        "title": "Annual Salary Statement",
+        "audience": "payroll",
+        "layout": null,
+        "format": "A4",
+        "landscape": true,
+        "current_version": 1,
+        "required_fields": [
+          "header", "employee_name", "employee_code", "identity_grid",
+          "salary_grid", "ytd_summary", "notes", "footer_text"
+        ],
+        "optional_fields": []
+      },
+      {
+        "code": "form16_part_b",
+        "title": "Form 16 (Part B) Certificate",
+        "audience": "payroll",
+        "layout": null,
+        "format": "A4",
+        "landscape": false,
+        "current_version": 1,
+        "required_fields": [
+          "header", "employee_name", "employee_code", "identity_grid",
+          "salary_breakdown", "tax_computation", "verification", "footer_text"
+        ],
+        "optional_fields": []
+      },
+      {
+        "code": "fnf_statement",
+        "title": "Full & Final Settlement Statement",
+        "audience": "payroll",
+        "layout": null,
+        "format": "A4",
+        "landscape": false,
+        "current_version": 1,
+        "required_fields": [
+          "header", "employee_name", "employee_code", "identity_grid",
+          "earnings", "deductions", "recoveries", "net_payable", "notes", "footer_text"
+        ],
+        "optional_fields": []
+      },
+      {
+        "code": "payroll_report",
+        "title": "Payroll Summary & Component Report",
+        "audience": "payroll",
+        "layout": null,
+        "format": "A4",
+        "landscape": true,
+        "current_version": 1,
+        "required_fields": [
+          "header", "columns", "rows", "totals_row", "footer_text"
+        ],
+        "optional_fields": []
+      },
+      {
+        "code": "bank_advice",
+        "title": "Bank Disbursement Advice",
+        "audience": "payroll",
+        "layout": null,
+        "format": "A4",
+        "landscape": true,
+        "current_version": 1,
+        "required_fields": [
+          "header", "columns", "rows", "totals_row", "signatory", "footer_text"
+        ],
+        "optional_fields": []
+      }
+    ]
+  }
+  ```
+* **Response Fields & Meaning:**
+  | Field | Type | Nullable | Description | Meaning / Source |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `data[].code` | String | No | Template identifier code | Registry unique slug (`'payslip'`, `'form16_part_b'`, etc.) |
+  | `data[].title` | String | No | Display title | Human-readable document name |
+  | `data[].format` | String | No | Paper format | Standard page size (`'A4'`) |
+  | `data[].landscape` | Boolean | No | Orientation | `true` for landscape grids, `false` for portrait documents |
+  | `data[].current_version` | Integer | No | Schema version | Active template version number (e.g. `1`) |
+  | `data[].required_fields` | Array | No | Mandatory view model roots | Outer Handlebars properties required by the template |
+  | `data[].optional_fields` | Array | No | Optional view model roots | Conditional sections supported by the template |
+* **Success Scenarios:** HR views catalog to select which template to customize or preview.
+* **Error Handling:** 401 unauthenticated, 403 forbidden.
+* **Idempotency / Retry Behavior:** Idempotent safe read.
+
+---
+
+## 226. Preview Payroll PDF Template
+* **API Name / Purpose:** Generates and streams a rendered, verified PDF document for any registered payroll template (`payslip`, `annual_statement`, `form16_part_b`, etc.) using sample data enriched with the caller organization's live letterhead branding (logo, colors, statutory identifiers, signatory).
+* **HTTP Method:** `POST` (primary, accepts optional override fields) and `GET` (zero-body convenience shorthand).
+* **Endpoint / Route:** `/api/v1/payroll/hr/pdf-templates/:code/preview`
+* **Authentication / Authorization:** Bearer Token.
+* **Required Roles:** `hr`
+* **Required Feature / Permission:** `payroll.access`
+* **Request URL Parameters:**
+  | Parameter | Type | Required | Description |
+  | :--- | :--- | :--- | :--- |
+  | `code` | String | Yes | Template slug (`payslip`, `annual_statement`, `form16_part_b`, `fnf_statement`, `payroll_report`, `bank_advice`) |
+* **Request JSON Payload (Optional for POST):**
+  ```json
+  {
+    "override_fields": {
+      "employee_name": "Jane Doe",
+      "header": { "subtitle": "Pay Period October 2026" }
+    }
+  }
+  ```
+* **Validation Rules:**
+  - `code`: Must match alphanumeric/underscore slug regex `^[a-z0-9_]+$`. Throws `404 TEMPLATE_NOT_FOUND` if unknown.
+  - `override_fields`: Optional object. Any fields provided overwrite the default sample view model.
+* **Detailed API Function:**
+  1. Resolves template entry from `payrollRegistry.get(code)`.
+  2. Resolves current organization branding via `payslipService.resolveFrozenBranding(orgId)` (fetches logo from S3, inlines as base64 data URI).
+  3. Clones the template's golden `sample_data` view model and injects the resolved `branding` block.
+  4. Merges any caller-provided `override_fields` over the view model.
+  5. Assembles template HTML using `payrollLoader.assembleTemplate(code, current_version)`.
+  6. Computes structural idempotency key.
+  7. Calls `pdfRenderService.renderForSource({ sourceType: 'preview', persist: false, ... })` which sends the assembled HTML and view model to the high-performance remote PDF rendering engine.
+  8. Streams the verified `%PDF-` buffer directly to the client with `Content-Type: application/pdf` and `Content-Disposition: inline`.
+* **Business/User-Facing Behavior:** HR administrator can immediately see and verify how their organization's logo, colors, address, and legal layout look in the browser viewer before approving monthly payroll runs.
+* **Response Headers:**
+  ```http
+  HTTP/1.1 200 OK
+  Content-Type: application/pdf
+  Content-Length: 439961
+  Content-Disposition: inline; filename*=UTF-8''payslip-preview.pdf
+  Cache-Control: private, no-store
+  X-Content-Type-Options: nosniff
+  ```
+* **Response Body:** Binary PDF bytes (`application/pdf`).
+* **Error Handling:**
+  - `400 VALIDATION_ERROR`: Invalid `:code` parameter.
+  - `401 UNAUTHORIZED`: Missing or expired JWT.
+  - `403 FORBIDDEN`: Caller lacks `hr` role or `payroll.access` feature.
+  - `404 TEMPLATE_NOT_FOUND`: The requested template `:code` does not exist in the catalog.
+  - `502 PDF_RENDERER_UNAVAILABLE`: External PDF render microservice is unreachable or returned invalid response.
+* **Idempotency / Retry Behavior:** Idempotent read-only render (persists nothing).
 
 ---
 
@@ -1765,6 +1981,8 @@ Phase 7 provides four production-grade background automation crons, complemented
 | **216** | Bearer JWT | `manager`, `hr`, `payroll.access` | Reporting tree hierarchy scoped; self-proposal blocked | Single DB Transaction | Row lock on target comp-off records | Non-idempotent proposal creation |
 | **217** | Bearer JWT | `manager`, `hr`, `payroll.access` | Reporting tree hierarchy scoped; compensation masking | Read-only | Standard unblocked read; masks salary figures if toggle is off | Idempotent safe read |
 | **218** | Bearer JWT | Tenant role, `payroll.access` | Self-scoped strictly to authenticated `req.user.id` | Read-only | Scoped query by `user_id = req.user.id`; cannot view peers | Idempotent safe read |
+| **225** | Bearer JWT | `hr`, `payroll.access` | In-memory catalog; tenant isolation | Read-only | Registry catalog read | Idempotent safe read |
+| **226** | Bearer JWT | `hr`, `payroll.access` | Tenant org-scoped; live branding injection | Read-only (persists: false) | External renderer call; ephemeral artifact | Idempotent safe render |
 
 ---
 
