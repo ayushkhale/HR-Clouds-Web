@@ -22,6 +22,19 @@ const MESSAGES = {
   insecure: "Location is only available on a secure (https) connection.",
 };
 
+let cachedLocation = null;
+let cachedAt = 0;
+
+/**
+ * Returns cached coordinates if captured within `maxAgeMs` milliseconds.
+ */
+export function getCachedLocation(maxAgeMs = 30000) {
+  if (cachedLocation && Date.now() - cachedAt < maxAgeMs) {
+    return cachedLocation;
+  }
+  return null;
+}
+
 /**
  * @returns {Promise<{status: string, coords?: {latitude: number, longitude: number, accuracy: number}, message?: string}>}
  */
@@ -32,6 +45,13 @@ export function getBrowserLocation({ timeout = 10000, maximumAge = 30000, enable
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     return Promise.resolve({ status: GEO_STATUS.UNSUPPORTED, message: MESSAGES.unsupported });
   }
+
+  // If a fresh fix was captured within the last 15 seconds, resolve immediately
+  const fresh = getCachedLocation(15000);
+  if (fresh) {
+    return Promise.resolve({ status: GEO_STATUS.GRANTED, coords: fresh });
+  }
+
   return new Promise((resolve) => {
     let settled = false;
     // Some browsers never call back when the permission prompt is dismissed.
@@ -48,9 +68,14 @@ export function getBrowserLocation({ timeout = 10000, maximumAge = 30000, enable
         clearTimeout(guard);
         const { latitude, longitude, accuracy } = pos.coords;
         const valid = Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
-        resolve(valid
-          ? { status: GEO_STATUS.GRANTED, coords: { latitude, longitude, accuracy } }
-          : { status: GEO_STATUS.UNAVAILABLE, message: MESSAGES.unavailable });
+        if (valid) {
+          const coords = { latitude, longitude, accuracy };
+          cachedLocation = coords;
+          cachedAt = Date.now();
+          resolve({ status: GEO_STATUS.GRANTED, coords });
+        } else {
+          resolve({ status: GEO_STATUS.UNAVAILABLE, message: MESSAGES.unavailable });
+        }
       },
       (err) => {
         if (settled) return;
@@ -62,4 +87,28 @@ export function getBrowserLocation({ timeout = 10000, maximumAge = 30000, enable
       { timeout, maximumAge, enableHighAccuracy }
     );
   });
+}
+
+/**
+ * Preloads browser location and prompts for permission on dashboard load.
+ * Safe to call on mount: queries permission state first and asks for location
+ * so that subsequent clock-ins or live checks have zero delay.
+ */
+export async function preloadBrowserLocation() {
+  if (typeof window === "undefined" || !window.isSecureContext || !navigator?.geolocation) {
+    return null;
+  }
+
+  try {
+    if (navigator.permissions?.query) {
+      const perm = await navigator.permissions.query({ name: "geolocation" });
+      if (perm.state === "denied") {
+        return { status: GEO_STATUS.DENIED, message: MESSAGES.denied };
+      }
+    }
+  } catch {
+    // Permissions API query not supported in all browsers; proceed to standard request
+  }
+
+  return getBrowserLocation({ timeout: 10000, maximumAge: 60000, enableHighAccuracy: true });
 }

@@ -352,7 +352,7 @@ export default function DocumentTypeFormDialog({ type, defaultVerification = tru
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="dt-size" className={LABEL}>Largest file (MB)</label>
-                  <input id="dt-size" type="number" min={0.1} step={0.5} max={25} value={form.max_file_size_mb} onChange={(e) => set("max_file_size_mb", e.target.value)} className={FIELD} />
+                  <input id="dt-size" type="number" min={0.1} step={0.5} max={50} value={form.max_file_size_mb} onChange={(e) => set("max_file_size_mb", e.target.value)} className={FIELD} />
                   {show("size") ? <p className="text-[11px] font-semibold text-rose-600 mt-1">{problems.size}</p>
                     : <p className="text-[10px] text-slate-400 mt-1">Can’t exceed the organisation limit in Document Settings.</p>}
                 </div>

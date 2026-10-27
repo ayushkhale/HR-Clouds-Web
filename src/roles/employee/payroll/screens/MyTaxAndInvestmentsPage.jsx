@@ -362,7 +362,7 @@ function DeclarationsTab({ fy, showToast }) {
         )}
       </div>
 
-      {canUploadProof && <p className="text-[11px] text-slate-400">Uploaded proofs appear here once HR&apos;s copy is refreshed. You can attach a PDF, JPG, PNG or WebP up to 10 MB per item.</p>}
+      {canUploadProof && <p className="text-[11px] text-slate-400">Uploaded proofs appear here once HR&apos;s copy is refreshed. You can attach a PDF, JPG, PNG or WebP up to 50 MB per item.</p>}
 
       {viewAttachment && <AttachmentViewerDialog attachment={viewAttachment} getViewUrl={payrollAPI.getMyAttachmentViewUrl} onClose={() => setViewAttachment(null)} />}
     </div>

@@ -23,7 +23,8 @@ import { HiPlus, HiX, HiSearch } from "react-icons/hi";
 import FieldHelp from "../../../../shared/fieldHelp/FieldHelp";
 import { useOfficeLocations } from "../../../../shared/attendance/officePlanes";
 import OfficeLocationsView from "../../../../shared/attendance/OfficeLocationsView";
-import { reverseGeocode, searchPlaces } from "../../../../shared/utils/geocoding";
+import { resolvePlace, reverseGeocode, searchPlaces } from "../../../../shared/utils/geocoding";
+import { loadGoogleMaps } from "../../../../shared/utils/googleMapsLoader";
 
 // Best-effort default timezone for new locations. The backend defaults to UTC
 // when omitted, which silently breaks attendance geofence/clock calculations,
@@ -67,82 +68,204 @@ function AttendanceLocationsPage() {
 
   const closeModal = () => { setShowModal(false); setEditingLocation(null); };
 
-  // Initialize Leaflet map when modal opens
+  // Initialize Google Maps when modal opens
   useEffect(() => {
     if (!showModal || !mapRef.current) return;
-    // Load Leaflet CSS if not already loaded
-    if (!document.getElementById("leaflet-css")) {
-      const link = document.createElement("link");
-      link.id = "leaflet-css";
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-    }
+    let dead = false;
 
-    const initMap = () => {
-      if (typeof window.L === "undefined") return;
-      if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+    loadGoogleMaps()
+      .then((googleMaps) => {
+        if (dead || !mapRef.current) return;
 
-      // Note: 0 is a valid coordinate, so test for finiteness rather than truthiness.
-      const parsedLat = parseFloat(form.latitude);
-      const parsedLng = parseFloat(form.longitude);
-      const lat = Number.isFinite(parsedLat) ? parsedLat : 28.6139;
-      const lng = Number.isFinite(parsedLng) ? parsedLng : 77.209;
-
-      const map = window.L.map(mapRef.current).setView([lat, lng], 15);
-      window.L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
-        maxZoom: 20,
-        subdomains: ["mt0", "mt1", "mt2", "mt3"],
-        attribution: "&copy; Google Maps"
-      }).addTo(map);
-
-      const marker = window.L.marker([lat, lng], { draggable: true }).addTo(map);
-      const circle = window.L.circle([lat, lng], { radius: form.geofence_radius_meters, color: "#7E22CE", fillColor: "#9333ea", fillOpacity: 0.15, weight: 2 }).addTo(map);
-
-      marker.on("dragend", async (e) => {
-        const pos = e.target.getLatLng();
-        setForm(prev => ({ ...prev, latitude: pos.lat.toFixed(6), longitude: pos.lng.toFixed(6) }));
-        circle.setLatLng(pos);
-        
-        // Soft, like every geocode: no address found leaves the pin where it was dropped.
-        const place = await reverseGeocode(pos.lat, pos.lng);
-        if (place) {
-          setForm(prev => ({
-            ...prev,
-            address: place.address,
-            city: place.city,
-            state: place.state,
-            country: place.country,
-            pincode: place.pincode
-          }));
-          setSearchQuery(place.address);
+        if (mapInstanceRef.current) {
+          window.google?.maps?.event?.clearInstanceListeners(mapInstanceRef.current);
+          mapInstanceRef.current = null;
         }
+
+        const parsedLat = parseFloat(form.latitude);
+        const parsedLng = parseFloat(form.longitude);
+        const lat = Number.isFinite(parsedLat) ? parsedLat : 28.6139;
+        const lng = Number.isFinite(parsedLng) ? parsedLng : 77.209;
+        const center = { lat, lng };
+
+        const map = new googleMaps.Map(mapRef.current, {
+          center,
+          zoom: 15,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          gestureHandling: "greedy",
+        });
+
+        const marker = new googleMaps.Marker({
+          position: center,
+          map,
+          draggable: true,
+          title: "Drag to set location",
+        });
+
+        const circle = new googleMaps.Circle({
+          center,
+          radius: Number(form.geofence_radius_meters) || 250,
+          map,
+          strokeColor: "#7E22CE",
+          strokeOpacity: 0.85,
+          strokeWeight: 2,
+          fillColor: "#9333EA",
+          fillOpacity: 0.15,
+        });
+
+        const onPinMove = async (newLat, newLng) => {
+          setForm((prev) => ({
+            ...prev,
+            latitude: newLat.toFixed(6),
+            longitude: newLng.toFixed(6),
+          }));
+          circle.setCenter({ lat: newLat, lng: newLng });
+
+          const place = await reverseGeocode(newLat, newLng);
+          if (place && !dead) {
+            setForm((prev) => ({
+              ...prev,
+              address: place.address,
+              city: place.city,
+              state: place.state,
+              country: place.country,
+              pincode: place.pincode,
+            }));
+            setSearchQuery(place.address);
+          }
+        };
+
+        marker.addListener("dragend", (e) => {
+          if (e.latLng) {
+            onPinMove(e.latLng.lat(), e.latLng.lng());
+          }
+        });
+
+        map.addListener("click", (e) => {
+          if (e.latLng) {
+            marker.setPosition(e.latLng);
+            onPinMove(e.latLng.lat(), e.latLng.lng());
+          }
+        });
+
+        mapInstanceRef.current = map;
+        markerRef.current = marker;
+        circleRef.current = circle;
+      })
+      .catch((err) => {
+        console.warn("Google Maps SDK blocked or unavailable, falling back to clean tiles:", err);
+        initLeafletFallback();
       });
 
-      mapInstanceRef.current = map;
-      markerRef.current = marker;
-      circleRef.current = circle;
+    const initLeafletFallback = () => {
+      if (dead || !mapRef.current) return;
+      if (!document.getElementById("leaflet-css")) {
+        const link = document.createElement("link");
+        link.id = "leaflet-css";
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
 
-      setTimeout(() => map.invalidateSize(), 200);
+      const setupLeaflet = () => {
+        if (dead || !mapRef.current || typeof window.L === "undefined") return;
+        if (mapInstanceRef.current) {
+          if (typeof mapInstanceRef.current.remove === "function") mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+
+        const parsedLat = parseFloat(form.latitude);
+        const parsedLng = parseFloat(form.longitude);
+        const lat = Number.isFinite(parsedLat) ? parsedLat : 28.6139;
+        const lng = Number.isFinite(parsedLng) ? parsedLng : 77.209;
+
+        // attributionControl: false completely removes the "Leaflet" watermark
+        const map = window.L.map(mapRef.current, { attributionControl: false }).setView([lat, lng], 15);
+        window.L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+          maxZoom: 20,
+          subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        }).addTo(map);
+
+        const marker = window.L.marker([lat, lng], { draggable: true }).addTo(map);
+        const circle = window.L.circle([lat, lng], {
+          radius: Number(form.geofence_radius_meters) || 250,
+          color: "#7E22CE",
+          fillColor: "#9333ea",
+          fillOpacity: 0.15,
+          weight: 2,
+        }).addTo(map);
+
+        const onMove = async (pos) => {
+          setForm((prev) => ({
+            ...prev,
+            latitude: pos.lat.toFixed(6),
+            longitude: pos.lng.toFixed(6),
+          }));
+          circle.setLatLng(pos);
+          const place = await reverseGeocode(pos.lat, pos.lng);
+          if (place && !dead) {
+            setForm((prev) => ({
+              ...prev,
+              address: place.address,
+              city: place.city,
+              state: place.state,
+              country: place.country,
+              pincode: place.pincode,
+            }));
+            setSearchQuery(place.address);
+          }
+        };
+
+        marker.on("dragend", (e) => onMove(e.target.getLatLng()));
+        map.on("click", (e) => {
+          marker.setLatLng(e.latlng);
+          onMove(e.latlng);
+        });
+
+        mapInstanceRef.current = map;
+        markerRef.current = marker;
+        circleRef.current = circle;
+        setTimeout(() => map.invalidateSize(), 200);
+      };
+
+      if (typeof window.L !== "undefined") {
+        setTimeout(setupLeaflet, 50);
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        script.onload = () => setTimeout(setupLeaflet, 50);
+        document.head.appendChild(script);
+      }
     };
 
-    if (typeof window.L !== "undefined") {
-      setTimeout(initMap, 100);
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.onload = () => setTimeout(initMap, 100);
-      document.head.appendChild(script);
-    }
-
     return () => {
-      if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+      dead = true;
+      if (mapInstanceRef.current) {
+        if (typeof mapInstanceRef.current.remove === "function") {
+          mapInstanceRef.current.remove();
+        } else if (window.google?.maps?.event) {
+          window.google.maps.event.clearInstanceListeners(mapInstanceRef.current);
+        }
+        mapInstanceRef.current = null;
+      }
+      if (markerRef.current) {
+        if (typeof markerRef.current.setMap === "function") markerRef.current.setMap(null);
+        markerRef.current = null;
+      }
+      if (circleRef.current) {
+        if (typeof circleRef.current.setMap === "function") circleRef.current.setMap(null);
+        circleRef.current = null;
+      }
     };
   }, [showModal]);
 
   // Update circle radius when slider changes
   useEffect(() => {
-    if (circleRef.current) circleRef.current.setRadius(form.geofence_radius_meters);
+    if (circleRef.current && Number.isFinite(Number(form.geofence_radius_meters))) {
+      circleRef.current.setRadius(Number(form.geofence_radius_meters));
+    }
   }, [form.geofence_radius_meters]);
 
   // Update marker and circle when lat/lng inputs change
@@ -150,11 +273,20 @@ function AttendanceLocationsPage() {
     const lat = parseFloat(form.latitude);
     const lng = parseFloat(form.longitude);
     if (!isNaN(lat) && !isNaN(lng) && markerRef.current && circleRef.current && mapInstanceRef.current) {
-      markerRef.current.setLatLng([lat, lng]);
-      circleRef.current.setLatLng([lat, lng]);
-      mapInstanceRef.current.setView([lat, lng], mapInstanceRef.current.getZoom());
+      if (typeof markerRef.current.setPosition === "function") {
+        const pos = { lat, lng };
+        markerRef.current.setPosition(pos);
+        circleRef.current.setCenter(pos);
+        mapInstanceRef.current.panTo(pos);
+      } else if (typeof markerRef.current.setLatLng === "function") {
+        markerRef.current.setLatLng([lat, lng]);
+        circleRef.current.setLatLng([lat, lng]);
+        mapInstanceRef.current.setView([lat, lng], mapInstanceRef.current.getZoom());
+      }
     }
   }, [form.latitude, form.longitude]);
+
+
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -190,18 +322,30 @@ function AttendanceLocationsPage() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, form.address]);
 
-  const handleSelectSuggestion = (item) => {
-    setForm(prev => ({
+  // A suggestion may be an Autocomplete prediction, which carries no point —
+  // `resolvePlace` fetches it. Never read `item.lat`/`item.lon` here: on a
+  // prediction those are null, and parseFloat(null) is NaN, which would land in
+  // the latitude box as the anchor of a geofence nobody can clock in at.
+  const handleSelectSuggestion = async (item) => {
+    setIsSearching(true);
+    const place = await resolvePlace(item);
+    setIsSearching(false);
+    if (!place) {
+      setSaveError("Couldn’t pin that place down. Pick another result, or drag the pin yourself.");
+      return;
+    }
+    setSaveError("");
+    setForm((prev) => ({
       ...prev,
-      latitude: parseFloat(item.lat).toFixed(6),
-      longitude: parseFloat(item.lon).toFixed(6),
-      address: item.display_name,
-      city: item.address?.city || item.address?.town || item.address?.village || "",
-      state: item.address?.state || "",
-      country: item.address?.country || "",
-      pincode: item.address?.postcode || ""
+      latitude: place.latitude.toFixed(6),
+      longitude: place.longitude.toFixed(6),
+      address: place.address,
+      city: place.city,
+      state: place.state,
+      country: place.country,
+      pincode: place.pincode,
     }));
-    setSearchQuery(item.display_name);
+    setSearchQuery(place.address);
     setShowSuggestions(false);
   };
 
@@ -366,7 +510,7 @@ function AttendanceLocationsPage() {
                             className="px-4 py-3 hover:bg-purple-50 cursor-pointer flex flex-col gap-0.5 transition-colors"
                           >
                             <span className="text-sm font-semibold text-slate-700 truncate">{item.name || item.display_name.split(',')[0]}</span>
-                            <span className="text-xs text-slate-500 truncate">{item.display_name}</span>
+                            <span className="text-xs text-slate-500 truncate">{item.secondary || item.display_name}</span>
                           </li>
                         ))}
                       </ul>

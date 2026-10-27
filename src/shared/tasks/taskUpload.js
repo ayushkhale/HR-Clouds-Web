@@ -30,7 +30,7 @@ import { putToSignedUrl, trimFileName } from "../utils/payrollAttachments";
 import { taskErrorMessage } from "../utils/taskErrors";
 
 /** CHK_TASK_ATTACHMENTS_SIZE — the server refuses anything larger. */
-export const TASK_MAX_BYTES = 10 * 1024 * 1024;
+export const TASK_MAX_BYTES = 50 * 1024 * 1024;
 
 export const TASK_ALLOWED_TYPES = [
   "application/pdf",
@@ -75,7 +75,7 @@ export function taskContentType(file) {
 export function taskFileProblem(file) {
   if (!file) return "Choose a file.";
   if (!file.size) return "That file is empty. Choose another one.";
-  if (file.size > TASK_MAX_BYTES) return "That file is larger than 10 MB. Choose a smaller one.";
+  if (file.size > TASK_MAX_BYTES) return "That file is larger than 50 MB. Choose a smaller one.";
   if (!TASK_ALLOWED_TYPES.includes(taskContentType(file))) {
     return "Use a PDF, Word, Excel, JPG, PNG or WebP file.";
   }

@@ -1,9 +1,10 @@
-import React from "react";
+import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import DashboardSidebar from "../components/DashboardSidebar";
 import { useAuth } from "../contexts/AuthContext";
 import { WorkspaceContext } from "../contexts/WorkspaceContext";
 import { workspaceForRole } from "../auth/permissions";
+import { preloadBrowserLocation } from "../attendance/geolocation";
 
 // Renders the sidebar once for a whole route group so navigating between pages
 // in the group keeps its scroll position and expanded nav sections. It also
@@ -17,6 +18,11 @@ import { workspaceForRole } from "../auth/permissions";
 function DashboardLayout({ role }) {
   const { role: authRole } = useAuth();
   const resolvedRole = role || workspaceForRole(authRole) || "guest";
+
+  // Preload and request location permission as soon as any dashboard loads
+  useEffect(() => {
+    preloadBrowserLocation();
+  }, []);
 
   return (
     <WorkspaceContext.Provider value={resolvedRole}>
