@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HiSearch, HiX } from "react-icons/hi";
 import { Spinner } from "../attendance/ui";
-import { normalizePlace, searchPlaces } from "../utils/geocoding";
+import { resolvePlace, searchPlaces } from "../utils/geocoding";
 
 const DEBOUNCE_MS = 600;
 
@@ -71,13 +71,23 @@ export default function AddressSearchField({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const pick = (item) => {
-    const place = normalizePlace(item);
+  // An Autocomplete prediction carries no coordinates, so picking one costs a
+  // Place Details call. That is why this is async and shows the spinner: the
+  // alternative is resolving all five up front, five times the quota for four
+  // results nobody chose.
+  const pick = async (item) => {
+    setBusy(true);
+    const place = await resolvePlace(item);
+    setBusy(false);
+    // Couldn't establish a point — leave the box and the form exactly as they
+    // were rather than writing a half-filled address with no coordinates.
+    if (!place) return undefined;
     justPicked.current = true;
     setQuery(place.address);
     setOpen(false);
     setItems([]);
     onSelect?.(place);
+    return undefined;
   };
 
   /**
@@ -86,13 +96,13 @@ export default function AddressSearchField({
    * nothing — pressing Search right after typing has to work.
    */
   const takeBest = async () => {
-    if (items.length) return pick(items[0]);
+    if (items.length) return await pick(items[0]);
     const q = query.trim();
     if (!q) return undefined;
     setBusy(true);
     const found = await searchPlaces(q);
     setBusy(false);
-    if (found.length) return pick(found[0]);
+    if (found.length) return await pick(found[0]);
     setItems([]);
     setOpen(false);
     return undefined;

@@ -11,7 +11,7 @@
 
 import { payrollErrorMessage } from "./payrollErrors";
 
-export const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
 
 // Allowed content types. `PART_A_TYPES` is the narrower set for a Form 16 Part A.
 export const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -61,7 +61,7 @@ export function trimFileName(name) {
 export function fileProblem(file, types = ALLOWED_TYPES) {
   if (!file) return "Choose a file.";
   if (!file.size) return "That file is empty. Choose another one.";
-  if (file.size > MAX_BYTES) return "That file is larger than 10 MB. Choose a smaller file.";
+  if (file.size > MAX_BYTES) return "That file is larger than 50 MB. Choose a smaller file.";
   const type = contentTypeOf(file);
   if (!types.includes(type)) {
     return types === PART_A_TYPES ? "Use a PDF file." : "Use a PDF, JPG, PNG or WebP file.";

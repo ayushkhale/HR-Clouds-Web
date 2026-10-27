@@ -19,6 +19,21 @@
 // answers REQUEST_DENIED "enable billing" for the same key. So:
 //
 //   • Google first. Nominatim when Google has no answer, fails, or is resting.
+//
+// ── WHY THERE ARE TWO GOOGLE APIS HERE (2026-10-27) ─────────────────────────
+//
+// `/v4/geocode/address` is a GEOCODER: it resolves one complete address to one
+// point. It answers NOTHING for "connaug". Since the search box fires on a
+// 600ms debounce while someone types, nearly every request fell through to
+// Nominatim and the dropdown people actually used was OpenStreetMap's — with a
+// Google key configured and working the whole time. Verified against the live
+// API on the demo key: "Connaught Place Delhi" → 1 result; a partial → none.
+//
+// So partial text now goes to PLACES AUTOCOMPLETE (`places:autocomplete`),
+// which is built for it and returns 5 ranked predictions, and the picked
+// prediction is resolved to a point by PLACE DETAILS (`places/{id}`). Both are
+// confirmed working on the demo key. A prediction has no coordinates, hence
+// `resolvePlace()` — see its note.
 //   • A refusal that won't heal today (429 — the day's allowance is spent; 403;
 //     an invalid key) RESTS Google until local midnight, so the rest of the day
 //     goes straight to Nominatim instead of paying a dead round trip each time.
@@ -44,18 +59,45 @@ import ENV from "../../config/env";
 
 const BASE = "https://nominatim.openstreetmap.org";
 const GOOGLE = "https://geocode.googleapis.com/v4/geocode";
+const PLACES = "https://places.googleapis.com/v1/places";
 
 /* ─── Google, and when to stop asking it ─────────────────────────────────── */
+//
+// Places and Geocoding are separate SKUs on the same key, so they rest
+// SEPARATELY: spending the Autocomplete allowance must not also stop the pin
+// drag from naming where it landed (that is reverse geocoding), and vice versa.
 
-let googleRestingUntil = 0;
+let geocodeRestingUntil = 0;
+let placesRestingUntil = 0;
 
-const googleReady = () => !!ENV.GOOGLE_MAPS_API_KEY && Date.now() >= googleRestingUntil;
+const keyReady = () => !!ENV.GOOGLE_MAPS_API_KEY;
+const geocodeReady = () => keyReady() && Date.now() >= geocodeRestingUntil;
+const placesReady = () => keyReady() && Date.now() >= placesRestingUntil;
 
-function restGoogleUntilTomorrow() {
+function restUntilTomorrow(which) {
   const midnight = new Date();
   midnight.setHours(24, 0, 0, 0);
-  googleRestingUntil = midnight.getTime();
+  if (which === "places") placesRestingUntil = midnight.getTime();
+  else geocodeRestingUntil = midnight.getTime();
 }
+
+/** A refusal that won't heal today, as opposed to a blip worth retrying. */
+function restIfTerminal(which, status, data) {
+  const reason = (data?.error?.details || []).find((d) => d?.reason)?.reason;
+  if (status === 429 || status === 403 || reason === "API_KEY_INVALID") restUntilTomorrow(which);
+}
+
+// Autocomplete + the Details call that follows a pick are ONE billable session
+// when they share a token, which on a demo allowance is the difference between
+// a day's searching and a dead key by lunchtime. A new token starts after each
+// resolved pick, because that is what ends a session.
+const newSessionToken = () => {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  } catch { /* fall through */ }
+  return `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+let sessionToken = newSessionToken();
 
 const memo = new Map();
 const MEMO_MAX = 100;
@@ -69,19 +111,97 @@ function remember(key, value) {
  * couldn't be asked — the caller then tries Nominatim.
  */
 async function askGoogle(path, params, signal) {
-  if (!googleReady()) return null;
+  if (!geocodeReady()) return null;
   const qs = new URLSearchParams({ ...params, languageCode: "en", key: ENV.GOOGLE_MAPS_API_KEY });
   try {
     const res = await fetch(`${GOOGLE}/${path}?${qs}`, { signal });
     const data = await res.json().catch(() => null);
     if (res.ok) return Array.isArray(data?.results) ? data.results : [];
-    const reason = (data?.error?.details || []).find((d) => d?.reason)?.reason;
-    if (res.status === 429 || res.status === 403 || reason === "API_KEY_INVALID") restGoogleUntilTomorrow();
+    restIfTerminal("geocode", res.status, data);
     return null;
   } catch {
     // Includes the AbortError from a superseded keystroke, which is not a fault.
     return null;
   }
+}
+
+/* ─── Places: the one that actually answers half-typed text ──────────────── */
+
+/**
+ * Autocomplete predictions for a PARTIAL string. This is the piece the
+ * geocoder cannot do: `/v4/geocode/address` resolves a complete address to one
+ * point and answers nothing at all for "connaug", which is why every search
+ * used to fall through to Nominatim while someone was still typing and the
+ * dropdown was OpenStreetMap's despite the key being configured.
+ *
+ * Predictions carry NO coordinates — only a placeId. `resolvePlace()` turns the
+ * one the person picks into a point, so a search costs one call, not five.
+ *
+ * @returns {Promise<Array|null>} suggestions ([] for "no match"), or null when
+ *   Places couldn't be asked and the caller should try the next provider.
+ */
+async function askAutocomplete(q, signal) {
+  if (!placesReady()) return null;
+  try {
+    const res = await fetch(`${PLACES}:autocomplete`, {
+      method: "POST",
+      signal,
+      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": ENV.GOOGLE_MAPS_API_KEY },
+      body: JSON.stringify({ input: q, regionCode: "IN", languageCode: "en", sessionToken }),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok) return Array.isArray(data?.suggestions) ? data.suggestions : [];
+    restIfTerminal("places", res.status, data);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** One place by id, with the fields our location forms store. */
+async function askPlaceDetails(placeId, signal) {
+  if (!placesReady() || !placeId) return null;
+  const url = `${PLACES}/${encodeURIComponent(placeId)}`
+    + `?languageCode=en&sessionToken=${encodeURIComponent(sessionToken)}`;
+  try {
+    const res = await fetch(url, {
+      signal,
+      headers: {
+        "X-Goog-Api-Key": ENV.GOOGLE_MAPS_API_KEY,
+        // A field mask is REQUIRED on Places v1 — omit it and every call 400s.
+        "X-Goog-FieldMask": "id,formattedAddress,location,addressComponents",
+      },
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok) return data || null;
+    restIfTerminal("places", res.status, data);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A prediction as the Nominatim-shaped item every caller already reads, minus
+ * the point. `lat`/`lon` are null on purpose: a caller that forgets to resolve
+ * gets a visible "no coordinates" rather than a silent NaN written to a
+ * geofence anchor. A `queryPrediction` (a search phrase, not a place) has no
+ * placeId and is dropped.
+ */
+function fromPrediction(s) {
+  const p = s?.placePrediction;
+  if (!p?.placeId) return null;
+  const full = p.text?.text || "";
+  return {
+    place_id: p.placeId,
+    lat: null,
+    lon: null,
+    display_name: full,
+    name: p.structuredFormat?.mainText?.text || full.split(",")[0].trim(),
+    secondary: p.structuredFormat?.secondaryText?.text || "",
+    address: {},
+    provider: "google_places",
+  };
 }
 
 /**
@@ -102,7 +222,9 @@ function fromGoogle(r) {
   const pa = r?.postalAddress || {};
   const display = r?.formattedAddress || "";
   return {
-    place_id: r?.placeId || display,
+    // A geocoder result calls it `placeId`; a Place Details result calls the
+    // same thing `id`. Both land here, so read either.
+    place_id: r?.placeId || r?.id || display,
     lat: String(r?.location?.latitude),
     lon: String(r?.location?.longitude),
     display_name: display,
@@ -149,6 +271,17 @@ export function normalizePlace(item) {
 
 /**
  * Places matching free text, best first, at most 5.
+ *
+ * Three providers, in the order that answers the most queries:
+ *   1. Places Autocomplete — the only one that handles half-typed text.
+ *      Returns items with NO point; pass the picked one to `resolvePlace()`.
+ *   2. The geocoder — a complete address resolved to a point, usually one hit.
+ *   3. Nominatim.
+ *
+ * An item from (2) or (3) already carries `lat`/`lon`, so `resolvePlace()` is a
+ * pass-through for those. Callers should always go through it rather than
+ * reading `lat`/`lon` off a suggestion directly.
+ *
  * @returns {Promise<Array>} Nominatim-shaped items ([] on any failure)
  */
 export async function searchPlaces(query, { signal } = {}) {
@@ -156,6 +289,13 @@ export async function searchPlaces(query, { signal } = {}) {
   if (!q) return [];
   const key = `s:${q.toLowerCase()}`;
   if (memo.has(key)) return memo.get(key);
+
+  const suggestions = await askAutocomplete(q, signal);
+  const predictions = (suggestions || []).map(fromPrediction).filter(Boolean).slice(0, 5);
+  if (predictions.length) {
+    remember(key, predictions);
+    return predictions;
+  }
 
   const google = await askGoogle("address", { addressQuery: q, regionCode: "IN" }, signal);
   const hits = (google || []).filter(hasPoint).slice(0, 5).map(fromGoogle);
@@ -172,6 +312,41 @@ export async function searchPlaces(query, { signal } = {}) {
     // Includes the AbortError from a superseded keystroke, which is not a fault.
     return [];
   }
+}
+
+/**
+ * A picked suggestion as a normalized place, fetching its point if it hasn't
+ * got one. THE ONLY correct way to read a suggestion: an Autocomplete
+ * prediction has no coordinates, so `parseFloat(item.lat)` on one yields NaN,
+ * and a NaN written into a latitude field is a geofence nobody can clock in at.
+ *
+ * Returns null when the point could not be established — the caller must leave
+ * the form as it was rather than half-filling it (§7: "nothing on file" and
+ * "couldn't load" are different things).
+ *
+ * @returns {Promise<{latitude, longitude, address, city, state, country, pincode}|null>}
+ */
+export async function resolvePlace(item, { signal } = {}) {
+  if (!item) return null;
+
+  // Already a point — the geocoder's and Nominatim's items both are.
+  const lat = parseFloat(item.lat);
+  const lon = parseFloat(item.lon);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) return normalizePlace(item);
+
+  if (!item.place_id) return null;
+  const key = `d:${item.place_id}`;
+  if (memo.has(key)) return memo.get(key);
+
+  const details = await askPlaceDetails(item.place_id, signal);
+  if (!details || !hasPoint(details)) return null;
+
+  const place = normalizePlace(fromGoogle(details));
+  if (!Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) return null;
+  remember(key, place);
+  // The pick closed this session; the next keystroke starts a new one.
+  sessionToken = newSessionToken();
+  return place;
 }
 
 /**

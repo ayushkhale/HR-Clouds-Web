@@ -259,7 +259,7 @@ export function TaskAttachmentsField({ files, onChange, taskId, context = "brief
 
       {files.length === 0 ? (
         <p className="text-[11px] text-slate-400">
-          Nothing attached. PDF, Word, Excel or an image, up to 10 MB each.
+          Nothing attached. PDF, Word, Excel or an image, up to 50 MB each.
         </p>
       ) : (
         <ul className="space-y-1.5">

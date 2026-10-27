@@ -115,8 +115,8 @@ export function contentTypeOfFile(file) {
   return CT_BY_EXT[extOf(file?.name)] || file?.type || "";
 }
 
-/** Server hard ceiling (plan §18 #63): 25 MB. */
-export const HARD_MAX_BYTES = 25 * 1024 * 1024;
+/** Server hard ceiling: 50 MB. */
+export const HARD_MAX_BYTES = 50 * 1024 * 1024;
 
 export function formatBytes(bytes) {
   const n = Number(bytes);
@@ -210,7 +210,7 @@ export const auditActionLabel = (action) => ACTION_LABEL[action] || humanizeCode
 /** id → type, for rows that carry only document_type_id. */
 export const typeIndex = (types = []) => new Map(types.map((t) => [t.id, t]));
 
-/** "10 MB · PDF, JPEG or PNG" */
+/** "Up to 50 MB · PDF, JPEG or PNG" */
 export function typePolicyLine(type) {
   if (!type) return "";
   const parts = [];

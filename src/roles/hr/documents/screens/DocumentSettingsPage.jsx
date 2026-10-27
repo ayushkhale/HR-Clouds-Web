@@ -6,7 +6,7 @@
 //   · separate checker + manager direct authority can't both be on (SETTINGS_CONFLICT)
 //   · separate checker needs ≥ 2 active HR administrators (INSUFFICIENT_CHECKERS)
 //   · virus scanning can't be turned on in Phase 1 (SCAN_PROVIDER_NOT_CONFIGURED)
-//   · view link 30–900 s, upload link 60–3600 s, file size ≤ 25 MB, retention ≥ 30 days
+//   · view link 30–900 s, upload link 60–3600 s, file size ≤ 50 MB, retention ≥ 30 days
 //   · acknowledgement deadline 1–365 days (Phase 3)
 //   · expiry reminder schedule ≤ 6 entries, each 0–365; request window 1–365
 //     days; onboarding target 0–100% (Phase 4) — all SETTING_OUT_OF_RANGE
@@ -74,7 +74,7 @@ const MB = 1024 * 1024;
 const NUMBERS = {
   document_view_url_ttl_seconds: { min: 30, max: 900, label: "View links stay valid for", unit: "seconds" },
   document_upload_url_ttl_seconds: { min: 60, max: 3600, label: "Upload links stay valid for", unit: "seconds" },
-  document_max_file_size_mb: { min: 1, max: 25, label: "Largest file anyone can upload", unit: "MB" },
+  document_max_file_size_mb: { min: 1, max: 50, label: "Largest file anyone can upload", unit: "MB" },
   document_retention_days: { min: 30, max: 36500, label: "Keep documents for", unit: "days" },
   document_acknowledgement_due_days: { min: 1, max: 365, label: "Default time to acknowledge", unit: "days" },
   document_request_default_due_days: { min: 1, max: 365, label: "Default time to provide a document", unit: "days" },

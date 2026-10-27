@@ -331,8 +331,8 @@ function BulkUploadDialog({ directory, onClose, onCommitted }) {
 
   const onFile = (file) => {
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError("That file is larger than 10 MB. Split it into smaller files.");
+    if (file.size > 50 * 1024 * 1024) {
+      setError("That file is larger than 50 MB. Split it into smaller files.");
       return;
     }
     const reader = new FileReader();

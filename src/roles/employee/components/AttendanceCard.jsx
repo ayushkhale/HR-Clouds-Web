@@ -41,7 +41,7 @@ import { attendanceErrorMessage, isDeviceEnrollmentRequired, isDeviceSuspended, 
 import { cancelDeviceCeremony, punchWithDeviceTrust, useDeviceTrustContext } from "../../../shared/attendance/deviceTrust";
 import { DEVICE_MODES, DEVICE_OPERATIONS, DEVICE_PROGRESS, deviceTrustVisible, effectiveModeOf } from "../../../shared/attendance/deviceTrustMeta";
 import { useSelfServicePath } from "../../../shared/attendance/paths";
-import { getBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
+import { getBrowserLocation, preloadBrowserLocation, GEO_STATUS } from "../../../shared/attendance/geolocation";
 import { computeWorkedMs, totalBreakMinutes } from "../../../shared/attendance/liveHours";
 import { arrivalState, breakBudget, fullDayMinutes, graceMinutes, halfDayMinutes, policyOf, shiftOf } from "../../../shared/attendance/policyRules";
 import { fmtClockMinutes, fmtClockTime, fmtDate, fmtDuration, fmtHours, fmtMinutes, fmtTime, todayYMD, ymdOnly } from "../../../shared/attendance/dates";
@@ -179,6 +179,10 @@ function AttendanceCard({ currentState: today, fetchStatus, shiftData, loading =
       .then((res) => { if (!cancelled) setContract(res?.data || null); })
       .catch(() => { if (!cancelled) setContract(null); });
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    preloadBrowserLocation();
   }, []);
 
   const contractMode = contract?.work_mode;
