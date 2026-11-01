@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { HiLockClosed, HiCurrencyRupee, HiClock, HiCheckCircle } from "react-icons/hi";
 import { payrollAPI } from "../api";
 import Skeleton from "./Skeleton";
@@ -153,7 +154,8 @@ function StatusPill({ status }) {
  * @param {boolean} compact  a profile tab: the numbers that matter, not every
  *   statutory flag and audit column. The Employee salaries screen stays full.
  */
-export default function SalaryStructurePanel({ userId, viewer = "hr", compact = false }) {
+export default function SalaryStructurePanel({ userId, viewer = "hr", compact = false, onAssign = null }) {
+  const navigate = useNavigate();
   const [state, setState] = useState({ current: undefined, rows: undefined, denied: false });
 
   useEffect(() => {
@@ -189,7 +191,7 @@ export default function SalaryStructurePanel({ userId, viewer = "hr", compact = 
 
   if (denied) {
     return (
-      <div className="flex flex-col items-center text-center py-12 text-slate-500">
+      <div className="flex flex-col items-center text-center py-12 px-4 bg-white rounded-2xl border border-slate-100 shadow-2xs text-slate-500">
         <HiLockClosed className="w-8 h-8 mb-2 text-slate-300" />
         <p className="text-sm font-semibold">Compensation view is disabled</p>
         <p className="text-xs mt-1">Your organisation&apos;s policy prevents managers from seeing per-employee salary figures.</p>
@@ -201,10 +203,25 @@ export default function SalaryStructurePanel({ userId, viewer = "hr", compact = 
 
   if (!current && past.length === 0) {
     return (
-      <div className="flex flex-col items-center text-center py-12 text-slate-500">
-        <HiCurrencyRupee className="w-8 h-8 mb-2 text-slate-300" />
-        <p className="text-sm font-semibold">No salary structure yet</p>
-        <p className="text-xs mt-1">Once a structure is approved for this person it appears here with every revision.</p>
+      <div className="flex flex-col items-center text-center py-12 px-4 bg-white rounded-2xl border border-slate-100 shadow-2xs text-slate-500">
+        <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-2">
+          <HiCurrencyRupee className="w-6 h-6" />
+        </div>
+        <p className="text-sm font-bold text-slate-800">No salary structure yet</p>
+        <p className="text-xs text-slate-400 mt-1 max-w-sm">
+          {viewer === "hr"
+            ? "Once a salary structure is assigned to this employee, it will appear here with every past and current revision."
+            : "Once a structure is approved for this person it appears here with every revision."}
+        </p>
+        {viewer === "hr" && (
+          <button
+            type="button"
+            onClick={() => (onAssign ? onAssign() : navigate("/dashboard/hr/payroll/employee-structures"))}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+          >
+            <HiCurrencyRupee className="w-4 h-4" /> Go to Employee Salaries
+          </button>
+        )}
       </div>
     );
   }

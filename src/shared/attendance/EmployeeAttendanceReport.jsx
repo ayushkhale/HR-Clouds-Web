@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 // ─────────────────────────────────────────────────────────────────────────────
 // attendance/EmployeeAttendanceReport.jsx — Employee range report (H46), shared
 // by the HR Reports page and the employee profile "Reports" tab so both read
@@ -25,6 +26,7 @@ export const normalizeReportRecord = (r) => ({
 const localTime = (iso) => (iso ? fmtTime(iso, "") : "");
 
 export default function EmployeeAttendanceReport({ userId, employeeLabel = "employee", emptyHint }) {
+  const navigate = useNavigate();
   const today = todayYMD();
   const [range, setRange] = useState({ from: addDaysYMD(today, -29), to: today });
   const [rangeError, setRangeError] = useState("");
@@ -118,7 +120,19 @@ export default function EmployeeAttendanceReport({ userId, employeeLabel = "empl
             </div>
           )}
           {records.length === 0 ? (
-            <EmptyState title="No records" message="No attendance was recorded in this period." />
+            <EmptyState
+              title="No records"
+              message="No attendance was recorded in this period."
+              action={
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard/hr/reports")}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+                >
+                  View Org Reports
+                </button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-100">
               <table className="w-full text-left text-sm min-w-[720px]">

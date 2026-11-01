@@ -1963,7 +1963,7 @@
         },
         "employee_code": {
           "tier": "onboarding",
-          "hint": "The company’s own staff number for this person, shown beside their name where an identifier helps. Leave it empty if the company doesn’t use one.",
+          "hint": "The company’s unique staff number or code for this person, required to identify and track them across attendance, payroll, and records.",
           "askMaya": {
             "enabled": true,
             "question": "What is an employee code, and how do companies usually number their staff?"

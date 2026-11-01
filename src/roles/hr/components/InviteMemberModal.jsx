@@ -294,6 +294,7 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
     // check never sees them. Validate here and open the section that holds the
     // first missing field.
     const missing = [
+      ["section1", "Employee code", empId],
       ["section1", "Full name", name],
       ["section1", "Email address", email],
       ["section1", "Gender", gender],
@@ -327,7 +328,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
       // below keeps the toggle itself in step with both.
       if (makeHod && (role === "manager" || role === "hr") && department) payload.make_hod = true;
       if (name) payload.name = name;
-      if (empId) payload.emp_id = empId;
+      if (empId) {
+        payload.emp_id = empId.trim();
+        payload.employee_code = empId.trim();
+      }
       if (contact) payload.contact = contact;
       if (bloodGroup) payload.blood_group = bloodGroup;
       if (dob) payload.dob = dob;
@@ -445,10 +449,10 @@ export default function InviteMemberModal({ userId, onClose, onInvited }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                       <div>
                         <div className="flex items-center">
-                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee ID</label>
-                          <FieldHelp surface="organization.invite" field="employee_code" label="the employee ID" className="mb-1.5" overlay />
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Employee Code <span className="text-rose-400">*</span></label>
+                          <FieldHelp surface="organization.invite" field="employee_code" label="the employee code" className="mb-1.5" overlay />
                         </div>
-                        <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} placeholder="e.g. EMP001 (Optional)" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
+                        <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} required placeholder="e.g. EMP001" className="w-full h-10 bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 text-xs text-slate-800 outline-none focus:border-purple-500 focus:bg-white transition-all" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name <span className="text-rose-400">*</span></label>

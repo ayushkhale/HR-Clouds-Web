@@ -226,7 +226,7 @@ function PersonCard({ label, icon, help, name, person, meta = [], badge, onOpen 
  * the departments read is separate from the roster behind the two tiles beside
  * it, and one of them failing must not blank the other two (§7).
  */
-function DepartmentTile({ name, location, headcount, closed, loading, error, onRetry, help }) {
+function DepartmentTile({ name, location, headcount, closed, loading, error, onRetry, help, onAssign }) {
   return (
     <Tile label="Department" icon={HiOfficeBuilding} help={help}>
       {loading && !name ? (
@@ -243,7 +243,18 @@ function DepartmentTile({ name, location, headcount, closed, loading, error, onR
           <button type="button" onClick={onRetry} className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition">Try again</button>
         </div>
       ) : !name ? (
-        <p className="text-sm font-semibold text-slate-400">Not in a department yet</p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm font-semibold text-slate-400">Not in a department yet</p>
+          {onAssign && (
+            <button
+              type="button"
+              onClick={onAssign}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+            >
+              <HiSwitchHorizontal className="w-3.5 h-3.5" /> Assign department
+            </button>
+          )}
+        </div>
       ) : (
         <>
           <div className="flex items-center gap-3 min-w-0">

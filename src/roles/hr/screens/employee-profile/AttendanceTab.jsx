@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import React, { useState } from "react";
 import { HiChevronLeft, HiChevronRight, HiClock } from "react-icons/hi";
 import { memberAttendanceApi } from "../../../../shared/attendance/memberAttendance";
@@ -10,6 +11,7 @@ import DailyLogDialog from "../../../../shared/attendance/DailyLogDialog";
 
 /* ─── Main tab ────────────────────────────────────────────────── */
 export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
+  const navigate = useNavigate();
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [selectedDate, setSelectedDate] = useState(null);
@@ -50,7 +52,31 @@ export default function AttendanceTab({ userId, employeeRole, viewer = "hr" }) {
         ) : list.loading && list.items.length === 0 ? (
           <div className="p-6"><LoadingRows rows={6} /></div>
         ) : list.items.length === 0 ? (
-          <EmptyState icon={HiClock} title="No records" message={`No attendance records for ${label}.`} />
+          <EmptyState
+            icon={HiClock}
+            title="No records"
+            message={`No attendance records for ${label}.`}
+            action={
+              viewer === "hr" ? (
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/dashboard/hr/attendance/shifts")}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition shadow-xs cursor-pointer"
+                  >
+                    Assign Shifts
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/dashboard/hr/attendance/policies")}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+                  >
+                    Attendance Policies
+                  </button>
+                </div>
+              ) : null
+            }
+          />
         ) : (
           <>
             <div className={`overflow-x-auto ${list.loading ? "opacity-60" : ""}`}>
