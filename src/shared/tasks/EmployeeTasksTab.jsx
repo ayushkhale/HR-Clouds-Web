@@ -186,6 +186,15 @@ export default function EmployeeTasksTab({ userId, name = "", viewer = "hr" }) {
                 : adapter.create
                   ? `Nobody has given ${first} a task yet. Give out a task and it appears here with its deadline and progress.`
                   : `Nobody has given ${first} a task yet.`}
+              action={!filtered && adapter.create ? (
+                <button
+                  type="button"
+                  onClick={() => setAssigning(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition shadow-xs cursor-pointer"
+                >
+                  <HiPlus className="w-4 h-4" /> Give out a task
+                </button>
+              ) : null}
               className="py-10"
             />
           ) : (

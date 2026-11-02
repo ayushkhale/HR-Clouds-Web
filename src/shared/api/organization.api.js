@@ -205,6 +205,19 @@ export const organizationAPI = {
     });
   },
 
+  /**
+   * Switch a user's organizational role (promote/demote between employee, manager, hr)
+   * PUT /organizations/users/:id/role-switch
+   * @param {string} id - The global user_id
+   * @param {Object} payload - { new_role, reason, designation?, new_reporting_person?, reassign_subordinates_to?, replacement_hod_id? }
+   */
+  switchUserRole(id, payload) {
+    return request(`/organizations/users/${id}/role-switch`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
   // ── HR › Departments ───────────────────────────────────────────────────────
   //    Create and manage organizational departments
   //

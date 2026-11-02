@@ -4,9 +4,10 @@ import { organizationAPI, payrollAPI } from "../../../../shared/api";
 import { fetchAllOrgEmployees } from "../../../../shared/utils/orgEmployees";
 import { normalizePaginated } from "../../../../shared/attendance/normalize";
 import {
-  HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye, HiCurrencyRupee, HiInformationCircle,
+  HiCheckCircle, HiExclamationCircle, HiX, HiPencil, HiUserGroup, HiClock, HiEye, HiCurrencyRupee, HiInformationCircle, HiSearch,
 } from "react-icons/hi";
 import Skeleton from "../../../../shared/components/Skeleton";
+import { FilterTabs } from "../../../../shared/attendance/ui";
 import DetailDialog, { DetailGrid, DetailPill, DetailSection, DetailStats, DetailTable, DetailText, rowPreviewProps } from "../../../../shared/components/DetailDialog";
 import { StatutorySummary, StatutoryUnavailableNotice, RecalculationPendingNotice } from "../../../../shared/components/StatutoryBreakdown";
 import { payrollErrorMessage } from "../../../../shared/utils/payrollErrors";
@@ -787,6 +788,55 @@ export default function EmployeeSalaryStructuresPage() {
 
   const [assignUser, setAssignUser] = useState(null);
   const [historyUser, setHistoryUser] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const counts = useMemo(() => {
+    let assigned = 0;
+    let unassigned = 0;
+    for (const user of employees) {
+      const cur = ctcByUser[userId(user)];
+      if (cur && cur !== LOAD_ERROR) {
+        assigned += 1;
+      } else {
+        unassigned += 1;
+      }
+    }
+    return {
+      all: employees.length,
+      assigned,
+      unassigned,
+    };
+  }, [employees, ctcByUser]);
+
+  const filterOptions = useMemo(() => [
+    { value: "all", label: `All (${counts.all})` },
+    { value: "assigned", label: `Assigned (${counts.assigned})` },
+    { value: "unassigned", label: `Not Assigned (${counts.unassigned})` },
+  ], [counts]);
+
+  const filteredEmployees = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return employees.filter((user) => {
+      const cur = ctcByUser[userId(user)];
+      const isAssigned = Boolean(cur && cur !== LOAD_ERROR);
+
+      if (statusFilter === "assigned" && !isAssigned) return false;
+      if (statusFilter === "unassigned" && isAssigned) return false;
+
+      if (q) {
+        const name = userName(user).toLowerCase();
+        const email = (user.email || "").toLowerCase();
+        const dept = userDept(user).toLowerCase();
+        const desig = userDesignation(user).toLowerCase();
+        if (!name.includes(q) && !email.includes(q) && !dept.includes(q) && !desig.includes(q)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [employees, ctcByUser, statusFilter, searchQuery]);
 
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -867,9 +917,24 @@ export default function EmployeeSalaryStructuresPage() {
     <>
       <DashboardTopBar title="Employee Salaries" />
       <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl mx-auto w-full">
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900"><HelpLabel text="Employee Salaries" help={{ surface: "payroll.structure_assign", field: "page", label: "the Employee Salaries page" }} /></h1>
           <p className="text-sm text-slate-500 mt-1">Review current pay, then assign or revise salary structures.</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <FilterTabs options={filterOptions} value={statusFilter} onChange={setStatusFilter} />
+          <div className="relative w-full sm:w-72">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search employee, email, department…"
+              aria-label="Search employees"
+              className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition shadow-2xs"
+            />
+          </div>
         </div>
 
         {loading ? <Skeleton type="table" rows={6} /> : (
@@ -887,7 +952,7 @@ export default function EmployeeSalaryStructuresPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {employees.map((user, i) => {
+                  {filteredEmployees.map((user, i) => {
                     const cur = ctcByUser[userId(user)];
                     return (
                       // The row opens the salary history (the record inspector); the
@@ -935,8 +1000,30 @@ export default function EmployeeSalaryStructuresPage() {
                       </tr>
                     );
                   })}
-                  {employees.length === 0 && (
-                    <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No employees found.</td></tr>
+                  {filteredEmployees.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                        <HiUserGroup className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p className="font-medium text-slate-600">
+                          {searchQuery.trim()
+                            ? `No employees match "${searchQuery.trim()}".`
+                            : statusFilter === "assigned"
+                              ? "No employees with assigned salary structures."
+                              : statusFilter === "unassigned"
+                                ? "All employees have salary structures assigned."
+                                : "No employees found."}
+                        </p>
+                        {searchQuery.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery("")}
+                            className="mt-2 text-xs font-semibold text-purple-600 hover:text-purple-700 underline cursor-pointer"
+                          >
+                            Clear search
+                          </button>
+                        )}
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>

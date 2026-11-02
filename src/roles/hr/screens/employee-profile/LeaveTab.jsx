@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import { leaveAPI } from "../../../../shared/api";
 import { fmtDate, ymdOnly } from "../../../../shared/attendance/dates";
@@ -76,6 +77,7 @@ const LT_CURRENT_YEAR = new Date().getFullYear();
 const LT_YEAR_OPTIONS = [LT_CURRENT_YEAR, LT_CURRENT_YEAR - 1, LT_CURRENT_YEAR - 2];
 
 export default function LeaveTab({ userId, employeeName = "" }) {
+  const navigate = useNavigate();
   const [balances, setBalances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -213,12 +215,34 @@ export default function LeaveTab({ userId, employeeName = "" }) {
             {[...Array(4)].map((_, i) => <div key={i} className="shrink-0 w-[240px] sm:w-[260px] h-36 bg-purple-50 rounded-2xl animate-pulse" />)}
           </div>
         ) : balances.length === 0 ? (
-          <div className="px-6 py-10 flex flex-col items-center gap-2 text-center">
+          <div className="px-6 py-10 flex flex-col items-center gap-3 text-center">
             <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-1">
               <HiCalendar className="w-6 h-6 text-purple-400" />
             </div>
-            <p className="text-sm font-semibold text-slate-600">No leave policy assigned</p>
-            <p className="text-xs text-slate-400">{year === LT_CURRENT_YEAR ? "Assign a policy below to give this employee their leave days." : `No leave balances recorded for ${year}.`}</p>
+            <p className="text-sm font-semibold text-slate-700">No leave policy assigned</p>
+            <p className="text-xs text-slate-400 max-w-sm">
+              {year === LT_CURRENT_YEAR
+                ? "This employee has no leave policy assigned yet. Assign a policy to configure their yearly leave balances."
+                : `No leave balances recorded for ${year}.`}
+            </p>
+            {year === LT_CURRENT_YEAR && (
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignOpen(true)}
+                  className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-xs cursor-pointer"
+                >
+                  <HiClipboardCheck className="w-4 h-4" /> Assign a policy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard/hr/leaves/assign")}
+                  className="inline-flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-200 transition cursor-pointer"
+                >
+                  Go to Leave Assignment
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-6 flex items-stretch gap-4 overflow-x-auto pb-6 scroll-smooth [scrollbar-width:thin] [scrollbar-color:#c4b5fd_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-purple-200 hover:[&::-webkit-scrollbar-thumb]:bg-purple-400 [&::-webkit-scrollbar-thumb]:rounded-full">

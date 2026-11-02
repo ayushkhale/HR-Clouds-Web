@@ -9,6 +9,8 @@ import ProfileTab from "./employee-profile/ProfileTab";
 import EditMemberProfileModal from "../../../shared/components/EditMemberProfileModal";
 import HrJobFieldsDialog from "../components/HrJobFieldsDialog";
 import ReportsTab from "./employee-profile/ReportsTab";
+import SettingsTab from "./employee-profile/SettingsTab";
+import { useAuth } from "../../../shared/contexts/AuthContext";
 import LeaveTab from "./employee-profile/LeaveTab";
 import ReportingLocationTab from "./employee-profile/ReportingLocationTab";
 import EmployeeTasksTab from "../../../shared/tasks/EmployeeTasksTab";
@@ -18,7 +20,7 @@ import GenderAvatar from "../../../shared/components/GenderAvatar";
 import {
   HiOutlineUser, HiOutlineClock, HiOutlineDocumentText, HiOutlineChartSquareBar, HiOutlineFolder,
   HiOutlineCalendar, HiOutlineOfficeBuilding, HiOutlineCurrencyRupee, HiOutlineClipboardList,
-  HiTrash, HiBan, HiCheckCircle, HiX
+  HiTrash, HiBan, HiCheckCircle, HiX, HiOutlineCog
 } from "react-icons/hi";
 import { PersonSelect } from "../../../shared/components/PersonPicker";
 import { useEmployeeDirectory, refreshEmployeeDirectory } from "../../../shared/contexts/EmployeeDirectoryContext";
@@ -38,6 +40,7 @@ const TABS = [
   { key: "documents", label: "Documents", icon: HiOutlineFolder },
   { key: "profile", label: "Profile", icon: HiOutlineUser },
   { key: "reports", label: "Reports", icon: HiOutlineDocumentText },
+  { key: "settings", label: "Settings", icon: HiOutlineCog },
 ];
 
 
@@ -289,6 +292,8 @@ function DepartmentTransferModal({ userId, employeeRole, onClose, onSuccess }) {
 export default function EmployeeProfilePage() {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id || authUser?.user_id || null;
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   // An unknown ?tab= value would match no panel and leave the content area blank.
@@ -590,11 +595,28 @@ export default function EmployeeProfilePage() {
                   employee={employee}
                   onEdit={() => setEditingProfile(true)}
                   onEditJobFields={() => setEditingJobFields(true)}
-                  danger={{ onToggleStatus: handleToggleStatus, onDelete: () => setShowDeleteModal(true), busy: isActionLoading }}
                 />
               )}
               {activeTab === "reports" && (
                 <ReportsTab userId={userId} employeeName={displayName} />
+              )}
+              {activeTab === "settings" && !loading && employee && (
+                <SettingsTab
+                  key={userId}
+                  userId={userId}
+                  employee={employee}
+                  currentUserId={currentUserId}
+                  onEmployeeUpdated={(updated) => {
+                    setEmployee((prev) => ({ ...prev, ...updated }));
+                    setSuccessToast("Employee role updated successfully.");
+                    setTimeout(() => setSuccessToast(""), 4000);
+                  }}
+                  danger={{
+                    onToggleStatus: handleToggleStatus,
+                    onDelete: () => setShowDeleteModal(true),
+                    busy: isActionLoading,
+                  }}
+                />
               )}
               </div>
             </div>
