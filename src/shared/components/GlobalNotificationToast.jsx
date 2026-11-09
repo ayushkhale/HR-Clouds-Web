@@ -102,7 +102,7 @@ export function GlobalNotificationToastProvider({ children }) {
         aria-live="polite"
         aria-atomic="true"
         aria-label="Notifications"
-        className="fixed top-5 right-5 sm:top-6 sm:right-6 z-[99999] flex flex-col gap-3 max-w-sm sm:max-w-md w-full pointer-events-none"
+        className="fixed top-5 right-5 sm:top-6 sm:right-6 z-[99999] flex flex-col items-end gap-2.5 max-w-[calc(100vw-2.5rem)] pointer-events-none"
       >
         {toasts.map((toast) => (
           <NotificationToastItem
@@ -121,6 +121,8 @@ function NotificationToastItem({ toast, onClose }) {
   const isError = type === "error";
   const isWarning = type === "warning";
   const isInfo = type === "info";
+
+  const isMultiLine = Boolean(title || action || (message && message.length > 65));
 
   const timerRef = useRef(null);
   const [paused, setPaused] = useState(false);
@@ -176,44 +178,92 @@ function NotificationToastItem({ toast, onClose }) {
 
   const { Icon } = styles;
 
+  // Single-line notification: compact box that hugs the message length, vertically centered
+  if (!isMultiLine) {
+    return (
+      <div
+        role={isError ? "alert" : "status"}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        className={`pointer-events-auto relative w-fit max-w-[calc(100vw-2.5rem)] sm:max-w-md bg-white rounded-xl px-3.5 py-2.5 sm:px-4 sm:py-2.5 transition-all duration-300 shadow-xl ${styles.border} ${styles.shadow} animate-in fade-in slide-in-from-top-2`}
+      >
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${styles.iconBg}`}>
+            <Icon className="w-4 h-4" />
+          </div>
+          <span className="text-sm font-semibold text-slate-800 leading-normal break-words">
+            {message}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Dismiss notification"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 -mr-0.5 cursor-pointer"
+          >
+            <HiX className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Auto dismiss countdown bar */}
+        <div className="absolute bottom-0 left-2 right-2 h-[2px] bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${styles.barColor} transition-all`}
+            style={{
+              animation: `shrinkWidth ${duration}ms linear forwards`,
+              animationPlayState: paused ? "paused" : "running",
+            }}
+          />
+        </div>
+
+        <style>{`
+          @keyframes shrinkWidth {
+            from { width: 100%; }
+            to { width: 0%; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Multi-line / Detailed notification with title or actions
   return (
     <div
       role={isError ? "alert" : "status"}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      className={`pointer-events-auto relative w-full bg-white rounded-2xl p-4 transition-all duration-300 ${styles.border} ${styles.shadow}`}
+      className={`pointer-events-auto relative w-[calc(100vw-2.5rem)] sm:w-auto sm:min-w-[320px] sm:max-w-md bg-white rounded-2xl p-4 sm:p-5 transition-all duration-300 shadow-xl ${styles.border} ${styles.shadow} animate-in fade-in slide-in-from-top-2`}
     >
       <div className="flex items-start gap-3.5">
         {/* Leading icon */}
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${styles.iconBg}`}>
+        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${styles.iconBg}`}>
           <Icon className="w-5 h-5" />
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 pr-1">
+        <div className="flex-1 min-w-0 pr-1 pt-0.5">
           {title ? (
-            <h4 className={`text-xs sm:text-sm font-bold leading-snug mb-0.5 ${styles.titleColor}`}>
+            <h4 className={`text-sm sm:text-base font-bold leading-snug mb-1 ${styles.titleColor}`}>
               {title}
             </h4>
           ) : (
             isError && (
-              <h4 className="text-xs sm:text-sm font-bold leading-snug mb-0.5 text-slate-900">
+              <h4 className="text-sm sm:text-base font-bold leading-snug mb-1 text-slate-900">
                 Action Required
               </h4>
             )
           )}
-          <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
+          <p className="text-sm text-slate-800 font-medium leading-relaxed break-words">
             {message}
           </p>
 
           {/* Optional Action (e.g. Register this device) */}
           {action && (
-            <div className="mt-2.5">
+            <div className="mt-3">
               {action.to ? (
                 <Link
                   to={action.to}
                   onClick={onClose}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${styles.actionBtn}`}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${styles.actionBtn}`}
                 >
                   <span>{action.label}</span>
                   <HiArrowRight className="w-3.5 h-3.5" />
@@ -225,7 +275,7 @@ function NotificationToastItem({ toast, onClose }) {
                     action.onClick?.();
                     onClose();
                   }}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${styles.actionBtn}`}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${styles.actionBtn}`}
                 >
                   <span>{action.label}</span>
                   <HiArrowRight className="w-3.5 h-3.5" />
@@ -240,9 +290,9 @@ function NotificationToastItem({ toast, onClose }) {
           type="button"
           onClick={onClose}
           aria-label="Dismiss notification"
-          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer -mt-0.5"
         >
-          <HiX className="w-4 h-4" />
+          <HiX className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
 

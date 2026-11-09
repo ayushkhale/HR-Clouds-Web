@@ -158,12 +158,12 @@ const EDIT_ROUTES = {
   statutory_configs: { path: "/payroll/statutory", label: "Tax & Legal Deductions" },
   document_settings: { path: "/documents/settings", label: "Document Settings" },
   document_letter_branding: { path: "/documents/letterhead", label: "Letterhead & Branding" },
-  organization_profiles: { path: "/company", label: "Company Profile" },
+  organization_profiles: { path: "/company", label: "Organization Profile" },
 
   // ── By module, as the last resort ──
   payroll: { path: "/payroll/settings", label: "Payroll Settings" },
   document: { path: "/documents/settings", label: "Document Settings" },
-  organization: { path: "/company", label: "Company Profile" },
+  organization: { path: "/company", label: "Organization Profile" },
   attendance: { path: "/attendance/policies", label: "Attendance Policies" },
   leave: { path: "/leaves/policies", label: "Leave Policies" },
 };

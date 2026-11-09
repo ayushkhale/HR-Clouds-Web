@@ -67,7 +67,7 @@ const SETTINGS_ERROR_MESSAGES = {
   SETTING_OUT_OF_RANGE: "That value is outside what we allow. Check the range shown beside the field.",
   INVALID_PAYOUT_COMPONENT: "That isn’t a salary component we can pay out. Pick another.",
   LETTER_REFERENCE_PATTERN_INVALID: "That reference pattern isn’t valid. It needs a sequence number in it.",
-  ORG_PROFILE_NOT_FOUND: "This organisation has no profile yet, so there’s nothing to save against. Open Company Profile and fill it in first.",
+  ORG_PROFILE_NOT_FOUND: "This organisation has no profile yet, so there’s nothing to save against. Open Organization Profile and fill it in first.",
 
   // ── The change history (Phase 3, #248) ───────────────────────────────────
   // Two of these are OUR bugs wearing a user-facing status, and both say

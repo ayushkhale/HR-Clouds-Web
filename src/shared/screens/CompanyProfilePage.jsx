@@ -171,7 +171,7 @@ function PeopleCard({ stats, chartPath }) {
   return (
     <Card title="People" icon={HiUsers} action={
       <Link to={chartPath} className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-800">
-        Org Chart <HiArrowRight className="w-3.5 h-3.5" />
+        Organization Chart <HiArrowRight className="w-3.5 h-3.5" />
       </Link>
     }>
       <div className="flex items-end gap-2">
@@ -341,12 +341,12 @@ export default function CompanyProfilePage() {
 
   return (
     <>
-      <DashboardTopBar title="Company Profile" />
+      <DashboardTopBar title="Organization Profile" />
 
       <main className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Company Profile</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Organization Profile</h1>
             <p className="text-sm text-slate-500 mt-1">Who we are, where we are and who to talk to in HR.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
@@ -363,7 +363,7 @@ export default function CompanyProfilePage() {
               to={orgPaths.chart}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-sm transition-colors"
             >
-              <HiShare className="w-4 h-4 rotate-90" /> Open the Org Chart
+              <HiShare className="w-4 h-4 rotate-90" /> Open Organization Chart
             </Link>
           </div>
         </div>
