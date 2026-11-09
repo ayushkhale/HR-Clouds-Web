@@ -315,19 +315,19 @@ export default function OrgChartPage() {
 
   return (
     <>
-      <DashboardTopBar title="Org Chart" />
+      <DashboardTopBar title="Organization Chart" />
 
       <main className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900">Org Chart</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Organization Chart</h1>
             <p className="text-sm text-slate-500 mt-1">
               Who reports to whom{orgName ? ` across ${orgName}` : " across the organisation"}. It updates as soon as someone joins, moves team or leaves.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link to={orgPaths.company} className={`${TOOL} bg-white border-slate-200 text-slate-600 hover:bg-slate-50`}>
-              <HiOfficeBuilding className="w-4 h-4" /> Company Profile
+              <HiOfficeBuilding className="w-4 h-4" /> Organization Profile
             </Link>
             <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80" role="group" aria-label="How to show the chart">
               {[["chart", "Chart", HiShare], ["list", "List", HiViewList]].map(([key, label, Icon]) => (

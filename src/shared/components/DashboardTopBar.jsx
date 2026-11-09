@@ -228,8 +228,8 @@ function DashboardTopBar({ title = "HR Dashboard" }) {
               type="button"
               onClick={() => orgPaths?.company && navigate(orgPaths.company)}
               className="group flex items-center gap-2 sm:gap-3 min-w-0 max-w-full pr-1 sm:pr-2 py-1 rounded-xl hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40"
-              title={orgAddress ? `${orgName} · ${orgAddress}` : "Company Profile"}
-              aria-label={orgName ? `${orgName} — open Company Profile` : "Open Company Profile"}
+              title={orgAddress ? `${orgName} · ${orgAddress}` : "Organization Profile"}
+              aria-label={orgName ? `${orgName} — open Organization Profile` : "Open Organization Profile"}
             >
               {identityBlock}
             </button>

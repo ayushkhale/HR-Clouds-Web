@@ -41,8 +41,8 @@ export function workspacePages(workspace) {
     { label: "My Personal Documents", path: docs.documents, section: "My Documents" },
     { label: "My Company Documents", path: docs.company, section: "My Documents" },
     { label: "My Document Requests", path: docs.requests, section: "My Documents" },
-    { label: "Org Chart", path: org.chart, section: "Company" },
-    { label: "Company Profile", path: org.company, section: "Company" },
+    { label: "Organization Chart", path: org.chart, section: "Organization" },
+    { label: "Organization Profile", path: org.company, section: "Organization" },
     { label: "My Profile", path: "/dashboard/profile", section: "Account" },
   ];
 }

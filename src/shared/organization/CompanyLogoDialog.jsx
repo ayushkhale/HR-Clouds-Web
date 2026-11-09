@@ -91,7 +91,7 @@ export default function CompanyLogoDialog({ currentLogo, companyName, onClose, o
             <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><HiPhotograph className="w-5 h-5" /></span>
             <div className="min-w-0">
               <h3 id="company-logo-title" className="text-base font-bold text-slate-900">Change company logo</h3>
-              <p className="text-xs text-slate-500">Everyone in the organisation sees it on Company Profile.</p>
+              <p className="text-xs text-slate-500">Everyone in the organisation sees it on Organization Profile.</p>
             </div>
           </div>
           <button type="button" onClick={onClose} disabled={saving} aria-label="Close" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40">

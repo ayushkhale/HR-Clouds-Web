@@ -286,12 +286,12 @@ function DashboardSidebar({ role = "guest" }) {
     ],
   });
 
-  const companySection = (workspace) => ({
-    title: "COMPANY",
+  const organizationSection = (workspace) => ({
+    title: "ORGANIZATION",
     icon: HiLibrary,
     items: [
-      link("Org Chart", ORG_PATHS[workspace].chart, HiShare),
-      link("Company Profile", ORG_PATHS[workspace].company, HiLibrary),
+      link("Organization Chart", ORG_PATHS[workspace].chart, HiShare),
+      link("Organization Profile", ORG_PATHS[workspace].company, HiLibrary),
       // Company Settings used to be a third entry here. It is now the gear in
       // the utility dock at the bottom of the sidebar, where a settings hub
       // belongs and where it is reachable with the COMPANY section collapsed —
@@ -529,7 +529,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Audit Log", `${H}/payroll/audit-log`, HiDatabase),
           ],
         },
-        companySection("hr"),
+        organizationSection("hr"),
       ];
     }
 
@@ -630,7 +630,7 @@ function DashboardSidebar({ role = "guest" }) {
             link("Payroll Reports", `${M}/payroll/reports`, HiDocumentReport),
           ],
         },
-        companySection("manager"),
+        organizationSection("manager"),
       ];
     }
 
@@ -654,7 +654,7 @@ function DashboardSidebar({ role = "guest" }) {
         link("This device", `${me.devices}?tab=this`, HiDeviceMobile, { defaultTab: true }),
         link("All my devices", `${me.devices}?tab=all`, HiCollection),
       ] }] : []),
-      companySection("employee"),
+      organizationSection("employee"),
     ];
   };
 
