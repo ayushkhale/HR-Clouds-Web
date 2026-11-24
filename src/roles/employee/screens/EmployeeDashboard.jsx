@@ -8,6 +8,8 @@ import { DayTick } from "../../../shared/attendance/SundayLabel";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import CardHeader, { CARD } from "../../../shared/components/DashboardCard";
 import PageHeader from "../../../shared/components/PageHeader";
+import { useSubscription } from "../../../shared/contexts/SubscriptionContext";
+import PlanExpiredHeader from "../../../shared/components/PlanExpiredHeader";
 import AttendanceCard from "../components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
 import { useAuth } from "../../../shared/contexts/AuthContext";
@@ -81,6 +83,7 @@ function HoursTooltip({ active, payload }) {
 // daily-hours chart). Row 2: recent days beside the attendance-mix donut.
 function EmployeeDashboard() {
   const { user } = useAuth();
+  const { isExpired } = useSubscription();
   const selfPath = useSelfServicePath();
   const { today, shift, loading: todayLoading, error: todayError, refresh } = useTodayAttendance();
 
@@ -184,14 +187,18 @@ function EmployeeDashboard() {
             letterboxes inside the banner's art box, so the default
             bleed-off-the-bottom treatment cropped its lower edge and left dead
             space above it. Centred instead, at the same banner height. */}
-        <PageHeader
-          badgeText="EMPLOYEE PORTAL"
-          badgeIcon={HiSparkles}
-          title={greetingFor(user, "there")}
-          subtitle="Clock in, track your working hours and keep your attendance record accurate."
-          image="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
-          imageAlign="center"
-        />
+        {isExpired ? (
+          <PlanExpiredHeader />
+        ) : (
+          <PageHeader
+            badgeText="EMPLOYEE PORTAL"
+            badgeIcon={HiSparkles}
+            title={greetingFor(user, "there")}
+            subtitle="Clock in, track your working hours and keep your attendance record accurate."
+            image="https://d1i7580riw15wg.cloudfront.net/gd-assets/header-images/hero-about-us-3e62e8f762b357820226797094331409508ee0cdbd5b085cc16b9aa9cf712b09.webp"
+            imageAlign="center"
+          />
+        )}
 
         {/* Row 1: my punch card beside my month. The punch card is as tall as
             its content — stretching it to the chart's height only padded it out
