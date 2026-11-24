@@ -18,24 +18,13 @@ const OurTeam = () => {
     {
       name: "Sarla Chandoriya",
       role: "Partner & Co-Founder",
-      image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=600&auto=format&fit=crop",
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlyHq5p1PT-h-sxRfTguXyTlBIwhwPRFkO8B9B5uvd3Q&s=10",
       description:
         "Key role in business operations, administration, finance management, and organizational development.",
       about:
         "Mrs. Sarla Chandoriya serves as Partner & Co-Founder and plays a key role in business operations, administration, finance management, and organizational development. She ensures smooth operational execution while maintaining quality standards, client satisfaction, and effective coordination across various projects. Her leadership contributes significantly to building a strong, client-centric, and process-driven organization.",
       linkedin: "https://linkedin.com/in/sarla-chandoriya",
       email: "sarla@hrvistallp.com",
-    },
-    {
-      name: "Neelima Baraskar",
-      role: "Partner & Co-Founder",
-      image: "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=600&auto=format&fit=crop",
-      description:
-        "Responsible for business development, client relationship management, and strategic partnerships.",
-      about:
-        "Mrs. Neelima Baraskar is the Partner & Co-Founder, responsible for business development, client relationship management, project coordination, and strategic partnerships. She actively supports organizational expansion by strengthening client engagement, identifying new business opportunities, and ensuring successful project delivery through collaborative leadership.",
-      linkedin: "https://linkedin.com/in/neelima-baraskar",
-      email: "neelima@hrvistallp.com",
     },
   ];
 
@@ -73,14 +62,14 @@ const OurTeam = () => {
         </div>
 
         {/* Leaders Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10 max-w-4xl mx-auto w-full">
             {teamData.slice(0, visibleMembers).map((member, index) => (
               <Reveal
                 key={index}
                 variant="rise"
                 index={index}
                 onClick={() => openPopup(member)}
-                className="group cursor-pointer relative overflow-hidden rounded-2xl bg-primary-500 px-8 pt-10 pb-12 shadow-xl border border-white/5 transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-purple-400/30 motion-reduce:transform-none"
+                className="group cursor-pointer relative overflow-hidden rounded-2xl bg-primary-500 px-8 pt-10 pb-12 shadow-xl border border-white/5 transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-purple-400/30 motion-reduce:transform-none flex flex-col justify-between"
               >
                 {/* Overlapping white transparent highlights matching pricing cards exactly */}
                 <div className="left-[-20%] top-0 absolute bg-gradient-to-l from-white to-transparent opacity-20 blur-2xl rounded-[50%] w-[30rem] h-28 -rotate-45 pointer-events-none" />
@@ -91,7 +80,7 @@ const OurTeam = () => {
                   <img
                     src={member.image}
                     alt={member.name}
-                    className="w-40 h-40 object-cover rounded-xl border-4 border-white/10 shadow-md mb-6 transition-transform duration-300 ease-out group-hover:scale-105 motion-reduce:transform-none"
+                    className="w-40 h-40 object-cover rounded-full border-4 border-white/10 shadow-md mb-6 transition-transform duration-300 ease-out group-hover:scale-105 motion-reduce:transform-none"
                   />
                 </div>
 
@@ -101,7 +90,7 @@ const OurTeam = () => {
                 <p className="text-sm text-white/70 text-center leading-relaxed">{member.description}</p>
 
                 {/* Links */}
-                <div className="relative z-10 mt-6 flex justify-center gap-4 text-white/50">
+                <div className="relative z-10 mt-auto pt-6 flex justify-center gap-4 text-white/50">
                   {member.linkedin && (
                     <a href={member.linkedin} target="_blank" rel="noopener noreferrer"
                       aria-label={`${member.name} on LinkedIn`}
@@ -155,7 +144,7 @@ const OurTeam = () => {
               <img
                 src={selectedMember.image}
                 alt={selectedMember.name}
-                className="w-28 h-28 mx-auto mb-6 rounded-lg border-4 border-white/10"
+                className="w-28 h-28 mx-auto mb-6 rounded-full object-cover border-4 border-white/10 shadow-md"
               />
               <h3 className="text-2xl font-bold text-white">{selectedMember.name}</h3>
               <p className="text-sm text-purple-300 font-semibold mb-4">{selectedMember.role}</p>
