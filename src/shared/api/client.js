@@ -23,6 +23,8 @@ const REFRESH_TOKEN_KEY = "hrclouds_refresh_token";
 
 // Fired when the stored session stops being valid (401 or token past `exp`).
 export const SESSION_EXPIRED_EVENT = "hrclouds:session-expired";
+// Fired when an API refuses access due to an expired or missing subscription (402 or SUBSCRIPTION_EXPIRED).
+export const PLAN_EXPIRED_EVENT = "hrclouds:plan-expired";
 
 // Decode a JWT payload without verifying it — just to read claims.
 // JWTs are base64url (plain atob() rejects "-" / "_") holding UTF-8 JSON, so
@@ -145,6 +147,15 @@ async function performRequest(endpoint, options) {
 
   if (!response.ok) {
     if (response.status === 401) handleUnauthorized(endpoint, token, data);
+    if (
+      response.status === 402 ||
+      data?.errorCode === "NO_ACTIVE_SUBSCRIPTION" ||
+      data?.errorCode === "SUBSCRIPTION_EXPIRED" ||
+      data?.code === "NO_ACTIVE_SUBSCRIPTION" ||
+      data?.code === "SUBSCRIPTION_EXPIRED"
+    ) {
+      window.dispatchEvent(new CustomEvent(PLAN_EXPIRED_EVENT, { detail: data }));
+    }
     const message = data?.message
       || `Request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`;
     const error = new Error(message);

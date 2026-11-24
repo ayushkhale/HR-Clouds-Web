@@ -13,6 +13,9 @@ const RECORD_GONE = "That record could not be found. It may already have been ac
 const ATTENDANCE_ERROR_MESSAGES = {
   // §1.3 / §3.3 Access
   FEATURE_NOT_AVAILABLE: "Attendance isn't enabled for this organisation. Contact your administrator to turn it on.",
+  NO_ACTIVE_SUBSCRIPTION: "Your plan has run out, so attendance features are locked. Renew your subscription to restore access.",
+  SUBSCRIPTION_EXPIRED: "Your plan has run out, so attendance features are locked. Renew your subscription to restore access.",
+  SUBSCRIPTION_REQUIRED: "Your plan has run out, so attendance features are locked. Renew your subscription to restore access.",
   // Raised by the shared org-context middleware in front of every module.
   MISSING_ORG_CONTEXT: "Attendance is only available inside an organisation. Switch to an organisation account to continue.",
   // Attendance emits UNAUTHORIZED as a 403 for cross-org access (an expired

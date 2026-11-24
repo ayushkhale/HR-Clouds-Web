@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
+import { useSubscription } from "../../../shared/contexts/SubscriptionContext";
+import PlanExpiredHeader from "../../../shared/components/PlanExpiredHeader";
 import { useAuth } from "../../../shared/contexts/AuthContext";
 import AttendanceCard from "../../employee/components/AttendanceCard";
 import { attendanceAPI } from "../../../shared/api";
@@ -269,6 +271,7 @@ export function TeamDirectoryTable({ title = "Attendance Directory", headingLeve
 // glance (the same pair as the HR dashboard), then who is in right now.
 function ManagerDashboard() {
   const { user } = useAuth();
+  const { isExpired } = useSubscription();
   const { today, shift, loading: todayLoading, error: todayError, refresh } = useTodayAttendance();
   const now = new Date();
   const [summary, setSummary] = useState({ data: null, loading: true, error: null });
@@ -377,13 +380,17 @@ function ManagerDashboard() {
     <>
       <DashboardTopBar title="Dashboard" />
       <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
-        <PageHeader
-          badgeText="MANAGER WORKSPACE"
-          badgeIcon={HiSparkles}
-          title={greetingFor(user, "there")}
-          subtitle="Monitor team attendance, review pending requests and track your team’s performance."
-          image="https://cdn3d.iconscout.com/3d/premium/thumb/empresario-haciendo-meditacion-3d-icon-png-download-8179740.png"
-        />
+        {isExpired ? (
+          <PlanExpiredHeader />
+        ) : (
+          <PageHeader
+            badgeText="MANAGER WORKSPACE"
+            badgeIcon={HiSparkles}
+            title={greetingFor(user, "there")}
+            subtitle="Monitor team attendance, review pending requests and track your team’s performance."
+            image="https://cdn3d.iconscout.com/3d/premium/thumb/empresario-haciendo-meditacion-3d-icon-png-download-8179740.png"
+          />
+        )}
 
         {/* Left half: my punch card over the team's month. Right half: today's
             team numbers, stretched to the height of both. Every card uses the

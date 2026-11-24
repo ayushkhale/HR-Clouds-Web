@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useAuth } from "../../../shared/contexts/AuthContext";
+import { useSubscription } from "../../../shared/contexts/SubscriptionContext";
+import PlanExpiredHeader from "../../../shared/components/PlanExpiredHeader";
 import DashboardTopBar from "../../../shared/components/DashboardTopBar";
 import PageHeader from "../../../shared/components/PageHeader";
 import { HiUserGroup, HiClock, HiSparkles, HiChevronLeft, HiChevronRight, HiCheckCircle, HiExclamationCircle, HiChartBar, HiRefresh, HiCalendar } from "react-icons/hi";
@@ -173,6 +175,7 @@ function DepartmentSummaryCard({ className = "" }) {
 
 function HRDashboard() {
   const { user } = useAuth();
+  const { isExpired } = useSubscription();
   const { toast, showToast, clearToast } = useToast();
   const now = new Date();
   // Local date passed explicitly: the server's default "today" is IST (§8.6).
@@ -236,13 +239,17 @@ function HRDashboard() {
     <>
       <DashboardTopBar title="Dashboard" />
       <main className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl w-full mx-auto overflow-y-auto">
-        <PageHeader
-          badgeText="HR COMMAND CENTER"
-          badgeIcon={HiSparkles}
-          title={greetingFor(user, "there")}
-          subtitle="Monitor live attendance, rules, shift management and holidays."
-          image="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312"
-        />
+        {isExpired ? (
+          <PlanExpiredHeader />
+        ) : (
+          <PageHeader
+            badgeText="HR COMMAND CENTER"
+            badgeIcon={HiSparkles}
+            title={greetingFor(user, "there")}
+            subtitle="Monitor live attendance, rules, shift management and holidays."
+            image="https://cdn.iconscout.com/strapi/hero_image_3_D_characters_33a9f45068.png?f=webp&w=312"
+          />
+        )}
 
         {/* ABOVE the profile card, deliberately: an HR can't finish their own
             record until the organisation has an office and a department to
