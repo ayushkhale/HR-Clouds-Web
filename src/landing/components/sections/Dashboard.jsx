@@ -21,6 +21,18 @@ function Dashboard() {
           these two together: the band's height keeps the tablet's overlap with
           the dark area roughly where it was. */}
       <div className="justify-items-center grid m-auto px-4 sm:px-8 md:px-16 xl:px-24 pt-2 pb-8 md:pt-6 md:pb-16 max-w-[90rem]">
+        {/* The caption names the surface. Since the homepage leads with the
+            app, the tablet shot has to say out loud that it is the other one,
+            or it reads as a second picture of the same thing. */}
+        <Reveal as="div" variant="riseSmall" className="mb-6 md:mb-10 max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-700">
+            On the web
+          </p>
+          <h2 className="mt-3 font-bold text-[1.75rem]/[2.25rem] text-primary-800 sm:text-3xl md:text-4xl tracking-tight">
+            Where payroll actually gets run
+          </h2>
+        </Reveal>
+
         <Reveal variant="scale" duration={900} className="w-full max-w-5xl">
           <div
             ref={parallax}
